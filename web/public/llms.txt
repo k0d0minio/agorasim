@@ -1,0 +1,24 @@
+# Agorasim
+
+> Agorasim runs guided rural experiences in classic cars through the Saloia region of Portugal — the countryside between Sintra, Mafra and Ericeira. Small-group and private tours combine vineyards, gastronomy, villages, natural monuments and the Atlantic coast.
+
+## Key facts
+- Location: Saloia region (Sintra · Mafra · Ericeira), Portugal
+- Classic cars used: Citroën 2CV, Renault 4L, Fiat 600, Volkswagen T3
+- Languages: Portuguese, English
+- Booking: via FareHarbor; enquiries by phone or email
+- Contacts: Diogo +351 926 210 707 · Rita +351 919 272 077 · info@agorasim.pt
+
+## Experiences
+- [Rural Saloia](https://agorasim.pt/en/experiencias/rural-saloia): flagship full-day classic-car tour from Sintra and Mafra to Ericeira, with natural monuments, the National Palace of Mafra, vineyards, villages and regional sweets.
+- [Tasco Galapito](https://agorasim.pt/en/experiencias/tasco-galapito): private family-style meal of traditional Saloia cuisine (~2h).
+- [Manzwine](https://agorasim.pt/en/experiencias/manzwine): wine tasting with historical context in the Mafra region (~1.5h).
+- [Ramilo Wines](https://agorasim.pt/en/experiencias/ramilo-wines): organic vineyard visit with tasting (~1.5h).
+- [Olaria MZ](https://agorasim.pt/en/experiencias/olaria-mz): traditional ceramics workshop with a local artisan (~1.5h).
+
+## Pages
+- [Home](https://agorasim.pt/en)
+- [About](https://agorasim.pt/en/sobre)
+- [Experiences](https://agorasim.pt/en/experiencias)
+- [Events](https://agorasim.pt/en/eventos)
+- [Contact](https://agorasim.pt/en/contactos)
