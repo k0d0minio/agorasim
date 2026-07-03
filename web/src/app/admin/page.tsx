@@ -1,13 +1,20 @@
 import Link from "next/link";
 import { Inbox, FileText, ArrowRight } from "lucide-react";
+import { count, inArray, eq } from "drizzle-orm";
+import {
+  db,
+  tourRequests,
+  geoContentDrafts,
+  blogPostDrafts,
+  socialPostDrafts,
+  emailCampaignDrafts,
+} from "@/db";
+import type { ContentStatus } from "@/db/schema";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-const STATS = [
-  { label: "New submissions", value: "—", hint: "Awaiting the form integration" },
-  { label: "Drafts to review", value: "—", hint: "From the workspaces pipeline" },
-  { label: "Published this month", value: "—", hint: "Content pushed live" },
-];
+// Reads live counts — never prerender at build time.
+export const dynamic = "force-dynamic";
 
 const SECTIONS = [
   {
@@ -26,7 +33,66 @@ const SECTIONS = [
   },
 ];
 
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage() {
+  const review: ContentStatus[] = ["draft", "in_review"];
+  const published: ContentStatus[] = ["published"];
+
+  const [
+    [newSubmissions],
+    [geoReview],
+    [blogReview],
+    [socialReview],
+    [emailReview],
+    [geoPublished],
+    [blogPublished],
+    [socialPublished],
+    [emailPublished],
+  ] = await Promise.all([
+    db.select({ n: count() }).from(tourRequests).where(eq(tourRequests.status, "new")),
+    db.select({ n: count() }).from(geoContentDrafts).where(inArray(geoContentDrafts.status, review)),
+    db.select({ n: count() }).from(blogPostDrafts).where(inArray(blogPostDrafts.status, review)),
+    db.select({ n: count() }).from(socialPostDrafts).where(inArray(socialPostDrafts.status, review)),
+    db
+      .select({ n: count() })
+      .from(emailCampaignDrafts)
+      .where(inArray(emailCampaignDrafts.status, review)),
+    db
+      .select({ n: count() })
+      .from(geoContentDrafts)
+      .where(inArray(geoContentDrafts.status, published)),
+    db.select({ n: count() }).from(blogPostDrafts).where(inArray(blogPostDrafts.status, published)),
+    db
+      .select({ n: count() })
+      .from(socialPostDrafts)
+      .where(inArray(socialPostDrafts.status, published)),
+    db
+      .select({ n: count() })
+      .from(emailCampaignDrafts)
+      .where(inArray(emailCampaignDrafts.status, published)),
+  ]);
+
+  const draftsToReview =
+    (geoReview?.n ?? 0) + (blogReview?.n ?? 0) + (socialReview?.n ?? 0) + (emailReview?.n ?? 0);
+  const publishedCount =
+    (geoPublished?.n ?? 0) +
+    (blogPublished?.n ?? 0) +
+    (socialPublished?.n ?? 0) +
+    (emailPublished?.n ?? 0);
+
+  const STATS = [
+    {
+      label: "New submissions",
+      value: String(newSubmissions?.n ?? 0),
+      hint: "Awaiting first contact",
+    },
+    {
+      label: "Drafts to review",
+      value: String(draftsToReview),
+      hint: "Across all content pipelines",
+    },
+    { label: "Published", value: String(publishedCount), hint: "Content pushed live" },
+  ];
+
   return (
     <AdminShell title="Dashboard">
       <div className="flex flex-col gap-8">
