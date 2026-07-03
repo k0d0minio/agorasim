@@ -1,7 +1,14 @@
 import type { Locale } from "./config";
 
 type Dict = {
-  nav: { home: string; sobre: string; experiencias: string; eventos: string; contactos: string };
+  nav: {
+    home: string;
+    sobre: string;
+    experiencias: string;
+    eventos: string;
+    contactos: string;
+    reservar: string;
+  };
   cta: {
     book: string;
     learnMore: string;
@@ -31,6 +38,7 @@ const dictionaries: Record<Locale, Dict> = {
       experiencias: "Experiências",
       eventos: "Eventos",
       contactos: "Contactos",
+      reservar: "Reservar",
     },
     cta: {
       book: "Reservas",
@@ -63,6 +71,7 @@ const dictionaries: Record<Locale, Dict> = {
       experiencias: "Experiences",
       eventos: "Events",
       contactos: "Contact",
+      reservar: "Book a tour",
     },
     cta: {
       book: "Book now",

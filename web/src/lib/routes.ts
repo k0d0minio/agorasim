@@ -8,6 +8,7 @@ export const segments = {
   experiencias: "experiencias",
   eventos: "eventos",
   contactos: "contactos",
+  reservar: "reservar",
 } as const;
 
 export type RouteKey = keyof typeof segments;
@@ -19,4 +20,4 @@ export function href(locale: Locale, key: RouteKey, slug?: string): string {
 }
 
 /** Main navigation order. */
-export const navOrder: RouteKey[] = ["sobre", "experiencias", "eventos", "contactos"];
+export const navOrder: RouteKey[] = ["sobre", "experiencias", "eventos", "reservar", "contactos"];
