@@ -10,8 +10,19 @@ import {
   createSessionToken,
   isValidPassword,
 } from "@/lib/admin-auth";
-import { db, tourRequests, type RequestStatus } from "@/db";
-import { REQUEST_STATUSES } from "@/lib/admin-format";
+import {
+  db,
+  tourRequests,
+  featureRequests,
+  type RequestStatus,
+  type FeatureRequestStatus,
+  type FeatureRequestPriority,
+} from "@/db";
+import {
+  REQUEST_STATUSES,
+  FEATURE_REQUEST_STATUSES,
+  FEATURE_REQUEST_PRIORITIES,
+} from "@/lib/admin-format";
 
 export type LoginState = { error?: string };
 
@@ -73,5 +84,79 @@ export async function updateTourRequestStatus(formData: FormData): Promise<void>
     .where(eq(tourRequests.id, id));
 
   revalidatePath("/admin/submissions");
+  revalidatePath("/admin");
+}
+
+function isFeatureRequestStatus(value: string): value is FeatureRequestStatus {
+  return (FEATURE_REQUEST_STATUSES as string[]).includes(value);
+}
+
+function isFeatureRequestPriority(value: string): value is FeatureRequestPriority {
+  return (FEATURE_REQUEST_PRIORITIES as string[]).includes(value);
+}
+
+export type FeatureRequestState = {
+  ok?: boolean;
+  error?: string;
+  /** Field-level errors keyed by input name, for inline display. */
+  fieldErrors?: Partial<Record<"title" | "description", string>>;
+};
+
+/**
+ * Store a feature request raised from the admin dashboard. Free-form: the only
+ * validation is that a title and description are present. `priority` falls back
+ * to "medium" and any unknown value is ignored. `/admin` is gated by
+ * `proxy.ts`, so this only runs for authenticated operators.
+ */
+export async function submitFeatureRequest(
+  _prevState: FeatureRequestState,
+  formData: FormData,
+): Promise<FeatureRequestState> {
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const category = String(formData.get("category") ?? "").trim();
+  const submittedBy = String(formData.get("submittedBy") ?? "").trim();
+  const priorityRaw = String(formData.get("priority") ?? "").trim();
+
+  const fieldErrors: FeatureRequestState["fieldErrors"] = {};
+  if (!title) fieldErrors.title = "Give the request a short title.";
+  if (!description) fieldErrors.description = "Describe what you'd like to see.";
+  if (Object.keys(fieldErrors).length > 0) {
+    return { fieldErrors };
+  }
+
+  try {
+    await db.insert(featureRequests).values({
+      title,
+      description,
+      category: category || null,
+      submittedBy: submittedBy || null,
+      priority: isFeatureRequestPriority(priorityRaw) ? priorityRaw : "medium",
+    });
+  } catch (err) {
+    console.error("[admin] failed to store feature request", err);
+    return { error: "Something went wrong saving the request. Please try again." };
+  }
+
+  revalidatePath("/admin/feature-requests");
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/**
+ * Update the triage status of a feature request from its inline <select>.
+ * Revalidates the page so the change shows immediately.
+ */
+export async function updateFeatureRequestStatus(formData: FormData): Promise<void> {
+  const id = String(formData.get("id") ?? "");
+  const status = String(formData.get("status") ?? "");
+  if (!id || !isFeatureRequestStatus(status)) return;
+
+  await db
+    .update(featureRequests)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(featureRequests.id, id));
+
+  revalidatePath("/admin/feature-requests");
   revalidatePath("/admin");
 }
