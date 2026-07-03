@@ -61,10 +61,29 @@ export const socialPlatformEnum = pgEnum("social_platform", [
   "linkedin",
 ]);
 
+/** Triage lifecycle for an internal feature request as the team works it. */
+export const featureRequestStatusEnum = pgEnum("feature_request_status", [
+  "new",
+  "planned",
+  "in_progress",
+  "completed",
+  "declined",
+]);
+
+/** Rough urgency an operator assigns to a feature request. */
+export const featureRequestPriorityEnum = pgEnum("feature_request_priority", [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+]);
+
 export type AppLocale = (typeof localeEnum.enumValues)[number];
 export type RequestStatus = (typeof requestStatusEnum.enumValues)[number];
 export type ContentStatus = (typeof contentStatusEnum.enumValues)[number];
 export type SocialPlatform = (typeof socialPlatformEnum.enumValues)[number];
+export type FeatureRequestStatus = (typeof featureRequestStatusEnum.enumValues)[number];
+export type FeatureRequestPriority = (typeof featureRequestPriorityEnum.enumValues)[number];
 
 // ---------------------------------------------------------------------------
 // Shape helpers for the localized JSON payloads
@@ -124,6 +143,40 @@ export const tourRequests = pgTable("tour_requests", {
 
 export type TourRequest = typeof tourRequests.$inferSelect;
 export type NewTourRequest = typeof tourRequests.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Internal feature requests
+// ---------------------------------------------------------------------------
+
+/**
+ * Feature requests raised from the admin dashboard — the team (Diogo & Rita)
+ * jotting down ideas and asks for the toolkit itself. Deliberately free-form:
+ * `title` and `description` are unconstrained text so an operator can capture
+ * anything. `priority`/`status` are the only structured fields, used to triage
+ * the backlog. Written by the `submitFeatureRequest` server action, read by the
+ * admin "Feature requests" page.
+ */
+export const featureRequests = pgTable("feature_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  // Free-form request content
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  /** Free-form grouping the requester types in (e.g. "Website", "Booking"). */
+  category: text("category"),
+  /** Free-form name of whoever raised it — the admin area is a shared login. */
+  submittedBy: text("submitted_by"),
+
+  // Triage
+  priority: featureRequestPriorityEnum("priority").notNull().default("medium"),
+  status: featureRequestStatusEnum("status").notNull().default("new"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type FeatureRequest = typeof featureRequests.$inferSelect;
+export type NewFeatureRequest = typeof featureRequests.$inferInsert;
 
 // ---------------------------------------------------------------------------
 // Generated content drafts — one table per pipeline output type

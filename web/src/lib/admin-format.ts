@@ -1,4 +1,9 @@
-import type { ContentStatus, RequestStatus } from "@/db/schema";
+import type {
+  ContentStatus,
+  FeatureRequestPriority,
+  FeatureRequestStatus,
+  RequestStatus,
+} from "@/db/schema";
 
 /** Badge variant used by the admin UI (mirrors `ui/badge.tsx` variants). */
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
@@ -30,6 +35,42 @@ export const contentStatusMeta: Record<
   in_review: { label: "In review", variant: "secondary" },
   approved: { label: "Approved", variant: "default" },
   published: { label: "Published", variant: "default" },
+};
+
+export const FEATURE_REQUEST_STATUSES: FeatureRequestStatus[] = [
+  "new",
+  "planned",
+  "in_progress",
+  "completed",
+  "declined",
+];
+
+export const featureRequestStatusMeta: Record<
+  FeatureRequestStatus,
+  { label: string; variant: BadgeVariant }
+> = {
+  new: { label: "New", variant: "default" },
+  planned: { label: "Planned", variant: "secondary" },
+  in_progress: { label: "In progress", variant: "secondary" },
+  completed: { label: "Completed", variant: "outline" },
+  declined: { label: "Declined", variant: "outline" },
+};
+
+export const FEATURE_REQUEST_PRIORITIES: FeatureRequestPriority[] = [
+  "low",
+  "medium",
+  "high",
+  "urgent",
+];
+
+export const featureRequestPriorityMeta: Record<
+  FeatureRequestPriority,
+  { label: string; variant: BadgeVariant }
+> = {
+  low: { label: "Low", variant: "outline" },
+  medium: { label: "Medium", variant: "secondary" },
+  high: { label: "High", variant: "secondary" },
+  urgent: { label: "Urgent", variant: "destructive" },
 };
 
 const dateFormatter = new Intl.DateTimeFormat("en-GB", {

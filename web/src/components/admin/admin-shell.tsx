@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Inbox, FileText, LogOut } from "lucide-react";
+import { LayoutDashboard, Inbox, FileText, Lightbulb, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/app/admin/actions";
@@ -17,6 +17,7 @@ const NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/submissions", label: "Submissions", icon: Inbox },
   { href: "/admin/content", label: "Content", icon: FileText },
+  { href: "/admin/feature-requests", label: "Feature requests", icon: Lightbulb },
 ];
 
 function isActive(pathname: string, href: string): boolean {

@@ -1,15 +1,16 @@
 import Link from "next/link";
-import { Inbox, FileText, ArrowRight } from "lucide-react";
+import { Inbox, FileText, Lightbulb, ArrowRight } from "lucide-react";
 import { count, inArray, eq } from "drizzle-orm";
 import {
   db,
   tourRequests,
+  featureRequests,
   geoContentDrafts,
   blogPostDrafts,
   socialPostDrafts,
   emailCampaignDrafts,
 } from "@/db";
-import type { ContentStatus } from "@/db/schema";
+import type { ContentStatus, FeatureRequestStatus } from "@/db/schema";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
@@ -31,14 +32,23 @@ const SECTIONS = [
     description:
       "Review GEO/marketing drafts produced by the workspaces before publishing them to the site.",
   },
+  {
+    href: "/admin/feature-requests",
+    icon: Lightbulb,
+    title: "Feature requests",
+    description:
+      "Capture and triage ideas and asks for the toolkit — a free-form backlog for the team.",
+  },
 ];
 
 export default async function AdminDashboardPage() {
   const review: ContentStatus[] = ["draft", "in_review"];
   const published: ContentStatus[] = ["published"];
+  const openFeature: FeatureRequestStatus[] = ["new", "planned", "in_progress"];
 
   const [
     [newSubmissions],
+    [openFeatureRequests],
     [geoReview],
     [blogReview],
     [socialReview],
@@ -49,6 +59,10 @@ export default async function AdminDashboardPage() {
     [emailPublished],
   ] = await Promise.all([
     db.select({ n: count() }).from(tourRequests).where(eq(tourRequests.status, "new")),
+    db
+      .select({ n: count() })
+      .from(featureRequests)
+      .where(inArray(featureRequests.status, openFeature)),
     db.select({ n: count() }).from(geoContentDrafts).where(inArray(geoContentDrafts.status, review)),
     db.select({ n: count() }).from(blogPostDrafts).where(inArray(blogPostDrafts.status, review)),
     db.select({ n: count() }).from(socialPostDrafts).where(inArray(socialPostDrafts.status, review)),
@@ -91,6 +105,11 @@ export default async function AdminDashboardPage() {
       hint: "Across all content pipelines",
     },
     { label: "Published", value: String(publishedCount), hint: "Content pushed live" },
+    {
+      label: "Open feature requests",
+      value: String(openFeatureRequests?.n ?? 0),
+      hint: "In the toolkit backlog",
+    },
   ];
 
   return (
@@ -98,7 +117,7 @@ export default async function AdminDashboardPage() {
       <div className="flex flex-col gap-8">
         <section>
           <h2 className="sr-only">Overview</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {STATS.map((stat) => (
               <Card key={stat.label} size="sm">
                 <CardHeader>
