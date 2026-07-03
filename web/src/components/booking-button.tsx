@@ -16,7 +16,8 @@ type Props = {
 
 /**
  * Booking CTA. When FareHarbor is configured it links to the booking flow (the
- * embed script opens it in a lightbox); otherwise it falls back to the contact page.
+ * embed script opens it in a lightbox); otherwise it falls back to the onboarding
+ * form (`/reservar`), which captures the enquiry into the database.
  */
 export function BookingButton({
   locale,
@@ -37,7 +38,7 @@ export function BookingButton({
   }
 
   return (
-    <Link href={href(locale, "contactos")} className={classes}>
+    <Link href={href(locale, "reservar")} className={classes}>
       {label}
     </Link>
   );
