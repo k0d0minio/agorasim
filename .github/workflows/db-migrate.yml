@@ -1,0 +1,52 @@
+name: DB migrate
+
+# Provisions the Neon Postgres database with the current Drizzle schema and seed
+# data. Runs on pushes to main that touch the migrations or schema, and can be
+# triggered manually. Requires the `DATABASE_URL` repository secret (the Neon
+# connection string).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/drizzle/**"
+      - "web/src/db/**"
+      - "web/drizzle.config.ts"
+      - ".github/workflows/db-migrate.yml"
+  workflow_dispatch:
+
+concurrency:
+  # Never run two migrations against the same database at once.
+  group: db-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Run Drizzle migrations
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
