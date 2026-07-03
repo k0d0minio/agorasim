@@ -8,7 +8,7 @@ export const home = {
   } as Localized,
   heroTitle: {
     pt: "Descubra a região Saloia num carro clássico",
-    en: "Discover the Saloia region in a classic car",
+    en: "Discover the Saloia region in a cool classic car",
   } as Localized,
   heroSubtitle: {
     pt: "Passeios guiados sem pressa por vinhas, aldeias, monumentos naturais e a costa atlântica — com paragens de gastronomia e muita história.",
