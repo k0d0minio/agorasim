@@ -2,12 +2,16 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { eq } from "drizzle-orm";
 import {
   ADMIN_SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
   createSessionToken,
   isValidPassword,
 } from "@/lib/admin-auth";
+import { db, tourRequests, type RequestStatus } from "@/db";
+import { REQUEST_STATUSES } from "@/lib/admin-format";
 
 export type LoginState = { error?: string };
 
@@ -46,4 +50,28 @@ export async function logout(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete(ADMIN_SESSION_COOKIE);
   redirect("/admin/login");
+}
+
+function isRequestStatus(value: string): value is RequestStatus {
+  return (REQUEST_STATUSES as string[]).includes(value);
+}
+
+/**
+ * Update the triage status of a tour request from the Submissions table. Invoked
+ * from the inline status <select>; revalidates the page so the change is
+ * reflected immediately. `/admin` is gated by `proxy.ts`, so this only runs for
+ * authenticated operators.
+ */
+export async function updateTourRequestStatus(formData: FormData): Promise<void> {
+  const id = String(formData.get("id") ?? "");
+  const status = String(formData.get("status") ?? "");
+  if (!id || !isRequestStatus(status)) return;
+
+  await db
+    .update(tourRequests)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(tourRequests.id, id));
+
+  revalidatePath("/admin/submissions");
+  revalidatePath("/admin");
 }
