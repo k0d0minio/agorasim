@@ -4,6 +4,8 @@ import { db, featureRequests } from "@/db";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { FeatureRequestForm } from "@/components/admin/feature-request-form";
 import { FeatureRequestStatusSelect } from "@/components/admin/feature-request-status-select";
+import { ProposalCatalogue } from "@/components/admin/proposal-catalogue";
+import { PROPOSAL_CATEGORY } from "@/lib/proposal";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
@@ -18,10 +20,19 @@ export const dynamic = "force-dynamic";
 export default async function AdminFeatureRequestsPage() {
   const rows = await db.select().from(featureRequests).orderBy(desc(featureRequests.createdAt));
 
+  // Titles already on file from the proposal catalogue, so its cards can show a
+  // "Requested" marker.
+  const requestedTitles = rows
+    .filter((r) => r.category === PROPOSAL_CATEGORY)
+    .map((r) => r.title);
+
   return (
     <AdminShell title="Feature requests">
-      <div className="flex flex-col gap-8">
-        <FeatureRequestForm />
+      <div className="flex flex-col gap-10">
+        <ProposalCatalogue requestedTitles={requestedTitles} />
+
+        <div className="flex flex-col gap-8 border-t pt-8">
+          <FeatureRequestForm />
 
         <section className="flex flex-col gap-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -68,6 +79,7 @@ export default async function AdminFeatureRequestsPage() {
             </Card>
           )}
         </section>
+        </div>
       </div>
     </AdminShell>
   );
