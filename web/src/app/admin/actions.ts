@@ -23,6 +23,7 @@ import {
   FEATURE_REQUEST_STATUSES,
   FEATURE_REQUEST_PRIORITIES,
 } from "@/lib/admin-format";
+import { CATALOGUE_ITEMS, PROPOSAL_CATEGORY, euro } from "@/lib/proposal";
 
 export type LoginState = { error?: string };
 
@@ -159,4 +160,68 @@ export async function updateFeatureRequestStatus(formData: FormData): Promise<vo
 
   revalidatePath("/admin/feature-requests");
   revalidatePath("/admin");
+}
+
+export type RequestProposalState = {
+  ok?: boolean;
+  /** Number of new requests actually created (skips ones already on file). */
+  created?: number;
+  /** Selected items that were already requested and therefore skipped. */
+  skipped?: number;
+  error?: string;
+};
+
+/**
+ * File a feature request for one or more catalogue items chosen in the proposal
+ * picker on the Feature-requests page. Items already on file (same title, under
+ * the Proposal category) are skipped so clicking twice can't create duplicates.
+ * `/admin` is gated by `proxy.ts`, so this only runs for authenticated operators.
+ */
+export async function requestProposalFeatures(input: {
+  ids: string[];
+  submittedBy?: string;
+}): Promise<RequestProposalState> {
+  const items = (input.ids ?? [])
+    .map((id) => CATALOGUE_ITEMS[id])
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  if (items.length === 0) {
+    return { error: "Pick at least one feature to request." };
+  }
+
+  const submittedBy = (input.submittedBy ?? "").trim() || null;
+
+  try {
+    // Skip items already requested from the catalogue (dedupe by title).
+    const existing = await db
+      .select({ title: featureRequests.title })
+      .from(featureRequests)
+      .where(eq(featureRequests.category, PROPOSAL_CATEGORY));
+    const alreadyRequested = new Set(existing.map((row) => row.title));
+
+    const fresh = items.filter((item) => !alreadyRequested.has(item.name));
+    const skipped = items.length - fresh.length;
+
+    if (fresh.length === 0) {
+      revalidatePath("/admin/feature-requests");
+      return { ok: true, created: 0, skipped };
+    }
+
+    await db.insert(featureRequests).values(
+      fresh.map((item) => ({
+        title: item.name,
+        description: `${item.summary}\n\nEstimated ${item.kind} price: €${euro(item.price)}. Added from the proposal catalogue.`,
+        category: PROPOSAL_CATEGORY,
+        submittedBy,
+        priority: "medium" as FeatureRequestPriority,
+      })),
+    );
+
+    revalidatePath("/admin/feature-requests");
+    revalidatePath("/admin");
+    return { ok: true, created: fresh.length, skipped };
+  } catch (err) {
+    console.error("[admin] failed to request proposal features", err);
+    return { error: "Something went wrong filing the request. Please try again." };
+  }
 }
