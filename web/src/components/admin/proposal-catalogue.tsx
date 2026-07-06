@@ -5,7 +5,6 @@ import { Check, RotateCcw, Send, Sparkles } from "lucide-react";
 import { requestProposalFeatures } from "@/app/admin/actions";
 import {
   ADD_ONS,
-  CARE_PLANS,
   FEATURES,
   SUITE_PRICE,
   catalogueStatusMeta,
@@ -67,13 +66,12 @@ type Msg = { tone: "ok" | "err"; text: string } | null;
 export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string[] }) {
   const [features, setFeatures] = useState<ReadonlySet<string>>(new Set());
   const [addOns, setAddOns] = useState<ReadonlySet<string>>(new Set());
-  const [plan, setPlan] = useState("none");
   const [name, setName] = useState("");
   const [msg, setMsg] = useState<Msg>(null);
   const [isPending, startTransition] = useTransition();
 
   const requested = useMemo(() => new Set(requestedTitles), [requestedTitles]);
-  const totals = useMemo(() => computeTotals(features, addOns, plan), [features, addOns, plan]);
+  const totals = useMemo(() => computeTotals(features, addOns), [features, addOns]);
   const displayTotal = useCountUp(totals.oneTime);
 
   const gaugePct = totals.fullSuite
@@ -137,9 +135,9 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
           </div>
           <CardDescription>
             The full collaboration proposal, live. Switch features on to tally a running estimate,
-            then file the ones you want as requests for the team. Prices are working figures at a
-            mid-market rate and reflect the toolkit already in place — figures to complete and ship,
-            not to build from zero.
+            then file the ones you want as requests for the team. These are one-time build prices at
+            a friends-and-favour rate — no retainer, no subscription — and reflect the toolkit
+            already in place, so they cover finishing and shipping, not building from zero.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -227,43 +225,6 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
         </div>
       </div>
 
-      {/* Care plans */}
-      <div className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-muted-foreground">
-          Long-term care plan — the ongoing collaboration (billed monthly)
-        </p>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {CARE_PLANS.map((p) => {
-            const on = plan === p.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setPlan(p.id)}
-                aria-pressed={on}
-                className={cn(
-                  "relative flex flex-col gap-1 rounded-lg p-3 text-left ring-1 transition-colors",
-                  on ? "bg-primary/5 ring-primary" : "bg-card ring-foreground/10 hover:ring-foreground/25",
-                )}
-              >
-                {p.recommended ? (
-                  <span className="absolute -top-2 right-2">
-                    <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
-                      Recommended
-                    </Badge>
-                  </span>
-                ) : null}
-                <span className="text-sm font-medium">{p.name}</span>
-                <span className="font-mono text-base font-semibold tabular-nums">
-                  {p.price ? <>€{p.price}<span className="text-xs font-normal text-muted-foreground"> /mo</span></> : "—"}
-                </span>
-                <span className="text-xs text-muted-foreground">{p.blurb}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Sticky summary / action bar */}
       <div className="sticky bottom-4 z-20">
         <Card className="ring-primary/25 shadow-lg">
@@ -278,33 +239,24 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
               </span>
             </div>
 
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
-              <div>
-                <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                  One-time build
+            <div>
+              <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                One-time build — no retainer
+              </p>
+              <p className="font-mono text-2xl leading-tight font-semibold tabular-nums">
+                <span className="text-base font-normal text-muted-foreground">€</span>
+                {euro(displayTotal)}
+              </p>
+              {totals.savings > 0 ? (
+                <p className="text-xs font-medium text-primary">
+                  You save €{euro(totals.savings)}
+                  {selectedCount ? ` · ${selectedCount} selected` : ""}
                 </p>
-                <p className="font-mono text-2xl leading-tight font-semibold tabular-nums">
-                  <span className="text-base font-normal text-muted-foreground">€</span>
-                  {euro(displayTotal)}
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {selectedCount === 0 ? "Nothing selected yet" : `${selectedCount} selected`}
                 </p>
-                {totals.savings > 0 ? (
-                  <p className="text-xs font-medium text-primary">You save €{euro(totals.savings)}</p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    {selectedCount === 0 ? "Nothing selected yet" : `${selectedCount} selected`}
-                  </p>
-                )}
-              </div>
-              <div>
-                <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                  Monthly care
-                </p>
-                <p className="font-mono text-2xl leading-tight font-semibold tabular-nums">
-                  <span className="text-base font-normal text-muted-foreground">€</span>
-                  {euro(totals.monthly)}
-                  <span className="text-sm font-normal text-muted-foreground"> /mo</span>
-                </p>
-              </div>
+              )}
             </div>
 
             <div className="ml-auto flex flex-wrap items-center gap-2">
