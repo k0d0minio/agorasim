@@ -22,7 +22,8 @@ export function SiteHeader({ locale }: { locale: Locale }) {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-7 md:flex" aria-label="Primary">
+        {/* Seven items need the wider breakpoint — below lg the sheet menu takes over. */}
+        <nav className="hidden items-center gap-5 lg:flex xl:gap-7" aria-label="Primary">
           {items.map((item) => (
             <Link
               key={item.href}
@@ -36,7 +37,7 @@ export function SiteHeader({ locale }: { locale: Locale }) {
 
         <div className="flex items-center gap-3">
           <LangToggle current={locale} label={dict.labels.switchLanguage} />
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <BookingButton locale={locale} label={dict.cta.book} size="sm" />
           </div>
           <MobileNav items={items} brand={site.name} openLabel={dict.labels.openMenu}>
