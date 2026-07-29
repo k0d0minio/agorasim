@@ -2,13 +2,14 @@ import type { MetadataRoute } from "next";
 import { locales, defaultLocale } from "@/i18n/config";
 import { site } from "@/content/site";
 import { experiences } from "@/content/experiences";
-import { href, navOrder, type RouteKey } from "@/lib/routes";
+import { href, liveKeys, type RouteKey } from "@/lib/routes";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
 
-  // Build the set of (routeKey, slug?) pairs that exist for every locale.
-  const staticKeys: RouteKey[] = ["home", ...navOrder];
+  // Only live routes are listed — in-development preview pages (blog,
+  // casamentos, recomendar) stay noindexed until their feature ships.
+  const staticKeys: RouteKey[] = liveKeys;
 
   function alternates(path: (locale: (typeof locales)[number]) => string) {
     const languages = Object.fromEntries(

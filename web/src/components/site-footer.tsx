@@ -31,7 +31,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
             {dict.footer.explore}
           </p>
           <ul className="mt-4 space-y-2 text-sm">
-            {navOrder.map((key) => (
+            {[...navOrder, "recomendar" as const].map((key) => (
               <li key={key}>
                 <Link href={href(locale, key)} className="text-muted-foreground hover:text-primary">
                   {dict.nav[key]}
