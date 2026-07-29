@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
 import { events } from "@/content/pages";
+import { href } from "@/lib/routes";
+import { cn } from "@/lib/utils";
 import { Section } from "@/components/section";
 import { Media } from "@/components/media";
 import { BookingButton } from "@/components/booking-button";
+import { buttonVariants } from "@/components/ui/button";
 import { alternates } from "@/lib/seo";
 
 export async function generateMetadata({
@@ -39,8 +43,14 @@ export default async function EventsPage({ params }: { params: Promise<{ locale:
               <p key={i}>{p}</p>
             ))}
           </div>
-          <div className="mt-8">
+          <div className="mt-8 flex flex-wrap gap-3">
             <BookingButton locale={l} label={dict.cta.contactUs} />
+            <Link
+              href={href(l, "casamentos")}
+              className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
+            >
+              {l === "pt" ? "Casamentos em carros clássicos" : "Classic-car weddings"}
+            </Link>
           </div>
         </div>
         <Media
