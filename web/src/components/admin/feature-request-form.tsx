@@ -80,7 +80,12 @@ export function FeatureRequestForm() {
             ) : null}
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-3">
+          {/*
+            "Your name" used to be a text box here, because the admin was a
+            shared login and the app had no idea who you were. It does now, so
+            the request is filed against the signed-in account instead.
+          */}
+          <div className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="category">
                 Category <span className="text-muted-foreground">(optional)</span>
@@ -101,18 +106,6 @@ export function FeatureRequestForm() {
                   </option>
                 ))}
               </Select>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="submittedBy">
-                Your name <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="submittedBy"
-                name="submittedBy"
-                placeholder="e.g. Diogo"
-                autoComplete="name"
-              />
             </div>
           </div>
 

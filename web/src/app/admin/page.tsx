@@ -12,7 +12,8 @@ import {
 } from "@/db";
 import type { ContentStatus, FeatureRequestStatus } from "@/db/schema";
 import { AdminShell } from "@/components/admin/admin-shell";
-import { ADMIN_AREAS } from "@/lib/admin-nav";
+import { requireAdmin } from "@/lib/admin-auth";
+import { adminAreas } from "@/lib/admin-nav";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
@@ -29,6 +30,8 @@ function tally<S extends string>(rows: { status: S; n: number }[], statuses: rea
 }
 
 export default async function AdminDashboardPage() {
+  const viewer = await requireAdmin();
+
   /*
    * One `GROUP BY status` per table instead of a `count()` per stat. Neon's HTTP
    * driver opens a connection per query, so the old ten stats meant ten round
@@ -110,29 +113,31 @@ export default async function AdminDashboardPage() {
             Areas
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {ADMIN_AREAS.map(({ href, icon: Icon, label, cardTitle, description, dev }) => (
-              <Link key={href} href={href} className="group/section">
-                <Card className="h-full transition-colors group-hover/section:ring-foreground/20">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <Icon className="size-4.5" />
+            {adminAreas(viewer.role).map(
+              ({ href, icon: Icon, label, cardTitle, description, dev }) => (
+                <Link key={href} href={href} className="group/section">
+                  <Card className="h-full transition-colors group-hover/section:ring-foreground/20">
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Icon className="size-4.5" />
+                        </div>
+                        {dev && (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            In development
+                          </Badge>
+                        )}
                       </div>
-                      {dev && (
-                        <Badge variant="outline" className="text-muted-foreground">
-                          In development
-                        </Badge>
-                      )}
-                    </div>
-                    <CardTitle className="mt-2 flex items-center gap-1">
-                      {cardTitle ?? label}
-                      <ArrowRight className="size-4 -translate-x-1 opacity-0 transition-all group-hover/section:translate-x-0 group-hover/section:opacity-100" />
-                    </CardTitle>
-                    <CardDescription>{description}</CardDescription>
-                  </CardHeader>
-                </Card>
-              </Link>
-            ))}
+                      <CardTitle className="mt-2 flex items-center gap-1">
+                        {cardTitle ?? label}
+                        <ArrowRight className="size-4 -translate-x-1 opacity-0 transition-all group-hover/section:translate-x-0 group-hover/section:opacity-100" />
+                      </CardTitle>
+                      <CardDescription>{description}</CardDescription>
+                    </CardHeader>
+                  </Card>
+                </Link>
+              ),
+            )}
           </div>
         </section>
       </div>
