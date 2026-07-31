@@ -20,7 +20,7 @@ const statusVariant = {
  */
 export default function AdminSocialPage() {
   return (
-    <AdminShell title="Social studio">
+    <AdminShell>
       <AdminInDevBanner note="Captions and a posting calendar are generated for you; once you approve, posts publish automatically through Instagram's and Facebook's official APIs." />
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

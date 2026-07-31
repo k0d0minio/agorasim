@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
  */
 export default function AdminCrmPage() {
   return (
-    <AdminShell title="CRM pipeline">
+    <AdminShell>
       <AdminInDevBanner note="This upgrades your current lead list into a drag-and-drop board — every enquiry and booking will flow in automatically, with notes and next actions per person." />
 
       {/* Board — columns scroll horizontally on small screens, kanban-style. */}

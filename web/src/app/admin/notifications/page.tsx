@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
  */
 export default function AdminNotificationsPage() {
   return (
-    <AdminShell title="Notifications">
+    <AdminShell>
       <AdminInDevBanner note="Set-and-forget messages: guests get confirmations, reminders and thank-yous at the right moment; you get an instant alert the second a booking or hot lead arrives." />
 
       <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">

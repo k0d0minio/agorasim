@@ -21,7 +21,7 @@ import {
  */
 export default function AdminReferralsPage() {
   return (
-    <AdminShell title="Referrals">
+    <AdminShell>
       <AdminInDevBanner note="Word of mouth, made measurable: every guest gets a personal link, referred bookings are tracked automatically, and this page shows who to thank (and with what)." />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

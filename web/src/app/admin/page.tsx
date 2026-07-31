@@ -1,17 +1,5 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  CalendarCheck,
-  FileText,
-  Inbox,
-  KanbanSquare,
-  Lightbulb,
-  Mail,
-  MessageSquareShare,
-  Newspaper,
-  Share2,
-  Users,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { count, inArray, eq } from "drizzle-orm";
 import {
   db,
@@ -24,95 +12,12 @@ import {
 } from "@/db";
 import type { ContentStatus, FeatureRequestStatus } from "@/db/schema";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { ADMIN_AREAS } from "@/lib/admin-nav";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 // Reads live counts — never prerender at build time.
 export const dynamic = "force-dynamic";
-
-/** Every operations area. `dev` areas show their final design with example data. */
-const SECTIONS = [
-  {
-    href: "/admin/submissions",
-    icon: Inbox,
-    title: "Form submissions",
-    description:
-      "Booking enquiries and contact requests will land here for triage and follow-up.",
-    dev: false,
-  },
-  {
-    href: "/admin/crm",
-    icon: KanbanSquare,
-    title: "CRM pipeline",
-    description:
-      "Every lead on one board — Lead → Contacted → Quoted → Booked — so nothing falls through.",
-    dev: true,
-  },
-  {
-    href: "/admin/bookings",
-    icon: CalendarCheck,
-    title: "Bookings",
-    description:
-      "Paid tour and wedding bookings, with deposits, balances and payment status at a glance.",
-    dev: true,
-  },
-  {
-    href: "/admin/blog",
-    icon: Newspaper,
-    title: "Blog studio",
-    description:
-      "AI-drafted articles in your voice, waiting for a one-click review before publishing.",
-    dev: true,
-  },
-  {
-    href: "/admin/social",
-    icon: Share2,
-    title: "Social studio",
-    description:
-      "A generated posting calendar for Instagram & Facebook — approve, and it posts itself.",
-    dev: true,
-  },
-  {
-    href: "/admin/email",
-    icon: Mail,
-    title: "Email marketing",
-    description:
-      "Segments and bilingual campaigns that bring past and archived guests back for more.",
-    dev: true,
-  },
-  {
-    href: "/admin/referrals",
-    icon: Users,
-    title: "Referrals",
-    description:
-      "Personal links for happy guests, tracked bookings, and the rewards you owe your fans.",
-    dev: true,
-  },
-  {
-    href: "/admin/notifications",
-    icon: MessageSquareShare,
-    title: "Notifications",
-    description:
-      "Automatic confirmations, reminders and thank-yous for guests — instant alerts for you.",
-    dev: true,
-  },
-  {
-    href: "/admin/content",
-    icon: FileText,
-    title: "Generated content",
-    description:
-      "Review GEO/marketing drafts produced by the workspaces before publishing them to the site.",
-    dev: false,
-  },
-  {
-    href: "/admin/feature-requests",
-    icon: Lightbulb,
-    title: "Feature requests",
-    description:
-      "Capture and triage ideas and asks for the toolkit — a free-form backlog for the team.",
-    dev: false,
-  },
-];
 
 export default async function AdminDashboardPage() {
   const review: ContentStatus[] = ["draft", "in_review"];
@@ -186,7 +91,7 @@ export default async function AdminDashboardPage() {
   ];
 
   return (
-    <AdminShell title="Dashboard">
+    <AdminShell>
       <div className="flex flex-col gap-8">
         <section>
           <h2 className="sr-only">Overview</h2>
@@ -210,7 +115,7 @@ export default async function AdminDashboardPage() {
             Areas
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {SECTIONS.map(({ href, icon: Icon, title, description, dev }) => (
+            {ADMIN_AREAS.map(({ href, icon: Icon, label, cardTitle, description, dev }) => (
               <Link key={href} href={href} className="group/section">
                 <Card className="h-full transition-colors group-hover/section:ring-foreground/20">
                   <CardHeader>
@@ -225,7 +130,7 @@ export default async function AdminDashboardPage() {
                       )}
                     </div>
                     <CardTitle className="mt-2 flex items-center gap-1">
-                      {title}
+                      {cardTitle ?? label}
                       <ArrowRight className="size-4 -translate-x-1 opacity-0 transition-all group-hover/section:translate-x-0 group-hover/section:opacity-100" />
                     </CardTitle>
                     <CardDescription>{description}</CardDescription>

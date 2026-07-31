@@ -34,7 +34,7 @@ export default async function AdminSubmissionsPage() {
 
   if (rows.length === 0) {
     return (
-      <AdminShell title="Submissions">
+      <AdminShell>
         <PlaceholderPanel
           icon={Inbox}
           title="No submissions yet"
@@ -45,7 +45,7 @@ export default async function AdminSubmissionsPage() {
   }
 
   return (
-    <AdminShell title="Submissions">
+    <AdminShell>
       <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
         <Inbox className="size-4" />
         <span>
