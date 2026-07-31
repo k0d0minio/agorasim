@@ -4,6 +4,8 @@ import { z } from "zod";
 import { db, tourRequests } from "@/db";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
+import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/request-ip";
 import { formValues, tourRequestSchema, type TourRequestField } from "@/lib/form-schemas";
 
 export type TourRequestState = {
@@ -14,9 +16,20 @@ export type TourRequestState = {
 };
 
 /**
+ * Name of the honeypot input rendered (visually hidden) by the form. Real people
+ * never see it, so anything filled in came from a bot that autofilled every
+ * field it found.
+ */
+export const HONEYPOT_FIELD = "company_website";
+
+/**
  * Handle the public onboarding form. Validates the submission, inserts a row
  * into `tour_requests`, and returns a localized success/error state for the
  * client form to render.
+ *
+ * This action is unauthenticated and writes into the table the admin Submissions
+ * page reads, so it carries two cheap abuse defences: a honeypot field and
+ * per-IP throttling (shared limiter with the admin login — see `lib/rate-limit`).
  *
  * The schema decides *what* is invalid; the copy for *saying so* is bilingual
  * and lives in `content/tour-request.ts`, so failed fields are mapped onto it
@@ -30,6 +43,23 @@ export async function submitTourRequest(
   const localeRaw = String(values.locale ?? "");
   const locale: Locale = isLocale(localeRaw) ? localeRaw : "pt";
   const c = tourRequestContent;
+
+  const ip = await clientIp();
+
+  // Honeypot: report success without writing anything, so a bot has no signal
+  // that it was caught and nothing to tune against.
+  if (String(values[HONEYPOT_FIELD] ?? "").trim()) {
+    console.warn(`[reservar] discarded honeypot submission from ${ip}`);
+    return { ok: true };
+  }
+
+  const throttle = await rateLimit(`tour-request:${ip}`, TOUR_REQUEST_RATE_LIMIT);
+  if (!throttle.allowed) {
+    console.warn(
+      `[reservar] throttled submission from ${ip} — retry in ${throttle.retryAfterSeconds}s`,
+    );
+    return { error: t(c.errors.rateLimited, locale) };
+  }
 
   const parsed = tourRequestSchema.safeParse(values);
   if (!parsed.success) {

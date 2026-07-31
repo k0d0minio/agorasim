@@ -9,7 +9,10 @@ import {
   SESSION_MAX_AGE_SECONDS,
   createSessionToken,
   isValidPassword,
+  requireAdmin,
 } from "@/lib/admin-auth";
+import { LOGIN_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/request-ip";
 import { db, tourRequests, featureRequests, type FeatureRequestPriority } from "@/db";
 import {
   featureRequestSchema,
@@ -32,22 +35,48 @@ import { CATALOGUE_ITEMS, PROPOSAL_CATEGORY, euro } from "@/lib/proposal";
  * stays because the alternative (prerendering at build time and revalidating on
  * mutation) would require a live `DATABASE_URL` during `next build`, including
  * in CI. Freshness comes from the render, not from cache invalidation.
+ *
+ * Authorization is `requireAdmin()` at the top of every action below, never the
+ * proxy — see `lib/admin-auth.ts`.
  */
 
 export type LoginState = { error?: string };
+
+/** Shown for a wrong password and for a throttled IP alike — see `login`. */
+const LOGIN_ERROR = "Incorrect password.";
 
 /**
  * Handle the admin login form. On success, set the session cookie and redirect
  * to the requested page (or the dashboard). On failure, return an error to
  * render inline — deliberately vague so we don't confirm valid inputs.
+ *
+ * This is the one unauthenticated action, and it guards a single shared password,
+ * so it is throttled per IP. A throttled caller gets the same message as a wrong
+ * password: telling an attacker they hit the limit tells them the limit exists
+ * and how to pace around it. Failures are logged server-side instead.
  */
 export async function login(
   _prevState: LoginState,
   formData: FormData,
 ): Promise<LoginState> {
+  // `next` is normalised to a same-origin admin path by the schema, so a failed
+  // parse and a wrong password are indistinguishable to the caller.
   const parsed = loginSchema.safeParse(formValues(formData));
-  if (!parsed.success || !isValidPassword(parsed.data.password)) {
-    return { error: "Incorrect password." };
+
+  const ip = await clientIp();
+  const throttle = await rateLimit(`admin-login:${ip}`, LOGIN_RATE_LIMIT);
+  if (!throttle.allowed) {
+    console.warn(
+      `[admin] login throttled for ${ip} — retry in ${throttle.retryAfterSeconds}s`,
+    );
+    return { error: LOGIN_ERROR };
+  }
+
+  if (!parsed.success || !(await isValidPassword(parsed.data.password))) {
+    console.warn(
+      `[admin] failed login from ${ip} — ${throttle.remaining} attempt(s) left before throttling`,
+    );
+    return { error: LOGIN_ERROR };
   }
 
   const cookieStore = await cookies();
@@ -64,34 +93,77 @@ export async function login(
 
 /** Clear the session cookie and return to the login screen. */
 export async function logout(): Promise<void> {
+  await requireAdmin();
+
   const cookieStore = await cookies();
   cookieStore.delete(ADMIN_SESSION_COOKIE);
   redirect("/admin/login");
 }
 
-/**
- * Update the triage status of a tour request from the Submissions table.
- * Invoked from the inline status `<select>`, which submits on change.
- */
-export async function updateTourRequestStatus(formData: FormData): Promise<void> {
-  const parsed = updateTourRequestStatusSchema.safeParse(formValues(formData));
-  if (!parsed.success) return;
+/** Result of an inline status change, so the caller can surface a failure. */
+export type StatusUpdateState = { ok?: boolean; error?: string };
 
-  await db
-    .update(tourRequests)
-    .set({ status: parsed.data.status, updatedAt: new Date() })
-    .where(eq(tourRequests.id, parsed.data.id));
+/**
+ * Update the triage status of a tour request from the Submissions table. Invoked
+ * from the inline status `<select>`, which submits on change.
+ *
+ * The select keeps whatever the operator picked, so a write that failed silently
+ * would leave them looking at a status the database never stored — hence the
+ * explicit result and the try/catch.
+ */
+export async function updateTourRequestStatus(
+  _prevState: StatusUpdateState,
+  formData: FormData,
+): Promise<StatusUpdateState> {
+  await requireAdmin();
+
+  const parsed = updateTourRequestStatusSchema.safeParse(formValues(formData));
+  if (!parsed.success) {
+    console.warn("[admin] rejected tour-request status update", z.flattenError(parsed.error));
+    return { error: "Couldn't update that status." };
+  }
+
+  try {
+    await db
+      .update(tourRequests)
+      .set({ status: parsed.data.status, updatedAt: new Date() })
+      .where(eq(tourRequests.id, parsed.data.id));
+  } catch (err) {
+    console.error("[admin] failed to update tour request status", err);
+    return { error: "Couldn't save — the change was not stored." };
+  }
+
+  return { ok: true };
 }
 
-/** Update the triage status of a feature request from its inline `<select>`. */
-export async function updateFeatureRequestStatus(formData: FormData): Promise<void> {
-  const parsed = updateFeatureRequestStatusSchema.safeParse(formValues(formData));
-  if (!parsed.success) return;
+/**
+ * Update the triage status of a feature request from its inline `<select>`.
+ * Reports failures the same way as {@link updateTourRequestStatus}, and for the
+ * same reason.
+ */
+export async function updateFeatureRequestStatus(
+  _prevState: StatusUpdateState,
+  formData: FormData,
+): Promise<StatusUpdateState> {
+  await requireAdmin();
 
-  await db
-    .update(featureRequests)
-    .set({ status: parsed.data.status, updatedAt: new Date() })
-    .where(eq(featureRequests.id, parsed.data.id));
+  const parsed = updateFeatureRequestStatusSchema.safeParse(formValues(formData));
+  if (!parsed.success) {
+    console.warn("[admin] rejected feature-request status update", z.flattenError(parsed.error));
+    return { error: "Couldn't update that status." };
+  }
+
+  try {
+    await db
+      .update(featureRequests)
+      .set({ status: parsed.data.status, updatedAt: new Date() })
+      .where(eq(featureRequests.id, parsed.data.id));
+  } catch (err) {
+    console.error("[admin] failed to update feature request status", err);
+    return { error: "Couldn't save — the change was not stored." };
+  }
+
+  return { ok: true };
 }
 
 export type FeatureRequestState = {
@@ -110,6 +182,8 @@ export async function submitFeatureRequest(
   _prevState: FeatureRequestState,
   formData: FormData,
 ): Promise<FeatureRequestState> {
+  await requireAdmin();
+
   const parsed = featureRequestSchema.safeParse(formValues(formData));
   if (!parsed.success) {
     const { fieldErrors } = z.flattenError(parsed.error);
@@ -144,9 +218,9 @@ export type RequestProposalState = {
  * File a feature request for one or more catalogue items chosen in the proposal
  * picker on the Feature-requests page.
  *
- * Items already on file are skipped by the `(title, category)` unique index
- * plus `onConflictDoNothing`, rather than by reading the existing titles first:
- * a read-then-insert let two in-flight clicks both see "not present" and both
+ * Items already on file are skipped by the `(title, category)` unique index plus
+ * `onConflictDoNothing`, rather than by reading the existing titles first: a
+ * read-then-insert let two in-flight clicks both see "not present" and both
  * insert. `returning()` reports what the database actually wrote, so the
  * created/skipped counts stay honest under that race.
  */
@@ -154,6 +228,8 @@ export async function requestProposalFeatures(input: {
   ids: string[];
   submittedBy?: string;
 }): Promise<RequestProposalState> {
+  await requireAdmin();
+
   const parsed = proposalRequestSchema.safeParse(input);
   if (!parsed.success) {
     return { error: "Pick at least one feature to request." };
