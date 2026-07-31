@@ -1,7 +1,6 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, expect, it } from "vitest";
 
-import { formatRelativeTime } from "./admin-format.ts";
+import { formatRelativeTime } from "./admin-format";
 
 const now = new Date("2026-07-31T12:00:00Z");
 const ago = (ms: number) => new Date(now.getTime() - ms);
@@ -13,27 +12,27 @@ const DAY = 24 * HOUR;
 
 describe("formatRelativeTime", () => {
   it("collapses the last minute to 'just now'", () => {
-    assert.equal(formatRelativeTime(ago(5 * SECOND), now), "just now");
-    assert.equal(formatRelativeTime(ago(59 * SECOND), now), "just now");
+    expect(formatRelativeTime(ago(5 * SECOND), now)).toBe("just now");
+    expect(formatRelativeTime(ago(59 * SECOND), now)).toBe("just now");
   });
 
   it("counts down in the largest unit that still reads naturally", () => {
-    assert.equal(formatRelativeTime(ago(MINUTE), now), "1m ago");
-    assert.equal(formatRelativeTime(ago(59 * MINUTE), now), "59m ago");
-    assert.equal(formatRelativeTime(ago(3 * HOUR), now), "3h ago");
-    assert.equal(formatRelativeTime(ago(2 * DAY), now), "2d ago");
-    assert.equal(formatRelativeTime(ago(10 * DAY), now), "1w ago");
-    assert.equal(formatRelativeTime(ago(45 * DAY), now), "1mo ago");
-    assert.equal(formatRelativeTime(ago(400 * DAY), now), "1y ago");
+    expect(formatRelativeTime(ago(MINUTE), now)).toBe("1m ago");
+    expect(formatRelativeTime(ago(59 * MINUTE), now)).toBe("59m ago");
+    expect(formatRelativeTime(ago(3 * HOUR), now)).toBe("3h ago");
+    expect(formatRelativeTime(ago(2 * DAY), now)).toBe("2d ago");
+    expect(formatRelativeTime(ago(10 * DAY), now)).toBe("1w ago");
+    expect(formatRelativeTime(ago(45 * DAY), now)).toBe("1mo ago");
+    expect(formatRelativeTime(ago(400 * DAY), now)).toBe("1y ago");
   });
 
   it("does not claim a future timestamp already happened", () => {
-    assert.equal(formatRelativeTime(new Date(now.getTime() + HOUR), now), "just now");
+    expect(formatRelativeTime(new Date(now.getTime() + HOUR), now)).toBe("just now");
   });
 
   it("accepts an ISO string and rejects nonsense", () => {
-    assert.equal(formatRelativeTime("2026-07-31T09:00:00Z", now), "3h ago");
-    assert.equal(formatRelativeTime(null, now), "—");
-    assert.equal(formatRelativeTime("not a date", now), "—");
+    expect(formatRelativeTime("2026-07-31T09:00:00Z", now)).toBe("3h ago");
+    expect(formatRelativeTime(null, now)).toBe("—");
+    expect(formatRelativeTime("not a date", now)).toBe("—");
   });
 });

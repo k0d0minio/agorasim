@@ -16,3 +16,13 @@ export function t<T>(value: Localized<T>, locale: Locale): T {
 }
 
 export const localeNames: Localized = { pt: "PT", en: "EN" };
+
+/**
+ * Read the locale out of a pathname (`/en/experiencias` → `en`), falling back to
+ * {@link defaultLocale}. For the boundary screens (`error`/`loading`/`not-found`)
+ * under `app/[locale]`, which render without route params.
+ */
+export function localeFromPathname(pathname: string): Locale {
+  const first = pathname.split("/")[1] ?? "";
+  return isLocale(first) ? first : defaultLocale;
+}
