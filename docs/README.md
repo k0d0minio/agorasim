@@ -1,4 +1,6 @@
-# Kickoff documents
+# Documents
+
+## Kickoff documents
 
 Client-facing documents for the Agorasim project kickoff with Diogo & Rita.
 
@@ -9,3 +11,10 @@ Client-facing documents for the Agorasim project kickoff with Diogo & Rita.
 
 Both are `.docx` so the wording can be adjusted before sending. They mirror the
 visual identity of `proposals/proposal.html` (deep green, brass, parchment).
+
+## Engineering notes
+
+| File | Purpose |
+|------|---------|
+| `data-protection.md` | What the GDPR machinery in `web/` does, and the list of policy questions — the retention period above all — that a human still has to answer before the privacy policy can be published. |
+| `cookies-and-third-parties.md` | Audit of every outbound request the public site makes, and why the cookie banner gates the FareHarbor embed rather than merely announcing it. |
