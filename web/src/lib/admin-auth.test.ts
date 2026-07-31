@@ -1,174 +1,217 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  SESSION_MAX_AGE_SECONDS,
-  createSessionToken,
-  isValidPassword,
-  readSessionToken,
-  secretsMatch,
-  verifySessionToken,
-} from "./admin-auth";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/** Re-sign a payload the way the module does, to build hand-crafted tokens. */
-function encodePayload(payload: unknown): string {
-  return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+import { ADMIN_SESSION_COOKIE, createSessionToken } from "./admin-session";
+import type { AdminUserSummary } from "./admin-users";
+
+/**
+ * `requireAdmin` is the authorization boundary, so it is tested through its real
+ * path — cookie → token → account lookup → decision — with only the three things
+ * it cannot have in a unit test mocked out: the request's cookies, Next's
+ * `redirect`, and the database.
+ *
+ * `redirect` is mocked to throw the way the real one does, because the whole
+ * contract of `requireAdmin` is that nothing after a failed check runs.
+ */
+const cookieJar = new Map<string, string>();
+
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) => {
+      const value = cookieJar.get(name);
+      return value === undefined ? undefined : { name, value };
+    },
+    set: (name: string, value: string) => cookieJar.set(name, value),
+    delete: (name: string) => cookieJar.delete(name),
+  }),
+}));
+
+class RedirectError extends Error {
+  constructor(readonly to: string) {
+    super(`NEXT_REDIRECT:${to}`);
+  }
 }
 
-afterEach(() => {
-  vi.useRealTimers();
+vi.mock("next/navigation", () => ({
+  redirect: (to: string) => {
+    throw new RedirectError(to);
+  },
+}));
+
+const findAdminUserById = vi.fn<(id: string) => Promise<AdminUserSummary | null>>();
+vi.mock("./admin-users", () => ({ findAdminUserById: (id: string) => findAdminUserById(id) }));
+
+const {
+  ADMIN_FORBIDDEN_PATH,
+  authorize,
+  getCurrentUser,
+  requireAdmin,
+  roleSatisfies,
+} = await import("./admin-auth");
+
+const USER_ID = "11111111-2222-3333-4444-555555555555";
+
+function user(overrides: Partial<AdminUserSummary> = {}): AdminUserSummary {
+  return {
+    id: USER_ID,
+    email: "rita@agorasim.pt",
+    name: "Rita",
+    role: "collaborator",
+    lastLoginAt: null,
+    disabledAt: null,
+    // Far enough back that a token minted "now" is comfortably after it.
+    sessionsValidFrom: new Date("2020-01-01T00:00:00Z"),
+    createdAt: new Date("2020-01-01T00:00:00Z"),
+    ...overrides,
+  };
+}
+
+async function signIn(account: AdminUserSummary, userId = account.id): Promise<void> {
+  cookieJar.set(ADMIN_SESSION_COOKIE, await createSessionToken(userId));
+  findAdminUserById.mockResolvedValue(account);
+}
+
+/** Run `fn`, returning the path it redirected to, or `null` if it did not. */
+async function redirectedTo(fn: () => Promise<unknown>): Promise<string | null> {
+  try {
+    await fn();
+    return null;
+  } catch (err) {
+    if (err instanceof RedirectError) return err.to;
+    throw err;
+  }
+}
+
+beforeEach(() => {
+  cookieJar.clear();
+  findAdminUserById.mockReset();
+  vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
-describe("createSessionToken / verifySessionToken", () => {
-  it("accepts a freshly minted token", async () => {
-    const token = await createSessionToken();
-    expect(await verifySessionToken(token)).toBe(true);
-  });
-
-  it("carries a session id and an issued-at, and expires in 7 days", async () => {
-    const before = Math.floor(Date.now() / 1000);
-    const session = await readSessionToken(await createSessionToken());
-
-    expect(session).not.toBeNull();
-    expect(session!.sid).toMatch(/^[A-Za-z0-9_-]{10,}$/);
-    expect(session!.issuedAt).toBeGreaterThanOrEqual(before);
-    expect(session!.expiresAt - session!.issuedAt).toBe(SESSION_MAX_AGE_SECONDS);
-  });
-
-  it("mints a different token for every login in the same second", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-31T10:00:00Z"));
-
-    const [first, second] = await Promise.all([
-      createSessionToken(),
-      createSessionToken(),
-    ]);
-
-    expect(first).not.toBe(second);
-
-    const [a, b] = await Promise.all([
-      readSessionToken(first),
-      readSessionToken(second),
-    ]);
-    expect(a!.sid).not.toBe(b!.sid);
-    expect(a!.issuedAt).toBe(b!.issuedAt);
-  });
-
-  it("rejects a token whose payload was tampered with", async () => {
-    const token = await createSessionToken();
-    const [, signature] = token.split(".");
-
-    // Same signature, a payload claiming a far-future expiry.
-    const forged = `${encodePayload({
-      v: 1,
-      sid: "forged",
-      iat: 0,
-      exp: 4102444800,
-    })}.${signature}`;
-
-    expect(await verifySessionToken(forged)).toBe(false);
-  });
-
-  it("rejects a token whose signature was tampered with", async () => {
-    const token = await createSessionToken();
-    const [payload, signature] = token.split(".");
-    const flipped = (signature[0] === "A" ? "B" : "A") + signature.slice(1);
-
-    expect(await verifySessionToken(`${payload}.${flipped}`)).toBe(false);
-  });
-
-  it("rejects a token signed with a different secret", async () => {
-    const token = await createSessionToken();
-    vi.stubEnv("ADMIN_SESSION_SECRET", "a-rotated-secret");
-
-    expect(await verifySessionToken(token)).toBe(false);
-
-    vi.unstubAllEnvs();
-  });
-
-  it("rejects an expired token", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-31T10:00:00Z"));
-    const token = await createSessionToken();
-    expect(await verifySessionToken(token)).toBe(true);
-
-    // One second past the 7-day lifetime.
-    vi.setSystemTime(new Date(Date.now() + (SESSION_MAX_AGE_SECONDS + 1) * 1000));
-    expect(await verifySessionToken(token)).toBe(false);
-  });
-
-  const malformed: [label: string, token: string | null | undefined][] = [
-    ["empty", ""],
-    ["undefined", undefined],
-    ["null", null],
-    ["no separator", "not-a-token"],
-    ["too many parts", "a.b.c"],
-    ["empty signature", "eyJhIjoxfQ."],
-    ["payload that is not base64", "!!!.!!!"],
-    ["payload that is not JSON", `${Buffer.from("nope").toString("base64url")}.sig`],
-  ];
-
-  it.each(malformed)("rejects a malformed token (%s)", async (_label, token) => {
-    expect(await verifySessionToken(token)).toBe(false);
-  });
-
-  it("rejects a well-formed payload that is missing fields, even correctly signed", async () => {
-    // Sign a payload with no `sid`, using the module's own signing path by
-    // borrowing the signature from a token over the same encoded payload is not
-    // possible — so instead assert the shape check via readSessionToken.
-    const encoded = encodePayload({ v: 1, iat: 0, exp: 4102444800 });
-    expect(await readSessionToken(`${encoded}.whatever`)).toBeNull();
+describe("roleSatisfies", () => {
+  it("treats a required role as a floor, not an exact match", () => {
+    expect(roleSatisfies("owner", "collaborator")).toBe(true);
+    expect(roleSatisfies("owner", "owner")).toBe(true);
+    expect(roleSatisfies("collaborator", "collaborator")).toBe(true);
+    expect(roleSatisfies("collaborator", "owner")).toBe(false);
   });
 });
 
-describe("secretsMatch", () => {
-  it("matches identical secrets", async () => {
-    expect(await secretsMatch("correct horse", "correct horse")).toBe(true);
+describe("authorize", () => {
+  const session = { issuedAt: Math.floor(Date.now() / 1000) };
+
+  it("accepts an active account with no role requirement", () => {
+    expect(authorize(user(), session)).toEqual({ ok: true });
   });
 
-  it("rejects different secrets of the same length", async () => {
-    expect(await secretsMatch("abcdef", "abcdeg")).toBe(false);
+  it("rejects when there is no session at all", () => {
+    expect(authorize(user(), null)).toEqual({ ok: false, reason: "no-session" });
   });
 
-  it("rejects different secrets of different lengths", async () => {
-    expect(await secretsMatch("short", "a much longer secret")).toBe(false);
+  it("rejects a session naming an account that no longer exists", () => {
+    expect(authorize(null, session)).toEqual({ ok: false, reason: "unknown-user" });
   });
 
-  it("rejects a prefix of the real secret", async () => {
-    expect(await secretsMatch("correct hors", "correct horse")).toBe(false);
+  it("rejects a disabled account, even with a valid token", () => {
+    expect(authorize(user({ disabledAt: new Date() }), session)).toEqual({
+      ok: false,
+      reason: "disabled",
+    });
   });
 
-  it("compares fixed-length digests, so timing cannot reveal the length", async () => {
-    // Both comparisons run over 43-character base64url SHA-256 digests; the
-    // number of character comparisons is identical regardless of input length.
-    const digestLength = 43;
-    const spy = vi.spyOn(String.prototype, "charCodeAt");
+  it("rejects a token issued before a sign-out-everywhere", () => {
+    const revoked = user({ sessionsValidFrom: new Date(Date.now() + 60_000) });
+    expect(authorize(revoked, session)).toEqual({ ok: false, reason: "revoked" });
+  });
 
-    await secretsMatch("a", "a-vastly-longer-candidate-value-here");
-    const shortInputCalls = spy.mock.calls.length;
+  it("keeps a token issued after a sign-out-everywhere", () => {
+    const reset = user({ sessionsValidFrom: new Date(Date.now() - 60_000) });
+    expect(authorize(reset, session)).toEqual({ ok: true });
+  });
 
-    spy.mockClear();
-    await secretsMatch("a-vastly-longer-candidate-value-here", "a");
-    const longInputCalls = spy.mock.calls.length;
+  it("rejects a collaborator asking for an owner-only surface", () => {
+    expect(authorize(user({ role: "collaborator" }), session, "owner")).toEqual({
+      ok: false,
+      reason: "role",
+    });
+  });
 
-    spy.mockRestore();
+  it("lets an owner through an owner-only surface", () => {
+    expect(authorize(user({ role: "owner" }), session, "owner")).toEqual({ ok: true });
+  });
 
-    expect(shortInputCalls).toBe(longInputCalls);
-    expect(shortInputCalls).toBeLessThanOrEqual(digestLength * 2);
+  it("lets an owner through a collaborator-level surface", () => {
+    expect(authorize(user({ role: "owner" }), session, "collaborator")).toEqual({ ok: true });
   });
 });
 
-describe("isValidPassword", () => {
-  it("accepts the configured password", async () => {
-    expect(await isValidPassword("test-admin-password")).toBe(true);
+describe("requireAdmin", () => {
+  it("returns the signed-in operator", async () => {
+    await signIn(user({ role: "owner", name: "Diogo" }));
+    const actor = await requireAdmin();
+    expect(actor.name).toBe("Diogo");
   });
 
-  it("rejects anything else", async () => {
-    expect(await isValidPassword("test-admin-passwor")).toBe(false);
-    expect(await isValidPassword("")).toBe(false);
+  it("sends an anonymous caller to the login screen", async () => {
+    expect(await redirectedTo(() => requireAdmin())).toBe("/admin/login");
   });
 
-  it("throws when ADMIN_PASSWORD is unset, rather than falling back", async () => {
-    vi.stubEnv("ADMIN_PASSWORD", "");
-    await expect(isValidPassword("agorasim")).rejects.toThrow(/ADMIN_PASSWORD/);
-    vi.unstubAllEnvs();
+  it("sends a disabled operator to the login screen", async () => {
+    await signIn(user({ disabledAt: new Date() }));
+    expect(await redirectedTo(() => requireAdmin())).toBe("/admin/login");
+  });
+
+  it("sends a signed-out-everywhere session to the login screen", async () => {
+    await signIn(user({ sessionsValidFrom: new Date(Date.now() + 60_000) }));
+    expect(await redirectedTo(() => requireAdmin())).toBe("/admin/login");
+  });
+
+  it("sends a session naming a deleted account to the login screen", async () => {
+    cookieJar.set(ADMIN_SESSION_COOKIE, await createSessionToken(USER_ID));
+    findAdminUserById.mockResolvedValue(null);
+    expect(await redirectedTo(() => requireAdmin())).toBe("/admin/login");
+  });
+
+  it("refuses a collaborator on an owner-only surface", async () => {
+    await signIn(user({ role: "collaborator" }));
+    expect(await redirectedTo(() => requireAdmin("owner"))).toBe(ADMIN_FORBIDDEN_PATH);
+  });
+
+  it("sends a wrong-role caller to the forbidden screen, not to login", async () => {
+    // Re-authenticating cannot fix a role, so bouncing them to a login form
+    // would be actively misleading.
+    await signIn(user({ role: "collaborator" }));
+    expect(await redirectedTo(() => requireAdmin("owner"))).not.toBe("/admin/login");
+  });
+
+  it("lets an owner onto an owner-only surface", async () => {
+    await signIn(user({ role: "owner" }));
+    await expect(requireAdmin("owner")).resolves.toMatchObject({ role: "owner" });
+  });
+
+  it("looks the role up per request rather than trusting the token", async () => {
+    // The token is minted while the account is an owner, then the account is
+    // demoted. The next call must see the demotion — this is why the role is
+    // deliberately absent from the token payload.
+    await signIn(user({ role: "owner" }));
+    await expect(requireAdmin("owner")).resolves.toBeTruthy();
+
+    findAdminUserById.mockResolvedValue(user({ role: "collaborator" }));
+    expect(await redirectedTo(() => requireAdmin("owner"))).toBe(ADMIN_FORBIDDEN_PATH);
+  });
+});
+
+describe("getCurrentUser", () => {
+  it("returns the operator when the session is good", async () => {
+    await signIn(user());
+    await expect(getCurrentUser()).resolves.toMatchObject({ email: "rita@agorasim.pt" });
+  });
+
+  it("returns null rather than redirecting when there is no session", async () => {
+    await expect(getCurrentUser()).resolves.toBeNull();
+  });
+
+  it("returns null for a disabled account", async () => {
+    await signIn(user({ disabledAt: new Date() }));
+    await expect(getCurrentUser()).resolves.toBeNull();
   });
 });

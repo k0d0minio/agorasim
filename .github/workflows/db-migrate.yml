@@ -26,6 +26,13 @@ jobs:
     defaults:
       run:
         working-directory: web
+    # Job-level, because a step's own `env` is not visible to that step's `if`
+    # — and the seed step needs to test whether it was configured at all.
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ADMIN_SEED_EMAIL: ${{ secrets.ADMIN_SEED_EMAIL }}
+      ADMIN_SEED_NAME: ${{ secrets.ADMIN_SEED_NAME }}
+      ADMIN_SEED_PASSWORD: ${{ secrets.ADMIN_SEED_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,5 +55,14 @@ jobs:
 
       - name: Run Drizzle migrations
         run: pnpm db:migrate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # A database with no accounts in it locks the team out of /admin, so the
+      # first owner is seeded here. Idempotent by design: an address that
+      # already has an account is left completely alone, password included —
+      # so this is safe to run on every migration.
+      #
+      # Skipped when the secrets are not set, which keeps the workflow green on
+      # a repository that provisions its owner by hand instead.
+      - name: Seed the first owner account
+        if: env.ADMIN_SEED_EMAIL != '' && env.ADMIN_SEED_PASSWORD != ''
+        run: pnpm db:seed-owner

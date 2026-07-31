@@ -17,7 +17,6 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 
 /** Count a displayed number up to `value`, respecting reduced-motion. */
 function useCountUp(value: number): number {
@@ -67,7 +66,6 @@ type Msg = { tone: "ok" | "err"; text: string } | null;
 export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string[] }) {
   const [features, setFeatures] = useState<ReadonlySet<string>>(new Set());
   const [addOns, setAddOns] = useState<ReadonlySet<string>>(new Set());
-  const [name, setName] = useState("");
   const [msg, setMsg] = useState<Msg>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -111,7 +109,8 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
       return;
     }
     startTransition(async () => {
-      const res = await requestProposalFeatures({ ids, submittedBy: name });
+      // Who filed it comes from the signed-in account now, not a name box.
+      const res = await requestProposalFeatures({ ids });
       if (res.error) {
         setMsg({ tone: "err", text: res.error });
         return;
@@ -284,15 +283,6 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
 
             {/* Full-width, 44px-tall controls on a phone; compact from sm up. */}
             <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto">
-              <Input
-                size="sm"
-                className="h-11 w-full sm:h-8 sm:w-40"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name (optional)"
-                autoComplete="name"
-                aria-label="Your name"
-              />
               <Button
                 type="button"
                 variant="ghost"

@@ -21,12 +21,22 @@ import {
   Mail,
   MessageSquareShare,
   Newspaper,
+  ScrollText,
   Share2,
+  ShieldCheck,
+  UserCog,
   Users,
 } from "lucide-react";
+import type { AdminRole } from "@/db/schema";
 
 /** Groups, in the order they appear in both navs. Named for jobs, not tables. */
-export const ADMIN_NAV_GROUP_ORDER = ["Overview", "Sales", "Marketing", "System"] as const;
+export const ADMIN_NAV_GROUP_ORDER = [
+  "Overview",
+  "Sales",
+  "Marketing",
+  "System",
+  "Settings",
+] as const;
 
 export type AdminNavGroup = (typeof ADMIN_NAV_GROUP_ORDER)[number];
 
@@ -54,6 +64,15 @@ export type AdminNavItem = {
    * Feature requests, which have data today, sat behind "More".
    */
   primary: boolean;
+  /**
+   * Minimum role needed to see this entry. Absent means every signed-in operator.
+   *
+   * This is presentation only — hiding a link is not access control. The page
+   * behind an owner-only entry calls `requireAdmin("owner")` for itself, and so
+   * does every action it can reach. Typing the URL gets you the forbidden
+   * screen, not the page.
+   */
+  role?: AdminRole;
 };
 
 /** The dashboard itself, which is a nav destination but not one of its own cards. */
@@ -174,26 +193,82 @@ export const ADMIN_NAV: AdminNavItem[] = [
     dev: false,
     primary: true,
   },
+  {
+    href: "/admin/settings/account",
+    label: "My account",
+    cardTitle: "My account",
+    shortLabel: "Account",
+    icon: UserCog,
+    group: "Settings",
+    description: "Change your own password and sign out of every device at once.",
+    dev: false,
+    primary: false,
+  },
+  {
+    href: "/admin/settings/users",
+    label: "Team accounts",
+    cardTitle: "Team accounts",
+    shortLabel: "Team",
+    icon: ShieldCheck,
+    group: "Settings",
+    description:
+      "Who can sign in to this admin, what they're allowed to do, and how to disable an account.",
+    dev: false,
+    primary: false,
+    role: "owner",
+  },
+  {
+    href: "/admin/settings/audit",
+    label: "Audit log",
+    cardTitle: "Audit log",
+    shortLabel: "Audit",
+    icon: ScrollText,
+    group: "Settings",
+    description: "Every change made in this admin, who made it and when.",
+    dev: false,
+    primary: false,
+    role: "owner",
+  },
 ];
 
+/**
+ * The nav entries `role` may see. Ordering and grouping are unchanged; entries
+ * above the caller's role simply are not there.
+ *
+ * `null` — nobody signed in — sees nothing role-gated, which is what the login
+ * screen and the boundary components render against.
+ */
+export function visibleAdminNav(role: AdminRole | null): AdminNavItem[] {
+  return ADMIN_NAV.filter((item) => {
+    if (!item.role) return true;
+    return role === "owner" || role === item.role;
+  });
+}
+
 /** The nav grouped for the sidebar and the mobile sheet, in display order. */
-export const ADMIN_NAV_GROUPS: { title: AdminNavGroup; items: AdminNavItem[] }[] =
-  ADMIN_NAV_GROUP_ORDER.map((title) => ({
+export function adminNavGroups(
+  role: AdminRole | null,
+): { title: AdminNavGroup; items: AdminNavItem[] }[] {
+  const visible = visibleAdminNav(role);
+  return ADMIN_NAV_GROUP_ORDER.map((title) => ({
     title,
-    items: ADMIN_NAV.filter((item) => item.group === title),
-  }));
+    items: visible.filter((item) => item.group === title),
+  })).filter((group) => group.items.length > 0);
+}
 
 /**
  * The fixed slots in the mobile bottom toolbar. Derived from the `primary`
  * flag, so there is no separate href list to keep in step — and no `.find()!`
  * that would take the whole shell down at module evaluation over a typo.
+ *
+ * Nothing role-gated is `primary`, so this needs no role argument.
  */
 export const ADMIN_PRIMARY_NAV: AdminNavItem[] = ADMIN_NAV.filter((item) => item.primary);
 
 /** Every operations area that earns a dashboard card — everything but the dashboard. */
-export const ADMIN_AREAS: AdminNavItem[] = ADMIN_NAV.filter(
-  (item) => item.href !== ADMIN_HOME_HREF,
-);
+export function adminAreas(role: AdminRole | null): AdminNavItem[] {
+  return visibleAdminNav(role).filter((item) => item.href !== ADMIN_HOME_HREF);
+}
 
 /** Whether `href` is the area the operator is currently in. */
 export function isAdminNavItemActive(href: string, pathname: string): boolean {
