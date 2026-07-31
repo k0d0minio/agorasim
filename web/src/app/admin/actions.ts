@@ -69,23 +69,39 @@ function isRequestStatus(value: string): value is RequestStatus {
 }
 
 /**
- * Update the triage status of a tour request from the Submissions table. Invoked
- * from the inline status <select>; revalidates the page so the change is
- * reflected immediately. `/admin` is gated by `proxy.ts`, so this only runs for
+ * Result of a status change. The caller renders the failure, so a write that
+ * doesn't land can never look like one that did — the status control shows the
+ * new value optimistically and needs to be able to roll it back.
+ */
+export type StatusUpdateState = { ok?: true; error?: string };
+
+/**
+ * Update the triage status of a tour request from the Submissions list. Invoked
+ * from the status menu; revalidates the page so the change is reflected
+ * immediately. `/admin` is gated by `proxy.ts`, so this only runs for
  * authenticated operators.
  */
-export async function updateTourRequestStatus(formData: FormData): Promise<void> {
-  const id = String(formData.get("id") ?? "");
-  const status = String(formData.get("status") ?? "");
-  if (!id || !isRequestStatus(status)) return;
+export async function updateTourRequestStatus(
+  id: string,
+  status: string,
+): Promise<StatusUpdateState> {
+  if (!id || !isRequestStatus(status)) {
+    return { error: "That status isn't one we recognise." };
+  }
 
-  await db
-    .update(tourRequests)
-    .set({ status, updatedAt: new Date() })
-    .where(eq(tourRequests.id, id));
+  try {
+    await db
+      .update(tourRequests)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(tourRequests.id, id));
+  } catch (err) {
+    console.error("[admin] failed to update tour request status", err);
+    return { error: "Couldn't save that — check your connection and try again." };
+  }
 
   revalidatePath("/admin/submissions");
   revalidatePath("/admin");
+  return { ok: true };
 }
 
 function isFeatureRequestStatus(value: string): value is FeatureRequestStatus {
@@ -145,21 +161,30 @@ export async function submitFeatureRequest(
 }
 
 /**
- * Update the triage status of a feature request from its inline <select>.
+ * Update the triage status of a feature request from its status menu.
  * Revalidates the page so the change shows immediately.
  */
-export async function updateFeatureRequestStatus(formData: FormData): Promise<void> {
-  const id = String(formData.get("id") ?? "");
-  const status = String(formData.get("status") ?? "");
-  if (!id || !isFeatureRequestStatus(status)) return;
+export async function updateFeatureRequestStatus(
+  id: string,
+  status: string,
+): Promise<StatusUpdateState> {
+  if (!id || !isFeatureRequestStatus(status)) {
+    return { error: "That status isn't one we recognise." };
+  }
 
-  await db
-    .update(featureRequests)
-    .set({ status, updatedAt: new Date() })
-    .where(eq(featureRequests.id, id));
+  try {
+    await db
+      .update(featureRequests)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(featureRequests.id, id));
+  } catch (err) {
+    console.error("[admin] failed to update feature request status", err);
+    return { error: "Couldn't save that — check your connection and try again." };
+  }
 
   revalidatePath("/admin/feature-requests");
   revalidatePath("/admin");
+  return { ok: true };
 }
 
 export type RequestProposalState = {

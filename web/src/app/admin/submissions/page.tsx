@@ -6,9 +6,8 @@ import { t } from "@/i18n/config";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { PlaceholderPanel } from "@/components/admin/placeholder-panel";
 import { RequestStatusSelect } from "@/components/admin/request-status-select";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { formatDate, requestStatusMeta } from "@/lib/admin-format";
+import { formatDate } from "@/lib/admin-format";
 
 // Reads live data — never prerender at build time.
 export const dynamic = "force-dynamic";
@@ -59,9 +58,7 @@ export default async function AdminSubmissionsPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => {
-              const meta = requestStatusMeta[r.status];
-              return (
+            {rows.map((r) => (
                 <tr key={r.id} className="border-b align-top last:border-0">
                   <td className="px-4 py-3">
                     <div className="font-medium">{r.name}</div>
@@ -91,14 +88,10 @@ export default async function AdminSubmissionsPage() {
                     {formatDate(r.createdAt)}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-col items-start gap-1.5">
-                      <Badge variant={meta.variant}>{meta.label}</Badge>
-                      <RequestStatusSelect id={r.id} status={r.status} />
-                    </div>
+                    <RequestStatusSelect id={r.id} status={r.status} name={r.name} />
                   </td>
                 </tr>
-              );
-            })}
+            ))}
           </tbody>
         </table>
       </Card>
