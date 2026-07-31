@@ -77,10 +77,62 @@ const dateFormatter = new Intl.DateTimeFormat("en-GB", {
   year: "numeric",
 });
 
+const dateTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function toDate(value: Date | string | null): Date | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 /** Format a timestamp/date for compact display in admin tables. */
 export function formatDate(value: Date | string | null): string {
-  if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return dateFormatter.format(date);
+  const date = toDate(value);
+  return date ? dateFormatter.format(date) : "—";
+}
+
+/** Full date *and* time — used as the title/secondary line next to an age. */
+export function formatDateTime(value: Date | string | null): string {
+  const date = toDate(value);
+  return date ? dateTimeFormatter.format(date) : "—";
+}
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+const WEEK = 7 * DAY;
+const MONTH = 30 * DAY;
+const YEAR = 365 * DAY;
+
+/**
+ * How long ago something happened, in the largest unit that still reads
+ * naturally: "just now", "12m ago", "3h ago", "2d ago", "5w ago", "3mo ago".
+ *
+ * Triage is the job on Submissions and Feature requests, and for triage the age
+ * of a lead matters far more than its calendar date — so this is the primary
+ * line, with `formatDateTime` as the exact value behind it.
+ */
+export function formatRelativeTime(
+  value: Date | string | null,
+  now: Date = new Date(),
+): string {
+  const date = toDate(value);
+  if (!date) return "—";
+
+  const diff = now.getTime() - date.getTime();
+  // Clock skew, or a date in the future: don't claim it happened in the past.
+  if (diff < 0) return "just now";
+  if (diff < MINUTE) return "just now";
+  if (diff < HOUR) return `${Math.floor(diff / MINUTE)}m ago`;
+  if (diff < DAY) return `${Math.floor(diff / HOUR)}h ago`;
+  if (diff < WEEK) return `${Math.floor(diff / DAY)}d ago`;
+  if (diff < MONTH) return `${Math.floor(diff / WEEK)}w ago`;
+  if (diff < YEAR) return `${Math.floor(diff / MONTH)}mo ago`;
+  return `${Math.floor(diff / YEAR)}y ago`;
 }

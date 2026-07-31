@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -47,40 +48,80 @@ export default function AdminBookingsPage() {
         <span>Upcoming — next 30 days</span>
       </div>
 
-      <Card className="overflow-x-auto p-0">
-        <Table className="min-w-[760px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Ref</TableHead>
-              <TableHead>Guest</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Experience</TableHead>
-              <TableHead>Party</TableHead>
-              <TableHead>Total</TableHead>
-              <TableHead>Payment</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {previewBookings.map((b) => (
-              <TableRow key={b.ref}>
-                <TableCell className="font-mono text-xs text-muted-foreground">{b.ref}</TableCell>
-                <TableCell>
-                  <div className="font-medium">{b.name}</div>
-                  <Badge variant={b.kind === "Wedding" ? "secondary" : "ghost"} className="mt-1">
-                    {b.kind}
-                  </Badge>
-                </TableCell>
-                <TableCell className="whitespace-nowrap">{b.date}</TableCell>
-                <TableCell className="text-muted-foreground">{b.what}</TableCell>
-                <TableCell>{b.party}</TableCell>
-                <TableCell className="font-medium">{b.total}</TableCell>
-                <TableCell>
+      {/* Same card-below-md / table-at-md pattern as Submissions. */}
+      <ul className="flex flex-col gap-3 md:hidden">
+        {previewBookings.map((b) => (
+          <li key={b.ref}>
+            <Card className="gap-3">
+              <div className="flex flex-col gap-3 px-(--card-spacing)">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-heading text-base font-medium">{b.name}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{b.ref}</p>
+                  </div>
                   <Badge variant={paymentVariant[b.payment]}>{b.payment}</Badge>
-                </TableCell>
+                </div>
+
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                  <dt className="text-muted-foreground">Date</dt>
+                  <dd>{b.date}</dd>
+                  <dt className="text-muted-foreground">Experience</dt>
+                  <dd>{b.what}</dd>
+                  <dt className="text-muted-foreground">Party</dt>
+                  <dd>{b.party}</dd>
+                  <dt className="text-muted-foreground">Total</dt>
+                  <dd className="font-medium">{b.total}</dd>
+                </dl>
+
+                <Badge variant={b.kind === "Wedding" ? "secondary" : "ghost"} className="w-fit">
+                  {b.kind}
+                </Badge>
+              </div>
+            </Card>
+          </li>
+        ))}
+      </ul>
+
+      <Card className="hidden p-0 md:block">
+        {/* `relative` matters: without a containing block of its own, the
+            table's overflow escapes this scroller and scrolls the whole page
+            sideways at widths where the table doesn't fit. */}
+        <div className="relative overflow-x-auto">
+          <Table className="min-w-[760px]">
+            <TableCaption>Bookings starting in the next 30 days — example data.</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Ref</TableHead>
+                <TableHead>Guest</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Experience</TableHead>
+                <TableHead>Party</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Payment</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {previewBookings.map((b) => (
+                <TableRow key={b.ref}>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{b.ref}</TableCell>
+                  <TableCell>
+                    <div className="font-medium">{b.name}</div>
+                    <Badge variant={b.kind === "Wedding" ? "secondary" : "ghost"} className="mt-1">
+                      {b.kind}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{b.date}</TableCell>
+                  <TableCell className="text-muted-foreground">{b.what}</TableCell>
+                  <TableCell>{b.party}</TableCell>
+                  <TableCell className="font-medium">{b.total}</TableCell>
+                  <TableCell>
+                    <Badge variant={paymentVariant[b.payment]}>{b.payment}</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
 
       <p className="mt-3 text-xs text-muted-foreground">
