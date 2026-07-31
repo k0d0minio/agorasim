@@ -9,12 +9,16 @@ import { InDevBanner } from "@/components/in-dev-banner";
 import { FaqList } from "@/components/faq";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { JsonLd } from "@/components/json-ld";
 import { organizationJsonLd, faqJsonLd } from "@/lib/jsonld";
 import { alternates } from "@/lib/seo";
 
-const inputClass =
-  "h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-70";
+/** Every field on this page is a disabled preview of the form still to come. */
+const disabledClass = "disabled:opacity-70";
 
 export async function generateMetadata({
   params,
@@ -144,72 +148,56 @@ export default async function WeddingsPage({
           <form className="mt-8 flex flex-col gap-5">
             <div className="grid gap-5 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="wd-names" className="text-sm font-medium">
-                  {t(c.quote.labels.names, l)}
-                </label>
-                <input id="wd-names" disabled className={inputClass} />
+                <Label htmlFor="wd-names">{t(c.quote.labels.names, l)}</Label>
+                <Input id="wd-names" disabled className={disabledClass} />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="wd-email" className="text-sm font-medium">
-                  {t(c.quote.labels.email, l)}
-                </label>
-                <input id="wd-email" type="email" disabled className={inputClass} />
+                <Label htmlFor="wd-email">{t(c.quote.labels.email, l)}</Label>
+                <Input id="wd-email" type="email" disabled className={disabledClass} />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="wd-phone" className="text-sm font-medium">
-                  {t(c.quote.labels.phone, l)}
-                </label>
-                <input id="wd-phone" type="tel" disabled className={inputClass} />
+                <Label htmlFor="wd-phone">{t(c.quote.labels.phone, l)}</Label>
+                <Input id="wd-phone" type="tel" disabled className={disabledClass} />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="wd-date" className="text-sm font-medium">
-                  {t(c.quote.labels.date, l)}
-                </label>
-                <input id="wd-date" type="date" disabled className={inputClass} />
+                <Label htmlFor="wd-date">{t(c.quote.labels.date, l)}</Label>
+                <Input id="wd-date" type="date" disabled className={disabledClass} />
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <label htmlFor="wd-venue" className="text-sm font-medium">
-                  {t(c.quote.labels.venue, l)}
-                </label>
-                <input
+                <Label htmlFor="wd-venue">{t(c.quote.labels.venue, l)}</Label>
+                <Input
                   id="wd-venue"
                   disabled
                   placeholder={t(c.quote.labels.venuePlaceholder, l)}
-                  className={inputClass}
+                  className={disabledClass}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="wd-hours" className="text-sm font-medium">
-                  {t(c.quote.labels.hours, l)}
-                </label>
-                <select id="wd-hours" disabled className={inputClass}>
+                <Label htmlFor="wd-hours">{t(c.quote.labels.hours, l)}</Label>
+                <Select id="wd-hours" disabled className={disabledClass}>
                   {t(c.quote.labels.hoursOptions, l).map((opt) => (
                     <option key={opt}>{opt}</option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="wd-car" className="text-sm font-medium">
-                  {t(c.quote.labels.car, l)}
-                </label>
-                <select id="wd-car" disabled className={inputClass}>
+                <Label htmlFor="wd-car">{t(c.quote.labels.car, l)}</Label>
+                <Select id="wd-car" disabled className={disabledClass}>
                   <option>{t(c.quote.labels.carNone, l)}</option>
                   {c.fleet.cars.map((car) => (
                     <option key={car.name}>{car.name}</option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="wd-message" className="text-sm font-medium">
-                {t(c.quote.labels.message, l)}
-              </label>
-              <textarea
+              <Label htmlFor="wd-message">{t(c.quote.labels.message, l)}</Label>
+              <Textarea
                 id="wd-message"
                 rows={4}
                 disabled
                 placeholder={t(c.quote.labels.messagePlaceholder, l)}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none disabled:opacity-70"
+                className={disabledClass}
               />
             </div>
             <div>

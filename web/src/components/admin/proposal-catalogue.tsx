@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 /** Count a displayed number up to `value`, respecting reduced-motion. */
 function useCountUp(value: number): number {
@@ -260,13 +261,14 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
             </div>
 
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <input
+              <Input
+                size="sm"
+                className="w-40"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your name (optional)"
                 autoComplete="name"
                 aria-label="Your name"
-                className="h-8 w-40 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
               <Button type="button" variant="ghost" size="sm" onClick={clearAll} disabled={isPending}>
                 <RotateCcw />

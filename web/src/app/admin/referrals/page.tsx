@@ -5,6 +5,14 @@ import { previewReferralStats, previewReferrers } from "@/lib/admin-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 /**
  * Referrals (proposal Feature 6) — design preview. Each guest gets a personal
@@ -36,43 +44,43 @@ export default function AdminReferralsPage() {
       </div>
 
       <Card className="overflow-x-auto p-0">
-        <table className="w-full min-w-[700px] text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs text-muted-foreground uppercase tracking-wide">
-              <th className="px-4 py-3 font-medium">Guest</th>
-              <th className="px-4 py-3 font-medium">Personal link</th>
-              <th className="px-4 py-3 font-medium">Shares</th>
-              <th className="px-4 py-3 font-medium">Bookings</th>
-              <th className="px-4 py-3 font-medium">Reward</th>
-              <th className="px-4 py-3 font-medium" />
-            </tr>
-          </thead>
-          <tbody>
+        <Table className="min-w-[700px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Guest</TableHead>
+              <TableHead>Personal link</TableHead>
+              <TableHead>Shares</TableHead>
+              <TableHead>Bookings</TableHead>
+              <TableHead>Reward</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {previewReferrers.map((r) => (
-              <tr key={r.name} className="border-b last:border-0">
-                <td className="px-4 py-3 font-medium">{r.name}</td>
-                <td className="px-4 py-3">
+              <TableRow key={r.name}>
+                <TableCell className="font-medium">{r.name}</TableCell>
+                <TableCell>
                   <code className="text-xs text-muted-foreground">{r.link}</code>
-                </td>
-                <td className="px-4 py-3">{r.shares}</td>
-                <td className="px-4 py-3 font-medium text-primary">{r.bookings}</td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell>{r.shares}</TableCell>
+                <TableCell className="font-medium text-primary">{r.bookings}</TableCell>
+                <TableCell>
                   <Badge variant={r.rewardDue ? "secondary" : "ghost"}>
                     <Gift className="size-3" />
                     {r.reward}
                   </Badge>
-                </td>
-                <td className="px-4 py-3 text-right">
+                </TableCell>
+                <TableCell className="text-right">
                   {r.rewardDue && (
                     <Button size="sm" variant="outline" disabled>
                       Mark fulfilled
                     </Button>
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </Card>
 
       <p className="mt-4 text-xs text-muted-foreground">
