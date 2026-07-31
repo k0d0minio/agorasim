@@ -14,14 +14,6 @@ import type { badgeVariants } from "@/components/ui/badge";
  */
 type BadgeVariant = VariantProps<typeof badgeVariants>["variant"];
 
-export const REQUEST_STATUSES: RequestStatus[] = [
-  "new",
-  "contacted",
-  "quoted",
-  "booked",
-  "archived",
-];
-
 export const requestStatusMeta: Record<
   RequestStatus,
   { label: string; variant: BadgeVariant }
@@ -33,6 +25,13 @@ export const requestStatusMeta: Record<
   archived: { label: "Archived", variant: "outline" },
 };
 
+/**
+ * Statuses in picker order. Read off the meta record rather than written out
+ * again: `Record<RequestStatus, …>` already forces every status to appear
+ * exactly once, so the list cannot fall behind the database enum.
+ */
+export const REQUEST_STATUSES = Object.keys(requestStatusMeta) as RequestStatus[];
+
 export const contentStatusMeta: Record<
   ContentStatus,
   { label: string; variant: BadgeVariant }
@@ -42,14 +41,6 @@ export const contentStatusMeta: Record<
   approved: { label: "Approved", variant: "default" },
   published: { label: "Published", variant: "default" },
 };
-
-export const FEATURE_REQUEST_STATUSES: FeatureRequestStatus[] = [
-  "new",
-  "planned",
-  "in_progress",
-  "completed",
-  "declined",
-];
 
 export const featureRequestStatusMeta: Record<
   FeatureRequestStatus,
@@ -62,12 +53,9 @@ export const featureRequestStatusMeta: Record<
   declined: { label: "Declined", variant: "outline" },
 };
 
-export const FEATURE_REQUEST_PRIORITIES: FeatureRequestPriority[] = [
-  "low",
-  "medium",
-  "high",
-  "urgent",
-];
+export const FEATURE_REQUEST_STATUSES = Object.keys(
+  featureRequestStatusMeta,
+) as FeatureRequestStatus[];
 
 export const featureRequestPriorityMeta: Record<
   FeatureRequestPriority,
@@ -78,6 +66,10 @@ export const featureRequestPriorityMeta: Record<
   high: { label: "High", variant: "secondary" },
   urgent: { label: "Urgent", variant: "destructive" },
 };
+
+export const FEATURE_REQUEST_PRIORITIES = Object.keys(
+  featureRequestPriorityMeta,
+) as FeatureRequestPriority[];
 
 const dateFormatter = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
