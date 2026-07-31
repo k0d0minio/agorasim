@@ -24,6 +24,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   // Matches --background in globals.css so the installed app chrome blends in.
+  // A single value is correct: there is deliberately no dark theme (see globals.css).
   themeColor: "#fdfaf4",
   // Let the bottom toolbar extend under the iOS home indicator (safe-area).
   viewportFit: "cover",
