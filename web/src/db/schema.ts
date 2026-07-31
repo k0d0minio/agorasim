@@ -23,6 +23,7 @@
  */
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   date,
   index,
   integer,
@@ -223,6 +224,21 @@ export type NewAuditLogEntry = typeof auditLog.$inferInsert;
 /**
  * Public onboarding form submissions — customers requesting a tour. Written by
  * the `submitTourRequest` server action, read by the admin Submissions page.
+ *
+ * **This table is personal data** (GDPR Art. 4(1)): name, email, phone, and a
+ * free-text message from, mostly, EU residents. Three consequences are encoded
+ * below and enforced elsewhere:
+ *
+ * - Marketing consent is stored *separately from the enquiry itself*, with a
+ *   timestamp and the version of the text that was agreed to, so it can be
+ *   evidenced later (Art. 7(1)). Submitting the form is not consent to
+ *   marketing, and the box is never pre-ticked.
+ * - Rows are erasable and exportable from the admin (Art. 15 & 17), owner-only,
+ *   through the audit log.
+ * - Rows that never convert are anonymised by the retention job
+ *   (`app/api/cron/retention`) after `ENQUIRY_RETENTION_DAYS`.
+ *
+ * See `docs/data-protection.md`.
  */
 export const tourRequests = pgTable("tour_requests", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -248,6 +264,20 @@ export const tourRequests = pgTable("tour_requests", {
   /** Where the lead came from — website form, phone follow-up, import, … */
   source: text("source").notNull().default("website"),
 
+  // Marketing consent — deliberately not `notNull().default(true)`.
+  /** Opt-in to marketing email. Never a condition of sending the enquiry. */
+  marketingConsent: boolean("marketing_consent").notNull().default(false),
+  /** When consent was given. Null whenever `marketingConsent` is false. */
+  marketingConsentAt: timestamp("marketing_consent_at", { withTimezone: true }),
+  /**
+   * Which wording the person agreed to (`MARKETING_CONSENT_VERSION` in
+   * `content/privacy.ts`). Reword the checkbox and old rows still evidence what
+   * was actually shown at the time.
+   */
+  marketingConsentVersion: text("marketing_consent_version"),
+
+  /** Set by the retention job when the PII was cleared. See `lib/retention.ts`. */
+  anonymisedAt: timestamp("anonymised_at", { withTimezone: true }),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -255,6 +285,8 @@ export const tourRequests = pgTable("tour_requests", {
   // Triage filters on `status`; every list is ordered by `created_at`.
   index("tour_requests_status_idx").on(table.status),
   index("tour_requests_created_at_idx").on(table.createdAt),
+  // The subject-access export looks a person up by email across every table.
+  index("tour_requests_email_idx").on(table.email),
 ]);
 
 export type TourRequest = typeof tourRequests.$inferSelect;

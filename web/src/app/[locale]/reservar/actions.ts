@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db, tourRequests } from "@/db";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
+import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { formValues, tourRequestSchema, type TourRequestField } from "@/lib/form-schemas";
@@ -71,12 +72,19 @@ export async function submitTourRequest(
   }
 
   try {
-    const { experience, ...request } = parsed.data;
+    const { experience, marketingConsent, ...request } = parsed.data;
     await db.insert(tourRequests).values({
       ...request,
       locale,
       experienceSlug: experience,
       source: "website",
+      // Consent is recorded with *when* and *which wording*, so it can be
+      // evidenced later (Art. 7(1)). A "no" stores no timestamp and no version:
+      // there is nothing to prove, and a row that looks half-consented invites
+      // exactly the wrong reading later.
+      marketingConsent,
+      marketingConsentAt: marketingConsent ? new Date() : null,
+      marketingConsentVersion: marketingConsent ? MARKETING_CONSENT_VERSION : null,
     });
   } catch (err) {
     console.error("[reservar] failed to store tour request", err);
