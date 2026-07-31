@@ -26,7 +26,7 @@ const paymentVariant = {
  */
 export default function AdminBookingsPage() {
   return (
-    <AdminShell title="Bookings">
+    <AdminShell>
       <AdminInDevBanner note="When instant booking goes live, every paid tour and wedding hire appears here the moment the guest pays — no more copying between inboxes." />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -87,7 +87,7 @@ export default function AdminBookingsPage() {
             table's overflow escapes this scroller and scrolls the whole page
             sideways at widths where the table doesn't fit. */}
         <div className="relative overflow-x-auto">
-          <Table>
+          <Table className="min-w-[760px]">
             <TableCaption>Bookings starting in the next 30 days — example data.</TableCaption>
             <TableHeader>
               <TableRow>

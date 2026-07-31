@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 /** Count a displayed number up to `value`, respecting reduced-motion. */
 function useCountUp(value: number): number {
@@ -241,6 +242,7 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
         </div>
       </div>
 
+      {/* Sticky summary / action bar */}
       {/*
         Sticky summary / action bar. Sticky resolves against the viewport, not
         <main>'s bottom padding, so below md this has to clear the fixed bottom
@@ -282,18 +284,20 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
 
             {/* Full-width, 44px-tall controls on a phone; compact from sm up. */}
             <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto">
-              <input
+              <Input
+                size="sm"
+                className="h-11 w-full sm:h-8 sm:w-40"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your name (optional)"
                 autoComplete="name"
                 aria-label="Your name"
-                className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:h-8 sm:w-40"
               />
               <Button
                 type="button"
                 variant="ghost"
-                className="h-11 flex-1 sm:h-7 sm:flex-none sm:px-2.5 sm:text-[0.8rem]"
+                size="sm"
+                className="h-11 flex-1 sm:h-7 sm:flex-none"
                 onClick={clearAll}
                 disabled={isPending}
               >
@@ -302,7 +306,8 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
               </Button>
               <Button
                 type="button"
-                className="h-11 flex-1 sm:h-7 sm:flex-none sm:px-2.5 sm:text-[0.8rem]"
+                size="sm"
+                className="h-11 flex-1 sm:h-7 sm:flex-none"
                 onClick={fileRequests}
                 disabled={isPending || selectedCount === 0}
               >

@@ -1,17 +1,15 @@
-import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 /**
- * Unit tests for the pure server-side logic — session tokens, secret comparison
- * and rate limiting. No React/DOM tests yet, so no environment or setup files;
- * everything runs in plain Node.
+ * Unit tests for the pure server-side logic — session tokens, secret comparison,
+ * rate limiting, pricing arithmetic and formatting. Nothing here renders, so
+ * there is no jsdom environment and no setup files; everything runs in plain
+ * Node. Async Server Components are not unit-testable, so anything that touches
+ * the database is covered by the build and by types instead.
  */
 export default defineConfig({
-  resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
-    },
-  },
+  // Resolves the `@/*` alias from tsconfig.json.
+  resolve: { tsconfigPaths: true },
   test: {
     include: ["src/**/*.test.ts"],
     environment: "node",

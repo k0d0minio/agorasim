@@ -1,18 +1,6 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  CalendarCheck,
-  FileText,
-  Inbox,
-  KanbanSquare,
-  Lightbulb,
-  Mail,
-  MessageSquareShare,
-  Newspaper,
-  Share2,
-  Users,
-} from "lucide-react";
-import { count, inArray, eq } from "drizzle-orm";
+import { ArrowRight } from "lucide-react";
+import { count } from "drizzle-orm";
 import {
   db,
   tourRequests,
@@ -25,151 +13,63 @@ import {
 import type { ContentStatus, FeatureRequestStatus } from "@/db/schema";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { InDevLegend, InDevMarker } from "@/components/admin/in-dev-marker";
+import { ADMIN_AREAS } from "@/lib/admin-nav";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 // Reads live counts — never prerender at build time.
 export const dynamic = "force-dynamic";
 
-/** Every operations area. `dev` areas show their final design with example data. */
-const SECTIONS = [
-  {
-    href: "/admin/submissions",
-    icon: Inbox,
-    title: "Form submissions",
-    description:
-      "Booking enquiries and contact requests will land here for triage and follow-up.",
-    dev: false,
-  },
-  {
-    href: "/admin/crm",
-    icon: KanbanSquare,
-    title: "CRM pipeline",
-    description:
-      "Every lead on one board — Lead → Contacted → Quoted → Booked — so nothing falls through.",
-    dev: true,
-  },
-  {
-    href: "/admin/bookings",
-    icon: CalendarCheck,
-    title: "Bookings",
-    description:
-      "Paid tour and wedding bookings, with deposits, balances and payment status at a glance.",
-    dev: true,
-  },
-  {
-    href: "/admin/blog",
-    icon: Newspaper,
-    title: "Blog studio",
-    description:
-      "AI-drafted articles in your voice, waiting for a one-click review before publishing.",
-    dev: true,
-  },
-  {
-    href: "/admin/social",
-    icon: Share2,
-    title: "Social studio",
-    description:
-      "A generated posting calendar for Instagram & Facebook — approve, and it posts itself.",
-    dev: true,
-  },
-  {
-    href: "/admin/email",
-    icon: Mail,
-    title: "Email marketing",
-    description:
-      "Segments and bilingual campaigns that bring past and archived guests back for more.",
-    dev: true,
-  },
-  {
-    href: "/admin/referrals",
-    icon: Users,
-    title: "Referrals",
-    description:
-      "Personal links for happy guests, tracked bookings, and the rewards you owe your fans.",
-    dev: true,
-  },
-  {
-    href: "/admin/notifications",
-    icon: MessageSquareShare,
-    title: "Notifications",
-    description:
-      "Automatic confirmations, reminders and thank-yous for guests — instant alerts for you.",
-    dev: true,
-  },
-  {
-    href: "/admin/content",
-    icon: FileText,
-    title: "Generated content",
-    description:
-      "Review GEO/marketing drafts produced by the workspaces before publishing them to the site.",
-    dev: false,
-  },
-  {
-    href: "/admin/feature-requests",
-    icon: Lightbulb,
-    title: "Feature requests",
-    description:
-      "Capture and triage ideas and asks for the toolkit — a free-form backlog for the team.",
-    dev: false,
-  },
-];
+const REVIEW: ContentStatus[] = ["draft", "in_review"];
+const PUBLISHED: ContentStatus[] = ["published"];
+const OPEN_FEATURE: FeatureRequestStatus[] = ["new", "planned", "in_progress"];
+
+/** Total the rows of a `GROUP BY status` result that match one of `statuses`. */
+function tally<S extends string>(rows: { status: S; n: number }[], statuses: readonly S[]): number {
+  return rows.reduce((total, row) => (statuses.includes(row.status) ? total + row.n : total), 0);
+}
 
 export default async function AdminDashboardPage() {
-  const review: ContentStatus[] = ["draft", "in_review"];
-  const published: ContentStatus[] = ["published"];
-  const openFeature: FeatureRequestStatus[] = ["new", "planned", "in_progress"];
-
-  const [
-    [newSubmissions],
-    [openFeatureRequests],
-    [geoReview],
-    [blogReview],
-    [socialReview],
-    [emailReview],
-    [geoPublished],
-    [blogPublished],
-    [socialPublished],
-    [emailPublished],
-  ] = await Promise.all([
-    db.select({ n: count() }).from(tourRequests).where(eq(tourRequests.status, "new")),
+  /*
+   * One `GROUP BY status` per table instead of a `count()` per stat. Neon's HTTP
+   * driver opens a connection per query, so the old ten stats meant ten round
+   * trips on every render of a `force-dynamic` page; `db.batch` sends these six
+   * as a single request and the per-status arithmetic happens here.
+   */
+  const [requests, features, geo, blog, social, email] = await db.batch([
     db
-      .select({ n: count() })
+      .select({ status: tourRequests.status, n: count() })
+      .from(tourRequests)
+      .groupBy(tourRequests.status),
+    db
+      .select({ status: featureRequests.status, n: count() })
       .from(featureRequests)
-      .where(inArray(featureRequests.status, openFeature)),
-    db.select({ n: count() }).from(geoContentDrafts).where(inArray(geoContentDrafts.status, review)),
-    db.select({ n: count() }).from(blogPostDrafts).where(inArray(blogPostDrafts.status, review)),
-    db.select({ n: count() }).from(socialPostDrafts).where(inArray(socialPostDrafts.status, review)),
+      .groupBy(featureRequests.status),
     db
-      .select({ n: count() })
-      .from(emailCampaignDrafts)
-      .where(inArray(emailCampaignDrafts.status, review)),
-    db
-      .select({ n: count() })
+      .select({ status: geoContentDrafts.status, n: count() })
       .from(geoContentDrafts)
-      .where(inArray(geoContentDrafts.status, published)),
-    db.select({ n: count() }).from(blogPostDrafts).where(inArray(blogPostDrafts.status, published)),
+      .groupBy(geoContentDrafts.status),
     db
-      .select({ n: count() })
+      .select({ status: blogPostDrafts.status, n: count() })
+      .from(blogPostDrafts)
+      .groupBy(blogPostDrafts.status),
+    db
+      .select({ status: socialPostDrafts.status, n: count() })
       .from(socialPostDrafts)
-      .where(inArray(socialPostDrafts.status, published)),
+      .groupBy(socialPostDrafts.status),
     db
-      .select({ n: count() })
+      .select({ status: emailCampaignDrafts.status, n: count() })
       .from(emailCampaignDrafts)
-      .where(inArray(emailCampaignDrafts.status, published)),
+      .groupBy(emailCampaignDrafts.status),
   ]);
 
-  const draftsToReview =
-    (geoReview?.n ?? 0) + (blogReview?.n ?? 0) + (socialReview?.n ?? 0) + (emailReview?.n ?? 0);
-  const publishedCount =
-    (geoPublished?.n ?? 0) +
-    (blogPublished?.n ?? 0) +
-    (socialPublished?.n ?? 0) +
-    (emailPublished?.n ?? 0);
+  const drafts = [geo, blog, social, email];
+  const draftsToReview = drafts.reduce((total, rows) => total + tally(rows, REVIEW), 0);
+  const publishedCount = drafts.reduce((total, rows) => total + tally(rows, PUBLISHED), 0);
 
   const STATS = [
     {
       label: "New submissions",
-      value: String(newSubmissions?.n ?? 0),
+      value: String(tally(requests, ["new"])),
       hint: "Awaiting first contact",
     },
     {
@@ -180,13 +80,13 @@ export default async function AdminDashboardPage() {
     { label: "Published", value: String(publishedCount), hint: "Content pushed live" },
     {
       label: "Open feature requests",
-      value: String(openFeatureRequests?.n ?? 0),
+      value: String(tally(features, OPEN_FEATURE)),
       hint: "In the toolkit backlog",
     },
   ];
 
   return (
-    <AdminShell title="Dashboard">
+    <AdminShell>
       <div className="flex flex-col gap-8">
         <section>
           <h2 className="sr-only">Overview</h2>
@@ -210,7 +110,7 @@ export default async function AdminDashboardPage() {
             Areas
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {SECTIONS.map(({ href, icon: Icon, title, description, dev }) => (
+            {ADMIN_AREAS.map(({ href, icon: Icon, label, cardTitle, description, dev }) => (
               <Link
                 key={href}
                 href={href}
@@ -229,7 +129,7 @@ export default async function AdminDashboardPage() {
                       {dev && <InDevMarker className="mt-3" />}
                     </div>
                     <CardTitle className="mt-2 flex items-center gap-1">
-                      {title}
+                      {cardTitle ?? label}
                       <ArrowRight className="size-4 -translate-x-1 opacity-0 transition-all group-hover/section:translate-x-0 group-hover/section:opacity-100" />
                     </CardTitle>
                     <CardDescription>{description}</CardDescription>

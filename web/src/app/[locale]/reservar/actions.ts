@@ -1,21 +1,19 @@
 "use server";
 
+import { z } from "zod";
 import { db, tourRequests } from "@/db";
-import { experiences } from "@/content/experiences";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
+import { formValues, tourRequestSchema, type TourRequestField } from "@/lib/form-schemas";
 
 export type TourRequestState = {
   ok?: boolean;
   error?: string;
   /** Field-level errors keyed by input name, for inline display. */
-  fieldErrors?: Partial<Record<"name" | "email", string>>;
+  fieldErrors?: Partial<Record<TourRequestField, string>>;
 };
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const validSlugs = new Set(experiences.map((e) => e.slug));
 
 /**
  * Name of the honeypot input rendered (visually hidden) by the form. Real people
@@ -27,17 +25,22 @@ export const HONEYPOT_FIELD = "company_website";
 /**
  * Handle the public onboarding form. Validates the submission, inserts a row
  * into `tour_requests`, and returns a localized success/error state for the
- * client form to render. Errors are localized via the hidden `locale` field.
+ * client form to render.
  *
  * This action is unauthenticated and writes into the table the admin Submissions
  * page reads, so it carries two cheap abuse defences: a honeypot field and
  * per-IP throttling (shared limiter with the admin login — see `lib/rate-limit`).
+ *
+ * The schema decides *what* is invalid; the copy for *saying so* is bilingual
+ * and lives in `content/tour-request.ts`, so failed fields are mapped onto it
+ * here rather than carrying messages in the schema.
  */
 export async function submitTourRequest(
   _prevState: TourRequestState,
   formData: FormData,
 ): Promise<TourRequestState> {
-  const localeRaw = String(formData.get("locale") ?? "pt");
+  const values = formValues(formData);
+  const localeRaw = String(values.locale ?? "");
   const locale: Locale = isLocale(localeRaw) ? localeRaw : "pt";
   const c = tourRequestContent;
 
@@ -45,7 +48,7 @@ export async function submitTourRequest(
 
   // Honeypot: report success without writing anything, so a bot has no signal
   // that it was caught and nothing to tune against.
-  if (String(formData.get(HONEYPOT_FIELD) ?? "").trim()) {
+  if (String(values[HONEYPOT_FIELD] ?? "").trim()) {
     console.warn(`[reservar] discarded honeypot submission from ${ip}`);
     return { ok: true };
   }
@@ -58,40 +61,21 @@ export async function submitTourRequest(
     return { error: t(c.errors.rateLimited, locale) };
   }
 
-  const name = String(formData.get("name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
-  const phone = String(formData.get("phone") ?? "").trim();
-  const experienceSlug = String(formData.get("experience") ?? "").trim();
-  const preferredDate = String(formData.get("preferredDate") ?? "").trim();
-  const message = String(formData.get("message") ?? "").trim();
-  const partySizeRaw = String(formData.get("partySize") ?? "").trim();
-
-  // Add-ons arrive as repeated `addOns` checkbox values.
-  const addOns = formData
-    .getAll("addOns")
-    .map((v) => String(v))
-    .filter((slug) => validSlugs.has(slug));
-
-  const fieldErrors: TourRequestState["fieldErrors"] = {};
-  if (!name) fieldErrors.name = t(c.errors.name, locale);
-  if (!EMAIL_RE.test(email)) fieldErrors.email = t(c.errors.email, locale);
-  if (Object.keys(fieldErrors).length > 0) {
-    return { fieldErrors };
+  const parsed = tourRequestSchema.safeParse(values);
+  if (!parsed.success) {
+    const { fieldErrors } = z.flattenError(parsed.error);
+    const state: TourRequestState["fieldErrors"] = {};
+    if (fieldErrors.name) state.name = t(c.errors.name, locale);
+    if (fieldErrors.email) state.email = t(c.errors.email, locale);
+    return { fieldErrors: state };
   }
 
-  const partySize = Number.parseInt(partySizeRaw, 10);
-
   try {
+    const { experience, ...request } = parsed.data;
     await db.insert(tourRequests).values({
-      name,
-      email,
-      phone: phone || null,
+      ...request,
       locale,
-      experienceSlug: experienceSlug && validSlugs.has(experienceSlug) ? experienceSlug : null,
-      addOns,
-      partySize: Number.isFinite(partySize) && partySize > 0 ? partySize : null,
-      preferredDate: preferredDate || null,
-      message: message || null,
+      experienceSlug: experience,
       source: "website",
     });
   } catch (err) {

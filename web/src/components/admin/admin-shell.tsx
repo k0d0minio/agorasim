@@ -3,23 +3,16 @@
 import { useId, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  ArrowLeft,
-  CalendarCheck,
-  FileText,
-  Inbox,
-  KanbanSquare,
-  LayoutDashboard,
-  LayoutGrid,
-  Lightbulb,
-  LogOut,
-  Mail,
-  MessageSquareShare,
-  Newspaper,
-  Share2,
-  Users,
-} from "lucide-react";
+import { ArrowLeft, LayoutGrid, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  ADMIN_HOME_HREF,
+  ADMIN_NAV_GROUPS,
+  ADMIN_PRIMARY_NAV,
+  adminPageTitle,
+  isAdminNavItemActive,
+  type AdminNavItem,
+} from "@/lib/admin-nav";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -30,85 +23,14 @@ import {
 import { InDevLegend, InDevMarker } from "@/components/admin/in-dev-marker";
 import { logout } from "@/app/admin/actions";
 
-type NavItem = {
-  href: string;
-  label: string;
-  /** Short label for the bottom toolbar, where space is tight. */
-  shortLabel?: string;
-  icon: React.ComponentType<{ className?: string }>;
-  /** Design preview — the feature behind it is still in development. */
-  dev?: boolean;
-};
-
-type NavGroup = { title: string; items: NavItem[] };
-
-/**
- * The full operations map, grouped by job-to-be-done. Items flagged `dev`
- * render the final UI with example data and carry an in-development banner.
- */
-const NAV_GROUPS: NavGroup[] = [
-  {
-    title: "Overview",
-    items: [{ href: "/admin", label: "Dashboard", icon: LayoutDashboard }],
-  },
-  {
-    title: "Sales",
-    items: [
-      { href: "/admin/submissions", label: "Submissions", shortLabel: "Inbox", icon: Inbox },
-      { href: "/admin/crm", label: "CRM pipeline", shortLabel: "CRM", icon: KanbanSquare, dev: true },
-      { href: "/admin/bookings", label: "Bookings", icon: CalendarCheck, dev: true },
-    ],
-  },
-  {
-    title: "Marketing",
-    items: [
-      { href: "/admin/blog", label: "Blog studio", icon: Newspaper, dev: true },
-      { href: "/admin/social", label: "Social studio", icon: Share2, dev: true },
-      { href: "/admin/email", label: "Email marketing", icon: Mail, dev: true },
-      { href: "/admin/referrals", label: "Referrals", icon: Users, dev: true },
-    ],
-  },
-  {
-    title: "System",
-    items: [
-      { href: "/admin/content", label: "Content", icon: FileText },
-      { href: "/admin/notifications", label: "Notifications", icon: MessageSquareShare, dev: true },
-      { href: "/admin/feature-requests", label: "Feature requests", shortLabel: "Requests", icon: Lightbulb },
-    ],
-  },
-];
-
-/**
- * The four destinations that earn a fixed slot in the mobile bottom toolbar:
- * every area that is actually wired to real data. The toolbar used to spend two
- * of its four slots on CRM and Bookings — design previews — while Content and
- * Feature requests, which have real data, sat behind "More".
- */
-const PRIMARY_HREFS = [
-  "/admin",
-  "/admin/submissions",
-  "/admin/content",
-  "/admin/feature-requests",
-];
-
-const NAV_FLAT: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
-const PRIMARY_ITEMS: NavItem[] = PRIMARY_HREFS.flatMap((href) => {
-  const item = NAV_FLAT.find((i) => i.href === href);
-  return item ? [item] : [];
-});
-
-function isActive(pathname: string, href: string): boolean {
-  return href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
-}
-
-function SidebarLink({ item, pathname }: { item: NavItem; pathname: string }) {
+function SidebarLink({ item, pathname }: { item: AdminNavItem; pathname: string }) {
   const { href, label, icon: Icon, dev } = item;
   return (
     <Link
       href={href}
       className={cn(
         "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-        isActive(pathname, href)
+        isAdminNavItemActive(href, pathname)
           ? "bg-primary text-primary-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
@@ -164,13 +86,13 @@ function ToolbarTab({
 }
 
 /**
- * Mobile navigation: a fixed bottom toolbar with the four everyday
- * destinations, plus "More" opening a bottom sheet with the full grouped map.
+ * Mobile navigation: a fixed bottom toolbar with the everyday destinations,
+ * plus "More" opening a bottom sheet with the full grouped map.
  */
 function MobileBottomNav({ pathname }: { pathname: string }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const sheetId = useId();
-  const primaryActive = PRIMARY_ITEMS.some((i) => isActive(pathname, i.href));
+  const primaryActive = ADMIN_PRIMARY_NAV.some((i) => isAdminNavItemActive(i.href, pathname));
 
   return (
     <nav
@@ -178,11 +100,11 @@ function MobileBottomNav({ pathname }: { pathname: string }) {
       className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-backdrop-filter:bg-background/85 md:hidden"
     >
       <div className="flex items-stretch gap-1 px-2 py-1">
-        {PRIMARY_ITEMS.map((item) => (
+        {ADMIN_PRIMARY_NAV.map((item) => (
           <ToolbarTab
             key={item.href}
             href={item.href}
-            active={isActive(pathname, item.href)}
+            active={isAdminNavItemActive(item.href, pathname)}
             icon={item.icon}
             label={item.shortLabel ?? item.label}
           />
@@ -212,7 +134,7 @@ function MobileBottomNav({ pathname }: { pathname: string }) {
               <SheetTitle>All areas</SheetTitle>
             </SheetHeader>
             <div className="grid grid-cols-2 gap-x-2 gap-y-4 px-4 pt-1">
-              {NAV_GROUPS.map((group) => (
+              {ADMIN_NAV_GROUPS.map((group) => (
                 <div key={group.title} className="min-w-0">
                   <p className="px-2 pb-1 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                     {group.title}
@@ -227,7 +149,7 @@ function MobileBottomNav({ pathname }: { pathname: string }) {
                           onClick={() => setMoreOpen(false)}
                           className={cn(
                             "flex min-h-11 items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
-                            isActive(pathname, item.href)
+                            isAdminNavItemActive(item.href, pathname)
                               ? "bg-primary text-primary-foreground"
                               : "text-foreground/80 hover:bg-muted",
                           )}
@@ -250,16 +172,14 @@ function MobileBottomNav({ pathname }: { pathname: string }) {
   );
 }
 
-/** Dashboard chrome (sidebar on desktop, bottom toolbar on mobile). */
-export function AdminShell({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+/**
+ * Dashboard chrome (sidebar on desktop, bottom toolbar on mobile). The heading
+ * comes from the nav map keyed on the current route, so a page never restates
+ * its own name.
+ */
+export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isDashboard = pathname === "/admin";
+  const isHome = pathname === ADMIN_HOME_HREF;
 
   return (
     <div className="flex min-h-screen">
@@ -269,7 +189,7 @@ export function AdminShell({
           <p className="text-xs text-muted-foreground">Operations</p>
         </div>
         <nav className="mt-2 flex flex-col gap-5">
-          {NAV_GROUPS.map((group) => (
+          {ADMIN_NAV_GROUPS.map((group) => (
             <div key={group.title}>
               <p className="px-3 pb-1.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 {group.title}
@@ -292,7 +212,7 @@ export function AdminShell({
           out — scrolling a long list must not take it away.
         */}
         <header className="sticky top-0 z-30 flex min-h-14 items-center gap-1 border-b bg-background/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur supports-backdrop-filter:bg-background/85 sm:px-6">
-          {!isDashboard && (
+          {!isHome && (
             <Button
               asChild
               variant="ghost"
@@ -300,13 +220,13 @@ export function AdminShell({
               className="-ml-2 size-11 shrink-0 md:hidden"
             >
               {/* No browser back button in the installed PWA — this is the way up. */}
-              <Link href="/admin" aria-label="Back to dashboard">
+              <Link href={ADMIN_HOME_HREF} aria-label="Back to dashboard">
                 <ArrowLeft />
               </Link>
             </Button>
           )}
           <h1 className="min-w-0 flex-1 truncate font-heading text-base font-semibold">
-            {title}
+            {adminPageTitle(pathname)}
           </h1>
           <form action={logout}>
             <Button type="submit" variant="ghost" className="h-11 sm:h-8">

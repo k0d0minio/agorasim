@@ -1,5 +1,5 @@
 import { FileText, Globe, Newspaper, Share2, Mail } from "lucide-react";
-import { desc } from "drizzle-orm";
+import { count, desc } from "drizzle-orm";
 import {
   db,
   geoContentDrafts,
@@ -8,7 +8,9 @@ import {
   emailCampaignDrafts,
 } from "@/db";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminPagination } from "@/components/admin/pagination";
 import { PlaceholderPanel } from "@/components/admin/placeholder-panel";
+import { lastPage, pageSlice, readPageParam } from "@/lib/admin-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { contentStatusMeta, formatDate } from "@/lib/admin-format";
@@ -36,11 +38,17 @@ function DraftGroup({
   title,
   description,
   rows,
+  total,
+  page,
+  hrefFor,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   description: string;
   rows: Row[];
+  total: number;
+  page: number;
+  hrefFor: (page: number) => string;
 }) {
   return (
     <section className="flex flex-col gap-3">
@@ -52,7 +60,7 @@ function DraftGroup({
           <h2 className="font-heading text-sm font-semibold">{title}</h2>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
-        <span className="ml-auto text-xs text-muted-foreground">{rows.length}</span>
+        <span className="ml-auto text-xs text-muted-foreground">{total}</span>
       </div>
 
       {rows.length === 0 ? (
@@ -76,23 +84,42 @@ function DraftGroup({
           ))}
         </Card>
       )}
+
+      <AdminPagination page={page} total={total} label={`${title} pages`} hrefFor={hrefFor} />
     </section>
   );
 }
 
-export default async function AdminContentPage() {
-  const [geo, blog, social, email] = await Promise.all([
-    db.select().from(geoContentDrafts).orderBy(desc(geoContentDrafts.updatedAt)),
-    db.select().from(blogPostDrafts).orderBy(desc(blogPostDrafts.updatedAt)),
-    db.select().from(socialPostDrafts).orderBy(desc(socialPostDrafts.updatedAt)),
-    db.select().from(emailCampaignDrafts).orderBy(desc(emailCampaignDrafts.updatedAt)),
+/** The four draft pipelines, each paginated independently by its own query param. */
+const GROUPS = ["geo", "blog", "social", "email"] as const;
+type GroupKey = (typeof GROUPS)[number];
+
+export default async function AdminContentPage({
+  searchParams,
+}: {
+  searchParams: Promise<Partial<Record<GroupKey, string>>>;
+}) {
+  const params = await searchParams;
+
+  // Counts first, so each group's page can be clamped to what actually exists.
+  const [[geoTotal], [blogTotal], [socialTotal], [emailTotal]] = await db.batch([
+    db.select({ n: count() }).from(geoContentDrafts),
+    db.select({ n: count() }).from(blogPostDrafts),
+    db.select({ n: count() }).from(socialPostDrafts),
+    db.select({ n: count() }).from(emailCampaignDrafts),
   ]);
 
-  const total = geo.length + blog.length + social.length + email.length;
+  const totals: Record<GroupKey, number> = {
+    geo: geoTotal?.n ?? 0,
+    blog: blogTotal?.n ?? 0,
+    social: socialTotal?.n ?? 0,
+    email: emailTotal?.n ?? 0,
+  };
+  const total = GROUPS.reduce((sum, key) => sum + totals[key], 0);
 
   if (total === 0) {
     return (
-      <AdminShell title="Content">
+      <AdminShell>
         <PlaceholderPanel
           icon={FileText}
           title="No drafts yet"
@@ -101,6 +128,57 @@ export default async function AdminContentPage() {
       </AdminShell>
     );
   }
+
+  // Requested page per group, never past that group's last page.
+  const pages = Object.fromEntries(
+    GROUPS.map((key) => [
+      key,
+      Math.min(readPageParam(params[key]), lastPage(totals[key])),
+    ]),
+  ) as Record<GroupKey, number>;
+
+  /** A link that moves one group to `page` and leaves the other three alone. */
+  function hrefFor(group: GroupKey, page: number): string {
+    const query = new URLSearchParams();
+    for (const key of GROUPS) {
+      const value = key === group ? page : pages[key];
+      if (value > 1) query.set(key, String(value));
+    }
+    const search = query.toString();
+    return search ? `/admin/content?${search}` : "/admin/content";
+  }
+
+  const slices = Object.fromEntries(GROUPS.map((key) => [key, pageSlice(pages[key])])) as Record<
+    GroupKey,
+    { limit: number; offset: number }
+  >;
+
+  const [geo, blog, social, email] = await db.batch([
+    db
+      .select()
+      .from(geoContentDrafts)
+      .orderBy(desc(geoContentDrafts.updatedAt))
+      .limit(slices.geo.limit)
+      .offset(slices.geo.offset),
+    db
+      .select()
+      .from(blogPostDrafts)
+      .orderBy(desc(blogPostDrafts.updatedAt))
+      .limit(slices.blog.limit)
+      .offset(slices.blog.offset),
+    db
+      .select()
+      .from(socialPostDrafts)
+      .orderBy(desc(socialPostDrafts.updatedAt))
+      .limit(slices.social.limit)
+      .offset(slices.social.offset),
+    db
+      .select()
+      .from(emailCampaignDrafts)
+      .orderBy(desc(emailCampaignDrafts.updatedAt))
+      .limit(slices.email.limit)
+      .offset(slices.email.offset),
+  ]);
 
   const geoRows: Row[] = geo.map((d) => ({
     key: d.id,
@@ -139,31 +217,43 @@ export default async function AdminContentPage() {
   }));
 
   return (
-    <AdminShell title="Content">
+    <AdminShell>
       <div className="flex flex-col gap-8">
         <DraftGroup
           icon={Globe}
           title="GEO content blocks"
           description="Answer-first blocks from the geo-content pipeline."
           rows={geoRows}
+          total={totals.geo}
+          page={pages.geo}
+          hrefFor={(n) => hrefFor("geo", n)}
         />
         <DraftGroup
           icon={Newspaper}
           title="Blog posts"
           description="Long-form articles awaiting review."
           rows={blogRows}
+          total={totals.blog}
+          page={pages.blog}
+          hrefFor={(n) => hrefFor("blog", n)}
         />
         <DraftGroup
           icon={Share2}
           title="Social posts"
           description="Scheduled and drafted social content."
           rows={socialRows}
+          total={totals.social}
+          page={pages.social}
+          hrefFor={(n) => hrefFor("social", n)}
         />
         <DraftGroup
           icon={Mail}
           title="Email campaigns"
           description="Newsletter and lifecycle emails."
           rows={emailRows}
+          total={totals.email}
+          page={pages.email}
+          hrefFor={(n) => hrefFor("email", n)}
         />
       </div>
     </AdminShell>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronDown, TriangleAlert } from "lucide-react";
 import type { StatusUpdateState } from "@/app/admin/actions";
 import { cn } from "@/lib/utils";
@@ -26,7 +27,12 @@ export type StatusOption<T extends string> = {
  * the same value, as this used to be).
  *
  * - The new value paints immediately via `useOptimistic`, so triage on a slow
- *   connection doesn't look like a dead tap.
+ *   connection doesn't look like a dead tap. The write is followed by
+ *   `router.refresh()` inside the same transition, so the optimistic value
+ *   holds until the server's own value replaces it — the actions deliberately
+ *   don't call `revalidatePath`, since a `force-dynamic` page has no cache
+ *   entry to invalidate, and without the refresh the badge would snap back to
+ *   the stale value a moment after a *successful* write.
  * - A failed write reverts the badge and surfaces the reason — the old
  *   auto-submitting `<select>` swallowed both.
  * - Arrow keys only move the highlight; the write happens on select. The old
@@ -48,6 +54,7 @@ export function StatusMenu<T extends string>({
   triggerLabel: string;
   className?: string;
 }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [optimistic, setOptimistic] = useOptimistic(value);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +68,11 @@ export function StatusMenu<T extends string>({
       // Inside the transition, so the badge repaints before the round trip.
       setOptimistic(next as T);
       const result = await update(next as T);
-      if (result.error) setError(result.error);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
     });
   }
 

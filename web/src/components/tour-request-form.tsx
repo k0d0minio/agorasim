@@ -13,9 +13,10 @@ import {
 } from "@/app/[locale]/reservar/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-
-const inputClass =
-  "h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 function SubmitButton({ locale }: { locale: Locale }) {
   const { pending } = useFormStatus();
@@ -72,10 +73,8 @@ export function TourRequestForm({ locale }: { locale: Locale }) {
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="name" className="text-sm font-medium">
-            {t(c.labels.name, locale)}
-          </label>
-          <input id="name" name="name" required autoComplete="name" className={inputClass} />
+          <Label htmlFor="name">{t(c.labels.name, locale)}</Label>
+          <Input id="name" name="name" required autoComplete="name" />
           {state.fieldErrors?.name ? (
             <p className="text-sm text-destructive" role="alert">
               {state.fieldErrors.name}
@@ -84,17 +83,8 @@ export function TourRequestForm({ locale }: { locale: Locale }) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="email" className="text-sm font-medium">
-            {t(c.labels.email, locale)}
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            className={inputClass}
-          />
+          <Label htmlFor="email">{t(c.labels.email, locale)}</Label>
+          <Input id="email" name="email" type="email" required autoComplete="email" />
           {state.fieldErrors?.email ? (
             <p className="text-sm text-destructive" role="alert">
               {state.fieldErrors.email}
@@ -103,49 +93,33 @@ export function TourRequestForm({ locale }: { locale: Locale }) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="phone" className="text-sm font-medium">
-            {t(c.labels.phone, locale)}
-          </label>
-          <input id="phone" name="phone" type="tel" autoComplete="tel" className={inputClass} />
+          <Label htmlFor="phone">{t(c.labels.phone, locale)}</Label>
+          <Input id="phone" name="phone" type="tel" autoComplete="tel" />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="partySize" className="text-sm font-medium">
-            {t(c.labels.partySize, locale)}
-          </label>
-          <input
-            id="partySize"
-            name="partySize"
-            type="number"
-            min={1}
-            inputMode="numeric"
-            className={inputClass}
-          />
+          <Label htmlFor="partySize">{t(c.labels.partySize, locale)}</Label>
+          <Input id="partySize" name="partySize" type="number" min={1} inputMode="numeric" />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="experience" className="text-sm font-medium">
-            {t(c.labels.experience, locale)}
-          </label>
-          <select id="experience" name="experience" defaultValue="" className={inputClass}>
+          <Label htmlFor="experience">{t(c.labels.experience, locale)}</Label>
+          <Select id="experience" name="experience" defaultValue="">
             <option value="">{t(c.placeholders.experienceNone, locale)}</option>
             {experiences.map((exp) => (
               <option key={exp.slug} value={exp.slug}>
                 {t(exp.title, locale)}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="preferredDate" className="text-sm font-medium">
-            {t(c.labels.preferredDate, locale)}
-          </label>
-          <input
+          <Label htmlFor="preferredDate">{t(c.labels.preferredDate, locale)}</Label>
+          <Input
             id="preferredDate"
             name="preferredDate"
             placeholder={t(c.placeholders.preferredDate, locale)}
-            className={inputClass}
           />
         </div>
       </div>
@@ -171,15 +145,12 @@ export function TourRequestForm({ locale }: { locale: Locale }) {
       </fieldset>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="message" className="text-sm font-medium">
-          {t(c.labels.message, locale)}
-        </label>
-        <textarea
+        <Label htmlFor="message">{t(c.labels.message, locale)}</Label>
+        <Textarea
           id="message"
           name="message"
           rows={4}
           placeholder={t(c.placeholders.message, locale)}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
       </div>
 

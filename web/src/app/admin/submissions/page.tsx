@@ -1,12 +1,15 @@
+import { redirect } from "next/navigation";
 import { Inbox } from "lucide-react";
-import { desc } from "drizzle-orm";
+import { count, desc } from "drizzle-orm";
 import { db, tourRequests } from "@/db";
 import { experiences } from "@/content/experiences";
 import { t } from "@/i18n/config";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminPagination } from "@/components/admin/pagination";
 import { ContactLinks } from "@/components/admin/contact-links";
 import { PlaceholderPanel } from "@/components/admin/placeholder-panel";
 import { RequestStatusSelect } from "@/components/admin/request-status-select";
+import { lastPage, pageSlice, readPageParam } from "@/lib/admin-pagination";
 import { Card } from "@/components/ui/card";
 import {
   Table,
@@ -41,12 +44,34 @@ function Received({ at }: { at: Date | string | null }) {
   );
 }
 
-export default async function AdminSubmissionsPage() {
-  const rows = await db.select().from(tourRequests).orderBy(desc(tourRequests.createdAt));
+export default async function AdminSubmissionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = readPageParam((await searchParams).page);
+  const { limit, offset } = pageSlice(page);
 
-  if (rows.length === 0) {
+  // Count and page in one round trip; the list used to fetch every row, forever.
+  const [[total], rows] = await db.batch([
+    db.select({ n: count() }).from(tourRequests),
+    db
+      .select()
+      .from(tourRequests)
+      .orderBy(desc(tourRequests.createdAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  const enquiries = total?.n ?? 0;
+  // A hand-typed page past the end — send them to the last real one.
+  if (enquiries > 0 && page > lastPage(enquiries)) {
+    redirect(`/admin/submissions?page=${lastPage(enquiries)}`);
+  }
+
+  if (enquiries === 0) {
     return (
-      <AdminShell title="Submissions">
+      <AdminShell>
         <PlaceholderPanel
           icon={Inbox}
           title="No submissions yet"
@@ -56,17 +81,17 @@ export default async function AdminSubmissionsPage() {
     );
   }
 
-  const countLabel = `${rows.length} ${rows.length === 1 ? "enquiry" : "enquiries"}`;
+  const countLabel = `${enquiries} ${enquiries === 1 ? "enquiry" : "enquiries"}`;
 
   return (
-    <AdminShell title="Submissions">
+    <AdminShell>
       <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
         <Inbox className="size-4" />
         <span>{countLabel}</span>
       </div>
 
       {/*
-        Below md this is a stack of cards, not a 860px-wide table in a sideways
+        Below md this is a stack of cards, not an 860px-wide table in a sideways
         scroller: the message reads in full and the status control sits at the
         bottom of the card, where a thumb is — it used to be in the last column
         of a seven-column horizontal scroll.
@@ -126,7 +151,7 @@ export default async function AdminSubmissionsPage() {
             table's overflow escapes this scroller and scrolls the whole page
             sideways at widths where the table doesn't fit. */}
         <div className="relative overflow-x-auto">
-          <Table>
+          <Table className="min-w-[860px]">
             <TableCaption>
               Tour enquiries from the website, newest first — {countLabel}.
             </TableCaption>
@@ -161,9 +186,7 @@ export default async function AdminSubmissionsPage() {
                     {r.addOns.length > 0 ? r.addOns.map(labelFor).join(", ") : "—"}
                   </TableCell>
                   <TableCell>{r.partySize ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {r.preferredDate ?? "—"}
-                  </TableCell>
+                  <TableCell className="text-muted-foreground">{r.preferredDate ?? "—"}</TableCell>
                   <TableCell className="text-muted-foreground">
                     <Received at={r.createdAt} />
                   </TableCell>
@@ -176,6 +199,13 @@ export default async function AdminSubmissionsPage() {
           </Table>
         </div>
       </Card>
+
+      <AdminPagination
+        page={page}
+        total={enquiries}
+        label="Submissions pages"
+        hrefFor={(n) => `/admin/submissions?page=${n}`}
+      />
     </AdminShell>
   );
 }
