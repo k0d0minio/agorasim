@@ -1,0 +1,55 @@
+name: CI
+
+# Checks the `web/` workspace on every pull request, and on main so the default
+# branch stays known-good. Nothing here needs a database: the admin pages are
+# all `force-dynamic`, so `next build` never queries at build time.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  # One run per branch; a new push supersedes the one still in flight.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      # Cheapest first, so an obvious mistake fails fast.
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

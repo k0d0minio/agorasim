@@ -1,13 +1,24 @@
+import { redirect } from "next/navigation";
 import { Inbox } from "lucide-react";
-import { desc } from "drizzle-orm";
+import { count, desc } from "drizzle-orm";
 import { db, tourRequests } from "@/db";
 import { experiences } from "@/content/experiences";
 import { t } from "@/i18n/config";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminPagination } from "@/components/admin/pagination";
 import { PlaceholderPanel } from "@/components/admin/placeholder-panel";
 import { RequestStatusSelect } from "@/components/admin/request-status-select";
+import { lastPage, pageSlice, readPageParam } from "@/lib/admin-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { formatDate, requestStatusMeta } from "@/lib/admin-format";
 
 // Reads live data — never prerender at build time.
@@ -21,12 +32,34 @@ function labelFor(slug: string | null): string {
   return experienceLabel.get(slug) ?? slug;
 }
 
-export default async function AdminSubmissionsPage() {
-  const rows = await db.select().from(tourRequests).orderBy(desc(tourRequests.createdAt));
+export default async function AdminSubmissionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = readPageParam((await searchParams).page);
+  const { limit, offset } = pageSlice(page);
 
-  if (rows.length === 0) {
+  // Count and page in one round trip; the list used to fetch every row, forever.
+  const [[total], rows] = await db.batch([
+    db.select({ n: count() }).from(tourRequests),
+    db
+      .select()
+      .from(tourRequests)
+      .orderBy(desc(tourRequests.createdAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  const enquiries = total?.n ?? 0;
+  // A hand-typed page past the end — send them to the last real one.
+  if (enquiries > 0 && page > lastPage(enquiries)) {
+    redirect(`/admin/submissions?page=${lastPage(enquiries)}`);
+  }
+
+  if (enquiries === 0) {
     return (
-      <AdminShell title="Submissions">
+      <AdminShell>
         <PlaceholderPanel
           icon={Inbox}
           title="No submissions yet"
@@ -37,33 +70,33 @@ export default async function AdminSubmissionsPage() {
   }
 
   return (
-    <AdminShell title="Submissions">
+    <AdminShell>
       <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
         <Inbox className="size-4" />
         <span>
-          {rows.length} {rows.length === 1 ? "enquiry" : "enquiries"}
+          {enquiries} {enquiries === 1 ? "enquiry" : "enquiries"}
         </span>
       </div>
 
       <Card className="overflow-x-auto p-0">
-        <table className="w-full min-w-[860px] text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs text-muted-foreground uppercase tracking-wide">
-              <th className="px-4 py-3 font-medium">Contact</th>
-              <th className="px-4 py-3 font-medium">Experience</th>
-              <th className="px-4 py-3 font-medium">Add-ons</th>
-              <th className="px-4 py-3 font-medium">Party</th>
-              <th className="px-4 py-3 font-medium">Preferred</th>
-              <th className="px-4 py-3 font-medium">Received</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table className="min-w-[860px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Contact</TableHead>
+              <TableHead>Experience</TableHead>
+              <TableHead>Add-ons</TableHead>
+              <TableHead>Party</TableHead>
+              <TableHead>Preferred</TableHead>
+              <TableHead>Received</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((r) => {
               const meta = requestStatusMeta[r.status];
               return (
-                <tr key={r.id} className="border-b align-top last:border-0">
-                  <td className="px-4 py-3">
+                <TableRow key={r.id} className="align-top">
+                  <TableCell>
                     <div className="font-medium">{r.name}</div>
                     <a
                       href={`mailto:${r.email}`}
@@ -77,31 +110,38 @@ export default async function AdminSubmissionsPage() {
                     {r.message ? (
                       <p className="mt-1 max-w-xs text-xs text-muted-foreground">{r.message}</p>
                     ) : null}
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell>
                     {labelFor(r.experienceSlug)}
                     <div className="text-xs text-muted-foreground uppercase">{r.locale}</div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
                     {r.addOns.length > 0 ? r.addOns.map(labelFor).join(", ") : "—"}
-                  </td>
-                  <td className="px-4 py-3">{r.partySize ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{r.preferredDate ?? "—"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
+                  </TableCell>
+                  <TableCell>{r.partySize ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{r.preferredDate ?? "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
                     {formatDate(r.createdAt)}
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell>
                     <div className="flex flex-col items-start gap-1.5">
                       <Badge variant={meta.variant}>{meta.label}</Badge>
                       <RequestStatusSelect id={r.id} status={r.status} />
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </Card>
+
+      <AdminPagination
+        page={page}
+        total={enquiries}
+        label="Submissions pages"
+        hrefFor={(n) => `/admin/submissions?page=${n}`}
+      />
     </AdminShell>
   );
 }

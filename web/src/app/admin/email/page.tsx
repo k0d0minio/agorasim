@@ -19,7 +19,7 @@ const statusVariant = {
  */
 export default function AdminEmailPage() {
   return (
-    <AdminShell title="Email marketing">
+    <AdminShell>
       <AdminInDevBanner note="Bring past guests back with bilingual campaigns drafted in your voice — you review every send, and opens, clicks and unsubscribes are tracked automatically." />
 
       <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">

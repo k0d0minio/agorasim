@@ -4,6 +4,14 @@ import { AdminInDevBanner } from "@/components/admin/in-dev-banner";
 import { previewBookings, previewBookingStats } from "@/lib/admin-preview";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const paymentVariant = {
   "Paid in full": "default",
@@ -17,7 +25,7 @@ const paymentVariant = {
  */
 export default function AdminBookingsPage() {
   return (
-    <AdminShell title="Bookings">
+    <AdminShell>
       <AdminInDevBanner note="When instant booking goes live, every paid tour and wedding hire appears here the moment the guest pays — no more copying between inboxes." />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -40,39 +48,39 @@ export default function AdminBookingsPage() {
       </div>
 
       <Card className="overflow-x-auto p-0">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs text-muted-foreground uppercase tracking-wide">
-              <th className="px-4 py-3 font-medium">Ref</th>
-              <th className="px-4 py-3 font-medium">Guest</th>
-              <th className="px-4 py-3 font-medium">Date</th>
-              <th className="px-4 py-3 font-medium">Experience</th>
-              <th className="px-4 py-3 font-medium">Party</th>
-              <th className="px-4 py-3 font-medium">Total</th>
-              <th className="px-4 py-3 font-medium">Payment</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table className="min-w-[760px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Ref</TableHead>
+              <TableHead>Guest</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Experience</TableHead>
+              <TableHead>Party</TableHead>
+              <TableHead>Total</TableHead>
+              <TableHead>Payment</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {previewBookings.map((b) => (
-              <tr key={b.ref} className="border-b last:border-0">
-                <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{b.ref}</td>
-                <td className="px-4 py-3">
+              <TableRow key={b.ref}>
+                <TableCell className="font-mono text-xs text-muted-foreground">{b.ref}</TableCell>
+                <TableCell>
                   <div className="font-medium">{b.name}</div>
                   <Badge variant={b.kind === "Wedding" ? "secondary" : "ghost"} className="mt-1">
                     {b.kind}
                   </Badge>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">{b.date}</td>
-                <td className="px-4 py-3 text-muted-foreground">{b.what}</td>
-                <td className="px-4 py-3">{b.party}</td>
-                <td className="px-4 py-3 font-medium">{b.total}</td>
-                <td className="px-4 py-3">
+                </TableCell>
+                <TableCell className="whitespace-nowrap">{b.date}</TableCell>
+                <TableCell className="text-muted-foreground">{b.what}</TableCell>
+                <TableCell>{b.party}</TableCell>
+                <TableCell className="font-medium">{b.total}</TableCell>
+                <TableCell>
                   <Badge variant={paymentVariant[b.payment]}>{b.payment}</Badge>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </Card>
 
       <p className="mt-3 text-xs text-muted-foreground">

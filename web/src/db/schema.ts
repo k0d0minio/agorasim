@@ -19,12 +19,14 @@
 import { sql } from "drizzle-orm";
 import {
   date,
+  index,
   integer,
   jsonb,
   pgEnum,
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -139,7 +141,11 @@ export const tourRequests = pgTable("tour_requests", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  // Triage filters on `status`; every list is ordered by `created_at`.
+  index("tour_requests_status_idx").on(table.status),
+  index("tour_requests_created_at_idx").on(table.createdAt),
+]);
 
 export type TourRequest = typeof tourRequests.$inferSelect;
 export type NewTourRequest = typeof tourRequests.$inferInsert;
@@ -173,7 +179,16 @@ export const featureRequests = pgTable("feature_requests", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("feature_requests_status_idx").on(table.status),
+  index("feature_requests_created_at_idx").on(table.createdAt),
+  /**
+   * Stops the proposal catalogue filing the same item twice when two clicks are
+   * in flight. Postgres treats NULLs as distinct, so this only binds rows that
+   * carry a category — free-form requests can still share a title.
+   */
+  uniqueIndex("feature_requests_title_category_key").on(table.title, table.category),
+]);
 
 export type FeatureRequest = typeof featureRequests.$inferSelect;
 export type NewFeatureRequest = typeof featureRequests.$inferInsert;
@@ -204,7 +219,11 @@ export const geoContentDrafts = pgTable("geo_content_drafts", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  // The review queue filters on `status` and orders by `updated_at`.
+  index("geo_content_drafts_status_idx").on(table.status),
+  index("geo_content_drafts_updated_at_idx").on(table.updatedAt),
+]);
 
 export type GeoContentDraft = typeof geoContentDrafts.$inferSelect;
 export type NewGeoContentDraft = typeof geoContentDrafts.$inferInsert;
@@ -228,7 +247,10 @@ export const blogPostDrafts = pgTable("blog_post_drafts", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("blog_post_drafts_status_idx").on(table.status),
+  index("blog_post_drafts_updated_at_idx").on(table.updatedAt),
+]);
 
 export type BlogPostDraft = typeof blogPostDrafts.$inferSelect;
 export type NewBlogPostDraft = typeof blogPostDrafts.$inferInsert;
@@ -251,7 +273,10 @@ export const socialPostDrafts = pgTable("social_post_drafts", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("social_post_drafts_status_idx").on(table.status),
+  index("social_post_drafts_updated_at_idx").on(table.updatedAt),
+]);
 
 export type SocialPostDraft = typeof socialPostDrafts.$inferSelect;
 export type NewSocialPostDraft = typeof socialPostDrafts.$inferInsert;
@@ -274,7 +299,10 @@ export const emailCampaignDrafts = pgTable("email_campaign_drafts", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("email_campaign_drafts_status_idx").on(table.status),
+  index("email_campaign_drafts_updated_at_idx").on(table.updatedAt),
+]);
 
 export type EmailCampaignDraft = typeof emailCampaignDrafts.$inferSelect;
 export type NewEmailCampaignDraft = typeof emailCampaignDrafts.$inferInsert;
