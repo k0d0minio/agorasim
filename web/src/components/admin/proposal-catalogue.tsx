@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 
 /** Count a displayed number up to `value`, respecting reduced-motion. */
 function useCountUp(value: number): number {
@@ -131,7 +131,14 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
         <CardHeader>
           <div className="flex items-center gap-2">
             <Sparkles className="size-4 text-primary" />
-            <CardTitle>Growth platform — pick what to build next</CardTitle>
+            {/* A real h2: the feature cards below are h3, and the page heading
+                is the shell's h1 — the catalogue used to skip a level. */}
+            <h2
+              data-slot="card-title"
+              className="font-heading text-base leading-snug font-medium"
+            >
+              Growth platform — pick what to build next
+            </h2>
           </div>
           <CardDescription>
             The full collaboration proposal, live. Switch features on to tally a running estimate,

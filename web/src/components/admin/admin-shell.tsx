@@ -54,7 +54,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Sales",
     items: [
-      { href: "/admin/submissions", label: "Submissions", icon: Inbox },
+      { href: "/admin/submissions", label: "Submissions", shortLabel: "Inbox", icon: Inbox },
       { href: "/admin/crm", label: "CRM pipeline", shortLabel: "CRM", icon: KanbanSquare, dev: true },
       { href: "/admin/bookings", label: "Bookings", icon: CalendarCheck, dev: true },
     ],

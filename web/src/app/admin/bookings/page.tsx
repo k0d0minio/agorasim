@@ -82,41 +82,46 @@ export default function AdminBookingsPage() {
         ))}
       </ul>
 
-      <Card className="hidden overflow-x-auto p-0 md:block">
-        <Table>
-          <TableCaption>Bookings starting in the next 30 days — example data.</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Ref</TableHead>
-              <TableHead>Guest</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Experience</TableHead>
-              <TableHead>Party</TableHead>
-              <TableHead>Total</TableHead>
-              <TableHead>Payment</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {previewBookings.map((b) => (
-              <TableRow key={b.ref}>
-                <TableCell className="font-mono text-xs text-muted-foreground">{b.ref}</TableCell>
-                <TableCell>
-                  <div className="font-medium">{b.name}</div>
-                  <Badge variant={b.kind === "Wedding" ? "secondary" : "ghost"} className="mt-1">
-                    {b.kind}
-                  </Badge>
-                </TableCell>
-                <TableCell className="whitespace-nowrap">{b.date}</TableCell>
-                <TableCell className="text-muted-foreground">{b.what}</TableCell>
-                <TableCell>{b.party}</TableCell>
-                <TableCell className="font-medium">{b.total}</TableCell>
-                <TableCell>
-                  <Badge variant={paymentVariant[b.payment]}>{b.payment}</Badge>
-                </TableCell>
+      <Card className="hidden p-0 md:block">
+        {/* `relative` matters: without a containing block of its own, the
+            table's overflow escapes this scroller and scrolls the whole page
+            sideways at widths where the table doesn't fit. */}
+        <div className="relative overflow-x-auto">
+          <Table>
+            <TableCaption>Bookings starting in the next 30 days — example data.</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Ref</TableHead>
+                <TableHead>Guest</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Experience</TableHead>
+                <TableHead>Party</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Payment</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {previewBookings.map((b) => (
+                <TableRow key={b.ref}>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{b.ref}</TableCell>
+                  <TableCell>
+                    <div className="font-medium">{b.name}</div>
+                    <Badge variant={b.kind === "Wedding" ? "secondary" : "ghost"} className="mt-1">
+                      {b.kind}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{b.date}</TableCell>
+                  <TableCell className="text-muted-foreground">{b.what}</TableCell>
+                  <TableCell>{b.party}</TableCell>
+                  <TableCell className="font-medium">{b.total}</TableCell>
+                  <TableCell>
+                    <Badge variant={paymentVariant[b.payment]}>{b.payment}</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
 
       <p className="mt-3 text-xs text-muted-foreground">

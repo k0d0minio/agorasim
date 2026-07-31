@@ -78,49 +78,54 @@ export default function AdminReferralsPage() {
         ))}
       </ul>
 
-      <Card className="hidden overflow-x-auto p-0 md:block">
-        <Table>
-          <TableCaption>
-            Guests with a personal link, ranked by referred bookings — example data.
-          </TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Guest</TableHead>
-              <TableHead>Personal link</TableHead>
-              <TableHead>Shares</TableHead>
-              <TableHead>Bookings</TableHead>
-              <TableHead>Reward</TableHead>
-              <TableHead>
-                <span className="sr-only">Actions</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {previewReferrers.map((r) => (
-              <TableRow key={r.name}>
-                <TableCell className="font-medium">{r.name}</TableCell>
-                <TableCell>
-                  <code className="text-xs text-muted-foreground">{r.link}</code>
-                </TableCell>
-                <TableCell>{r.shares}</TableCell>
-                <TableCell className="font-medium text-primary">{r.bookings}</TableCell>
-                <TableCell>
-                  <Badge variant={r.rewardDue ? "secondary" : "ghost"}>
-                    <Gift className="size-3" />
-                    {r.reward}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  {r.rewardDue && (
-                    <Button size="sm" variant="outline" disabled>
-                      Mark fulfilled
-                    </Button>
-                  )}
-                </TableCell>
+      <Card className="hidden p-0 md:block">
+        {/* `relative` matters: without a containing block of its own, the
+            table's overflow escapes this scroller and scrolls the whole page
+            sideways at widths where the table doesn't fit. */}
+        <div className="relative overflow-x-auto">
+          <Table>
+            <TableCaption>
+              Guests with a personal link, ranked by referred bookings — example data.
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Guest</TableHead>
+                <TableHead>Personal link</TableHead>
+                <TableHead>Shares</TableHead>
+                <TableHead>Bookings</TableHead>
+                <TableHead>Reward</TableHead>
+                <TableHead>
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {previewReferrers.map((r) => (
+                <TableRow key={r.name}>
+                  <TableCell className="font-medium">{r.name}</TableCell>
+                  <TableCell>
+                    <code className="text-xs text-muted-foreground">{r.link}</code>
+                  </TableCell>
+                  <TableCell>{r.shares}</TableCell>
+                  <TableCell className="font-medium text-primary">{r.bookings}</TableCell>
+                  <TableCell>
+                    <Badge variant={r.rewardDue ? "secondary" : "ghost"}>
+                      <Gift className="size-3" />
+                      {r.reward}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {r.rewardDue && (
+                      <Button size="sm" variant="outline" disabled>
+                        Mark fulfilled
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
 
       <p className="mt-4 text-xs text-muted-foreground">

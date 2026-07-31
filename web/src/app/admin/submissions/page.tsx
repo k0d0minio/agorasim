@@ -121,55 +121,60 @@ export default async function AdminSubmissionsPage() {
         ))}
       </ul>
 
-      <Card className="hidden overflow-x-auto p-0 md:block">
-        <Table>
-          <TableCaption>
-            Tour enquiries from the website, newest first — {countLabel}.
-          </TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Contact</TableHead>
-              <TableHead>Experience</TableHead>
-              <TableHead>Add-ons</TableHead>
-              <TableHead>Party</TableHead>
-              <TableHead>Preferred</TableHead>
-              <TableHead>Received</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.id} className="align-top">
-                <TableCell>
-                  <div className="font-medium">{r.name}</div>
-                  <ContactLinks email={r.email} phone={r.phone} />
-                  {r.message ? (
-                    <p className="mt-1 max-w-sm text-xs whitespace-pre-wrap text-muted-foreground">
-                      {r.message}
-                    </p>
-                  ) : null}
-                </TableCell>
-                <TableCell>
-                  {labelFor(r.experienceSlug)}
-                  <div className="text-xs text-muted-foreground uppercase">{r.locale}</div>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {r.addOns.length > 0 ? r.addOns.map(labelFor).join(", ") : "—"}
-                </TableCell>
-                <TableCell>{r.partySize ?? "—"}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {r.preferredDate ?? "—"}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  <Received at={r.createdAt} />
-                </TableCell>
-                <TableCell>
-                  <RequestStatusSelect id={r.id} status={r.status} name={r.name} />
-                </TableCell>
+      <Card className="hidden p-0 md:block">
+        {/* `relative` matters: without a containing block of its own, the
+            table's overflow escapes this scroller and scrolls the whole page
+            sideways at widths where the table doesn't fit. */}
+        <div className="relative overflow-x-auto">
+          <Table>
+            <TableCaption>
+              Tour enquiries from the website, newest first — {countLabel}.
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Contact</TableHead>
+                <TableHead>Experience</TableHead>
+                <TableHead>Add-ons</TableHead>
+                <TableHead>Party</TableHead>
+                <TableHead>Preferred</TableHead>
+                <TableHead>Received</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {rows.map((r) => (
+                <TableRow key={r.id} className="align-top">
+                  <TableCell>
+                    <div className="font-medium">{r.name}</div>
+                    <ContactLinks email={r.email} phone={r.phone} />
+                    {r.message ? (
+                      <p className="mt-1 max-w-sm text-xs whitespace-pre-wrap text-muted-foreground">
+                        {r.message}
+                      </p>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>
+                    {labelFor(r.experienceSlug)}
+                    <div className="text-xs text-muted-foreground uppercase">{r.locale}</div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {r.addOns.length > 0 ? r.addOns.map(labelFor).join(", ") : "—"}
+                  </TableCell>
+                  <TableCell>{r.partySize ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {r.preferredDate ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    <Received at={r.createdAt} />
+                  </TableCell>
+                  <TableCell>
+                    <RequestStatusSelect id={r.id} status={r.status} name={r.name} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
     </AdminShell>
   );

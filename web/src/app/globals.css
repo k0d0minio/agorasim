@@ -64,7 +64,9 @@
   --muted-foreground: oklch(0.52 0.022 66);
   --accent: oklch(0.9 0.045 68);
   --accent-foreground: oklch(0.32 0.045 55);
-  --destructive: oklch(0.577 0.18 27);
+  /* Darkened from oklch(0.577 …): at that lightness `text-destructive`
+     on `bg-destructive/10` measures 4.07:1, under the 4.5:1 AA floor. */
+  --destructive: oklch(0.53 0.19 27);
   --border: oklch(0.9 0.018 78);
   --input: oklch(0.9 0.018 78);
   --ring: oklch(0.47 0.075 148);
