@@ -1,57 +1,38 @@
 "use client";
 
-import { useActionState, useRef } from "react";
 import type { RequestStatus } from "@/db/schema";
 import { REQUEST_STATUSES, requestStatusMeta } from "@/lib/admin-format";
-import {
-  updateTourRequestStatus,
-  type StatusUpdateState,
-} from "@/app/admin/actions";
-import { Select } from "@/components/ui/select";
+import { updateTourRequestStatus } from "@/app/admin/actions";
+import { StatusMenu, type StatusOption } from "@/components/admin/status-menu";
+
+const OPTIONS: StatusOption<RequestStatus>[] = REQUEST_STATUSES.map((value) => ({
+  value,
+  ...requestStatusMeta[value],
+}));
 
 /**
- * Inline status picker for a tour request. Submits the enclosing form as soon as
- * the operator changes the value, so triage is a single click with no save step.
- *
- * The <select> keeps whatever the operator picked, so a failed write would leave
- * them looking at a value the database never stored — the action reports the
- * failure and it is rendered underneath.
+ * Triage control for a tour request: the status badge, tappable, opening the
+ * five lifecycle states. See `StatusMenu` for the optimistic/error behaviour.
  */
 export function RequestStatusSelect({
   id,
   status,
+  name,
+  className,
 }: {
   id: string;
   status: RequestStatus;
+  /** Whose enquiry this is, so the trigger has a distinguishing name. */
+  name: string;
+  className?: string;
 }) {
-  const formRef = useRef<HTMLFormElement>(null);
-  const [state, formAction] = useActionState<StatusUpdateState, FormData>(
-    updateTourRequestStatus,
-    {},
-  );
-
   return (
-    <form ref={formRef} action={formAction} className="inline-flex flex-col items-start gap-1">
-      <input type="hidden" name="id" value={id} />
-      <Select
-        name="status"
-        size="xs"
-        className="w-auto"
-        defaultValue={status}
-        onChange={() => formRef.current?.requestSubmit()}
-        aria-label="Update status"
-      >
-        {REQUEST_STATUSES.map((value) => (
-          <option key={value} value={value}>
-            {requestStatusMeta[value].label}
-          </option>
-        ))}
-      </Select>
-      {state.error ? (
-        <p className="text-xs text-destructive" role="alert">
-          {state.error}
-        </p>
-      ) : null}
-    </form>
+    <StatusMenu
+      value={status}
+      options={OPTIONS}
+      update={(next) => updateTourRequestStatus(id, next)}
+      triggerLabel={`Status for ${name} — currently ${requestStatusMeta[status].label}`}
+      className={className}
+    />
   );
 }
