@@ -25,7 +25,7 @@ export default async function AdminLoginPage({
         <CardHeader>
           <CardTitle className="text-lg">Agorasim Admin</CardTitle>
           <CardDescription>
-            Enter the team password to access the operations area.
+            Sign in with your own account to access the operations area.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -6,12 +6,14 @@ import { usePathname } from "next/navigation";
 import { LayoutGrid, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  ADMIN_NAV_GROUPS,
   ADMIN_PRIMARY_NAV,
+  adminNavGroups,
   adminPageTitle,
   isAdminNavItemActive,
+  type AdminNavGroup,
   type AdminNavItem,
 } from "@/lib/admin-nav";
+import { useAdminViewer } from "@/components/admin/admin-user-context";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -87,7 +89,13 @@ function ToolbarTab({
  * Mobile navigation: a fixed bottom toolbar with the everyday destinations,
  * plus "More" opening a bottom sheet with the full grouped map.
  */
-function MobileBottomNav({ pathname }: { pathname: string }) {
+function MobileBottomNav({
+  pathname,
+  groups,
+}: {
+  pathname: string;
+  groups: { title: AdminNavGroup; items: AdminNavItem[] }[];
+}) {
   const [moreOpen, setMoreOpen] = useState(false);
   const primaryActive = ADMIN_PRIMARY_NAV.some((i) => isAdminNavItemActive(i.href, pathname));
 
@@ -123,7 +131,7 @@ function MobileBottomNav({ pathname }: { pathname: string }) {
               <SheetTitle>All areas</SheetTitle>
             </SheetHeader>
             <div className="grid grid-cols-2 gap-x-2 gap-y-4 px-4 pt-1">
-              {ADMIN_NAV_GROUPS.map((group) => (
+              {groups.map((group) => (
                 <div key={group.title} className="min-w-0">
                   <p className="px-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
                     {group.title}
@@ -176,6 +184,10 @@ function MobileBottomNav({ pathname }: { pathname: string }) {
  */
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const viewer = useAdminViewer();
+  // Entries above the viewer's role are simply not drawn. The pages behind them
+  // enforce the role themselves — see `admin-user-context.tsx`.
+  const groups = adminNavGroups(viewer?.role ?? null);
 
   return (
     <div className="flex min-h-screen">
@@ -185,7 +197,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <p className="text-xs text-muted-foreground">Operations</p>
         </div>
         <nav className="mt-2 flex flex-col gap-5">
-          {ADMIN_NAV_GROUPS.map((group) => (
+          {groups.map((group) => (
             <div key={group.title}>
               <p className="px-3 pb-1.5 text-[11px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
                 {group.title}
@@ -205,14 +217,25 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center justify-between border-b px-4 sm:px-6">
+        <header className="flex h-14 items-center justify-between gap-3 border-b px-4 sm:px-6">
           <h1 className="font-heading text-base font-semibold">{adminPageTitle(pathname)}</h1>
-          <form action={logout}>
-            <Button type="submit" variant="ghost" size="sm">
-              <LogOut className="size-4" />
-              Sign out
-            </Button>
-          </form>
+          <div className="flex min-w-0 items-center gap-2">
+            {/* Who you are signed in as. With a shared password there was
+                nothing to show here — and no way to notice you were on a
+                colleague's session. */}
+            {viewer ? (
+              <span className="hidden truncate text-xs text-muted-foreground sm:inline">
+                {viewer.name}
+                <span className="ml-1 opacity-70">({viewer.role})</span>
+              </span>
+            ) : null}
+            <form action={logout}>
+              <Button type="submit" variant="ghost" size="sm">
+                <LogOut className="size-4" />
+                Sign out
+              </Button>
+            </form>
+          </div>
         </header>
 
         {/* Bottom toolbar height + safe area, so content never hides behind it. */}
@@ -221,7 +244,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      <MobileBottomNav pathname={pathname} />
+      <MobileBottomNav pathname={pathname} groups={groups} />
     </div>
   );
 }

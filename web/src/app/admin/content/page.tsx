@@ -7,6 +7,7 @@ import {
   socialPostDrafts,
   emailCampaignDrafts,
 } from "@/db";
+import { requireAdmin } from "@/lib/admin-auth";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminPagination } from "@/components/admin/pagination";
 import { PlaceholderPanel } from "@/components/admin/placeholder-panel";
@@ -99,6 +100,8 @@ export default async function AdminContentPage({
 }: {
   searchParams: Promise<Partial<Record<GroupKey, string>>>;
 }) {
+  await requireAdmin();
+
   const params = await searchParams;
 
   // Counts first, so each group's page can be clamped to what actually exists.

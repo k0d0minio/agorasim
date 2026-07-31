@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { Lightbulb } from "lucide-react";
 import { count, desc, eq } from "drizzle-orm";
-import { db, featureRequests } from "@/db";
+import { db, featureRequests, adminUsers } from "@/db";
+import { requireAdmin } from "@/lib/admin-auth";
+import { lastAuditByEntity } from "@/lib/audit";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { FeatureRequestForm } from "@/components/admin/feature-request-form";
 import { FeatureRequestStatusSelect } from "@/components/admin/feature-request-status-select";
@@ -12,7 +14,9 @@ import { PROPOSAL_CATEGORY } from "@/lib/proposal";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
+  auditActionLabel,
   formatDate,
+  formatRelative,
   featureRequestStatusMeta,
   featureRequestPriorityMeta,
 } from "@/lib/admin-format";
@@ -25,6 +29,8 @@ export default async function AdminFeatureRequestsPage({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) {
+  await requireAdmin();
+
   const page = readPageParam((await searchParams).page);
   const { limit, offset } = pageSlice(page);
 
@@ -36,8 +42,22 @@ export default async function AdminFeatureRequestsPage({
   const [[total], rows, proposalRows] = await db.batch([
     db.select({ n: count() }).from(featureRequests),
     db
-      .select()
+      .select({
+        id: featureRequests.id,
+        title: featureRequests.title,
+        description: featureRequests.description,
+        category: featureRequests.category,
+        priority: featureRequests.priority,
+        status: featureRequests.status,
+        createdAt: featureRequests.createdAt,
+        // Who raised it: the account today, the old free-text name for rows
+        // that predate accounts. Neither is authoritative over the other —
+        // legacy rows genuinely only have the string.
+        submittedByName: adminUsers.name,
+        submittedByLegacy: featureRequests.submittedByLegacy,
+      })
       .from(featureRequests)
+      .leftJoin(adminUsers, eq(featureRequests.submittedByUserId, adminUsers.id))
       .orderBy(desc(featureRequests.createdAt))
       .limit(limit)
       .offset(offset),
@@ -53,6 +73,13 @@ export default async function AdminFeatureRequestsPage({
   }
 
   const requestedTitles = proposalRows.map((r) => r.title);
+
+  // One query for the whole page's "last changed by" lines, not one per row.
+  const lastChanged = await lastAuditByEntity(
+    "feature_request",
+    rows.map((r) => r.id),
+  );
+  const now = new Date();
 
   return (
     <AdminShell>
@@ -79,6 +106,8 @@ export default async function AdminFeatureRequestsPage({
               {rows.map((r) => {
                 const statusMeta = featureRequestStatusMeta[r.status];
                 const priorityMeta = featureRequestPriorityMeta[r.priority];
+                const raisedBy = r.submittedByName ?? r.submittedByLegacy;
+                const audit = lastChanged.get(r.id);
                 return (
                   <div key={r.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:gap-4">
                     <div className="min-w-0 flex-1">
@@ -93,9 +122,15 @@ export default async function AdminFeatureRequestsPage({
                         {r.description}
                       </p>
                       <p className="mt-2 text-xs text-muted-foreground">
-                        {r.submittedBy ? `${r.submittedBy} · ` : ""}
+                        {raisedBy ? `${raisedBy} · ` : ""}
                         {formatDate(r.createdAt)}
                       </p>
+                      {audit ? (
+                        <p className="text-xs text-muted-foreground">
+                          {audit.actorName ?? "Scheduled job"} {auditActionLabel(audit.action)},{" "}
+                          {formatRelative(audit.createdAt, now)}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex shrink-0 flex-col items-start gap-1.5 sm:items-end">
                       <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
