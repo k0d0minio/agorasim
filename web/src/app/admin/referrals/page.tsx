@@ -22,7 +22,7 @@ import {
  */
 export default function AdminReferralsPage() {
   return (
-    <AdminShell title="Referrals">
+    <AdminShell>
       <AdminInDevBanner note="Word of mouth, made measurable: every guest gets a personal link, referred bookings are tracked automatically, and this page shows who to thank (and with what)." />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -83,7 +83,7 @@ export default function AdminReferralsPage() {
             table's overflow escapes this scroller and scrolls the whole page
             sideways at widths where the table doesn't fit. */}
         <div className="relative overflow-x-auto">
-          <Table>
+          <Table className="min-w-[700px]">
             <TableCaption>
               Guests with a personal link, ranked by referred bookings — example data.
             </TableCaption>

@@ -3,9 +3,15 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 /**
- * Table primitives. `TableHead` defaults to `scope="col"` and `TableCaption` is
- * expected on every table — screen readers need both to make a grid navigable.
- * Captions render visually hidden by default; pass `visible` to show one.
+ * Table primitives for the admin data views.
+ *
+ * Deliberately without the usual scroll wrapper: every table here sits inside a
+ * `<div className="relative overflow-x-auto">` within its card, which already
+ * provides one. Pass the table's minimum width as `className` on `Table`.
+ *
+ * `TableHead` defaults to `scope="col"` and `TableCaption` is part of the API,
+ * so a table can't be built without the two things a screen reader needs to
+ * navigate one.
  */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
@@ -17,19 +23,25 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   )
 }
 
+/** Column-header row wrapper. The heading type styles inherit down to each `th`. */
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
-  return <thead data-slot="table-header" className={cn(className)} {...props} />
+  return (
+    <thead
+      data-slot="table-header"
+      className={cn(
+        "text-left text-xs tracking-wide text-muted-foreground uppercase",
+        className
+      )}
+      {...props}
+    />
+  )
 }
 
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
-  return <tbody data-slot="table-body" className={cn(className)} {...props} />
-}
-
-function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   return (
-    <tfoot
-      data-slot="table-footer"
-      className={cn("border-t font-medium", className)}
+    <tbody
+      data-slot="table-body"
+      className={cn("[&_tr:last-child]:border-0", className)}
       {...props}
     />
   )
@@ -37,11 +49,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
 
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
-    <tr
-      data-slot="table-row"
-      className={cn("border-b last:border-0", className)}
-      {...props}
-    />
+    <tr data-slot="table-row" className={cn("border-b", className)} {...props} />
   )
 }
 
@@ -54,10 +62,7 @@ function TableHead({
     <th
       data-slot="table-head"
       scope={scope}
-      className={cn(
-        "px-4 py-3 text-left text-xs font-medium tracking-wide text-muted-foreground uppercase",
-        className
-      )}
+      className={cn("px-4 py-3 font-medium", className)}
       {...props}
     />
   )
@@ -65,10 +70,18 @@ function TableHead({
 
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
-    <td data-slot="table-cell" className={cn("px-4 py-3", className)} {...props} />
+    <td
+      data-slot="table-cell"
+      className={cn("px-4 py-3", className)}
+      {...props}
+    />
   )
 }
 
+/**
+ * Names the table for a screen reader. Visually hidden by default — the heading
+ * above the table already says what it is on screen; pass `visible` to show it.
+ */
 function TableCaption({
   className,
   visible = false,
@@ -90,7 +103,6 @@ export {
   Table,
   TableHeader,
   TableBody,
-  TableFooter,
   TableRow,
   TableHead,
   TableCell,

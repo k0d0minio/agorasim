@@ -13,11 +13,14 @@
  * Edit prices here and every surface updates at once — configure the factory,
  * not the product.
  */
+import type { VariantProps } from "class-variance-authority";
+
+import type { badgeVariants } from "@/components/ui/badge";
 
 export type CatalogueStatus = "partial" | "new" | "researched";
 
-/** Badge variant used by the admin UI (mirrors `ui/badge.tsx`). */
-type BadgeVariant = "default" | "secondary" | "outline";
+/** Badge variant, taken straight from `ui/badge.tsx` rather than mirrored here. */
+type BadgeVariant = VariantProps<typeof badgeVariants>["variant"];
 
 export const catalogueStatusMeta: Record<
   CatalogueStatus,

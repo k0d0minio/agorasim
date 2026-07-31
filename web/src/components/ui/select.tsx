@@ -1,24 +1,39 @@
 import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+import { fieldBase, fieldSizes } from "@/components/ui/input"
+
+const selectVariants = cva(fieldBase, {
+  variants: {
+    size: fieldSizes,
+  },
+  defaultVariants: {
+    size: "default",
+  },
+})
 
 /**
- * Native `<select>` styled to match the rest of the form controls. Native is
- * deliberate: on a phone it opens the platform picker, which beats any custom
- * listbox for one-handed use. For a control whose trigger is not a form field
- * (e.g. a status badge), use `ui/dropdown-menu` instead.
+ * A styled **native** `<select>` rather than a Radix listbox. The admin is a
+ * phone-first installed PWA: the platform's own picker is the better control on
+ * touch, it costs no JavaScript, and it keeps the inline "change the value and
+ * the form submits itself" triage flow working. Options are plain `<option>`
+ * children.
  */
-function Select({ className, ...props }: React.ComponentProps<"select">) {
+function Select({
+  className,
+  size = "default",
+  ...props
+}: Omit<React.ComponentProps<"select">, "size"> &
+  VariantProps<typeof selectVariants>) {
   return (
     <select
       data-slot="select"
-      className={cn(
-        "h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20",
-        className
-      )}
+      data-size={size}
+      className={cn(selectVariants({ size, className }))}
       {...props}
     />
   )
 }
 
-export { Select }
+export { Select, selectVariants }

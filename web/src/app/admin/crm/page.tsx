@@ -19,7 +19,7 @@ const STAGES = previewPipeline.map((column) => column.title);
  */
 export default function AdminCrmPage() {
   return (
-    <AdminShell title="CRM pipeline">
+    <AdminShell>
       <AdminInDevBanner note="This upgrades your current lead list into a board — every enquiry and booking will flow in automatically, with notes and next actions per person." />
 
       <div className="-mx-4 px-4 pb-4 sm:-mx-6 sm:px-6 md:overflow-x-auto">
