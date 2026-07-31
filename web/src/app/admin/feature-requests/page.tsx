@@ -1,10 +1,13 @@
+import { redirect } from "next/navigation";
 import { Lightbulb } from "lucide-react";
-import { desc } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import { db, featureRequests } from "@/db";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { FeatureRequestForm } from "@/components/admin/feature-request-form";
 import { FeatureRequestStatusSelect } from "@/components/admin/feature-request-status-select";
+import { AdminPagination } from "@/components/admin/pagination";
 import { ProposalCatalogue } from "@/components/admin/proposal-catalogue";
+import { lastPage, pageSlice, readPageParam } from "@/lib/admin-pagination";
 import { PROPOSAL_CATEGORY } from "@/lib/proposal";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -17,14 +20,39 @@ import {
 // Reads live data — never prerender at build time.
 export const dynamic = "force-dynamic";
 
-export default async function AdminFeatureRequestsPage() {
-  const rows = await db.select().from(featureRequests).orderBy(desc(featureRequests.createdAt));
+export default async function AdminFeatureRequestsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = readPageParam((await searchParams).page);
+  const { limit, offset } = pageSlice(page);
 
-  // Titles already on file from the proposal catalogue, so its cards can show a
-  // "Requested" marker.
-  const requestedTitles = rows
-    .filter((r) => r.category === PROPOSAL_CATEGORY)
-    .map((r) => r.title);
+  /*
+   * Three queries, one round trip. The catalogue's "Requested" markers need
+   * every proposal title, not just the ones on this page, so they get their own
+   * query rather than being filtered out of the visible rows.
+   */
+  const [[total], rows, proposalRows] = await db.batch([
+    db.select({ n: count() }).from(featureRequests),
+    db
+      .select()
+      .from(featureRequests)
+      .orderBy(desc(featureRequests.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ title: featureRequests.title })
+      .from(featureRequests)
+      .where(eq(featureRequests.category, PROPOSAL_CATEGORY)),
+  ]);
+
+  const requests = total?.n ?? 0;
+  if (requests > 0 && page > lastPage(requests)) {
+    redirect(`/admin/feature-requests?page=${lastPage(requests)}`);
+  }
+
+  const requestedTitles = proposalRows.map((r) => r.title);
 
   return (
     <AdminShell>
@@ -38,11 +66,11 @@ export default async function AdminFeatureRequestsPage() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Lightbulb className="size-4" />
             <span>
-              {rows.length} {rows.length === 1 ? "request" : "requests"}
+              {requests} {requests === 1 ? "request" : "requests"}
             </span>
           </div>
 
-          {rows.length === 0 ? (
+          {requests === 0 ? (
             <Card className="px-4 py-10 text-center text-sm text-muted-foreground">
               No feature requests yet. Add the first one above.
             </Card>
@@ -78,6 +106,13 @@ export default async function AdminFeatureRequestsPage() {
               })}
             </Card>
           )}
+
+          <AdminPagination
+            page={page}
+            total={requests}
+            label="Feature request pages"
+            hrefFor={(n) => `/admin/feature-requests?page=${n}`}
+          />
         </section>
         </div>
       </div>
