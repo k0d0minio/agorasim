@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { count, inArray, eq } from "drizzle-orm";
+import { count } from "drizzle-orm";
 import {
   db,
   tourRequests,
@@ -19,62 +19,57 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 // Reads live counts — never prerender at build time.
 export const dynamic = "force-dynamic";
 
-export default async function AdminDashboardPage() {
-  const review: ContentStatus[] = ["draft", "in_review"];
-  const published: ContentStatus[] = ["published"];
-  const openFeature: FeatureRequestStatus[] = ["new", "planned", "in_progress"];
+const REVIEW: ContentStatus[] = ["draft", "in_review"];
+const PUBLISHED: ContentStatus[] = ["published"];
+const OPEN_FEATURE: FeatureRequestStatus[] = ["new", "planned", "in_progress"];
 
-  const [
-    [newSubmissions],
-    [openFeatureRequests],
-    [geoReview],
-    [blogReview],
-    [socialReview],
-    [emailReview],
-    [geoPublished],
-    [blogPublished],
-    [socialPublished],
-    [emailPublished],
-  ] = await Promise.all([
-    db.select({ n: count() }).from(tourRequests).where(eq(tourRequests.status, "new")),
+/** Total the rows of a `GROUP BY status` result that match one of `statuses`. */
+function tally<S extends string>(rows: { status: S; n: number }[], statuses: readonly S[]): number {
+  return rows.reduce((total, row) => (statuses.includes(row.status) ? total + row.n : total), 0);
+}
+
+export default async function AdminDashboardPage() {
+  /*
+   * One `GROUP BY status` per table instead of a `count()` per stat. Neon's HTTP
+   * driver opens a connection per query, so the old ten stats meant ten round
+   * trips on every render of a `force-dynamic` page; `db.batch` sends these six
+   * as a single request and the per-status arithmetic happens here.
+   */
+  const [requests, features, geo, blog, social, email] = await db.batch([
     db
-      .select({ n: count() })
+      .select({ status: tourRequests.status, n: count() })
+      .from(tourRequests)
+      .groupBy(tourRequests.status),
+    db
+      .select({ status: featureRequests.status, n: count() })
       .from(featureRequests)
-      .where(inArray(featureRequests.status, openFeature)),
-    db.select({ n: count() }).from(geoContentDrafts).where(inArray(geoContentDrafts.status, review)),
-    db.select({ n: count() }).from(blogPostDrafts).where(inArray(blogPostDrafts.status, review)),
-    db.select({ n: count() }).from(socialPostDrafts).where(inArray(socialPostDrafts.status, review)),
+      .groupBy(featureRequests.status),
     db
-      .select({ n: count() })
-      .from(emailCampaignDrafts)
-      .where(inArray(emailCampaignDrafts.status, review)),
-    db
-      .select({ n: count() })
+      .select({ status: geoContentDrafts.status, n: count() })
       .from(geoContentDrafts)
-      .where(inArray(geoContentDrafts.status, published)),
-    db.select({ n: count() }).from(blogPostDrafts).where(inArray(blogPostDrafts.status, published)),
+      .groupBy(geoContentDrafts.status),
     db
-      .select({ n: count() })
+      .select({ status: blogPostDrafts.status, n: count() })
+      .from(blogPostDrafts)
+      .groupBy(blogPostDrafts.status),
+    db
+      .select({ status: socialPostDrafts.status, n: count() })
       .from(socialPostDrafts)
-      .where(inArray(socialPostDrafts.status, published)),
+      .groupBy(socialPostDrafts.status),
     db
-      .select({ n: count() })
+      .select({ status: emailCampaignDrafts.status, n: count() })
       .from(emailCampaignDrafts)
-      .where(inArray(emailCampaignDrafts.status, published)),
+      .groupBy(emailCampaignDrafts.status),
   ]);
 
-  const draftsToReview =
-    (geoReview?.n ?? 0) + (blogReview?.n ?? 0) + (socialReview?.n ?? 0) + (emailReview?.n ?? 0);
-  const publishedCount =
-    (geoPublished?.n ?? 0) +
-    (blogPublished?.n ?? 0) +
-    (socialPublished?.n ?? 0) +
-    (emailPublished?.n ?? 0);
+  const drafts = [geo, blog, social, email];
+  const draftsToReview = drafts.reduce((total, rows) => total + tally(rows, REVIEW), 0);
+  const publishedCount = drafts.reduce((total, rows) => total + tally(rows, PUBLISHED), 0);
 
   const STATS = [
     {
       label: "New submissions",
-      value: String(newSubmissions?.n ?? 0),
+      value: String(tally(requests, ["new"])),
       hint: "Awaiting first contact",
     },
     {
@@ -85,7 +80,7 @@ export default async function AdminDashboardPage() {
     { label: "Published", value: String(publishedCount), hint: "Content pushed live" },
     {
       label: "Open feature requests",
-      value: String(openFeatureRequests?.n ?? 0),
+      value: String(tally(features, OPEN_FEATURE)),
       hint: "In the toolkit backlog",
     },
   ];

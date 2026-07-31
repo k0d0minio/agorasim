@@ -1,11 +1,14 @@
+import { redirect } from "next/navigation";
 import { Inbox } from "lucide-react";
-import { desc } from "drizzle-orm";
+import { count, desc } from "drizzle-orm";
 import { db, tourRequests } from "@/db";
 import { experiences } from "@/content/experiences";
 import { t } from "@/i18n/config";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { AdminPagination } from "@/components/admin/pagination";
 import { PlaceholderPanel } from "@/components/admin/placeholder-panel";
 import { RequestStatusSelect } from "@/components/admin/request-status-select";
+import { lastPage, pageSlice, readPageParam } from "@/lib/admin-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
@@ -29,10 +32,32 @@ function labelFor(slug: string | null): string {
   return experienceLabel.get(slug) ?? slug;
 }
 
-export default async function AdminSubmissionsPage() {
-  const rows = await db.select().from(tourRequests).orderBy(desc(tourRequests.createdAt));
+export default async function AdminSubmissionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = readPageParam((await searchParams).page);
+  const { limit, offset } = pageSlice(page);
 
-  if (rows.length === 0) {
+  // Count and page in one round trip; the list used to fetch every row, forever.
+  const [[total], rows] = await db.batch([
+    db.select({ n: count() }).from(tourRequests),
+    db
+      .select()
+      .from(tourRequests)
+      .orderBy(desc(tourRequests.createdAt))
+      .limit(limit)
+      .offset(offset),
+  ]);
+
+  const enquiries = total?.n ?? 0;
+  // A hand-typed page past the end — send them to the last real one.
+  if (enquiries > 0 && page > lastPage(enquiries)) {
+    redirect(`/admin/submissions?page=${lastPage(enquiries)}`);
+  }
+
+  if (enquiries === 0) {
     return (
       <AdminShell>
         <PlaceholderPanel
@@ -49,7 +74,7 @@ export default async function AdminSubmissionsPage() {
       <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
         <Inbox className="size-4" />
         <span>
-          {rows.length} {rows.length === 1 ? "enquiry" : "enquiries"}
+          {enquiries} {enquiries === 1 ? "enquiry" : "enquiries"}
         </span>
       </div>
 
@@ -110,6 +135,13 @@ export default async function AdminSubmissionsPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <AdminPagination
+        page={page}
+        total={enquiries}
+        label="Submissions pages"
+        hrefFor={(n) => `/admin/submissions?page=${n}`}
+      />
     </AdminShell>
   );
 }
