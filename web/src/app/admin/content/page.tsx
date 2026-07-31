@@ -92,7 +92,7 @@ export default async function AdminContentPage() {
 
   if (total === 0) {
     return (
-      <AdminShell title="Content">
+      <AdminShell>
         <PlaceholderPanel
           icon={FileText}
           title="No drafts yet"
@@ -139,7 +139,7 @@ export default async function AdminContentPage() {
   }));
 
   return (
-    <AdminShell title="Content">
+    <AdminShell>
       <div className="flex flex-col gap-8">
         <DraftGroup
           icon={Globe}

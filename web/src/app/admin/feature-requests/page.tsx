@@ -27,7 +27,7 @@ export default async function AdminFeatureRequestsPage() {
     .map((r) => r.title);
 
   return (
-    <AdminShell title="Feature requests">
+    <AdminShell>
       <div className="flex flex-col gap-10">
         <ProposalCatalogue requestedTitles={requestedTitles} />
 

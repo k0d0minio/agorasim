@@ -20,7 +20,7 @@ const statusVariant = {
  */
 export default function AdminBlogPage() {
   return (
-    <AdminShell title="Blog studio">
+    <AdminShell>
       <AdminInDevBanner note="The AI pipeline will draft articles in your voice on a schedule (2–4 a month) — each waits here for your one-click approval before going live, in both languages." />
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

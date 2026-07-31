@@ -25,7 +25,7 @@ const paymentVariant = {
  */
 export default function AdminBookingsPage() {
   return (
-    <AdminShell title="Bookings">
+    <AdminShell>
       <AdminInDevBanner note="When instant booking goes live, every paid tour and wedding hire appears here the moment the guest pays — no more copying between inboxes." />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
