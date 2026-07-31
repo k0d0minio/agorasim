@@ -1,11 +1,29 @@
 import type { VariantProps } from "class-variance-authority";
 import type {
+  AdminRole,
   ContentStatus,
   FeatureRequestPriority,
   FeatureRequestStatus,
   RequestStatus,
 } from "@/db/schema";
+import type { AuditAction } from "@/lib/audit";
 import type { badgeVariants } from "@/components/ui/badge";
+
+/**
+ * The password rule, as shown under a password field. Re-exported here so the
+ * client forms have one admin-facing module to import their copy from, and so
+ * they never reach into `password.ts`, which is `server-only`.
+ */
+export { MIN_PASSWORD_LENGTH_HINT } from "@/lib/password-policy";
+
+/**
+ * The word an operator types to confirm an irreversible erasure.
+ *
+ * Lives here rather than in `form-schemas.ts` because both sides need it — the
+ * dialog to render the instruction and arm its button, the schema to validate
+ * the submission — and `form-schemas.ts` is `server-only`.
+ */
+export const DELETE_CONFIRMATION = "DELETE";
 
 /**
  * Badge variant, taken straight from `ui/badge.tsx`. The hand-written mirror
@@ -70,6 +88,57 @@ export const featureRequestPriorityMeta: Record<
 export const FEATURE_REQUEST_PRIORITIES = Object.keys(
   featureRequestPriorityMeta,
 ) as FeatureRequestPriority[];
+
+export const adminRoleMeta: Record<
+  AdminRole,
+  { label: string; variant: BadgeVariant; description: string }
+> = {
+  owner: {
+    label: "Owner",
+    variant: "default",
+    description:
+      "Full access, including team accounts, the audit log, and exporting or erasing guest data.",
+  },
+  collaborator: {
+    label: "Collaborator",
+    variant: "secondary",
+    description:
+      "Everything operational. No team accounts, and no exporting or erasing guest data.",
+  },
+};
+
+/** Roles in picker order — read off the meta record, so it cannot fall behind. */
+export const ADMIN_ROLES = Object.keys(adminRoleMeta) as AdminRole[];
+
+/**
+ * Plain-English labels for audit actions.
+ *
+ * `Record<AuditAction, …>` on purpose: adding an action to `AUDIT_ACTIONS`
+ * without giving it a label stops the build, rather than shipping an audit view
+ * that renders a raw `tour_request.bulk_deleted` at an operator.
+ */
+export const auditActionLabels: Record<AuditAction, string> = {
+  "admin_user.signed_in": "signed in",
+  "admin_user.signed_out": "signed out",
+  "admin_user.sessions_revoked": "signed out everywhere",
+  "admin_user.created": "created an account",
+  "admin_user.disabled": "disabled an account",
+  "admin_user.enabled": "re-enabled an account",
+  "admin_user.password_changed": "changed their password",
+  "tour_request.status_changed": "changed a submission's status",
+  "tour_request.bulk_status_changed": "bulk-changed submission statuses",
+  "tour_request.deleted": "erased a submission",
+  "tour_request.bulk_deleted": "bulk-erased submissions",
+  "tour_request.exported": "exported a person's data",
+  "tour_request.anonymised_by_retention": "anonymised expired submissions",
+  "feature_request.created": "raised a feature request",
+  "feature_request.status_changed": "changed a feature request's status",
+};
+
+/** Label for an action string read back from the database. */
+export function auditActionLabel(action: string): string {
+  return auditActionLabels[action as AuditAction] ?? action;
+}
 
 const dateFormatter = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",

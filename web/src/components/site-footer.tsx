@@ -64,8 +64,15 @@ export function SiteFooter({ locale }: { locale: Locale }) {
         </div>
       </div>
       <div className="border-t border-border/70">
-        <div className="mx-auto max-w-6xl px-4 py-6 text-xs text-muted-foreground sm:px-6">
-          © {year} {site.name}. {dict.footer.rights}
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-6 text-xs text-muted-foreground sm:px-6">
+          <span>
+            © {year} {site.name}. {dict.footer.rights}
+          </span>
+          {/* The privacy policy has to be reachable from every page, not just
+              from the form that collects the data. */}
+          <Link href={href(locale, "privacidade")} className="hover:text-primary">
+            {dict.nav.privacidade}
+          </Link>
         </div>
       </div>
     </footer>

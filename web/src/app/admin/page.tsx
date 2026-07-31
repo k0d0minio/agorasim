@@ -13,7 +13,8 @@ import {
 import type { ContentStatus, FeatureRequestStatus } from "@/db/schema";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { InDevLegend, InDevMarker } from "@/components/admin/in-dev-marker";
-import { ADMIN_AREAS } from "@/lib/admin-nav";
+import { requireAdmin } from "@/lib/admin-auth";
+import { adminAreas } from "@/lib/admin-nav";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 // Reads live counts — never prerender at build time.
@@ -29,6 +30,8 @@ function tally<S extends string>(rows: { status: S; n: number }[], statuses: rea
 }
 
 export default async function AdminDashboardPage() {
+  const viewer = await requireAdmin();
+
   /*
    * One `GROUP BY status` per table instead of a `count()` per stat. Neon's HTTP
    * driver opens a connection per query, so the old ten stats meant ten round
@@ -110,7 +113,7 @@ export default async function AdminDashboardPage() {
             Areas
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {ADMIN_AREAS.map(({ href, icon: Icon, label, cardTitle, description, dev }) => (
+            {adminAreas(viewer.role).map(({ href, icon: Icon, label, cardTitle, description, dev }) => (
               <Link
                 key={href}
                 href={href}

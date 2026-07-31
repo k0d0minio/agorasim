@@ -7,12 +7,14 @@ import { ArrowLeft, LayoutGrid, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ADMIN_HOME_HREF,
-  ADMIN_NAV_GROUPS,
   ADMIN_PRIMARY_NAV,
+  adminNavGroups,
   adminPageTitle,
   isAdminNavItemActive,
+  type AdminNavGroup,
   type AdminNavItem,
 } from "@/lib/admin-nav";
+import { useAdminViewer } from "@/components/admin/admin-user-context";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -89,7 +91,13 @@ function ToolbarTab({
  * Mobile navigation: a fixed bottom toolbar with the everyday destinations,
  * plus "More" opening a bottom sheet with the full grouped map.
  */
-function MobileBottomNav({ pathname }: { pathname: string }) {
+function MobileBottomNav({
+  pathname,
+  groups,
+}: {
+  pathname: string;
+  groups: { title: AdminNavGroup; items: AdminNavItem[] }[];
+}) {
   const [moreOpen, setMoreOpen] = useState(false);
   const sheetId = useId();
   const primaryActive = ADMIN_PRIMARY_NAV.some((i) => isAdminNavItemActive(i.href, pathname));
@@ -134,7 +142,7 @@ function MobileBottomNav({ pathname }: { pathname: string }) {
               <SheetTitle>All areas</SheetTitle>
             </SheetHeader>
             <div className="grid grid-cols-2 gap-x-2 gap-y-4 px-4 pt-1">
-              {ADMIN_NAV_GROUPS.map((group) => (
+              {groups.map((group) => (
                 <div key={group.title} className="min-w-0">
                   <p className="px-2 pb-1 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                     {group.title}
@@ -179,6 +187,10 @@ function MobileBottomNav({ pathname }: { pathname: string }) {
  */
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const viewer = useAdminViewer();
+  // Entries above the viewer's role are simply not drawn. The pages behind them
+  // enforce the role themselves — see `admin-user-context.tsx`.
+  const groups = adminNavGroups(viewer?.role ?? null);
   const isHome = pathname === ADMIN_HOME_HREF;
 
   return (
@@ -189,7 +201,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <p className="text-xs text-muted-foreground">Operations</p>
         </div>
         <nav className="mt-2 flex flex-col gap-5">
-          {ADMIN_NAV_GROUPS.map((group) => (
+          {groups.map((group) => (
             <div key={group.title}>
               <p className="px-3 pb-1.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 {group.title}
@@ -228,6 +240,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <h1 className="min-w-0 flex-1 truncate font-heading text-base font-semibold">
             {adminPageTitle(pathname)}
           </h1>
+          {/* Who you are signed in as. With a shared password there was
+              nothing to show here — and no way to notice you were on a
+              colleague's session. Hidden on the narrowest screens, where the
+              title and the way out have to win. */}
+          {viewer ? (
+            <span className="hidden shrink-0 truncate text-xs text-muted-foreground sm:inline">
+              {viewer.name}
+              <span className="ml-1 opacity-70">({viewer.role})</span>
+            </span>
+          ) : null}
           <form action={logout}>
             <Button type="submit" variant="ghost" className="h-11 sm:h-8">
               <LogOut className="size-4" />
@@ -242,7 +264,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      <MobileBottomNav pathname={pathname} />
+      <MobileBottomNav pathname={pathname} groups={groups} />
     </div>
   );
 }

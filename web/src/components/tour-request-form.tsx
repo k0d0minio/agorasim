@@ -2,10 +2,13 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
+import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
+import { privacyContent } from "@/content/privacy";
 import { complementExperiences, experiences } from "@/content/experiences";
+import { href } from "@/lib/routes";
 import {
   HONEYPOT_FIELD,
   submitTourRequest,
@@ -154,14 +157,57 @@ export function TourRequestForm({ locale }: { locale: Locale }) {
         />
       </div>
 
+      {/*
+        Marketing opt-in. Separate from the enquiry, never pre-ticked, and never
+        a condition of submitting — three requirements of valid consent
+        (GDPR Art. 4(11) and 7(4)) that are trivially easy to break by making
+        this a `required` field or defaulting it to checked. Don't.
+
+        The wording is versioned: `MARKETING_CONSENT_VERSION` is submitted with
+        the form and stored on the row, so what someone agreed to stays provable
+        after the copy changes.
+      */}
+      <div className="rounded-xl border border-border bg-secondary/20 px-4 py-3">
+        <label className="flex items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            name="marketingConsent"
+            value="on"
+            className="mt-0.5 size-4 shrink-0 rounded border-border accent-primary"
+          />
+          <span>
+            {t(privacyContent.marketing.label, locale)}
+            <span className="mt-1 block text-xs text-muted-foreground">
+              {t(privacyContent.marketing.hint, locale)}
+            </span>
+          </span>
+        </label>
+      </div>
+
       {state.error ? (
         <p className="text-sm text-destructive" role="alert">
           {state.error}
         </p>
       ) : null}
 
-      <div>
-        <SubmitButton locale={locale} />
+      <div className="flex flex-col gap-4">
+        {/*
+          Notice at the point of collection (Art. 13): what we take, why, for how
+          long, and where the full policy is — next to the button that sends it,
+          not buried in a footer link.
+        */}
+        <p className="max-w-prose text-xs leading-relaxed text-muted-foreground">
+          {t(privacyContent.formNotice.intro, locale)}{" "}
+          {t(privacyContent.formNotice.linkPrefix, locale)}{" "}
+          <Link href={href(locale, "privacidade")} className="underline hover:text-primary">
+            {t(privacyContent.formNotice.linkLabel, locale)}
+          </Link>
+          .
+        </p>
+
+        <div>
+          <SubmitButton locale={locale} />
+        </div>
       </div>
     </form>
   );
