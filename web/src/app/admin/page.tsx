@@ -24,7 +24,7 @@ import {
 } from "@/db";
 import type { ContentStatus, FeatureRequestStatus } from "@/db/schema";
 import { AdminShell } from "@/components/admin/admin-shell";
-import { Badge } from "@/components/ui/badge";
+import { InDevLegend, InDevMarker } from "@/components/admin/in-dev-marker";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 // Reads live counts — never prerender at build time.
@@ -211,18 +211,22 @@ export default async function AdminDashboardPage() {
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {SECTIONS.map(({ href, icon: Icon, title, description, dev }) => (
-              <Link key={href} href={href} className="group/section">
+              <Link
+                key={href}
+                href={href}
+                className="group/section rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
                 <Card className="h-full transition-colors group-hover/section:ring-foreground/20">
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                         <Icon className="size-4.5" />
                       </div>
-                      {dev && (
-                        <Badge variant="outline" className="text-muted-foreground">
-                          In development
-                        </Badge>
-                      )}
+                      {/*
+                        The same dot used in both navs, not a third signal: an
+                        area in development is marked here and banners itself.
+                      */}
+                      {dev && <InDevMarker className="mt-3" />}
                     </div>
                     <CardTitle className="mt-2 flex items-center gap-1">
                       {title}
@@ -234,6 +238,7 @@ export default async function AdminDashboardPage() {
               </Link>
             ))}
           </div>
+          <InDevLegend />
         </section>
       </div>
     </AdminShell>
