@@ -194,9 +194,8 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
                 type="button"
                 onClick={() => toggleAddOn(a.id)}
                 aria-pressed={on}
-                title={a.summary}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm ring-1 transition-colors",
+                  "flex min-h-11 items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm ring-1 transition-colors",
                   on
                     ? "bg-primary/5 ring-primary"
                     : "bg-card ring-foreground/10 hover:ring-foreground/25",
@@ -204,20 +203,30 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
               >
                 <span
                   className={cn(
-                    "grid size-5 shrink-0 place-items-center rounded-md border transition-colors",
+                    "mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border transition-colors",
                     on ? "border-primary bg-primary text-primary-foreground" : "border-border",
                   )}
+                  aria-hidden
                 >
                   {on ? <Check className="size-3.5" /> : null}
                 </span>
-                <span className="min-w-0 flex-1">
-                  {a.name}
-                  {requested.has(a.name) ? (
-                    <span className="ml-1.5 text-xs text-primary">· requested</span>
-                  ) : null}
-                </span>
-                <span className="font-mono text-sm font-medium tabular-nums text-muted-foreground">
-                  €{euro(a.price)}
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="flex items-baseline gap-2">
+                    <span className="min-w-0 flex-1">
+                      {a.name}
+                      {requested.has(a.name) ? (
+                        <span className="ml-1.5 text-xs text-primary">· requested</span>
+                      ) : null}
+                    </span>
+                    <span className="font-mono text-sm font-medium tabular-nums text-muted-foreground">
+                      €{euro(a.price)}
+                    </span>
+                  </span>
+                  {/*
+                    Rendered, not a `title`: tooltips never appear on touch, and
+                    this is the only explanation of what the add-on actually is.
+                  */}
+                  <span className="text-xs text-muted-foreground">{a.summary}</span>
                 </span>
               </button>
             );
@@ -225,8 +234,13 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
         </div>
       </div>
 
-      {/* Sticky summary / action bar */}
-      <div className="sticky bottom-4 z-20">
+      {/*
+        Sticky summary / action bar. Sticky resolves against the viewport, not
+        <main>'s bottom padding, so below md this has to clear the fixed bottom
+        toolbar (4.5rem) and the home indicator itself — otherwise the running
+        total and the page's primary action sit underneath the nav.
+      */}
+      <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom)+1rem)] z-20 md:bottom-4">
         <Card className="ring-primary/25 shadow-lg">
           <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <div
@@ -240,7 +254,7 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
             </div>
 
             <div>
-              <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                 One-time build — no retainer
               </p>
               <p className="font-mono text-2xl leading-tight font-semibold tabular-nums">
@@ -259,20 +273,32 @@ export function ProposalCatalogue({ requestedTitles }: { requestedTitles: string
               )}
             </div>
 
-            <div className="ml-auto flex flex-wrap items-center gap-2">
+            {/* Full-width, 44px-tall controls on a phone; compact from sm up. */}
+            <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto">
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your name (optional)"
                 autoComplete="name"
                 aria-label="Your name"
-                className="h-8 w-40 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:h-8 sm:w-40"
               />
-              <Button type="button" variant="ghost" size="sm" onClick={clearAll} disabled={isPending}>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-11 flex-1 sm:h-7 sm:flex-none sm:px-2.5 sm:text-[0.8rem]"
+                onClick={clearAll}
+                disabled={isPending}
+              >
                 <RotateCcw />
                 Clear
               </Button>
-              <Button type="button" size="sm" onClick={fileRequests} disabled={isPending || selectedCount === 0}>
+              <Button
+                type="button"
+                className="h-11 flex-1 sm:h-7 sm:flex-none sm:px-2.5 sm:text-[0.8rem]"
+                onClick={fileRequests}
+                disabled={isPending || selectedCount === 0}
+              >
                 <Send />
                 {isPending
                   ? "Filing…"
