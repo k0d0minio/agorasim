@@ -1,12 +1,18 @@
+import type { VariantProps } from "class-variance-authority";
 import type {
   ContentStatus,
   FeatureRequestPriority,
   FeatureRequestStatus,
   RequestStatus,
 } from "@/db/schema";
+import type { badgeVariants } from "@/components/ui/badge";
 
-/** Badge variant used by the admin UI (mirrors `ui/badge.tsx` variants). */
-type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
+/**
+ * Badge variant, taken straight from `ui/badge.tsx`. The hand-written mirror
+ * this replaces had already fallen behind — it never gained `ghost` or `link`,
+ * both of which the admin uses. Type-only import, so nothing is bundled.
+ */
+type BadgeVariant = VariantProps<typeof badgeVariants>["variant"];
 
 export const REQUEST_STATUSES: RequestStatus[] = [
   "new",
