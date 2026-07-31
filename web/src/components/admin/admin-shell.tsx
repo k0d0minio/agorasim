@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, LogOut } from "lucide-react";
+import { ArrowLeft, LayoutGrid, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  ADMIN_HOME_HREF,
   ADMIN_PRIMARY_NAV,
   adminNavGroups,
   adminPageTitle,
@@ -21,6 +22,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { InDevLegend, InDevMarker } from "@/components/admin/in-dev-marker";
 import { logout } from "@/app/admin/actions";
 
 function SidebarLink({ item, pathname }: { item: AdminNavItem; pathname: string }) {
@@ -29,7 +31,7 @@ function SidebarLink({ item, pathname }: { item: AdminNavItem; pathname: string 
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
         isAdminNavItemActive(href, pathname)
           ? "bg-primary text-primary-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -37,39 +39,39 @@ function SidebarLink({ item, pathname }: { item: AdminNavItem; pathname: string 
     >
       <Icon className="size-4 shrink-0" />
       <span className="truncate">{label}</span>
-      {dev && (
-        <span
-          className="ml-auto size-1.5 shrink-0 rounded-full bg-accent-foreground/50"
-          title="In development — design preview"
-          aria-label="In development"
-        />
-      )}
+      {dev && <InDevMarker className="ml-auto" />}
     </Link>
   );
 }
 
-/** One slot in the mobile bottom toolbar: icon over a tiny label. */
+/**
+ * One slot in the mobile bottom toolbar: icon over a label. Sized past the
+ * 44pt / 48dp touch guidance rather than exactly at it, and labelled at 12px in
+ * a colour that clears WCAG AA — this is a tool used outdoors, in sunlight.
+ */
 function ToolbarTab({
   active,
   icon: Icon,
   label,
   href,
   onClick,
+  buttonProps,
 }: {
   active: boolean;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   href?: string;
   onClick?: () => void;
+  buttonProps?: React.ComponentProps<"button">;
 }) {
   const className = cn(
-    "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 transition-colors",
+    "flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
     active ? "text-primary" : "text-muted-foreground hover:text-foreground",
   );
   const body = (
     <>
       <Icon className={cn("size-5", active && "stroke-[2.25]")} />
-      <span className="w-full truncate text-center text-[10px] font-medium leading-tight">
+      <span className="w-full truncate text-center text-xs font-medium leading-tight">
         {label}
       </span>
     </>
@@ -79,7 +81,7 @@ function ToolbarTab({
       {body}
     </Link>
   ) : (
-    <button type="button" onClick={onClick} className={className} aria-expanded={active}>
+    <button type="button" onClick={onClick} className={className} {...buttonProps}>
       {body}
     </button>
   );
@@ -97,6 +99,7 @@ function MobileBottomNav({
   groups: { title: AdminNavGroup; items: AdminNavItem[] }[];
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const sheetId = useId();
   const primaryActive = ADMIN_PRIMARY_NAV.some((i) => isAdminNavItemActive(i.href, pathname));
 
   return (
@@ -116,14 +119,22 @@ function MobileBottomNav({
         ))}
 
         <ToolbarTab
-          active={!primaryActive}
+          // Tracks the sheet, not the route: this button opens a dialog, and
+          // announcing "expanded" on every non-primary page was a lie.
+          active={moreOpen || !primaryActive}
           icon={LayoutGrid}
           label="More"
           onClick={() => setMoreOpen(true)}
+          buttonProps={{
+            "aria-expanded": moreOpen,
+            "aria-haspopup": "dialog",
+            "aria-controls": moreOpen ? sheetId : undefined,
+          }}
         />
 
         <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
           <SheetContent
+            id={sheetId}
             side="bottom"
             className="rounded-t-2xl pb-[max(env(safe-area-inset-bottom),1rem)]"
           >
@@ -133,7 +144,7 @@ function MobileBottomNav({
             <div className="grid grid-cols-2 gap-x-2 gap-y-4 px-4 pt-1">
               {groups.map((group) => (
                 <div key={group.title} className="min-w-0">
-                  <p className="px-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
+                  <p className="px-2 pb-1 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                     {group.title}
                   </p>
                   <div className="flex flex-col gap-0.5">
@@ -145,7 +156,7 @@ function MobileBottomNav({
                           href={item.href}
                           onClick={() => setMoreOpen(false)}
                           className={cn(
-                            "flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
+                            "flex min-h-11 items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium transition-colors",
                             isAdminNavItemActive(item.href, pathname)
                               ? "bg-primary text-primary-foreground"
                               : "text-foreground/80 hover:bg-muted",
@@ -153,12 +164,7 @@ function MobileBottomNav({
                         >
                           <Icon className="size-4 shrink-0" />
                           <span className="truncate">{item.label}</span>
-                          {item.dev && (
-                            <span
-                              className="ml-auto size-1.5 shrink-0 rounded-full bg-accent-foreground/50"
-                              aria-label="In development"
-                            />
-                          )}
+                          {item.dev && <InDevMarker className="ml-auto" />}
                         </Link>
                       );
                     })}
@@ -166,10 +172,7 @@ function MobileBottomNav({
                 </div>
               ))}
             </div>
-            <p className="px-6 text-[11px] leading-relaxed text-muted-foreground/70">
-              <span className="mr-1 inline-block size-1.5 rounded-full bg-accent-foreground/50 align-middle" />
-              marks areas in development — final design, example data.
-            </p>
+            <InDevLegend className="px-6" />
           </SheetContent>
         </Sheet>
       </div>
@@ -188,6 +191,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   // Entries above the viewer's role are simply not drawn. The pages behind them
   // enforce the role themselves — see `admin-user-context.tsx`.
   const groups = adminNavGroups(viewer?.role ?? null);
+  const isHome = pathname === ADMIN_HOME_HREF;
 
   return (
     <div className="flex min-h-screen">
@@ -199,7 +203,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <nav className="mt-2 flex flex-col gap-5">
           {groups.map((group) => (
             <div key={group.title}>
-              <p className="px-3 pb-1.5 text-[11px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
+              <p className="px-3 pb-1.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 {group.title}
               </p>
               <div className="flex flex-col gap-0.5">
@@ -210,32 +214,48 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
-        <p className="mt-auto px-3 pt-6 text-[11px] leading-relaxed text-muted-foreground/70">
-          <span className="mr-1 inline-block size-1.5 rounded-full bg-accent-foreground/50 align-middle" />
-          marks areas in development — final design, example data.
-        </p>
+        <InDevLegend className="mt-auto px-3 pt-6" />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center justify-between gap-3 border-b px-4 sm:px-6">
-          <h1 className="font-heading text-base font-semibold">{adminPageTitle(pathname)}</h1>
-          <div className="flex min-w-0 items-center gap-2">
-            {/* Who you are signed in as. With a shared password there was
-                nothing to show here — and no way to notice you were on a
-                colleague's session. */}
-            {viewer ? (
-              <span className="hidden truncate text-xs text-muted-foreground sm:inline">
-                {viewer.name}
-                <span className="ml-1 opacity-70">({viewer.role})</span>
-              </span>
-            ) : null}
-            <form action={logout}>
-              <Button type="submit" variant="ghost" size="sm">
-                <LogOut className="size-4" />
-                Sign out
-              </Button>
-            </form>
-          </div>
+        {/*
+          Sticky, and padded for the status bar: installed standalone there is
+          no browser chrome, so this header is the only title and the only way
+          out — scrolling a long list must not take it away.
+        */}
+        <header className="sticky top-0 z-30 flex min-h-14 items-center gap-1 border-b bg-background/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur supports-backdrop-filter:bg-background/85 sm:px-6">
+          {!isHome && (
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="-ml-2 size-11 shrink-0 md:hidden"
+            >
+              {/* No browser back button in the installed PWA — this is the way up. */}
+              <Link href={ADMIN_HOME_HREF} aria-label="Back to dashboard">
+                <ArrowLeft />
+              </Link>
+            </Button>
+          )}
+          <h1 className="min-w-0 flex-1 truncate font-heading text-base font-semibold">
+            {adminPageTitle(pathname)}
+          </h1>
+          {/* Who you are signed in as. With a shared password there was
+              nothing to show here — and no way to notice you were on a
+              colleague's session. Hidden on the narrowest screens, where the
+              title and the way out have to win. */}
+          {viewer ? (
+            <span className="hidden shrink-0 truncate text-xs text-muted-foreground sm:inline">
+              {viewer.name}
+              <span className="ml-1 opacity-70">({viewer.role})</span>
+            </span>
+          ) : null}
+          <form action={logout}>
+            <Button type="submit" variant="ghost" className="h-11 sm:h-8">
+              <LogOut className="size-4" />
+              Sign out
+            </Button>
+          </form>
         </header>
 
         {/* Bottom toolbar height + safe area, so content never hides behind it. */}

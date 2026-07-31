@@ -15,9 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
   auditActionLabel,
-  formatDate,
-  formatRelative,
-  featureRequestStatusMeta,
+  formatDateTime,
+  formatRelativeTime,
   featureRequestPriorityMeta,
 } from "@/lib/admin-format";
 
@@ -104,7 +103,6 @@ export default async function AdminFeatureRequestsPage({
           ) : (
             <Card className="divide-y p-0">
               {rows.map((r) => {
-                const statusMeta = featureRequestStatusMeta[r.status];
                 const priorityMeta = featureRequestPriorityMeta[r.priority];
                 const raisedBy = r.submittedByName ?? r.submittedByLegacy;
                 const audit = lastChanged.get(r.id);
@@ -123,18 +121,32 @@ export default async function AdminFeatureRequestsPage({
                       </p>
                       <p className="mt-2 text-xs text-muted-foreground">
                         {raisedBy ? `${raisedBy} · ` : ""}
-                        {formatDate(r.createdAt)}
+                        <time
+                          dateTime={r.createdAt?.toISOString()}
+                          title={formatDateTime(r.createdAt)}
+                        >
+                          {formatRelativeTime(r.createdAt)}
+                        </time>
                       </p>
                       {audit ? (
                         <p className="text-xs text-muted-foreground">
                           {audit.actorName ?? "Scheduled job"} {auditActionLabel(audit.action)},{" "}
-                          {formatRelative(audit.createdAt, now)}
+                          <time
+                            dateTime={audit.createdAt.toISOString()}
+                            title={formatDateTime(audit.createdAt)}
+                          >
+                            {formatRelativeTime(audit.createdAt, now)}
+                          </time>
                         </p>
                       ) : null}
                     </div>
-                    <div className="flex shrink-0 flex-col items-start gap-1.5 sm:items-end">
-                      <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
-                      <FeatureRequestStatusSelect id={r.id} status={r.status} />
+                    <div className="shrink-0">
+                      <FeatureRequestStatusSelect
+                        id={r.id}
+                        status={r.status}
+                        title={r.title}
+                        className="sm:items-end"
+                      />
                     </div>
                   </div>
                 );

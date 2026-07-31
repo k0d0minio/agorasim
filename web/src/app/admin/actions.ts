@@ -228,20 +228,21 @@ export async function signOutEverywhere(): Promise<void> {
 export type StatusUpdateState = { ok?: boolean; error?: string };
 
 /**
- * Update the triage status of a tour request from the Submissions table. Invoked
- * from the inline status `<select>`, which submits on change.
+ * Update the triage status of a tour request from the Submissions list. Invoked
+ * from the status menu, which takes arguments rather than `FormData` because the
+ * control is a menu, not a form.
  *
- * The select keeps whatever the operator picked, so a write that failed silently
- * would leave them looking at a status the database never stored — hence the
- * explicit result and the try/catch.
+ * The menu applies the new value optimistically, so a write that failed silently
+ * would leave the operator looking at a status the database never stored — hence
+ * the explicit result and the try/catch. It reverts the badge on an error.
  */
 export async function updateTourRequestStatus(
-  _prevState: StatusUpdateState,
-  formData: FormData,
+  id: string,
+  status: string,
 ): Promise<StatusUpdateState> {
   const actor = await requireAdmin();
 
-  const parsed = updateTourRequestStatusSchema.safeParse(formValues(formData));
+  const parsed = updateTourRequestStatusSchema.safeParse({ id, status });
   if (!parsed.success) {
     console.warn("[admin] rejected tour-request status update", z.flattenError(parsed.error));
     return { error: "Couldn't update that status." };
@@ -274,17 +275,17 @@ export async function updateTourRequestStatus(
 }
 
 /**
- * Update the triage status of a feature request from its inline `<select>`.
- * Reports failures the same way as {@link updateTourRequestStatus}, and for the
- * same reason.
+ * Update the triage status of a feature request from its status menu. Reports
+ * failures the same way as {@link updateTourRequestStatus}, and for the same
+ * reason.
  */
 export async function updateFeatureRequestStatus(
-  _prevState: StatusUpdateState,
-  formData: FormData,
+  id: string,
+  status: string,
 ): Promise<StatusUpdateState> {
   const actor = await requireAdmin();
 
-  const parsed = updateFeatureRequestStatusSchema.safeParse(formValues(formData));
+  const parsed = updateFeatureRequestStatusSchema.safeParse({ id, status });
   if (!parsed.success) {
     console.warn("[admin] rejected feature-request status update", z.flattenError(parsed.error));
     return { error: "Couldn't update that status." };
