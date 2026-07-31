@@ -59,5 +59,9 @@ export const tourRequestContent = {
       pt: "Não foi possível enviar o pedido. Tente novamente.",
       en: "We could not send your request. Please try again.",
     } as Localized,
+    rateLimited: {
+      pt: "Recebemos vários pedidos seus. Aguarde alguns minutos antes de enviar outro.",
+      en: "We have received several requests from you. Please wait a few minutes before sending another.",
+    } as Localized,
   },
 } as const;
