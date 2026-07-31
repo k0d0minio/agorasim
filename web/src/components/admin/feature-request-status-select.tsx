@@ -1,15 +1,19 @@
 "use client";
 
-import { useRef } from "react";
+import { useActionState, useRef } from "react";
 import type { FeatureRequestStatus } from "@/db/schema";
 import { FEATURE_REQUEST_STATUSES, featureRequestStatusMeta } from "@/lib/admin-format";
-import { updateFeatureRequestStatus } from "@/app/admin/actions";
+import {
+  updateFeatureRequestStatus,
+  type StatusUpdateState,
+} from "@/app/admin/actions";
 import { Select } from "@/components/ui/select";
 
 /**
  * Inline status picker for a feature request. Submits the enclosing form as soon
  * as the operator changes the value, so triage is a single click with no save
- * step — mirrors the Submissions table's status select.
+ * step — mirrors the Submissions table's status select, including how it surfaces
+ * a failed write instead of leaving the new value showing.
  */
 export function FeatureRequestStatusSelect({
   id,
@@ -19,9 +23,17 @@ export function FeatureRequestStatusSelect({
   status: FeatureRequestStatus;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const [state, formAction] = useActionState<StatusUpdateState, FormData>(
+    updateFeatureRequestStatus,
+    {},
+  );
 
   return (
-    <form ref={formRef} action={updateFeatureRequestStatus} className="inline-flex">
+    <form
+      ref={formRef}
+      action={formAction}
+      className="inline-flex flex-col items-start gap-1 sm:items-end"
+    >
       <input type="hidden" name="id" value={id} />
       <Select
         name="status"
@@ -37,6 +49,11 @@ export function FeatureRequestStatusSelect({
           </option>
         ))}
       </Select>
+      {state.error ? (
+        <p className="text-xs text-destructive" role="alert">
+          {state.error}
+        </p>
+      ) : null}
     </form>
   );
 }

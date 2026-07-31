@@ -1,14 +1,21 @@
 "use client";
 
-import { useRef } from "react";
+import { useActionState, useRef } from "react";
 import type { RequestStatus } from "@/db/schema";
 import { REQUEST_STATUSES, requestStatusMeta } from "@/lib/admin-format";
-import { updateTourRequestStatus } from "@/app/admin/actions";
+import {
+  updateTourRequestStatus,
+  type StatusUpdateState,
+} from "@/app/admin/actions";
 import { Select } from "@/components/ui/select";
 
 /**
  * Inline status picker for a tour request. Submits the enclosing form as soon as
  * the operator changes the value, so triage is a single click with no save step.
+ *
+ * The <select> keeps whatever the operator picked, so a failed write would leave
+ * them looking at a value the database never stored — the action reports the
+ * failure and it is rendered underneath.
  */
 export function RequestStatusSelect({
   id,
@@ -18,9 +25,13 @@ export function RequestStatusSelect({
   status: RequestStatus;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const [state, formAction] = useActionState<StatusUpdateState, FormData>(
+    updateTourRequestStatus,
+    {},
+  );
 
   return (
-    <form ref={formRef} action={updateTourRequestStatus} className="inline-flex">
+    <form ref={formRef} action={formAction} className="inline-flex flex-col items-start gap-1">
       <input type="hidden" name="id" value={id} />
       <Select
         name="status"
@@ -36,6 +47,11 @@ export function RequestStatusSelect({
           </option>
         ))}
       </Select>
+      {state.error ? (
+        <p className="text-xs text-destructive" role="alert">
+          {state.error}
+        </p>
+      ) : null}
     </form>
   );
 }
