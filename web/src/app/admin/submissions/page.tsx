@@ -5,10 +5,11 @@ import { db, tourRequests } from "@/db";
 import { experiences } from "@/content/experiences";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
-import { lastAuditByEntity } from "@/lib/audit";
+import { lastAuditByEntity, type AuditLogRow } from "@/lib/audit";
 import { countPendingRetention, retentionDays } from "@/lib/retention";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { AdminPagination } from "@/components/admin/pagination";
+import { ContactLinks } from "@/components/admin/contact-links";
 import { PlaceholderPanel } from "@/components/admin/placeholder-panel";
 import { RequestStatusSelect } from "@/components/admin/request-status-select";
 import {
@@ -18,22 +19,17 @@ import {
 import { DeleteSubmissionDialog } from "@/components/admin/delete-submission-dialog";
 import { SubjectExportForm } from "@/components/admin/subject-export-form";
 import { lastPage, pageSlice, readPageParam } from "@/lib/admin-pagination";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  auditActionLabel,
-  formatDate,
-  formatRelative,
-  requestStatusMeta,
-} from "@/lib/admin-format";
+import { auditActionLabel, formatDateTime, formatRelativeTime } from "@/lib/admin-format";
 
 // Reads live data — never prerender at build time.
 export const dynamic = "force-dynamic";
@@ -44,6 +40,53 @@ const experienceLabel = new Map(experiences.map((e) => [e.slug, t(e.title, "en")
 function labelFor(slug: string | null): string {
   if (!slug) return "—";
   return experienceLabel.get(slug) ?? slug;
+}
+
+/** "3h ago", with the exact timestamp behind it. */
+function Received({ at }: { at: Date | string | null }) {
+  const date = at instanceof Date ? at : at ? new Date(at) : null;
+  const iso = date && !Number.isNaN(date.getTime()) ? date.toISOString() : undefined;
+  return (
+    <time dateTime={iso} title={formatDateTime(at)} className="whitespace-nowrap">
+      {formatRelativeTime(at)}
+    </time>
+  );
+}
+
+/**
+ * "Rita changed a submission's status, 3h ago" — who last touched this row.
+ * With a shared password this line had nothing to say.
+ */
+function LastChangedBy({ audit, now }: { audit: AuditLogRow | undefined; now: Date }) {
+  if (!audit) return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      {/* A null actor is the retention cron, not an unknown person. */}
+      {audit.actorName ?? "Scheduled job"} {auditActionLabel(audit.action)},{" "}
+      <time dateTime={audit.createdAt.toISOString()} title={formatDateTime(audit.createdAt)}>
+        {formatRelativeTime(audit.createdAt, now)}
+      </time>
+    </p>
+  );
+}
+
+/** Marketing opt-in, shown next to the address it applies to. */
+function MarketingConsent({
+  at,
+  version,
+}: {
+  at: Date | string | null;
+  version: string | null;
+}) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-xs text-primary"
+      title={`Consented ${formatDateTime(at)} · text version ${version ?? "unknown"}`}
+    >
+      <MailCheck className="size-3.5 shrink-0" aria-hidden />
+      Marketing opt-in
+    </span>
+  );
 }
 
 export default async function AdminSubmissionsPage({
@@ -96,13 +139,14 @@ export default async function AdminSubmissionsPage({
     countPendingRetention(),
   ]);
   const now = new Date();
+  const countLabel = `${enquiries} ${enquiries === 1 ? "enquiry" : "enquiries"}`;
 
   return (
     <AdminShell>
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
         <span className="flex items-center gap-2">
           <Inbox className="size-4" />
-          {enquiries} {enquiries === 1 ? "enquiry" : "enquiries"}
+          {countLabel}
         </span>
         {/* The retention policy, made visible. A scheduled job that quietly
             erases data nobody knew was scheduled to go is how surprises happen. */}
@@ -113,65 +157,142 @@ export default async function AdminSubmissionsPage({
       </div>
 
       <BulkSubmissionActions canErase={isOwner}>
-        <Card className="overflow-x-auto p-0">
-          <Table className="min-w-[980px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <span className="sr-only">Select</span>
-                </TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Experience</TableHead>
-                <TableHead>Add-ons</TableHead>
-                <TableHead>Party</TableHead>
-                <TableHead>Preferred</TableHead>
-                <TableHead>Received</TableHead>
-                <TableHead>Status</TableHead>
-                {isOwner ? (
-                  <TableHead className="text-right">
-                    <span className="sr-only">Erase</span>
+        {/*
+          Below md this is a stack of cards, not a 900px-wide table in a sideways
+          scroller: the message reads in full and the status control sits at the
+          bottom of the card, where a thumb is. The select-for-bulk checkbox and
+          the erase affordance are on the card too — putting either of them only
+          in the desktop table would make triage-on-a-phone the weaker mode
+          again.
+        */}
+        <ul className="flex flex-col gap-3 md:hidden">
+          {rows.map((r) => (
+            <li key={r.id}>
+              <Card className="gap-3">
+                <div className="flex flex-col gap-3 px-(--card-spacing)">
+                  <div className="flex items-start gap-3">
+                    <SubmissionCheckbox
+                      id={r.id}
+                      label={`Select the enquiry from ${r.name}`}
+                      className="mt-1.5"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-heading text-base font-medium">{r.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        <Received at={r.createdAt} /> · {formatDateTime(r.createdAt)}
+                      </p>
+                    </div>
+                    {isOwner ? <DeleteSubmissionDialog id={r.id} name={r.name} /> : null}
+                  </div>
+
+                  <ContactLinks email={r.email} phone={r.phone} />
+
+                  {r.marketingConsent ? (
+                    <MarketingConsent
+                      at={r.marketingConsentAt}
+                      version={r.marketingConsentVersion}
+                    />
+                  ) : null}
+
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                    <dt className="text-muted-foreground">Experience</dt>
+                    <dd>
+                      {labelFor(r.experienceSlug)}
+                      <span className="ml-1.5 text-xs text-muted-foreground uppercase">
+                        {r.locale}
+                      </span>
+                    </dd>
+
+                    {r.addOns.length > 0 ? (
+                      <>
+                        <dt className="text-muted-foreground">Add-ons</dt>
+                        <dd>{r.addOns.map(labelFor).join(", ")}</dd>
+                      </>
+                    ) : null}
+
+                    <dt className="text-muted-foreground">Party</dt>
+                    <dd>{r.partySize ?? "—"}</dd>
+
+                    <dt className="text-muted-foreground">Preferred</dt>
+                    <dd>{r.preferredDate ?? "—"}</dd>
+
+                    {r.anonymisedAt ? (
+                      <>
+                        <dt className="text-muted-foreground">Anonymised</dt>
+                        <dd>{formatDateTime(r.anonymisedAt)}</dd>
+                      </>
+                    ) : null}
+                  </dl>
+
+                  {r.message ? (
+                    <p className="rounded-lg bg-muted/60 px-3 py-2 text-sm whitespace-pre-wrap">
+                      {r.message}
+                    </p>
+                  ) : null}
+
+                  <RequestStatusSelect id={r.id} status={r.status} name={r.name} />
+                  <LastChangedBy audit={lastChanged.get(r.id)} now={now} />
+                </div>
+              </Card>
+            </li>
+          ))}
+        </ul>
+
+        <Card className="hidden p-0 md:block">
+          {/* `relative` matters: without a containing block of its own, the
+              table's overflow escapes this scroller and scrolls the whole page
+              sideways at widths where the table doesn't fit. */}
+          <div className="relative overflow-x-auto">
+            <Table className="min-w-[940px]">
+              <TableCaption>
+                Tour enquiries from the website, newest first — {countLabel}.
+              </TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">
+                    <span className="sr-only">Select</span>
                   </TableHead>
-                ) : null}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((r) => {
-                const meta = requestStatusMeta[r.status];
-                const audit = lastChanged.get(r.id);
-                return (
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Experience</TableHead>
+                  <TableHead>Add-ons</TableHead>
+                  <TableHead>Party</TableHead>
+                  <TableHead>Preferred</TableHead>
+                  <TableHead>Received</TableHead>
+                  <TableHead>Status</TableHead>
+                  {isOwner ? (
+                    <TableHead className="text-right">
+                      <span className="sr-only">Erase</span>
+                    </TableHead>
+                  ) : null}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
                   <TableRow key={r.id} className="align-top">
                     <TableCell>
-                      <SubmissionCheckbox id={r.id} label={`Select the enquiry from ${r.name}`} />
+                      <SubmissionCheckbox
+                        id={r.id}
+                        label={`Select the enquiry from ${r.name}`}
+                      />
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">{r.name}</div>
-                      <a
-                        href={`mailto:${r.email}`}
-                        className="text-muted-foreground hover:text-primary"
-                      >
-                        {r.email}
-                      </a>
-                      {r.phone ? (
-                        <div className="text-xs text-muted-foreground">{r.phone}</div>
+                      <ContactLinks email={r.email} phone={r.phone} />
+                      {r.marketingConsent ? (
+                        <MarketingConsent
+                          at={r.marketingConsentAt}
+                          version={r.marketingConsentVersion}
+                        />
                       ) : null}
                       {r.message ? (
-                        <p className="mt-1 max-w-xs text-xs text-muted-foreground">{r.message}</p>
-                      ) : null}
-                      {/* Consent is shown next to the address it applies to, so
-                          nobody has to guess whether this one may be emailed. */}
-                      {r.marketingConsent ? (
-                        <span
-                          className="mt-1.5 inline-flex items-center gap-1 text-xs text-primary"
-                          title={`Consented ${formatDate(r.marketingConsentAt)} · text version ${r.marketingConsentVersion ?? "unknown"}`}
-                        >
-                          <MailCheck className="size-3" />
-                          Marketing opt-in
-                        </span>
+                        <p className="mt-1 max-w-sm text-xs whitespace-pre-wrap text-muted-foreground">
+                          {r.message}
+                        </p>
                       ) : null}
                       {r.anonymisedAt ? (
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          Anonymised {formatDate(r.anonymisedAt)}
-                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Anonymised {formatDateTime(r.anonymisedAt)}
+                        </p>
                       ) : null}
                     </TableCell>
                     <TableCell>
@@ -183,33 +304,27 @@ export default async function AdminSubmissionsPage({
                     </TableCell>
                     <TableCell>{r.partySize ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{r.preferredDate ?? "—"}</TableCell>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {formatDate(r.createdAt)}
+                    <TableCell className="text-muted-foreground">
+                      <Received at={r.createdAt} />
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col items-start gap-1.5">
-                        <Badge variant={meta.variant}>{meta.label}</Badge>
-                        <RequestStatusSelect id={r.id} status={r.status} />
-                        {audit ? (
-                          <p className="text-[11px] text-muted-foreground">
-                            {audit.actorName ?? "Scheduled job"} {auditActionLabel(audit.action)},{" "}
-                            {formatRelative(audit.createdAt, now)}
-                          </p>
-                        ) : null}
+                        <RequestStatusSelect id={r.id} status={r.status} name={r.name} />
+                        <LastChangedBy audit={lastChanged.get(r.id)} now={now} />
                       </div>
                     </TableCell>
                     {isOwner ? (
                       <TableCell className="text-right">
-                        <div className="flex flex-col items-end">
+                        <div className="flex justify-end">
                           <DeleteSubmissionDialog id={r.id} name={r.name} />
                         </div>
                       </TableCell>
                     ) : null}
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </Card>
       </BulkSubmissionActions>
 

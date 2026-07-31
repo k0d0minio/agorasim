@@ -29,7 +29,9 @@ export default function AdminLoading() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center justify-between border-b px-4 sm:px-6">
+        {/* Same height and status-bar padding as the real header, so the
+            installed PWA doesn't jump when content swaps in. */}
+        <header className="flex min-h-14 items-center justify-between border-b px-4 pt-[env(safe-area-inset-top)] sm:px-6">
           <Bar className="h-4 w-32" />
           <Bar className="h-8 w-24" />
         </header>

@@ -4,6 +4,7 @@ import { createContext, useActionState, useCallback, useContext, useState } from
 import { Archive, Trash2 } from "lucide-react";
 import { bulkTourRequestAction, type DataRightsState } from "@/app/admin/actions";
 import { DELETE_CONFIRMATION } from "@/lib/admin-format";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,7 +34,15 @@ const SelectionContext = createContext<((id: string, checked: boolean) => void) 
 );
 
 /** One row's "include in the bulk action" checkbox. */
-export function SubmissionCheckbox({ id, label }: { id: string; label: string }) {
+export function SubmissionCheckbox({
+  id,
+  label,
+  className,
+}: {
+  id: string;
+  label: string;
+  className?: string;
+}) {
   const onToggle = useContext(SelectionContext);
 
   return (
@@ -43,7 +52,7 @@ export function SubmissionCheckbox({ id, label }: { id: string; label: string })
       value={id}
       form={FORM_ID}
       aria-label={label}
-      className="size-4 rounded border-border accent-primary"
+      className={cn("size-4 shrink-0 rounded border-border accent-primary", className)}
       onChange={(event) => onToggle?.(id, event.target.checked)}
     />
   );

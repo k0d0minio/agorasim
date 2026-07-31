@@ -274,10 +274,7 @@ describe("every mutation lands in the audit log with the right actor", () => {
     queueResult([{ id: REQUEST_ID, status: "contacted" }]);
     queueResult(undefined);
 
-    const result = await updateTourRequestStatus(
-      {},
-      form({ id: REQUEST_ID, status: "contacted" }),
-    );
+    const result = await updateTourRequestStatus(REQUEST_ID, "contacted");
 
     expect(result.ok).toBe(true);
     expect(insertedValues()[0]).toEqual({
@@ -295,10 +292,7 @@ describe("every mutation lands in the audit log with the right actor", () => {
     await signInAs("owner");
     queueResult([]); // UPDATE matched nothing
 
-    const result = await updateTourRequestStatus(
-      {},
-      form({ id: REQUEST_ID, status: "contacted" }),
-    );
+    const result = await updateTourRequestStatus(REQUEST_ID, "contacted");
 
     expect(result.error).toBeTruthy();
     expect(insertedValues()).toHaveLength(0);

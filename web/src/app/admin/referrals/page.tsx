@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -43,44 +44,88 @@ export default function AdminReferralsPage() {
         <span>Top referrers</span>
       </div>
 
-      <Card className="overflow-x-auto p-0">
-        <Table className="min-w-[700px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Guest</TableHead>
-              <TableHead>Personal link</TableHead>
-              <TableHead>Shares</TableHead>
-              <TableHead>Bookings</TableHead>
-              <TableHead>Reward</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {previewReferrers.map((r) => (
-              <TableRow key={r.name}>
-                <TableCell className="font-medium">{r.name}</TableCell>
-                <TableCell>
-                  <code className="text-xs text-muted-foreground">{r.link}</code>
-                </TableCell>
-                <TableCell>{r.shares}</TableCell>
-                <TableCell className="font-medium text-primary">{r.bookings}</TableCell>
-                <TableCell>
+      {/* Same card-below-md / table-at-md pattern as Submissions. */}
+      <ul className="flex flex-col gap-3 md:hidden">
+        {previewReferrers.map((r) => (
+          <li key={r.name}>
+            <Card className="gap-3">
+              <div className="flex flex-col gap-3 px-(--card-spacing)">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-heading text-base font-medium">{r.name}</p>
                   <Badge variant={r.rewardDue ? "secondary" : "ghost"}>
                     <Gift className="size-3" />
                     {r.reward}
                   </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  {r.rewardDue && (
-                    <Button size="sm" variant="outline" disabled>
-                      Mark fulfilled
-                    </Button>
-                  )}
-                </TableCell>
+                </div>
+
+                <code className="text-xs break-all text-muted-foreground">{r.link}</code>
+
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                  <dt className="text-muted-foreground">Shares</dt>
+                  <dd>{r.shares}</dd>
+                  <dt className="text-muted-foreground">Bookings</dt>
+                  <dd className="font-medium text-primary">{r.bookings}</dd>
+                </dl>
+
+                {r.rewardDue && (
+                  <Button variant="outline" className="h-11 w-full" disabled>
+                    Mark fulfilled
+                  </Button>
+                )}
+              </div>
+            </Card>
+          </li>
+        ))}
+      </ul>
+
+      <Card className="hidden p-0 md:block">
+        {/* `relative` matters: without a containing block of its own, the
+            table's overflow escapes this scroller and scrolls the whole page
+            sideways at widths where the table doesn't fit. */}
+        <div className="relative overflow-x-auto">
+          <Table className="min-w-[700px]">
+            <TableCaption>
+              Guests with a personal link, ranked by referred bookings — example data.
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Guest</TableHead>
+                <TableHead>Personal link</TableHead>
+                <TableHead>Shares</TableHead>
+                <TableHead>Bookings</TableHead>
+                <TableHead>Reward</TableHead>
+                <TableHead>
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {previewReferrers.map((r) => (
+                <TableRow key={r.name}>
+                  <TableCell className="font-medium">{r.name}</TableCell>
+                  <TableCell>
+                    <code className="text-xs text-muted-foreground">{r.link}</code>
+                  </TableCell>
+                  <TableCell>{r.shares}</TableCell>
+                  <TableCell className="font-medium text-primary">{r.bookings}</TableCell>
+                  <TableCell>
+                    <Badge variant={r.rewardDue ? "secondary" : "ghost"}>
+                      <Gift className="size-3" />
+                      {r.reward}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {r.rewardDue && (
+                      <Button size="sm" variant="outline" disabled>
+                        Mark fulfilled
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
 
       <p className="mt-4 text-xs text-muted-foreground">

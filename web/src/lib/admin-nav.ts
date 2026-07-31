@@ -57,7 +57,12 @@ export type AdminNavItem = {
   description: string;
   /** Design preview — the feature behind it is still in development. */
   dev: boolean;
-  /** Earns one of the fixed slots in the mobile bottom toolbar. */
+  /**
+   * Earns one of the fixed slots in the mobile bottom toolbar. Reserved for the
+   * areas actually wired to real data: the toolbar used to spend two of its
+   * four slots on CRM and Bookings — design previews — while Content and
+   * Feature requests, which have data today, sat behind "More".
+   */
   primary: boolean;
   /**
    * Minimum role needed to see this entry. Absent means every signed-in operator.
@@ -87,6 +92,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     href: "/admin/submissions",
     label: "Submissions",
     cardTitle: "Form submissions",
+    shortLabel: "Inbox",
     icon: Inbox,
     group: "Sales",
     description:
@@ -103,7 +109,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     description:
       "Every lead on one board — Lead → Contacted → Quoted → Booked — so nothing falls through.",
     dev: true,
-    primary: true,
+    primary: false,
   },
   {
     href: "/admin/bookings",
@@ -113,7 +119,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     description:
       "Paid tour and wedding bookings, with deposits, balances and payment status at a glance.",
     dev: true,
-    primary: true,
+    primary: false,
   },
   {
     href: "/admin/blog",
@@ -164,7 +170,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     description:
       "Review GEO/marketing drafts produced by the workspaces before publishing them to the site.",
     dev: false,
-    primary: false,
+    primary: true,
   },
   {
     href: "/admin/notifications",
@@ -179,12 +185,13 @@ export const ADMIN_NAV: AdminNavItem[] = [
   {
     href: "/admin/feature-requests",
     label: "Feature requests",
+    shortLabel: "Requests",
     icon: Lightbulb,
     group: "System",
     description:
       "Capture and triage ideas and asks for the toolkit — a free-form backlog for the team.",
     dev: false,
-    primary: false,
+    primary: true,
   },
   {
     href: "/admin/settings/account",

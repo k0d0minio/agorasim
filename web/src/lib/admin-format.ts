@@ -154,49 +154,54 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
 });
 
+function toDate(value: Date | string | null): Date | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 /** Format a timestamp/date for compact display in admin tables. */
 export function formatDate(value: Date | string | null): string {
-  if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return dateFormatter.format(date);
+  const date = toDate(value);
+  return date ? dateFormatter.format(date) : "—";
 }
 
-/** Format a timestamp to the minute — for the audit log, where order matters. */
+/** Full date *and* time — used as the title/secondary line next to an age. */
 export function formatDateTime(value: Date | string | null): string {
-  if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return dateTimeFormatter.format(date);
+  const date = toDate(value);
+  return date ? dateTimeFormatter.format(date) : "—";
 }
 
-const relativeFormatter = new Intl.RelativeTimeFormat("en-GB", { numeric: "auto" });
-
-const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
-  ["year", 365 * 24 * 60 * 60],
-  ["month", 30 * 24 * 60 * 60],
-  ["day", 24 * 60 * 60],
-  ["hour", 60 * 60],
-  ["minute", 60],
-];
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+const WEEK = 7 * DAY;
+const MONTH = 30 * DAY;
+const YEAR = 365 * DAY;
 
 /**
- * "3h ago", for the last-changed line on a row.
+ * How long ago something happened, in the largest unit that still reads
+ * naturally: "just now", "12m ago", "3h ago", "2d ago", "5w ago", "3mo ago".
  *
- * Rendered on the server, so it is the age at render time rather than a value
- * that ticks. The admin pages are `force-dynamic` and re-render on every
- * request, so it is never more stale than the data beside it.
+ * Triage is the job on Submissions and Feature requests, and for triage the age
+ * of a lead matters far more than its calendar date — so this is the primary
+ * line, with `formatDateTime` as the exact value behind it.
  */
-export function formatRelative(value: Date | string | null, now: Date = new Date()): string {
-  if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+export function formatRelativeTime(
+  value: Date | string | null,
+  now: Date = new Date(),
+): string {
+  const date = toDate(value);
+  if (!date) return "—";
 
-  const seconds = Math.round((date.getTime() - now.getTime()) / 1000);
-  for (const [unit, size] of RELATIVE_UNITS) {
-    if (Math.abs(seconds) >= size) {
-      return relativeFormatter.format(Math.round(seconds / size), unit);
-    }
-  }
-  return "just now";
+  const diff = now.getTime() - date.getTime();
+  // Clock skew, or a date in the future: don't claim it happened in the past.
+  if (diff < 0) return "just now";
+  if (diff < MINUTE) return "just now";
+  if (diff < HOUR) return `${Math.floor(diff / MINUTE)}m ago`;
+  if (diff < DAY) return `${Math.floor(diff / HOUR)}h ago`;
+  if (diff < WEEK) return `${Math.floor(diff / DAY)}d ago`;
+  if (diff < MONTH) return `${Math.floor(diff / WEEK)}w ago`;
+  if (diff < YEAR) return `${Math.floor(diff / MONTH)}mo ago`;
+  return `${Math.floor(diff / YEAR)}y ago`;
 }
