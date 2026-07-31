@@ -6,7 +6,11 @@ import { CheckCircle2 } from "lucide-react";
 import { t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
 import { complementExperiences, experiences } from "@/content/experiences";
-import { submitTourRequest, type TourRequestState } from "@/app/[locale]/reservar/actions";
+import {
+  HONEYPOT_FIELD,
+  submitTourRequest,
+  type TourRequestState,
+} from "@/app/[locale]/reservar/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -47,6 +51,24 @@ export function TourRequestForm({ locale }: { locale: Locale }) {
   return (
     <form action={formAction} className="flex flex-col gap-5" noValidate>
       <input type="hidden" name="locale" value={locale} />
+
+      {/*
+        Honeypot. Positioned off-screen rather than `display: none` so naive bots
+        still fill it in; hidden from assistive tech and skipped by tab order, so
+        no real person can reach it. Anything submitted here is discarded server
+        side. `type="hidden"` would not work — bots skip hidden inputs.
+      */}
+      <div aria-hidden="true" className="pointer-events-none absolute -left-[9999px] h-0 w-0 overflow-hidden">
+        <label htmlFor={HONEYPOT_FIELD}>Company website</label>
+        <input
+          id={HONEYPOT_FIELD}
+          name={HONEYPOT_FIELD}
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          defaultValue=""
+        />
+      </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">

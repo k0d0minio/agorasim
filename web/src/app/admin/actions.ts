@@ -9,7 +9,10 @@ import {
   SESSION_MAX_AGE_SECONDS,
   createSessionToken,
   isValidPassword,
+  requireAdmin,
 } from "@/lib/admin-auth";
+import { LOGIN_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/request-ip";
 import {
   db,
   tourRequests,
@@ -27,10 +30,18 @@ import { CATALOGUE_ITEMS, PROPOSAL_CATEGORY, euro } from "@/lib/proposal";
 
 export type LoginState = { error?: string };
 
+/** Shown for a wrong password and for a throttled IP alike — see `login`. */
+const LOGIN_ERROR = "Incorrect password.";
+
 /**
  * Handle the admin login form. On success, set the session cookie and redirect
  * to the requested page (or the dashboard). On failure, return an error to
  * render inline — deliberately vague so we don't confirm valid inputs.
+ *
+ * This is the one unauthenticated action, and it guards a single shared password,
+ * so it is throttled per IP. A throttled caller gets the same message as a wrong
+ * password: telling an attacker they hit the limit tells them the limit exists
+ * and how to pace around it. Failures are logged server-side instead.
  */
 export async function login(
   _prevState: LoginState,
@@ -39,8 +50,20 @@ export async function login(
   const password = String(formData.get("password") ?? "");
   const next = String(formData.get("next") ?? "");
 
-  if (!isValidPassword(password)) {
-    return { error: "Incorrect password." };
+  const ip = await clientIp();
+  const throttle = await rateLimit(`admin-login:${ip}`, LOGIN_RATE_LIMIT);
+  if (!throttle.allowed) {
+    console.warn(
+      `[admin] login throttled for ${ip} — retry in ${throttle.retryAfterSeconds}s`,
+    );
+    return { error: LOGIN_ERROR };
+  }
+
+  if (!(await isValidPassword(password))) {
+    console.warn(
+      `[admin] failed login from ${ip} — ${throttle.remaining} attempt(s) left before throttling`,
+    );
+    return { error: LOGIN_ERROR };
   }
 
   const cookieStore = await cookies();
@@ -59,6 +82,8 @@ export async function login(
 
 /** Clear the session cookie and return to the login screen. */
 export async function logout(): Promise<void> {
+  await requireAdmin();
+
   const cookieStore = await cookies();
   cookieStore.delete(ADMIN_SESSION_COOKIE);
   redirect("/admin/login");
@@ -68,24 +93,46 @@ function isRequestStatus(value: string): value is RequestStatus {
   return (REQUEST_STATUSES as string[]).includes(value);
 }
 
+/** Result of an inline status change, so the caller can surface a failure. */
+export type StatusUpdateState = { ok?: boolean; error?: string };
+
 /**
  * Update the triage status of a tour request from the Submissions table. Invoked
  * from the inline status <select>; revalidates the page so the change is
- * reflected immediately. `/admin` is gated by `proxy.ts`, so this only runs for
- * authenticated operators.
+ * reflected immediately.
+ *
+ * The select applies the new value optimistically in the DOM, so a write that
+ * fails silently would leave the operator looking at a status the database never
+ * stored — hence the explicit result and the try/catch.
  */
-export async function updateTourRequestStatus(formData: FormData): Promise<void> {
+export async function updateTourRequestStatus(
+  _prevState: StatusUpdateState,
+  formData: FormData,
+): Promise<StatusUpdateState> {
+  await requireAdmin();
+
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "");
-  if (!id || !isRequestStatus(status)) return;
+  if (!id || !isRequestStatus(status)) {
+    console.warn(
+      `[admin] rejected tour-request status update (id=${id || "missing"}, status=${status || "missing"})`,
+    );
+    return { error: "Couldn't update that status." };
+  }
 
-  await db
-    .update(tourRequests)
-    .set({ status, updatedAt: new Date() })
-    .where(eq(tourRequests.id, id));
+  try {
+    await db
+      .update(tourRequests)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(tourRequests.id, id));
+  } catch (err) {
+    console.error("[admin] failed to update tour request status", err);
+    return { error: "Couldn't save — the change was not stored." };
+  }
 
   revalidatePath("/admin/submissions");
   revalidatePath("/admin");
+  return { ok: true };
 }
 
 function isFeatureRequestStatus(value: string): value is FeatureRequestStatus {
@@ -106,13 +153,14 @@ export type FeatureRequestState = {
 /**
  * Store a feature request raised from the admin dashboard. Free-form: the only
  * validation is that a title and description are present. `priority` falls back
- * to "medium" and any unknown value is ignored. `/admin` is gated by
- * `proxy.ts`, so this only runs for authenticated operators.
+ * to "medium" and any unknown value is ignored.
  */
 export async function submitFeatureRequest(
   _prevState: FeatureRequestState,
   formData: FormData,
 ): Promise<FeatureRequestState> {
+  await requireAdmin();
+
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const category = String(formData.get("category") ?? "").trim();
@@ -146,20 +194,37 @@ export async function submitFeatureRequest(
 
 /**
  * Update the triage status of a feature request from its inline <select>.
- * Revalidates the page so the change shows immediately.
+ * Revalidates the page so the change shows immediately. Reports failures the
+ * same way as {@link updateTourRequestStatus}, and for the same reason.
  */
-export async function updateFeatureRequestStatus(formData: FormData): Promise<void> {
+export async function updateFeatureRequestStatus(
+  _prevState: StatusUpdateState,
+  formData: FormData,
+): Promise<StatusUpdateState> {
+  await requireAdmin();
+
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "");
-  if (!id || !isFeatureRequestStatus(status)) return;
+  if (!id || !isFeatureRequestStatus(status)) {
+    console.warn(
+      `[admin] rejected feature-request status update (id=${id || "missing"}, status=${status || "missing"})`,
+    );
+    return { error: "Couldn't update that status." };
+  }
 
-  await db
-    .update(featureRequests)
-    .set({ status, updatedAt: new Date() })
-    .where(eq(featureRequests.id, id));
+  try {
+    await db
+      .update(featureRequests)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(featureRequests.id, id));
+  } catch (err) {
+    console.error("[admin] failed to update feature request status", err);
+    return { error: "Couldn't save — the change was not stored." };
+  }
 
   revalidatePath("/admin/feature-requests");
   revalidatePath("/admin");
+  return { ok: true };
 }
 
 export type RequestProposalState = {
@@ -175,12 +240,13 @@ export type RequestProposalState = {
  * File a feature request for one or more catalogue items chosen in the proposal
  * picker on the Feature-requests page. Items already on file (same title, under
  * the Proposal category) are skipped so clicking twice can't create duplicates.
- * `/admin` is gated by `proxy.ts`, so this only runs for authenticated operators.
  */
 export async function requestProposalFeatures(input: {
   ids: string[];
   submittedBy?: string;
 }): Promise<RequestProposalState> {
+  await requireAdmin();
+
   const items = (input.ids ?? [])
     .map((id) => CATALOGUE_ITEMS[id])
     .filter((item): item is NonNullable<typeof item> => Boolean(item));

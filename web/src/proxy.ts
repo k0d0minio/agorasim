@@ -6,6 +6,11 @@ import { ADMIN_SESSION_COOKIE, verifySessionToken } from "@/lib/admin-auth";
  * Gate the `/admin` area behind a valid session cookie. Everything else on the
  * (static, public) site is untouched. The login page itself must stay
  * reachable while signed out, so it is explicitly allowed through.
+ *
+ * This is navigation-level convenience, not the authorization boundary: it
+ * matches on the URL, and Server Actions are dispatched by the `Next-Action`
+ * header. Every admin action calls `requireAdmin()` for itself — see
+ * `lib/admin-auth.ts`.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
