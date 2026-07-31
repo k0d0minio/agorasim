@@ -7,11 +7,10 @@ import { submitFeatureRequest, type FeatureRequestState } from "@/app/admin/acti
 import { FEATURE_REQUEST_PRIORITIES, featureRequestPriorityMeta } from "@/lib/admin-format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-
-const inputClass =
-  "h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
-const textareaClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -51,15 +50,12 @@ export function FeatureRequestForm() {
       <CardContent>
         <form ref={formRef} action={formAction} className="flex flex-col gap-5" noValidate>
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="title" className="text-sm font-medium">
-              Title
-            </label>
-            <input
+            <Label htmlFor="title">Title</Label>
+            <Input
               id="title"
               name="title"
               required
               placeholder="e.g. Export submissions to CSV"
-              className={inputClass}
             />
             {state.fieldErrors?.title ? (
               <p className="text-sm text-destructive" role="alert">
@@ -69,16 +65,13 @@ export function FeatureRequestForm() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="description" className="text-sm font-medium">
-              Description
-            </label>
-            <textarea
+            <Label htmlFor="description">Description</Label>
+            <Textarea
               id="description"
               name="description"
               rows={5}
               required
               placeholder="Describe the feature, the problem it solves, and anything that would help us build it."
-              className={textareaClass}
             />
             {state.fieldErrors?.description ? (
               <p className="text-sm text-destructive" role="alert">
@@ -89,40 +82,36 @@ export function FeatureRequestForm() {
 
           <div className="grid gap-5 sm:grid-cols-3">
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="category" className="text-sm font-medium">
+              <Label htmlFor="category">
                 Category <span className="text-muted-foreground">(optional)</span>
-              </label>
-              <input
+              </Label>
+              <Input
                 id="category"
                 name="category"
                 placeholder="e.g. Website, Booking"
-                className={inputClass}
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="priority" className="text-sm font-medium">
-                Priority
-              </label>
-              <select id="priority" name="priority" defaultValue="medium" className={inputClass}>
+              <Label htmlFor="priority">Priority</Label>
+              <Select id="priority" name="priority" defaultValue="medium">
                 {FEATURE_REQUEST_PRIORITIES.map((value) => (
                   <option key={value} value={value}>
                     {featureRequestPriorityMeta[value].label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="submittedBy" className="text-sm font-medium">
+              <Label htmlFor="submittedBy">
                 Your name <span className="text-muted-foreground">(optional)</span>
-              </label>
-              <input
+              </Label>
+              <Input
                 id="submittedBy"
                 name="submittedBy"
                 placeholder="e.g. Diogo"
                 autoComplete="name"
-                className={inputClass}
               />
             </div>
           </div>

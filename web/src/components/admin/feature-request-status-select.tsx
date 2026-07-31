@@ -7,6 +7,7 @@ import {
   updateFeatureRequestStatus,
   type StatusUpdateState,
 } from "@/app/admin/actions";
+import { Select } from "@/components/ui/select";
 
 /**
  * Inline status picker for a feature request. Submits the enclosing form as soon
@@ -34,19 +35,20 @@ export function FeatureRequestStatusSelect({
       className="inline-flex flex-col items-start gap-1 sm:items-end"
     >
       <input type="hidden" name="id" value={id} />
-      <select
+      <Select
         name="status"
+        size="xs"
+        className="w-auto"
         defaultValue={status}
         onChange={() => formRef.current?.requestSubmit()}
         aria-label="Update status"
-        className="h-7 rounded-lg border border-border bg-background px-2 text-xs font-medium outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         {FEATURE_REQUEST_STATUSES.map((value) => (
           <option key={value} value={value}>
             {featureRequestStatusMeta[value].label}
           </option>
         ))}
-      </select>
+      </Select>
       {state.error ? (
         <p className="text-xs text-destructive" role="alert">
           {state.error}
