@@ -41,11 +41,13 @@ export default function AdminNotificationsPage() {
                   ))}
                 </div>
               </div>
-              {/* Decorative on/off switch — live toggles come with the feature. */}
+              {/*
+                Decorative on/off switch — live toggles come with the feature.
+                It used to carry role="switch" on a <span> with no tabindex, so
+                it announced as an interactive control that could not be reached.
+              */}
               <span
-                role="switch"
-                aria-checked={template.enabled}
-                aria-disabled
+                aria-hidden="true"
                 className={cn(
                   "mt-0.5 inline-flex h-5.5 w-9.5 shrink-0 items-center rounded-full border transition-colors",
                   template.enabled ? "border-primary bg-primary" : "border-border bg-muted",
@@ -58,6 +60,8 @@ export default function AdminNotificationsPage() {
                   )}
                 />
               </span>
+              {/* The state the switch depicts, in text, since it is hidden. */}
+              <span className="sr-only">{template.enabled ? "On" : "Off"}</span>
             </CardContent>
           </Card>
         ))}
