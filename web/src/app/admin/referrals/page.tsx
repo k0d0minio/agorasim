@@ -5,6 +5,15 @@ import { previewReferralStats, previewReferrers } from "@/lib/admin-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 /**
  * Referrals (proposal Feature 6) — design preview. Each guest gets a personal
@@ -35,44 +44,83 @@ export default function AdminReferralsPage() {
         <span>Top referrers</span>
       </div>
 
-      <Card className="overflow-x-auto p-0">
-        <table className="w-full min-w-[700px] text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs text-muted-foreground uppercase tracking-wide">
-              <th className="px-4 py-3 font-medium">Guest</th>
-              <th className="px-4 py-3 font-medium">Personal link</th>
-              <th className="px-4 py-3 font-medium">Shares</th>
-              <th className="px-4 py-3 font-medium">Bookings</th>
-              <th className="px-4 py-3 font-medium">Reward</th>
-              <th className="px-4 py-3 font-medium" />
-            </tr>
-          </thead>
-          <tbody>
-            {previewReferrers.map((r) => (
-              <tr key={r.name} className="border-b last:border-0">
-                <td className="px-4 py-3 font-medium">{r.name}</td>
-                <td className="px-4 py-3">
-                  <code className="text-xs text-muted-foreground">{r.link}</code>
-                </td>
-                <td className="px-4 py-3">{r.shares}</td>
-                <td className="px-4 py-3 font-medium text-primary">{r.bookings}</td>
-                <td className="px-4 py-3">
+      {/* Same card-below-md / table-at-md pattern as Submissions. */}
+      <ul className="flex flex-col gap-3 md:hidden">
+        {previewReferrers.map((r) => (
+          <li key={r.name}>
+            <Card className="gap-3">
+              <div className="flex flex-col gap-3 px-(--card-spacing)">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-heading text-base font-medium">{r.name}</p>
                   <Badge variant={r.rewardDue ? "secondary" : "ghost"}>
                     <Gift className="size-3" />
                     {r.reward}
                   </Badge>
-                </td>
-                <td className="px-4 py-3 text-right">
+                </div>
+
+                <code className="text-xs break-all text-muted-foreground">{r.link}</code>
+
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                  <dt className="text-muted-foreground">Shares</dt>
+                  <dd>{r.shares}</dd>
+                  <dt className="text-muted-foreground">Bookings</dt>
+                  <dd className="font-medium text-primary">{r.bookings}</dd>
+                </dl>
+
+                {r.rewardDue && (
+                  <Button variant="outline" className="h-11 w-full" disabled>
+                    Mark fulfilled
+                  </Button>
+                )}
+              </div>
+            </Card>
+          </li>
+        ))}
+      </ul>
+
+      <Card className="hidden overflow-x-auto p-0 md:block">
+        <Table>
+          <TableCaption>
+            Guests with a personal link, ranked by referred bookings — example data.
+          </TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Guest</TableHead>
+              <TableHead>Personal link</TableHead>
+              <TableHead>Shares</TableHead>
+              <TableHead>Bookings</TableHead>
+              <TableHead>Reward</TableHead>
+              <TableHead>
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {previewReferrers.map((r) => (
+              <TableRow key={r.name}>
+                <TableCell className="font-medium">{r.name}</TableCell>
+                <TableCell>
+                  <code className="text-xs text-muted-foreground">{r.link}</code>
+                </TableCell>
+                <TableCell>{r.shares}</TableCell>
+                <TableCell className="font-medium text-primary">{r.bookings}</TableCell>
+                <TableCell>
+                  <Badge variant={r.rewardDue ? "secondary" : "ghost"}>
+                    <Gift className="size-3" />
+                    {r.reward}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
                   {r.rewardDue && (
                     <Button size="sm" variant="outline" disabled>
                       Mark fulfilled
                     </Button>
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </Card>
 
       <p className="mt-4 text-xs text-muted-foreground">
