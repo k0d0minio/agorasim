@@ -54,7 +54,7 @@ export default async function EventsPage({ params }: { params: Promise<{ locale:
           </div>
         </div>
         <Media
-          src="/images/red-car.png"
+          src="/images/red-car.webp"
           label={l === "pt" ? "Fiat 600 clássico decorado com flores para um casamento" : "Classic Fiat 600 decorated with flowers for a wedding"}
           className="aspect-4/3 w-full"
         />
