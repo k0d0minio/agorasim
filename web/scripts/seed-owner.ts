@@ -34,9 +34,7 @@ async function main(): Promise<void> {
   const result = await ensureSeedOwner({
     email: process.env.ADMIN_SEED_EMAIL,
     name: process.env.ADMIN_SEED_NAME,
-    // Falls back to the shared password for the one release that still carries
-    // it. Remove the fallback with the rest of the `ADMIN_PASSWORD` scaffolding.
-    password: process.env.ADMIN_SEED_PASSWORD ?? process.env.ADMIN_PASSWORD,
+    password: process.env.ADMIN_SEED_PASSWORD,
   });
 
   if (!result.ok) {
