@@ -1,6 +1,33 @@
 import type { NextConfig } from "next";
 
+import { BASELINE_SECURITY_HEADERS, PUBLIC_CSP } from "./src/lib/security-headers";
+
 const nextConfig: NextConfig = {
+  // Nothing gains from advertising the framework and its version.
+  poweredByHeader: false,
+
+  /**
+   * Security headers. The baseline set applies everywhere; the Content-Security
+   * -Policy is split, because the two halves of this app render differently and
+   * are exposed differently — see `src/lib/security-headers.ts`.
+   *
+   * The public policy is attached here, to everything *except* `/admin`. The
+   * admin policy is attached by `proxy.ts`, which can mint a per-request nonce.
+   * The exclusion is what keeps the two from fighting: a `next.config` header
+   * and a proxy header on the same path and the same key is a coin toss over
+   * which one survives, and the loser being the stricter policy is not a failure
+   * mode worth having.
+   */
+  async headers() {
+    return [
+      { source: "/:path*", headers: [...BASELINE_SECURITY_HEADERS] },
+      {
+        source: "/:path((?!admin$|admin/).*)",
+        headers: [{ key: "Content-Security-Policy", value: PUBLIC_CSP }],
+      },
+    ];
+  },
+
   async redirects() {
     return [
       // No locale-less routes exist; send the bare root to the default locale.

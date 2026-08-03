@@ -14,7 +14,6 @@ import {
   createAdminUser,
   disableAdminUser,
   enableAdminUser,
-  ensureSeedOwner,
   findAdminUserById,
   revokeAdminUserSessions,
   setAdminUserPassword,
@@ -111,18 +110,16 @@ export async function login(
   const { email, password, next } = parsed.data;
 
   const result = await verifyCredentials(email, password);
-  const userId = result.ok
-    ? result.user.id
-    : await legacySharedPasswordSignIn(email, password);
 
-  if (!userId) {
+  if (!result.ok) {
     console.warn(
-      `[admin] failed login for ${email} from ${ip} — ` +
-        `${result.ok ? "n/a" : result.reason}, ` +
+      `[admin] failed login for ${email} from ${ip} — ${result.reason}, ` +
         `${throttle.remaining} attempt(s) left before throttling`,
     );
     return { error: LOGIN_ERROR };
   }
+
+  const userId = result.user.id;
 
   await startSession(userId);
   await touchLastLogin(userId);
@@ -134,55 +131,6 @@ export async function login(
   });
 
   redirect(next);
-}
-
-/**
- * TRANSITIONAL — REMOVE AFTER ONE RELEASE.
- *
- * Before per-user accounts the whole admin was one `ADMIN_PASSWORD`. Dropping it
- * in the same release that introduces accounts would lock the team out of a
- * deploy whose database has no users in it yet, so for exactly one release the
- * shared password still works: submitted with the seed owner's address, it
- * bootstraps that owner account and signs in as it.
- *
- * It is not a second password for an existing account — `ensureSeedOwner` never
- * touches an account that already exists, so once the owner has set their own
- * password this path can only recreate an account that isn't there.
- *
- * To remove: delete this function and its call site, then delete
- * `ADMIN_PASSWORD` from `.env.example` and from the Vercel project.
- */
-async function legacySharedPasswordSignIn(
-  email: string,
-  password: string,
-): Promise<string | null> {
-  const shared = process.env.ADMIN_PASSWORD;
-  const seedEmail = process.env.ADMIN_SEED_EMAIL;
-  if (!shared || !seedEmail) return null;
-
-  // Not a constant-time comparison of the shared password, deliberately: this
-  // path only runs after a real credential check has already failed, and it is
-  // behind the same per-IP throttle. It is scaffolding on its way out.
-  if (password !== shared) return null;
-  if (email !== seedEmail.trim().toLowerCase()) return null;
-
-  const seeded = await ensureSeedOwner({
-    email: seedEmail,
-    name: process.env.ADMIN_SEED_NAME,
-    password: shared,
-  });
-
-  if (!seeded.ok) {
-    console.error(`[admin] shared-password bootstrap failed — ${seeded.reason}`);
-    return null;
-  }
-
-  console.warn(
-    "[admin] signed in with the deprecated shared ADMIN_PASSWORD. " +
-      "Set a personal password on the users screen; this path is removed next release.",
-  );
-
-  return seeded.userId;
 }
 
 /** Clear the session cookie on this device and return to the login screen. */

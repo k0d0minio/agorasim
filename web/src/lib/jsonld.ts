@@ -6,6 +6,38 @@ import { href } from "@/lib/routes";
 
 type Json = Record<string, unknown>;
 
+/**
+ * Serialize a JSON-LD object for injection into a `<script>` element.
+ *
+ * The payload has to reach the document as script *content* rather than as
+ * escaped text, which means `JSON.stringify` output lands in the HTML unparsed —
+ * and an HTML parser inside a `<script>` stops at the first `</script` sequence
+ * it sees, wherever that appears, including inside a JSON string. Everything
+ * after it is then parsed as markup.
+ *
+ * Every source feeding this today is static content committed to this repo, so
+ * this is not closing a live hole. It is here for what is coming:
+ * `geo_content_drafts` and `blog_post_drafts` exist so pipeline output can be
+ * published onto pages that ship JSON-LD (see `db/schema.ts`), and on the day a
+ * heading written in the admin reaches this function, the difference between
+ * escaping and not escaping is the difference between structured data and stored
+ * XSS. It costs one pass over a string now; noticing later costs an incident.
+ *
+ * The escapes are all valid JSON and parse back to the original characters, so
+ * Google and every other consumer read exactly the string that was intended.
+ */
+export function serializeJsonLd(item: Json): string {
+  return (
+    JSON.stringify(item)
+      // Defuses `</script>`, and every other tag-open inside the payload.
+      .replace(/</g, "\\u003c")
+      // Valid inside a JSON string, but line terminators to a JavaScript parser —
+      // and some consumers still parse these blocks as JS rather than as JSON.
+      .replace(/\u2028/g, "\\u2028")
+      .replace(/\u2029/g, "\\u2029")
+  );
+}
+
 /** Organization / business entity — reused as the publisher across the site. */
 export function organizationJsonLd(locale: Locale): Json {
   return {

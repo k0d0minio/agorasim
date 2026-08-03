@@ -1,5 +1,6 @@
 import { CalendarClock, Eye, PenLine, Sparkles } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { requireAdmin } from "@/lib/admin-auth";
 import { AdminInDevBanner } from "@/components/admin/in-dev-banner";
 import { previewBlogDrafts } from "@/lib/admin-preview";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,13 @@ const statusVariant = {
  * articles in your brand voice; each one waits here for a one-click review
  * before it publishes to the public blog.
  */
-export default function AdminBlogPage() {
+export default async function AdminBlogPage() {
+  // Authorized here, not by `proxy.ts` — see the note at the top of
+  // `lib/admin-auth.ts`. The page renders example data today, so this guards
+  // the shape of the area rather than the rows; it is the call that has to
+  // already be here on the day the preview is wired to real data.
+  await requireAdmin();
+
   return (
     <AdminShell>
       <AdminInDevBanner note="The AI pipeline will draft articles in your voice on a schedule (2–4 a month) — each waits here for your one-click approval before going live, in both languages." />

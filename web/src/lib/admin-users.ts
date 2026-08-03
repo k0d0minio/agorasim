@@ -236,8 +236,9 @@ export type SeedOwnerResult =
  *   password, because a seed script that silently rewrote a live operator's
  *   credentials on every deploy would be a backdoor, not a convenience.
  *
- * Used by `scripts/seed-owner.ts` and by the transitional `ADMIN_PASSWORD`
- * sign-in path in `app/admin/actions.ts`.
+ * Used by `scripts/seed-owner.ts`, which the "DB migrate" workflow runs on every
+ * deploy. That is now the *only* way a first account comes into being: the login
+ * form authenticates against `admin_users` and nothing else.
  */
 export async function ensureSeedOwner(input: {
   email: string | undefined;

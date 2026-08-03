@@ -69,7 +69,7 @@ export const weddingsContent = {
     cars: [
       {
         name: "Citroën 2CV",
-        image: "/images/back-of-car.png",
+        image: "/images/back-of-car.webp",
         note: {
           pt: "O charme francês, perfeito para fotografias no campo.",
           en: "French charm, perfect for countryside photographs.",
@@ -77,7 +77,7 @@ export const weddingsContent = {
       },
       {
         name: "Fiat 600",
-        image: "/images/red-car.png",
+        image: "/images/red-car.webp",
         note: {
           pt: "Pequeno, vermelho e irresistível — a estrela das entradas.",
           en: "Small, red and irresistible — the star of every entrance.",

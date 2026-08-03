@@ -63,12 +63,13 @@ pnpm db:seed-owner
 ```
 
 It is idempotent — if that address already has an account it is left alone,
-password included — so it is safe to run on every deploy. Everyone else is added
-from **Settings → Team accounts**, and changes their own password from
-**Settings → My account**.
+password included — so it is safe to run on every deploy, and the "DB migrate"
+workflow does exactly that. Everyone else is added from **Settings → Team
+accounts**, and changes their own password from **Settings → My account**.
 
-`ADMIN_PASSWORD`, the old shared password, still works for one release to
-bootstrap that seeded owner. See `.env.example` for how to finish removing it.
+This seed is the only route to a first account. The login form authenticates
+against `admin_users` and nothing else, so a deployment with an empty table and
+no seed secrets has to be seeded from a database console.
 
 ## Data protection
 
