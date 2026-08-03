@@ -10,5 +10,11 @@
     "lint": "pnpm --filter web lint",
     "test": "pnpm --filter web test",
     "typecheck": "pnpm --filter web typecheck"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": ">=8.5.18",
+      "sharp": ">=0.35.0"
+    }
   }
 }
