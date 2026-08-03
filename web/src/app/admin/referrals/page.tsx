@@ -1,5 +1,6 @@
 import { Gift, Trophy } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { requireAdmin } from "@/lib/admin-auth";
 import { AdminInDevBanner } from "@/components/admin/in-dev-banner";
 import { previewReferralStats, previewReferrers } from "@/lib/admin-preview";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +21,13 @@ import {
  * link; bookings made through it are tracked here, along with the rewards you
  * owe your best ambassadors.
  */
-export default function AdminReferralsPage() {
+export default async function AdminReferralsPage() {
+  // Authorized here, not by `proxy.ts` — see the note at the top of
+  // `lib/admin-auth.ts`. The page renders example data today, so this guards
+  // the shape of the area rather than the rows; it is the call that has to
+  // already be here on the day the preview is wired to real data.
+  await requireAdmin();
+
   return (
     <AdminShell>
       <AdminInDevBanner note="Word of mouth, made measurable: every guest gets a personal link, referred bookings are tracked automatically, and this page shows who to thank (and with what)." />
