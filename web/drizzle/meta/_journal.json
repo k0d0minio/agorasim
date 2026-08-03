@@ -43,6 +43,13 @@
       "when": 1785496648270,
       "tag": "0005_marketing_consent_and_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785757394667,
+      "tag": "0006_repoint_seed_media",
+      "breakpoints": true
     }
   ]
 }

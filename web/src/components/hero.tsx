@@ -1,5 +1,7 @@
 import Image from "next/image";
 
+import { HeroVideo } from "@/components/hero-video";
+
 export function Hero({
   eyebrow,
   title,
@@ -29,19 +31,8 @@ export function Hero({
           sizes="100vw"
           className="object-cover object-center"
         />
-        {videoSrc && (
-          <video
-            className="absolute inset-0 h-full w-full object-cover object-center"
-            autoPlay
-            muted
-            loop
-            playsInline
-            poster={poster}
-            preload="metadata"
-          >
-            <source src={videoSrc} type="video/mp4" />
-          </video>
-        )}
+        {/* Skipped entirely for `prefers-reduced-motion` — see `HeroVideo`. */}
+        {videoSrc && <HeroVideo src={videoSrc} poster={poster} />}
       </div>
 
       {/* Scrim for legibility */}
