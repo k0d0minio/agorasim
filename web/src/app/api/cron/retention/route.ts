@@ -1,3 +1,4 @@
+import { secretsMatch } from "@/lib/admin-session";
 import { recordAudit } from "@/lib/audit";
 import { runRetention } from "@/lib/retention";
 
@@ -24,7 +25,13 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json({ error: "not configured" }, { status: 503 });
   }
 
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
+  // `secretsMatch` rather than `!==`: it hashes both sides to a fixed length
+  // before comparing in constant time, so neither the value nor the length of
+  // `CRON_SECRET` leaks through how long the comparison takes. This is a public
+  // URL an attacker can call as often as they like, which is exactly the setting
+  // where a timing side channel is worth the two lines it costs to close.
+  const presented = request.headers.get("authorization") ?? "";
+  if (!(await secretsMatch(presented, `Bearer ${secret}`))) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
