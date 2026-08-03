@@ -3,8 +3,10 @@ import { recordAudit } from "@/lib/audit";
 import { runRetention } from "@/lib/retention";
 
 /**
- * Scheduled retention job: anonymise enquiries that never converted and have
- * passed `ENQUIRY_RETENTION_DAYS`. Scheduled by `vercel.json`.
+ * Scheduled retention job, in two passes: anonymise enquiries that never
+ * converted and have passed `ENQUIRY_RETENTION_DAYS`, and clear the IP address
+ * off audit entries older than `AUDIT_IP_RETENTION_DAYS`. Scheduled by
+ * `vercel.json`.
  *
  * **Authorization.** Vercel Cron sends `Authorization: Bearer $CRON_SECRET`. The
  * route is a public URL, so it checks that header itself and refuses without it.
@@ -48,7 +50,8 @@ export async function GET(request: Request): Promise<Response> {
     });
 
     console.info(
-      `[retention] anonymised ${result.anonymised} enquiry(ies) older than ${result.days} days (cutoff ${result.cutoff})`,
+      `[retention] anonymised ${result.anonymised} enquiry(ies) older than ${result.days} days (cutoff ${result.cutoff}); ` +
+        `cleared the IP from ${result.auditIpsCleared} audit entry(ies) older than ${result.auditIpDays} days (cutoff ${result.auditIpCutoff})`,
     );
 
     return Response.json(result);
