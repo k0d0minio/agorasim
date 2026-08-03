@@ -16,7 +16,9 @@ people behind those rows are mostly EU residents, so the GDPR applies.
 `admin_users` holds operator names and work addresses. Those are staff records,
 not enquiry data, and are out of scope for the subject-access flow below.
 
-`audit_log` deliberately holds **no** guest identifiers — see below.
+`audit_log` deliberately holds **no** guest identifiers — see below. It does
+record the operator's IP address as evidence, which is personal data of the
+staff, and which expires on its own schedule (also below).
 
 ## What was built
 
@@ -51,6 +53,18 @@ size, locale, status and dates, and lose everything identifying. What remains
 cannot identify anyone, so it is no longer personal data — and "how many
 enquiries did we get in August 2026?" still has an answer. Deleting outright
 would satisfy the same rule and destroy the business's own history.
+
+**Audit-log IP addresses expire on their own, much shorter clock.** An IP is
+personal data, and `audit_log.ip_address` was the one column in the schema with
+no expiry: enquiries were anonymised on a schedule while the addresses of the
+people who touched them accumulated indefinitely. The same job now nulls that
+column on entries older than `AUDIT_IP_RETENTION_DAYS` (90 by default — the
+usual security-log window, and unlike the enquiry period this one is a
+recommendation rather than a placeholder). The entries themselves are untouched:
+the trail still records every action, its actor and its time, and only a field of
+corroborating evidence expires. That is minimisation applied to a log, not an
+edit to its history — which is why it does not contradict the append-only rule
+in `db/schema.ts`.
 
 ## Needs a decision
 

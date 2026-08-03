@@ -39,7 +39,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         title={t(home.heroTitle, l)}
         subtitle={t(home.heroSubtitle, l)}
         videoSrc="/images/video.mp4"
-        poster="/images/hero.png"
+        poster="/images/hero.webp"
         posterAlt={l === "pt" ? "Grupo a descobrir a região Saloia ao pôr do sol" : "Group discovering the Saloia region at sunset"}
         cta={
           <>

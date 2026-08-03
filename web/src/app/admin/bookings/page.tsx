@@ -1,5 +1,6 @@
 import { CalendarCheck } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { requireAdmin } from "@/lib/admin-auth";
 import { AdminInDevBanner } from "@/components/admin/in-dev-banner";
 import { previewBookings, previewBookingStats } from "@/lib/admin-preview";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,13 @@ const paymentVariant = {
  * Bookings & payments (proposal Features 3 + 4) — design preview. Once Stripe
  * ships, every paid tour and wedding hire lands here with its payment state.
  */
-export default function AdminBookingsPage() {
+export default async function AdminBookingsPage() {
+  // Authorized here, not by `proxy.ts` — see the note at the top of
+  // `lib/admin-auth.ts`. The page renders example data today, so this guards
+  // the shape of the area rather than the rows; it is the call that has to
+  // already be here on the day the preview is wired to real data.
+  await requireAdmin();
+
   return (
     <AdminShell>
       <AdminInDevBanner note="When instant booking goes live, every paid tour and wedding hire appears here the moment the guest pays — no more copying between inboxes." />

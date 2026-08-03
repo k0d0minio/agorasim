@@ -1,5 +1,6 @@
 import { History, MessageSquareShare } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { requireAdmin } from "@/lib/admin-auth";
 import { AdminInDevBanner } from "@/components/admin/in-dev-banner";
 import { previewNotificationLog, previewTemplates } from "@/lib/admin-preview";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +12,13 @@ import { cn } from "@/lib/utils";
  * messages at the right moments: confirmations and reminders for guests,
  * instant alerts for the team.
  */
-export default function AdminNotificationsPage() {
+export default async function AdminNotificationsPage() {
+  // Authorized here, not by `proxy.ts` — see the note at the top of
+  // `lib/admin-auth.ts`. The page renders example data today, so this guards
+  // the shape of the area rather than the rows; it is the call that has to
+  // already be here on the day the preview is wired to real data.
+  await requireAdmin();
+
   return (
     <AdminShell>
       <AdminInDevBanner note="Set-and-forget messages: guests get confirmations, reminders and thank-yous at the right moment; you get an instant alert the second a booking or hot lead arrives." />

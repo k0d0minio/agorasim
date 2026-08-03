@@ -1,9 +1,12 @@
+import { secretsMatch } from "@/lib/admin-session";
 import { recordAudit } from "@/lib/audit";
 import { runRetention } from "@/lib/retention";
 
 /**
- * Scheduled retention job: anonymise enquiries that never converted and have
- * passed `ENQUIRY_RETENTION_DAYS`. Scheduled by `vercel.json`.
+ * Scheduled retention job, in two passes: anonymise enquiries that never
+ * converted and have passed `ENQUIRY_RETENTION_DAYS`, and clear the IP address
+ * off audit entries older than `AUDIT_IP_RETENTION_DAYS`. Scheduled by
+ * `vercel.json`.
  *
  * **Authorization.** Vercel Cron sends `Authorization: Bearer $CRON_SECRET`. The
  * route is a public URL, so it checks that header itself and refuses without it.
@@ -24,7 +27,13 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json({ error: "not configured" }, { status: 503 });
   }
 
-  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
+  // `secretsMatch` rather than `!==`: it hashes both sides to a fixed length
+  // before comparing in constant time, so neither the value nor the length of
+  // `CRON_SECRET` leaks through how long the comparison takes. This is a public
+  // URL an attacker can call as often as they like, which is exactly the setting
+  // where a timing side channel is worth the two lines it costs to close.
+  const presented = request.headers.get("authorization") ?? "";
+  if (!(await secretsMatch(presented, `Bearer ${secret}`))) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -41,7 +50,8 @@ export async function GET(request: Request): Promise<Response> {
     });
 
     console.info(
-      `[retention] anonymised ${result.anonymised} enquiry(ies) older than ${result.days} days (cutoff ${result.cutoff})`,
+      `[retention] anonymised ${result.anonymised} enquiry(ies) older than ${result.days} days (cutoff ${result.cutoff}); ` +
+        `cleared the IP from ${result.auditIpsCleared} audit entry(ies) older than ${result.auditIpDays} days (cutoff ${result.auditIpCutoff})`,
     );
 
     return Response.json(result);

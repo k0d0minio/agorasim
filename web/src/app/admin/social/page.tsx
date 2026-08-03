@@ -1,6 +1,7 @@
 import { CalendarDays, Check, Sparkles } from "lucide-react";
 import { InstagramIcon, FacebookIcon } from "@/components/brand-icons";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { requireAdmin } from "@/lib/admin-auth";
 import { AdminInDevBanner } from "@/components/admin/in-dev-banner";
 import { previewSocialPosts } from "@/lib/admin-preview";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,13 @@ const statusVariant = {
  * in your voice; approved posts auto-publish through the platforms' official
  * APIs, starting with Instagram + Facebook.
  */
-export default function AdminSocialPage() {
+export default async function AdminSocialPage() {
+  // Authorized here, not by `proxy.ts` — see the note at the top of
+  // `lib/admin-auth.ts`. The page renders example data today, so this guards
+  // the shape of the area rather than the rows; it is the call that has to
+  // already be here on the day the preview is wired to real data.
+  await requireAdmin();
+
   return (
     <AdminShell>
       <AdminInDevBanner note="Captions and a posting calendar are generated for you; once you approve, posts publish automatically through Instagram's and Facebook's official APIs." />

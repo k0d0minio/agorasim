@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_RETENTION_DAYS, retentionCutoff, retentionDays } from "./retention";
+import {
+  DEFAULT_AUDIT_IP_RETENTION_DAYS,
+  DEFAULT_RETENTION_DAYS,
+  auditIpRetentionDays,
+  retentionCutoff,
+  retentionDays,
+} from "./retention";
 import { parseCookieConsent, cookieConsentAssignment } from "./cookie-consent";
 
 describe("retentionDays", () => {
@@ -18,6 +24,31 @@ describe("retentionDays", () => {
     for (const raw of ["", "soon", "0", "-30", "12.5.6", "30 days"]) {
       expect(retentionDays({ ENQUIRY_RETENTION_DAYS: raw })).toBe(
         DEFAULT_RETENTION_DAYS,
+      );
+    }
+  });
+});
+
+describe("auditIpRetentionDays", () => {
+  it("reads its own variable, not the enquiry one", () => {
+    expect(auditIpRetentionDays({ AUDIT_IP_RETENTION_DAYS: "30" })).toBe(30);
+    // The two periods are deliberately independent: an unconverted lead is kept
+    // for two years, the address it was submitted from for ninety days.
+    expect(auditIpRetentionDays({ ENQUIRY_RETENTION_DAYS: "365" })).toBe(
+      DEFAULT_AUDIT_IP_RETENTION_DAYS,
+    );
+  });
+
+  it("defaults to a security-log window, far short of the enquiry period", () => {
+    expect(auditIpRetentionDays({})).toBe(DEFAULT_AUDIT_IP_RETENTION_DAYS);
+    expect(DEFAULT_AUDIT_IP_RETENTION_DAYS).toBeLessThan(DEFAULT_RETENTION_DAYS);
+  });
+
+  it("falls back rather than keeping addresses forever on a bad value", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const raw of ["", "ninety", "0", "-1", "90.5", "90 days"]) {
+      expect(auditIpRetentionDays({ AUDIT_IP_RETENTION_DAYS: raw })).toBe(
+        DEFAULT_AUDIT_IP_RETENTION_DAYS,
       );
     }
   });

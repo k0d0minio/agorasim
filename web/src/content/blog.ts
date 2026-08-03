@@ -97,7 +97,7 @@ export const sampleBlogPosts: BlogPostPreview[] = [
     tag: { pt: "Roteiros", en: "Itineraries" },
     date: "2026-07-14",
     readingMinutes: 6,
-    image: "/images/hero.png",
+    image: "/images/hero.webp",
     imageAlt: {
       pt: "Fim de tarde sobre a costa da Ericeira",
       en: "Late afternoon over the Ericeira coastline",

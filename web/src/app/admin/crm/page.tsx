@@ -1,5 +1,6 @@
 import { GripVertical, Clock } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { requireAdmin } from "@/lib/admin-auth";
 import { AdminInDevBanner } from "@/components/admin/in-dev-banner";
 import { CrmMoveMenu } from "@/components/admin/crm-move-menu";
 import { previewPipeline } from "@/lib/admin-preview";
@@ -17,7 +18,13 @@ const STAGES = previewPipeline.map((column) => column.title);
  * picker. Drag-and-drop has no touch equivalent, and the phone is this tool's
  * primary device — so the preview commits to both now.
  */
-export default function AdminCrmPage() {
+export default async function AdminCrmPage() {
+  // Authorized here, not by `proxy.ts` — see the note at the top of
+  // `lib/admin-auth.ts`. The page renders example data today, so this guards
+  // the shape of the area rather than the rows; it is the call that has to
+  // already be here on the day the preview is wired to real data.
+  await requireAdmin();
+
   return (
     <AdminShell>
       <AdminInDevBanner note="This upgrades your current lead list into a board — every enquiry and booking will flow in automatically, with notes and next actions per person." />

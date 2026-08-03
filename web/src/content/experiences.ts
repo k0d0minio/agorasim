@@ -205,7 +205,7 @@ export const experiences: Experience[] = [
       pt: ["Vinhas biológicas", "Prova de vinhos", "Influência atlântica"],
       en: ["Organic vineyards", "Wine tasting", "Atlantic influence"],
     },
-    image: "/images/front-of-car.png",
+    image: "/images/front-of-car.webp",
     imageAlt: {
       pt: "Vinhas biológicas perto da costa atlântica",
       en: "Organic vineyards near the Atlantic coast",
@@ -238,7 +238,7 @@ export const experiences: Experience[] = [
       pt: ["Workshop de cerâmica", "Artesão local", "Leva a sua peça"],
       en: ["Ceramics workshop", "Local artisan", "Take your piece home"],
     },
-    image: "/images/back-of-car.png",
+    image: "/images/back-of-car.webp",
     imageAlt: {
       pt: "Mãos a moldar barro num workshop de cerâmica",
       en: "Hands shaping clay at a ceramics workshop",

@@ -1,5 +1,6 @@
 import { Mail, Sparkles, Users } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { requireAdmin } from "@/lib/admin-auth";
 import { AdminInDevBanner } from "@/components/admin/in-dev-banner";
 import { previewCampaigns, previewSegments } from "@/lib/admin-preview";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,13 @@ const statusVariant = {
  * list (including archived guests) and sends AI-drafted bilingual campaigns,
  * reviewed before every send. GDPR-compliant, with open/click tracking.
  */
-export default function AdminEmailPage() {
+export default async function AdminEmailPage() {
+  // Authorized here, not by `proxy.ts` — see the note at the top of
+  // `lib/admin-auth.ts`. The page renders example data today, so this guards
+  // the shape of the area rather than the rows; it is the call that has to
+  // already be here on the day the preview is wired to real data.
+  await requireAdmin();
+
   return (
     <AdminShell>
       <AdminInDevBanner note="Bring past guests back with bilingual campaigns drafted in your voice — you review every send, and opens, clicks and unsubscribes are tracked automatically." />
