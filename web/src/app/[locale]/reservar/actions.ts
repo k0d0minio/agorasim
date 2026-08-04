@@ -5,6 +5,7 @@ import { db, tourRequests } from "@/db";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
+import { listExperiences } from "@/lib/experience-catalogue";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { formValues, tourRequestSchema, type TourRequestField } from "@/lib/form-schemas";
@@ -72,11 +73,22 @@ export async function submitTourRequest(
   }
 
   try {
-    const { experience, marketingConsent, ...request } = parsed.data;
+    const { experience, marketingConsent, addOns, ...request } = parsed.data;
+
+    /*
+     * Which experiences exist is a question for the catalogue, and the catalogue
+     * is edited by the team — so the check happens here, against the live rows,
+     * rather than against a list frozen into the schema at build time. An
+     * unrecognised slug is dropped, not rejected: a stale tab submitting a
+     * retired add-on is still a lead worth having.
+     */
+    const known = new Set((await listExperiences()).map((entry) => entry.slug));
+
     await db.insert(tourRequests).values({
       ...request,
+      addOns: addOns.filter((slug) => known.has(slug)),
       locale,
-      experienceSlug: experience,
+      experienceSlug: experience && known.has(experience) ? experience : null,
       source: "website",
       // Consent is recorded with *when* and *which wording*, so it can be
       // evidenced later (Art. 7(1)). A "no" stores no timestamp and no version:

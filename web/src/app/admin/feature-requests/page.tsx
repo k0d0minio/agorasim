@@ -8,9 +8,7 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { FeatureRequestForm } from "@/components/admin/feature-request-form";
 import { FeatureRequestStatusSelect } from "@/components/admin/feature-request-status-select";
 import { AdminPagination } from "@/components/admin/pagination";
-import { ProposalCatalogue } from "@/components/admin/proposal-catalogue";
 import { lastPage, pageSlice, readPageParam } from "@/lib/admin-pagination";
-import { PROPOSAL_CATEGORY } from "@/lib/proposal";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
@@ -23,6 +21,16 @@ import {
 // Reads live data — never prerender at build time.
 export const dynamic = "force-dynamic";
 
+/**
+ * Feature requests — a form and a list, and nothing else.
+ *
+ * This page used to open with a priced catalogue of the build proposal: nine
+ * features with summaries and euro amounts, and a picker that filed a request
+ * per selection. That was a sales surface, and it made sense while the scope of
+ * the work was still being agreed. The contract is signed, so it is gone —
+ * along with `lib/proposal.ts` and the action behind it. What is left is the
+ * thing the team actually needs day to day: somewhere to write down an idea.
+ */
 export default async function AdminFeatureRequestsPage({
   searchParams,
 }: {
@@ -33,12 +41,7 @@ export default async function AdminFeatureRequestsPage({
   const page = readPageParam((await searchParams).page);
   const { limit, offset } = pageSlice(page);
 
-  /*
-   * Three queries, one round trip. The catalogue's "Requested" markers need
-   * every proposal title, not just the ones on this page, so they get their own
-   * query rather than being filtered out of the visible rows.
-   */
-  const [[total], rows, proposalRows] = await db.batch([
+  const [[total], rows] = await db.batch([
     db.select({ n: count() }).from(featureRequests),
     db
       .select({
@@ -60,18 +63,12 @@ export default async function AdminFeatureRequestsPage({
       .orderBy(desc(featureRequests.createdAt))
       .limit(limit)
       .offset(offset),
-    db
-      .select({ title: featureRequests.title })
-      .from(featureRequests)
-      .where(eq(featureRequests.category, PROPOSAL_CATEGORY)),
   ]);
 
   const requests = total?.n ?? 0;
   if (requests > 0 && page > lastPage(requests)) {
     redirect(`/admin/feature-requests?page=${lastPage(requests)}`);
   }
-
-  const requestedTitles = proposalRows.map((r) => r.title);
 
   // One query for the whole page's "last changed by" lines, not one per row.
   const lastChanged = await lastAuditByEntity(
@@ -82,11 +79,8 @@ export default async function AdminFeatureRequestsPage({
 
   return (
     <AdminShell>
-      <div className="flex flex-col gap-10">
-        <ProposalCatalogue requestedTitles={requestedTitles} />
-
-        <div className="flex flex-col gap-8 border-t pt-8">
-          <FeatureRequestForm />
+      <div className="flex flex-col gap-8">
+        <FeatureRequestForm />
 
         <section className="flex flex-col gap-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -161,7 +155,6 @@ export default async function AdminFeatureRequestsPage({
             hrefFor={(n) => `/admin/feature-requests?page=${n}`}
           />
         </section>
-        </div>
       </div>
     </AdminShell>
   );

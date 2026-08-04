@@ -48,18 +48,30 @@ export const AUDIT_ACTIONS = [
   "admin_user.password_changed",
   "tour_request.status_changed",
   "tour_request.bulk_status_changed",
+  "tour_request.updated",
+  "tour_request.contact_logged",
   "tour_request.deleted",
   "tour_request.bulk_deleted",
   "tour_request.exported",
   "tour_request.anonymised_by_retention",
   "feature_request.created",
   "feature_request.status_changed",
+  "experience.created",
+  "experience.updated",
+  "experience.archived",
+  "experience.restored",
+  "experience.reordered",
+  "experience.deleted",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 /** The thing an action happened to. */
-export type AuditEntityType = "admin_user" | "tour_request" | "feature_request";
+export type AuditEntityType =
+  | "admin_user"
+  | "tour_request"
+  | "feature_request"
+  | "experience";
 
 export type AuditInput = {
   /** The signed-in operator, or `null` for an automated job (the retention cron). */
@@ -166,6 +178,27 @@ export async function listAuditLog(options: {
     .orderBy(desc(auditLog.createdAt))
     .limit(options.limit)
     .offset(options.offset);
+}
+
+/**
+ * Every entry for one record, newest first — the history on a lead's own page.
+ *
+ * Capped rather than paged: the point is "what has happened to this person's
+ * enquiry", and a lead with more than a few dozen entries is a different
+ * problem from the one this list answers.
+ */
+export async function listAuditForEntity(
+  entityType: AuditEntityType,
+  entityId: string,
+  limit = 20,
+): Promise<AuditLogRow[]> {
+  return db
+    .select(rowColumns)
+    .from(auditLog)
+    .leftJoin(adminUsers, eq(auditLog.actorUserId, adminUsers.id))
+    .where(and(eq(auditLog.entityType, entityType), eq(auditLog.entityId, entityId)))
+    .orderBy(desc(auditLog.createdAt))
+    .limit(limit);
 }
 
 /**

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Clock, ChevronRight } from "lucide-react";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
-import { experiences, getExperience } from "@/content/experiences";
+import { getCatalogueEntry, listExperiences } from "@/lib/experience-catalogue";
 import { site } from "@/content/site";
 import { Section, Container } from "@/components/section";
 import { Media } from "@/components/media";
@@ -16,9 +16,17 @@ import { experienceJsonLd, faqJsonLd, breadcrumbJsonLd } from "@/lib/jsonld";
 import { alternates } from "@/lib/seo";
 import { href } from "@/lib/routes";
 
-export function generateStaticParams() {
-  return experiences.map((e) => ({ slug: e.slug }));
+/**
+ * The slugs known at build time. Experiences added from the admin afterwards are
+ * not in this list and are rendered on demand instead (`dynamicParams` defaults
+ * to true) — a new add-on is live without a deploy.
+ */
+export async function generateStaticParams() {
+  return (await listExperiences()).map((e) => ({ slug: e.slug }));
 }
+
+/** See the note on the home page: the catalogue is editable, so this re-renders. */
+export const revalidate = 3600;
 
 export async function generateMetadata({
   params,
@@ -27,8 +35,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale, slug } = await params;
   if (!isLocale(locale)) return {};
-  const exp = getExperience(slug);
-  if (!exp) return {};
+  const exp = await getCatalogueEntry(slug);
+  if (!exp || !exp.active) return {};
   return {
     title: t(exp.title, locale),
     description: t(exp.summary, locale),
@@ -44,8 +52,11 @@ export default async function ExperienceDetailPage({
   const { locale, slug } = await params;
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
-  const exp = getExperience(slug);
-  if (!exp) notFound();
+  // Archived entries leave the website: the slug stays resolvable in the admin,
+  // but a guest following an old link gets a 404 rather than an offer that is
+  // no longer sold.
+  const exp = await getCatalogueEntry(slug);
+  if (!exp || !exp.active) notFound();
   const dict = getDictionary(l);
 
   const breadcrumb = breadcrumbJsonLd(l, [

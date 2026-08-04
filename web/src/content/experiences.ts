@@ -1,10 +1,25 @@
+/**
+ * The experience catalogue **as it shipped** — the seed for the `experiences`
+ * table and the fallback the site renders when the database cannot be reached.
+ *
+ * It is no longer the source of truth. Diogo & Rita edit the live catalogue at
+ * `/admin/experiences`, and every page reads it through
+ * `lib/experience-catalogue.ts`, which falls back to this array. Keeping the
+ * fallback means a database outage costs the site its *newest* copy of the
+ * catalogue, not the whole page.
+ *
+ * Edit this file only to change what a fresh install starts with.
+ */
 import type { Localized } from "@/i18n/config";
+import type { ExperienceIconKey } from "@/lib/experience-icons";
 
 export type Faq = { question: Localized; answer: Localized };
 
 export type Experience = {
   slug: string;
   kind: "signature" | "complement";
+  /** Which icon the admin lists draw for this entry — see `lib/experience-icons.ts`. */
+  icon: ExperienceIconKey;
   /** FareHarbor item id for this experience, or null while not yet wired. */
   fareharborItem: string | null;
   title: Localized;
@@ -23,6 +38,7 @@ export const experiences: Experience[] = [
   {
     slug: "rural-saloia",
     kind: "signature",
+    icon: "car",
     fareharborItem: null,
     title: { pt: "Rural Saloia", en: "Rural Saloia" },
     tagline: {
@@ -103,6 +119,7 @@ export const experiences: Experience[] = [
   {
     slug: "tasco-galapito",
     kind: "complement",
+    icon: "meal",
     fareharborItem: null,
     title: { pt: "Tasco Galapito", en: "Tasco Galapito" },
     tagline: {
@@ -149,6 +166,7 @@ export const experiences: Experience[] = [
   {
     slug: "manzwine",
     kind: "complement",
+    icon: "wine",
     fareharborItem: null,
     title: { pt: "Manzwine", en: "Manzwine" },
     tagline: {
@@ -182,6 +200,7 @@ export const experiences: Experience[] = [
   {
     slug: "ramilo-wines",
     kind: "complement",
+    icon: "vineyard",
     fareharborItem: null,
     title: { pt: "Ramilo Wines", en: "Ramilo Wines" },
     tagline: {
@@ -215,6 +234,7 @@ export const experiences: Experience[] = [
   {
     slug: "olaria-mz",
     kind: "complement",
+    icon: "pottery",
     fareharborItem: null,
     title: { pt: "Olaria MZ", en: "Olaria MZ" },
     tagline: {

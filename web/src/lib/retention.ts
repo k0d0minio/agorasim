@@ -115,6 +115,14 @@ export const ANONYMISED = {
   email: "[anonymised]",
   phone: null,
   message: null,
+  /**
+   * The team's own notes about this person go with the rest of it. They are
+   * written by an operator rather than by the guest, which changes nothing:
+   * "wanted the 2CV, calling back after her holiday" is personal data about an
+   * identified person, and leaving it behind would make the anonymisation a
+   * gesture rather than an erasure.
+   */
+  internalNotes: null,
 } as const;
 
 export type RetentionRun = {
