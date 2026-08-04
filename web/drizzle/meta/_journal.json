@@ -50,6 +50,20 @@
       "when": 1785757394667,
       "tag": "0006_repoint_seed_media",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785856099396,
+      "tag": "0007_sales_catalogue_and_lead_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785856107641,
+      "tag": "0008_seed_experience_catalogue",
+      "breakpoints": true
     }
   ]
 }

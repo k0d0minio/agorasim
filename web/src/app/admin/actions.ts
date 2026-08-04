@@ -23,7 +23,7 @@ import {
 import { recordAudit, recordAuditOrWarn, redactSubject } from "@/lib/audit";
 import { LOGIN_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
-import { db, tourRequests, featureRequests, type FeatureRequestPriority } from "@/db";
+import { db, tourRequests, featureRequests } from "@/db";
 import {
   adminUserIdSchema,
   bulkTourRequestSchema,
@@ -34,14 +34,15 @@ import {
   formValues,
   inviteUserSchema,
   loginSchema,
-  proposalRequestSchema,
+  tourRequestIdSchema,
   updateFeatureRequestStatusSchema,
+  updateTourRequestSchema,
   updateTourRequestStatusSchema,
   type ChangePasswordField,
   type FeatureRequestField,
   type InviteUserField,
+  type TourRequestEditField,
 } from "@/lib/form-schemas";
-import { CATALOGUE_ITEMS, PROPOSAL_CATEGORY, euro } from "@/lib/proposal";
 import { exportSubjectData, subjectExportFilename } from "@/lib/subject-data";
 
 /**
@@ -222,6 +223,140 @@ export async function updateTourRequestStatus(
   return { ok: true };
 }
 
+export type TourRequestEditState = {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+  fieldErrors?: Partial<Record<TourRequestEditField, string>>;
+};
+
+/**
+ * Save the edits made on a lead's own page — the correction after the phone
+ * call: the real party size, the date they actually want, the email address
+ * that was mistyped, and the team's notes on where the conversation got to.
+ *
+ * Triage status is not here. It has its own control, its own audit action and
+ * its own optimistic update; folding it into a big form would make "mark this
+ * contacted" a five-field save.
+ *
+ * The audit entry names *which fields changed*, never their values: this row is
+ * a person, and a log that quoted the old and new phone number every time
+ * someone fixed a typo would be a second, less careful copy of the guest's
+ * personal data.
+ */
+export async function updateTourRequest(
+  _prevState: TourRequestEditState,
+  formData: FormData,
+): Promise<TourRequestEditState> {
+  const actor = await requireAdmin();
+
+  const parsed = updateTourRequestSchema.safeParse(formValues(formData));
+  if (!parsed.success) {
+    const { fieldErrors } = z.flattenError(parsed.error);
+    return {
+      fieldErrors: {
+        name: fieldErrors.name?.[0],
+        email: fieldErrors.email?.[0],
+      },
+    };
+  }
+
+  const { id, ...edits } = parsed.data;
+
+  const [before] = await db
+    .select()
+    .from(tourRequests)
+    .where(eq(tourRequests.id, id))
+    .limit(1);
+
+  if (!before) return { error: "That lead no longer exists." };
+
+  const changed = (Object.keys(edits) as (keyof typeof edits)[]).filter((field) => {
+    const next = edits[field];
+    const current = before[field];
+    return Array.isArray(next) || Array.isArray(current)
+      ? JSON.stringify(next) !== JSON.stringify(current)
+      : next !== current;
+  });
+
+  if (changed.length === 0) return { ok: true, message: "Nothing to save." };
+
+  try {
+    await db
+      .update(tourRequests)
+      .set({ ...edits, updatedAt: new Date() })
+      .where(eq(tourRequests.id, id));
+  } catch (err) {
+    console.error("[admin] failed to update tour request", err);
+    return { error: "Couldn't save — the change was not stored." };
+  }
+
+  await recordAuditOrWarn({
+    actorUserId: actor.id,
+    action: "tour_request.updated",
+    entityType: "tour_request",
+    entityId: id,
+    after: { fields: changed },
+  });
+
+  return { ok: true, message: "Saved." };
+}
+
+/**
+ * Record that someone actually reached out, and move the lead to "contacted".
+ *
+ * The admin can compose an email and open WhatsApp, but it cannot *send* — this
+ * deployment has no mail transport (see `inviteUser` for the same gap). So the
+ * honest button is one that records what the operator did, in one tap, instead
+ * of a "Send" that quietly does nothing. When notifications ship, this is the
+ * hook they replace.
+ */
+export async function logContactAttempt(
+  _prevState: StatusUpdateState,
+  formData: FormData,
+): Promise<StatusUpdateState> {
+  const actor = await requireAdmin();
+
+  const parsed = tourRequestIdSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Couldn't find that lead." };
+
+  const now = new Date();
+
+  const [lead] = await db
+    .select({ status: tourRequests.status })
+    .from(tourRequests)
+    .where(eq(tourRequests.id, parsed.data.id))
+    .limit(1);
+
+  if (!lead) return { error: "That lead no longer exists." };
+
+  try {
+    await db
+      .update(tourRequests)
+      .set({
+        lastContactedAt: now,
+        // Only forward: a lead already quoted or booked does not drop back to
+        // "contacted" because someone rang to confirm a detail.
+        status: lead.status === "new" ? "contacted" : lead.status,
+        updatedAt: now,
+      })
+      .where(eq(tourRequests.id, parsed.data.id));
+  } catch (err) {
+    console.error("[admin] failed to log a contact attempt", err);
+    return { error: "Couldn't save — the change was not stored." };
+  }
+
+  await recordAuditOrWarn({
+    actorUserId: actor.id,
+    action: "tour_request.contact_logged",
+    entityType: "tour_request",
+    entityId: parsed.data.id,
+    after: { at: now.toISOString() },
+  });
+
+  return { ok: true };
+}
+
 /**
  * Update the triage status of a feature request from its status menu. Reports
  * failures the same way as {@link updateTourRequestStatus}, and for the same
@@ -318,76 +453,6 @@ export async function submitFeatureRequest(
   });
 
   return { ok: true };
-}
-
-export type RequestProposalState = {
-  ok?: boolean;
-  /** Number of new requests actually created (skips ones already on file). */
-  created?: number;
-  /** Selected items that were already requested and therefore skipped. */
-  skipped?: number;
-  error?: string;
-};
-
-/**
- * File a feature request for one or more catalogue items chosen in the proposal
- * picker on the Feature-requests page.
- *
- * Items already on file are skipped by the `(title, category)` unique index plus
- * `onConflictDoNothing`, rather than by reading the existing titles first: a
- * read-then-insert let two in-flight clicks both see "not present" and both
- * insert. `returning()` reports what the database actually wrote, so the
- * created/skipped counts stay honest under that race.
- */
-export async function requestProposalFeatures(input: {
-  ids: string[];
-}): Promise<RequestProposalState> {
-  const actor = await requireAdmin();
-
-  const parsed = proposalRequestSchema.safeParse(input);
-  if (!parsed.success) {
-    return { error: "Pick at least one feature to request." };
-  }
-
-  // De-duplicate within the request itself before the database sees it.
-  const items = [...new Set(parsed.data.ids)]
-    .map((id) => CATALOGUE_ITEMS[id])
-    .filter((item): item is NonNullable<typeof item> => Boolean(item));
-
-  if (items.length === 0) {
-    return { error: "Pick at least one feature to request." };
-  }
-
-  try {
-    const inserted = await db
-      .insert(featureRequests)
-      .values(
-        items.map((item) => ({
-          title: item.name,
-          description: `${item.summary}\n\nEstimated ${item.kind} price: €${euro(item.price)}. Added from the proposal catalogue.`,
-          category: PROPOSAL_CATEGORY,
-          submittedByUserId: actor.id,
-          priority: "medium" as FeatureRequestPriority,
-        })),
-      )
-      .onConflictDoNothing({ target: [featureRequests.title, featureRequests.category] })
-      .returning({ id: featureRequests.id });
-
-    for (const row of inserted) {
-      await recordAuditOrWarn({
-        actorUserId: actor.id,
-        action: "feature_request.created",
-        entityType: "feature_request",
-        entityId: row.id,
-        after: { source: "proposal-catalogue" },
-      });
-    }
-
-    return { ok: true, created: inserted.length, skipped: items.length - inserted.length };
-  } catch (err) {
-    console.error("[admin] failed to request proposal features", err);
-    return { error: "Something went wrong filing the request. Please try again." };
-  }
 }
 
 // ---------------------------------------------------------------------------

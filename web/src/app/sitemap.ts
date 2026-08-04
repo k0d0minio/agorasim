@@ -1,10 +1,10 @@
 import type { MetadataRoute } from "next";
 import { locales, defaultLocale } from "@/i18n/config";
 import { site } from "@/content/site";
-import { experiences } from "@/content/experiences";
+import { listExperiences } from "@/lib/experience-catalogue";
 import { href, liveKeys, type RouteKey } from "@/lib/routes";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
   // Only live routes are listed — in-development preview pages (blog,
@@ -26,7 +26,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     alternates: alternates((l) => href(l, key)),
   }));
 
-  const experienceEntries: MetadataRoute.Sitemap = experiences.map((exp) => ({
+  const experienceEntries: MetadataRoute.Sitemap = (await listExperiences()).map((exp) => ({
     url: `${site.domain}${href(defaultLocale, "experiencias", exp.slug)}`,
     lastModified: now,
     changeFrequency: "monthly",

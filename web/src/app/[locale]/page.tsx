@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
 import { home } from "@/content/pages";
-import { experiences, signatureExperience } from "@/content/experiences";
 import { classicCars } from "@/content/site";
+import { listExperiences, signatureOf } from "@/lib/experience-catalogue";
 import { Hero } from "@/components/hero";
 import { Section, SectionHeading } from "@/components/section";
 import { ExperienceCard } from "@/components/experience-card";
@@ -24,15 +24,33 @@ export async function generateMetadata({
   return { alternates: alternates(locale, "home") };
 }
 
+/**
+ * The catalogue is edited from the admin, so a build-time copy of it goes stale
+ * the moment Rita adds an add-on. Re-rendering hourly keeps this page static and
+ * fast while bounding how long the site can disagree with the catalogue; a
+ * catalogue edit also revalidates every page explicitly (see the actions behind
+ * `/admin/experiences`), so in practice the change is live immediately.
+ */
+export const revalidate = 3600;
+
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
   const dict = getDictionary(l);
+  const experiences = await listExperiences();
+  const signatureExperience = signatureOf(experiences);
 
   return (
     <>
-      <JsonLd data={[organizationJsonLd(l), faqJsonLd(signatureExperience.faqs, l)!].filter(Boolean)} />
+      {/* An empty catalogue has no FAQ block to publish, and `faqJsonLd`
+          returns null for an experience with no questions on it. */}
+      <JsonLd
+        data={[
+          organizationJsonLd(l),
+          ...(signatureExperience ? [faqJsonLd(signatureExperience.faqs, l)] : []),
+        ].filter((entry) => entry !== null)}
+      />
 
       <Hero
         eyebrow={t(home.heroEyebrow, l)}
@@ -88,23 +106,35 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </div>
       </Section>
 
-      {/* FAQ */}
-      <Section>
-        <div className="max-w-3xl">
-          <FaqList faqs={signatureExperience.faqs} locale={l} heading={dict.labels.faq} />
-        </div>
-      </Section>
+      {signatureExperience ? (
+        <>
+          {/* FAQ */}
+          <Section>
+            <div className="max-w-3xl">
+              <FaqList faqs={signatureExperience.faqs} locale={l} heading={dict.labels.faq} />
+            </div>
+          </Section>
 
-      {/* Closing CTA */}
-      <Section muted>
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-semibold sm:text-4xl">{t(signatureExperience.title, l)}</h2>
-          <p className="mt-4 text-lg text-muted-foreground">{t(signatureExperience.tagline, l)}</p>
-          <div className="mt-8 flex justify-center gap-3">
-            <BookingButton locale={l} label={dict.cta.bookExperience} item={signatureExperience.fareharborItem} />
-          </div>
-        </div>
-      </Section>
+          {/* Closing CTA */}
+          <Section muted>
+            <div className="mx-auto max-w-2xl text-center">
+              <h2 className="text-3xl font-semibold sm:text-4xl">
+                {t(signatureExperience.title, l)}
+              </h2>
+              <p className="mt-4 text-lg text-muted-foreground">
+                {t(signatureExperience.tagline, l)}
+              </p>
+              <div className="mt-8 flex justify-center gap-3">
+                <BookingButton
+                  locale={l}
+                  label={dict.cta.bookExperience}
+                  item={signatureExperience.fareharborItem}
+                />
+              </div>
+            </div>
+          </Section>
+        </>
+      ) : null}
     </>
   );
 }

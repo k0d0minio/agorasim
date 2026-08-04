@@ -7,7 +7,7 @@ import { CheckCircle2 } from "lucide-react";
 import { t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
 import { privacyContent } from "@/content/privacy";
-import { complementExperiences, experiences } from "@/content/experiences";
+import type { Experience } from "@/content/experiences";
 import { href } from "@/lib/routes";
 import {
   HONEYPOT_FIELD,
@@ -32,9 +32,17 @@ function SubmitButton({ locale }: { locale: Locale }) {
 }
 
 /** Public onboarding form for customers requesting a tour. */
-export function TourRequestForm({ locale }: { locale: Locale }) {
+export function TourRequestForm({
+  locale,
+  experiences,
+}: {
+  locale: Locale;
+  /** The live catalogue, passed in by the page that renders this form. */
+  experiences: Experience[];
+}) {
   const [state, formAction] = useActionState<TourRequestState, FormData>(submitTourRequest, {});
   const c = tourRequestContent;
+  const complementExperiences = experiences.filter((e) => e.kind === "complement");
 
   if (state.ok) {
     return (

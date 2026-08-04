@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { Trash2 } from "lucide-react";
 import { deleteTourRequest, type DataRightsState } from "@/app/admin/actions";
@@ -34,13 +35,36 @@ function ConfirmButton({ armed }: { armed: boolean }) {
  * There is no undo and no soft-delete flag: the row goes. A one-click version of
  * this button sitting in a table row would eventually be pressed by accident.
  */
-export function DeleteSubmissionDialog({ id, name }: { id: string; name: string }) {
+export function DeleteSubmissionDialog({
+  id,
+  name,
+  redirectTo,
+}: {
+  id: string;
+  name: string;
+  /**
+   * Where to go once the record is gone. The list can stay where it is — the
+   * row simply disappears on the next render — but a detail page for a deleted
+   * record has nothing left to show, so it sends the operator back to the list.
+   */
+  redirectTo?: string;
+}) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [state, formAction] = useActionState<DataRightsState, FormData>(
     deleteTourRequest,
     {},
   );
+
+  // Navigate once the erasure lands. The dialog's own visibility is derived
+  // below rather than set here: a successful action already means "closed", and
+  // an effect that sets state to say so is a second source of truth for it.
+  useEffect(() => {
+    if (!state.ok) return;
+    if (redirectTo) router.replace(redirectTo);
+    else router.refresh();
+  }, [state.ok, redirectTo, router]);
 
   return (
     <>
@@ -49,9 +73,11 @@ export function DeleteSubmissionDialog({ id, name }: { id: string; name: string 
         variant="ghost"
         size="sm"
         onClick={() => setOpen(true)}
-        aria-label={`Erase the submission from ${name}`}
+        aria-label={`Erase the record for ${name}`}
+        className="h-11 sm:h-9"
       >
         <Trash2 className="size-4" />
+        Erase
       </Button>
 
       {state.error ? (
@@ -60,7 +86,7 @@ export function DeleteSubmissionDialog({ id, name }: { id: string; name: string 
         </p>
       ) : null}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open && !state.ok} onOpenChange={setOpen}>
         <DialogContent>
           <form action={formAction} className="flex flex-col gap-4">
             <input type="hidden" name="id" value={id} />

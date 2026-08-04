@@ -4,7 +4,11 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
-import { signatureExperience, complementExperiences } from "@/content/experiences";
+import {
+  complementsOf,
+  listExperiences,
+  signatureOf,
+} from "@/lib/experience-catalogue";
 import { Section, SectionHeading, Container } from "@/components/section";
 import { ExperienceCard } from "@/components/experience-card";
 import { Media } from "@/components/media";
@@ -22,9 +26,13 @@ export async function generateMetadata({
   const { locale } = await params;
   if (!isLocale(locale)) return {};
   const title = locale === "pt" ? "Experiências" : "Experiences";
-  const description = t(signatureExperience.summary, locale);
+  const signature = signatureOf(await listExperiences());
+  const description = signature ? t(signature.summary, locale) : undefined;
   return { title, description, alternates: alternates(locale, "experiencias") };
 }
+
+/** See the note on the home page: the catalogue is editable, so this re-renders. */
+export const revalidate = 3600;
 
 export default async function ExperiencesPage({
   params,
@@ -35,7 +43,13 @@ export default async function ExperiencesPage({
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
   const dict = getDictionary(l);
-  const sig = signatureExperience;
+  const catalogue = await listExperiences();
+  const sig = signatureOf(catalogue);
+  const complementExperiences = complementsOf(catalogue);
+
+  // An empty catalogue is a misconfiguration, not a page — better a 404 than a
+  // hero with no title in it.
+  if (!sig) notFound();
 
   return (
     <>
