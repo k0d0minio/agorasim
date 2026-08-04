@@ -25,10 +25,11 @@ staff, and which expires on its own schedule (also below).
 | Right / obligation | Where |
 |---|---|
 | Notice at the point of collection (Art. 13) | `components/tour-request-form.tsx`, copy in `content/privacy.ts` |
+| Minimisation of internal notes | `tour_requests.internal_notes` is cleared by the same retention pass as the rest of the row (`ANONYMISED` in `lib/retention.ts`) |
 | Privacy policy | `/pt/privacidade`, `/en/privacy` — **draft**, see below |
 | Consent for marketing (Art. 6(1)(a), 7) | Unticked checkbox on the form; `marketing_consent`, `marketing_consent_at`, `marketing_consent_version` on `tour_requests` |
-| Right of access (Art. 15) | Owner-only export on `/admin/submissions` → `lib/subject-data.ts` |
-| Right to erasure (Art. 17) | Owner-only per-row and bulk delete on `/admin/submissions` |
+| Right of access (Art. 15) | Owner-only export on `/admin/sales` → `lib/subject-data.ts` |
+| Right to erasure (Art. 17) | Owner-only erase on a lead's page (`/admin/sales/<id>`) and bulk delete on `/admin/sales` |
 | Storage limitation (Art. 5(1)(e)) | `lib/retention.ts` + `/api/cron/retention`, scheduled in `vercel.json` |
 | Accountability (Art. 5(2)) | `audit_log`, written by `lib/audit.ts` from every mutating admin action |
 | Cookies / ePrivacy | See `cookies-and-third-parties.md` |
@@ -138,13 +139,16 @@ Listed so they are decisions rather than oversights:
 
 ## Runbook: answering a request
 
-**"Send me my data" (Art. 15).** Sign in as an owner → Submissions → *Export
-someone's data* → enter the address → a JSON file downloads. Send it. The export
-is recorded in the audit log.
+**"Send me my data" (Art. 15).** Sign in as an owner → Sales → *Export
+someone's data* (below the list) → enter the address → a JSON file downloads.
+Send it. The export is recorded in the audit log. The file includes the team's
+own notes on that person: they are notes *about* an identified individual, so
+they are part of the answer.
 
-**"Delete my data" (Art. 17).** Sign in as an owner → Submissions → find the
-row → bin icon → type `DELETE`. The record is gone; the audit log keeps a
-non-identifying note that an erasure happened. If the person also booked through
+**"Delete my data" (Art. 17).** Sign in as an owner → Sales → open the lead →
+*Erase* → type `DELETE`. The record is gone; the audit log keeps a
+non-identifying note that an erasure happened. Several at once: tick them in the
+list and use *Erase* in the toolbar. If the person also booked through
 FareHarbor, forward the request to them separately.
 
 **"Stop emailing me."** Until there is an unsubscribe link, an owner has to clear

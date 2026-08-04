@@ -113,6 +113,11 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/request-ip", () => ({ clientIp: async () => "203.0.113.9" }));
 
+// The catalogue actions revalidate the public site after a write. There is no
+// cache here to bust; what matters is that they call it.
+const revalidatePath = vi.fn();
+vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
+
 const findAdminUserById = vi.fn<(id: string) => Promise<AdminUserSummary | null>>();
 
 vi.mock("@/lib/admin-users", () => ({
@@ -136,8 +141,11 @@ const {
   bulkTourRequestAction,
   deleteTourRequest,
   exportSubject,
+  logContactAttempt,
+  updateTourRequest,
   updateTourRequestStatus,
 } = await import("./actions");
+const { deleteExperience, saveExperience } = await import("./experiences/actions");
 
 const OWNER_ID = "11111111-1111-4111-8111-111111111111";
 const COLLABORATOR_ID = "22222222-2222-4222-8222-222222222222";
@@ -206,6 +214,7 @@ beforeEach(() => {
   results = [];
   cookieJar.clear();
   findAdminUserById.mockReset();
+  revalidatePath.mockReset();
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -387,5 +396,238 @@ describe("exporting a person's data", () => {
     const entry = insertedValues()[0]!;
     expect(entry.action).toBe("tour_request.exported");
     expect(JSON.stringify(entry.after)).not.toContain("ana.silva");
+  });
+});
+
+describe("editing a lead from its own page", () => {
+  /** The row as the pre-save lookup returns it, before any edit. */
+  const leadRow = {
+    id: REQUEST_ID,
+    name: "Ana Silva",
+    email: "ana.silva@example.com",
+    phone: null,
+    kind: "tour",
+    experienceSlug: "rural-saloia",
+    addOns: ["manzwine"],
+    partySize: 2,
+    preferredDate: "15 August",
+    message: "Somos dois.",
+    internalNotes: null,
+    status: "new",
+  };
+
+  function edit(overrides: Record<string, string | string[]> = {}): FormData {
+    return form({
+      id: REQUEST_ID,
+      name: leadRow.name,
+      email: leadRow.email,
+      kind: "tour",
+      experienceSlug: "rural-saloia",
+      addOns: ["manzwine"],
+      partySize: "2",
+      preferredDate: "15 August",
+      message: "Somos dois.",
+      ...overrides,
+    });
+  }
+
+  it("names the fields that changed, never their values", async () => {
+    await signInAs("collaborator");
+    queueResult([leadRow]); // the pre-save lookup
+    queueResult(undefined); // the update
+    queueResult(undefined); // the audit insert
+
+    const result = await updateTourRequest(
+      {},
+      edit({ partySize: "4", internalNotes: "Wants the 2CV, calling back Thursday." }),
+    );
+
+    expect(result.ok).toBe(true);
+    const entry = insertedValues()[0]!;
+    expect(entry).toMatchObject({
+      actorUserId: COLLABORATOR_ID,
+      action: "tour_request.updated",
+      entityId: REQUEST_ID,
+      after: { fields: ["partySize", "internalNotes"] },
+    });
+
+    // A log that quoted the note would be a second, less careful copy of the
+    // personal data the note is about.
+    expect(JSON.stringify(entry.after)).not.toContain("2CV");
+  });
+
+  it("writes nothing when nothing actually changed", async () => {
+    await signInAs("collaborator");
+    queueResult([leadRow]);
+
+    const result = await updateTourRequest({}, edit());
+
+    expect(result.ok).toBe(true);
+    expect(called("update")).toBe(false);
+    expect(insertedValues()).toHaveLength(0);
+  });
+
+  it("rejects an unusable email address inline, without touching the row", async () => {
+    await signInAs("collaborator");
+
+    const result = await updateTourRequest({}, edit({ email: "not-an-address" }));
+
+    expect(result.fieldErrors?.email).toBeTruthy();
+    expect(called("update")).toBe(false);
+  });
+});
+
+describe("logging that someone reached out", () => {
+  it("moves a new lead to contacted and stamps the time", async () => {
+    await signInAs("collaborator");
+    queueResult([{ status: "new" }]); // the status lookup
+    queueResult(undefined); // the update
+    queueResult(undefined); // the audit insert
+
+    const result = await logContactAttempt({}, form({ id: REQUEST_ID }));
+
+    expect(result.ok).toBe(true);
+
+    const update = calls.find((call) => call.method === "set")!;
+    const values = update.args[0] as Record<string, unknown>;
+    expect(values.status).toBe("contacted");
+    expect(values.lastContactedAt).toBeInstanceOf(Date);
+
+    expect(insertedValues()[0]).toMatchObject({
+      action: "tour_request.contact_logged",
+      actorUserId: COLLABORATOR_ID,
+    });
+  });
+
+  it("does not drag a quoted lead backwards", async () => {
+    // Ringing to confirm a detail is not a regression in the pipeline.
+    await signInAs("collaborator");
+    queueResult([{ status: "quoted" }]);
+    queueResult(undefined);
+    queueResult(undefined);
+
+    await logContactAttempt({}, form({ id: REQUEST_ID }));
+
+    const values = calls.find((call) => call.method === "set")!.args[0] as Record<
+      string,
+      unknown
+    >;
+    expect(values.status).toBe("quoted");
+  });
+});
+
+describe("the experience catalogue", () => {
+  const EXPERIENCE_ID = "44444444-4444-4444-8444-444444444444";
+
+  function experienceForm(overrides: Record<string, string | string[]> = {}): FormData {
+    return form({
+      slug: "nova-prova",
+      kind: "complement",
+      icon: "wine",
+      image: "/images/picnic.jpeg",
+      active: "on",
+      sortOrder: "5",
+      titlePt: "Nova Prova",
+      titleEn: "New Tasting",
+      taglinePt: "Uma prova nova",
+      taglineEn: "A new tasting",
+      summaryPt: "Resumo em português.",
+      summaryEn: "Summary in English.",
+      durationPt: "Aprox. 1h",
+      durationEn: "Approx. 1h",
+      imageAltPt: "Copos de vinho",
+      imageAltEn: "Wine glasses",
+      descriptionPt: "Primeiro parágrafo.\n\nSegundo parágrafo.",
+      descriptionEn: "First paragraph.\n\nSecond paragraph.",
+      highlightsPt: "Prova guiada\nCastas locais",
+      highlightsEn: "Guided tasting\nLocal grapes",
+      ...overrides,
+    });
+  }
+
+  it("stores the localized pairs the site renders, and republishes the site", async () => {
+    await signInAs("collaborator");
+    queueResult([]); // no slug clash
+    queueResult(undefined); // the insert
+    queueResult(undefined); // the audit insert
+
+    const result = await saveExperience({}, experienceForm());
+
+    expect(result.ok).toBe(true);
+
+    const inserted = insertedValues()[0]!;
+    expect(inserted).toMatchObject({
+      slug: "nova-prova",
+      icon: "wine",
+      title: { pt: "Nova Prova", en: "New Tasting" },
+      description: {
+        pt: ["Primeiro parágrafo.", "Segundo parágrafo."],
+        en: ["First paragraph.", "Second paragraph."],
+      },
+      highlights: {
+        pt: ["Prova guiada", "Castas locais"],
+        en: ["Guided tasting", "Local grapes"],
+      },
+    });
+
+    // An edit nobody can see on the website is not an edit.
+    expect(revalidatePath).toHaveBeenCalled();
+  });
+
+  it("drops a question that is only written in one language", async () => {
+    await signInAs("collaborator");
+    queueResult([]);
+    queueResult(undefined);
+    queueResult(undefined);
+
+    await saveExperience(
+      {},
+      experienceForm({
+        faqQuestionPt: ["Quanto tempo dura?", "Só em português?"],
+        faqQuestionEn: ["How long is it?", ""],
+        faqAnswerPt: ["Cerca de uma hora.", "Sim."],
+        faqAnswerEn: ["About an hour.", ""],
+      }),
+    );
+
+    const inserted = insertedValues()[0]!;
+    expect(inserted.faqs).toEqual([
+      {
+        question: { pt: "Quanto tempo dura?", en: "How long is it?" },
+        answer: { pt: "Cerca de uma hora.", en: "About an hour." },
+      },
+    ]);
+  });
+
+  it("reports a taken address against the field rather than throwing", async () => {
+    await signInAs("collaborator");
+    queueResult([{ id: EXPERIENCE_ID }]); // the clash lookup finds one
+
+    const result = await saveExperience({}, experienceForm());
+
+    expect(result.fieldErrors?.slug).toBeTruthy();
+    expect(called("insert")).toBe(false);
+  });
+
+  it("refuses a badly shaped address", async () => {
+    await signInAs("collaborator");
+
+    const result = await saveExperience({}, experienceForm({ slug: "Nova Prova!" }));
+
+    expect(result.fieldErrors?.slug).toBeTruthy();
+    expect(called("select")).toBe(false);
+  });
+
+  it("is not deletable by a collaborator", async () => {
+    await signInAs("collaborator");
+
+    expect(
+      await redirectedTo(() =>
+        deleteExperience({}, form({ id: EXPERIENCE_ID, confirm: "DELETE" })),
+      ),
+    ).toBe(ADMIN_FORBIDDEN_PATH);
+
+    expect(called("delete")).toBe(false);
+    expect(called("select")).toBe(false);
   });
 });

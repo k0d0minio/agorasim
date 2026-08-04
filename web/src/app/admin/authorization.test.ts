@@ -55,7 +55,7 @@ describe("admin pages", () => {
   // otherwise turn this whole file into a vacuous pass over an empty list.
   it("finds the admin pages to check", () => {
     expect(pages.length).toBeGreaterThan(10);
-    expect(pages).toContain("submissions/page.tsx");
+    expect(pages).toContain("sales/page.tsx");
     expect(pages).toContain("settings/users/page.tsx");
   });
 

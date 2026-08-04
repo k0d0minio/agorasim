@@ -4,10 +4,14 @@ import { isLocale, t, type Locale } from "@/i18n/config";
 import { bookingContent } from "@/content/booking";
 import { Section } from "@/components/section";
 import { BookingFlow } from "@/components/booking-flow";
+import { listExperiences } from "@/lib/experience-catalogue";
 import { InDevBanner } from "@/components/in-dev-banner";
 import { JsonLd } from "@/components/json-ld";
 import { organizationJsonLd } from "@/lib/jsonld";
 import { alternates } from "@/lib/seo";
+
+/** See the note on the home page: the catalogue is editable, so this re-renders. */
+export const revalidate = 3600;
 
 export async function generateMetadata({
   params,
@@ -33,6 +37,7 @@ export default async function BookingPage({
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
   const c = bookingContent;
+  const experiences = await listExperiences();
 
   return (
     <>
@@ -46,7 +51,7 @@ export default async function BookingPage({
         <InDevBanner locale={l} body={c.inDev} className="mt-8" />
 
         <div className="mt-10">
-          <BookingFlow locale={l} />
+          <BookingFlow locale={l} experiences={experiences} />
         </div>
       </Section>
     </>

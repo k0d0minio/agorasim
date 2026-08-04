@@ -1,8 +1,11 @@
 name: CI
 
 # Checks the `web/` workspace on every pull request, and on main so the default
-# branch stays known-good. Nothing here needs a database: the admin pages are
-# all `force-dynamic`, so `next build` never queries at build time.
+# branch stays known-good. Nothing here needs a database: the admin pages are all
+# `force-dynamic`, and the public pages read the experience catalogue through a
+# resolver that falls back to the copy shipped in `src/content/experiences.ts`
+# when there is no `DATABASE_URL` to read (see `lib/experience-catalogue.ts`). So
+# `next build` renders the shipped catalogue here and the live one in production.
 
 on:
   pull_request:

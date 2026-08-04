@@ -14,7 +14,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:seed-owner": "tsx --conditions=react-server scripts/seed-owner.ts"
+    "db:seed-owner": "tsx --conditions=react-server scripts/seed-owner.ts",
+    "db:seed-experiences-sql": "tsx --conditions=react-server scripts/generate-experience-seed.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

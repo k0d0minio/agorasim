@@ -71,7 +71,7 @@ export default async function AdminDashboardPage() {
 
   const STATS = [
     {
-      label: "New submissions",
+      label: "New leads",
       value: String(tally(requests, ["new"])),
       hint: "Awaiting first contact",
     },
