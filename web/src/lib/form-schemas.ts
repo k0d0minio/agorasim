@@ -19,13 +19,15 @@ import { z } from "zod";
 
 import {
   adminRoleEnum,
+  enquiryKindEnum,
+  experienceKindEnum,
   featureRequestPriorityEnum,
   featureRequestStatusEnum,
   localeEnum,
   requestStatusEnum,
 } from "@/db/schema";
-import { experiences } from "@/content/experiences";
 import { DELETE_CONFIRMATION } from "@/lib/admin-format";
+import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 
 // ---------------------------------------------------------------------------
@@ -33,6 +35,8 @@ import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 // ---------------------------------------------------------------------------
 
 export const requestStatusSchema = z.enum(requestStatusEnum.enumValues);
+export const enquiryKindSchema = z.enum(enquiryKindEnum.enumValues);
+export const experienceKindSchema = z.enum(experienceKindEnum.enumValues);
 export const featureRequestStatusSchema = z.enum(featureRequestStatusEnum.enumValues);
 export const featureRequestPrioritySchema = z.enum(featureRequestPriorityEnum.enumValues);
 export const localeSchema = z.enum(localeEnum.enumValues);
@@ -55,7 +59,40 @@ const optionalText = z
 /** Rough shape check only — deliverability is the mail server's problem. */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const experienceSlugs = new Set(experiences.map((e) => e.slug));
+/** `rural-saloia` — lowercase words joined by single hyphens. */
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** A textarea holding paragraphs, separated by blank lines. */
+const paragraphs = z
+  .string()
+  .catch("")
+  .transform((value) =>
+    value
+      .split(/\n\s*\n/)
+      .map((part) => part.trim())
+      .filter(Boolean),
+  );
+
+/** A textarea holding one item per line. */
+const lines = z
+  .string()
+  .catch("")
+  .transform((value) =>
+    value
+      .split("\n")
+      .map((part) => part.trim())
+      .filter(Boolean),
+  );
+
+/**
+ * A repeated field. `formValues` collapses a single occurrence to a string, so
+ * every list field has to widen it back — the same shape the add-ons and bulk-id
+ * fields use.
+ */
+const repeated = z.preprocess(
+  (value) => (value === undefined ? [] : Array.isArray(value) ? value : [value]),
+  z.array(z.string()),
+);
 
 /**
  * `FormData` as a plain object `safeParse` can read. Repeated names (a checkbox
@@ -110,8 +147,173 @@ export const featureRequestSchema = z.object({
 /** Field names `submitFeatureRequest` can report an inline error against. */
 export type FeatureRequestField = "title" | "description";
 
-export const proposalRequestSchema = z.object({
-  ids: z.array(z.string()).min(1, "Pick at least one feature to request."),
+// ---------------------------------------------------------------------------
+// Lead detail — editing one enquiry from its own page
+// ---------------------------------------------------------------------------
+
+/**
+ * The editable half of a lead. Triage (status) has its own control and is not
+ * here; this is "the phone call corrected the party size and the date".
+ *
+ * Contact details are editable on purpose: a mistyped email is the single most
+ * common reason a lead goes nowhere, and re-typing it into the guest's record is
+ * the fix. Every save writes an audit entry naming the fields that changed —
+ * never their guest-identifying values.
+ */
+export const updateTourRequestSchema = z.object({
+  id: z.uuid(),
+  name: text.min(1, "A lead needs a name."),
+  email: z.string().trim().toLowerCase().regex(EMAIL_RE, "Enter a valid email address."),
+  phone: optionalText,
+  kind: enquiryKindSchema.catch("tour"),
+  experienceSlug: optionalText.transform((slug) =>
+    slug && SLUG_RE.test(slug) ? slug : null,
+  ),
+  addOns: repeated.transform((slugs) => slugs.filter((slug) => SLUG_RE.test(slug))),
+  partySize: z
+    .string()
+    .trim()
+    .catch("")
+    .transform((value) => {
+      const n = Number.parseInt(value, 10);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }),
+  preferredDate: optionalText,
+  message: optionalText,
+  internalNotes: optionalText,
+});
+
+/** Field names `updateTourRequest` can report an inline error against. */
+export type TourRequestEditField = "name" | "email";
+
+export const tourRequestIdSchema = z.object({ id: z.uuid() });
+
+// ---------------------------------------------------------------------------
+// The experience catalogue
+// ---------------------------------------------------------------------------
+
+/**
+ * One catalogue entry, as the editor submits it.
+ *
+ * The form is flat (`titlePt`, `titleEn`, …) because that is what an HTML form
+ * is; the nesting the database wants is rebuilt by the transform at the end, in
+ * one place, rather than by the action picking fields apart by hand.
+ *
+ * Both locales are required for every guest-facing string. That is the rule the
+ * site already assumes — `t(value, locale)` has no fallback — and enforcing it
+ * at the door is how the catalogue avoids growing rows that render blank for
+ * half the visitors.
+ */
+export const experienceSchema = z
+  .object({
+    /** Absent when creating. Present, and the row's id, when editing. */
+    id: z.uuid().optional().catch(undefined),
+    slug: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(SLUG_RE, "Use lowercase words joined by hyphens, e.g. rural-saloia."),
+    kind: experienceKindSchema.catch("complement"),
+    icon: z.enum(EXPERIENCE_ICON_KEYS).catch(FALLBACK_EXPERIENCE_ICON),
+    fareharborItem: optionalText,
+    image: text.min(1, "Point at an image, e.g. /images/car.jpg."),
+    active: z.preprocess((value) => value === "on" || value === "true", z.boolean()).catch(true),
+    sortOrder: z
+      .string()
+      .trim()
+      .catch("")
+      .transform((value) => {
+        const n = Number.parseInt(value, 10);
+        return Number.isFinite(n) ? n : 0;
+      }),
+
+    titlePt: text.min(1, "Add the Portuguese title."),
+    titleEn: text.min(1, "Add the English title."),
+    taglinePt: text.min(1, "Add the Portuguese tagline."),
+    taglineEn: text.min(1, "Add the English tagline."),
+    summaryPt: text.min(1, "Add the Portuguese summary."),
+    summaryEn: text.min(1, "Add the English summary."),
+    durationPt: text.min(1, "Add the Portuguese duration."),
+    durationEn: text.min(1, "Add the English duration."),
+    imageAltPt: text.min(1, "Describe the image in Portuguese."),
+    imageAltEn: text.min(1, "Describe the image in English."),
+
+    descriptionPt: paragraphs,
+    descriptionEn: paragraphs,
+    highlightsPt: lines,
+    highlightsEn: lines,
+
+    // Index-aligned across the four fields: row *n* of the FAQ editor.
+    faqQuestionPt: repeated,
+    faqQuestionEn: repeated,
+    faqAnswerPt: repeated,
+    faqAnswerEn: repeated,
+  })
+  .transform((value) => ({
+    id: value.id,
+    slug: value.slug,
+    kind: value.kind,
+    icon: value.icon,
+    fareharborItem: value.fareharborItem,
+    image: value.image,
+    active: value.active,
+    sortOrder: value.sortOrder,
+    title: { pt: value.titlePt, en: value.titleEn },
+    tagline: { pt: value.taglinePt, en: value.taglineEn },
+    summary: { pt: value.summaryPt, en: value.summaryEn },
+    duration: { pt: value.durationPt, en: value.durationEn },
+    imageAlt: { pt: value.imageAltPt, en: value.imageAltEn },
+    description: { pt: value.descriptionPt, en: value.descriptionEn },
+    highlights: { pt: value.highlightsPt, en: value.highlightsEn },
+    /*
+     * A FAQ row counts only when all four boxes are filled. A half-written
+     * question is a draft the operator abandoned, not a question to publish in
+     * one language and leave blank in the other — and it would land in the
+     * page's FAQ JSON-LD exactly as written.
+     */
+    faqs: value.faqQuestionPt
+      .map((questionPt, i) => ({
+        question: { pt: questionPt.trim(), en: (value.faqQuestionEn[i] ?? "").trim() },
+        answer: {
+          pt: (value.faqAnswerPt[i] ?? "").trim(),
+          en: (value.faqAnswerEn[i] ?? "").trim(),
+        },
+      }))
+      .filter(
+        (faq) => faq.question.pt && faq.question.en && faq.answer.pt && faq.answer.en,
+      ),
+  }));
+
+/** Field names `saveExperience` can report an inline error against. */
+export type ExperienceField =
+  | "slug"
+  | "image"
+  | "titlePt"
+  | "titleEn"
+  | "taglinePt"
+  | "taglineEn"
+  | "summaryPt"
+  | "summaryEn"
+  | "durationPt"
+  | "durationEn"
+  | "imageAltPt"
+  | "imageAltEn";
+
+export const experienceIdSchema = z.object({ id: z.uuid() });
+
+export const setExperienceActiveSchema = z.object({
+  id: z.uuid(),
+  active: z.preprocess((value) => value === "on" || value === "true", z.boolean()),
+});
+
+export const moveExperienceSchema = z.object({
+  id: z.uuid(),
+  direction: z.enum(["up", "down"]),
+});
+
+export const deleteExperienceSchema = z.object({
+  id: z.uuid(),
+  confirm: z.literal(DELETE_CONFIRMATION, "Type DELETE to confirm."),
 });
 
 // ---------------------------------------------------------------------------
@@ -211,9 +413,15 @@ export const tourRequestSchema = z.object({
   phone: optionalText,
   preferredDate: optionalText,
   message: optionalText,
-  // An unrecognised slug is dropped rather than rejected — the enquiry still matters.
+  /*
+   * Shape only. Which slugs actually exist is a question for the catalogue,
+   * which lives in the database and changes whenever Rita adds an add-on — so
+   * the action checks the submitted slugs against it (`submitTourRequest`) and
+   * this schema just refuses anything that isn't slug-shaped. An unrecognised
+   * slug is dropped rather than rejected: the enquiry still matters.
+   */
   experience: optionalText.transform((slug) =>
-    slug && experienceSlugs.has(slug) ? slug : null,
+    slug && SLUG_RE.test(slug) ? slug : null,
   ),
   partySize: z
     .string()
@@ -223,12 +431,7 @@ export const tourRequestSchema = z.object({
       const n = Number.parseInt(value, 10);
       return Number.isFinite(n) && n > 0 ? n : null;
     }),
-  addOns: z
-    .preprocess(
-      (value) => (value === undefined ? [] : Array.isArray(value) ? value : [value]),
-      z.array(z.string()),
-    )
-    .transform((slugs) => slugs.filter((slug) => experienceSlugs.has(slug))),
+  addOns: repeated.transform((slugs) => slugs.filter((slug) => SLUG_RE.test(slug))),
   /**
    * Marketing opt-in. An unticked checkbox submits nothing at all, so absence is
    * the "no" — which is exactly the default the GDPR requires. Consent is never

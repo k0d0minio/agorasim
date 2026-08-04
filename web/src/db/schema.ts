@@ -4,8 +4,13 @@
  * Two concerns live here:
  *
  * 1. **Inbound leads** — `tourRequests` captures the public onboarding form
- *    (customers requesting a tour). These surface on the admin "Submissions"
- *    page for the team (Diogo & Rita) to triage and follow up.
+ *    (customers requesting a tour). These surface on the admin "Sales" screen
+ *    for the team (Diogo & Rita) to triage and follow up, as a board or a table
+ *    over the same rows.
+ *
+ * 1b. **The catalogue** — `experienceCatalogue` holds the experiences and add-ons
+ *    themselves, so the offer can change without a deploy. Leads reference it by
+ *    slug.
  *
  * 2. **Generated content drafts** — one table per output type produced by the
  *    `workspaces/` ICM pipelines. Each row is a reviewable draft that the admin
@@ -51,6 +56,20 @@ export const requestStatusEnum = pgEnum("request_status", [
   "booked",
   "archived",
 ]);
+
+/**
+ * What kind of job an enquiry is about — the top-level split the Sales board
+ * shows as an icon, before any experience detail.
+ *
+ * `tour` is everything that comes through the onboarding form today. `wedding`
+ * and `event` exist because the wedding-hire and events quote flows write into
+ * this same table once they ship, and a lead whose type is only inferrable from
+ * a free-text message cannot be filtered on.
+ */
+export const enquiryKindEnum = pgEnum("enquiry_kind", ["tour", "wedding", "event"]);
+
+/** Where an experience sits in the catalogue: the main tour, or an add-on. */
+export const experienceKindEnum = pgEnum("experience_kind", ["signature", "complement"]);
 
 /** Review lifecycle shared by every generated-content draft table. */
 export const contentStatusEnum = pgEnum("content_status", [
@@ -101,6 +120,8 @@ export const adminRoleEnum = pgEnum("admin_role", ["owner", "collaborator"]);
 
 export type AppLocale = (typeof localeEnum.enumValues)[number];
 export type RequestStatus = (typeof requestStatusEnum.enumValues)[number];
+export type EnquiryKind = (typeof enquiryKindEnum.enumValues)[number];
+export type ExperienceKind = (typeof experienceKindEnum.enumValues)[number];
 export type ContentStatus = (typeof contentStatusEnum.enumValues)[number];
 export type SocialPlatform = (typeof socialPlatformEnum.enumValues)[number];
 export type FeatureRequestStatus = (typeof featureRequestStatusEnum.enumValues)[number];
@@ -119,6 +140,9 @@ export type GeoSection = { heading: string; body: string[] };
 
 /** A single FAQ entry inside a generated block. */
 export type GeoFaq = { question: string; answer: string };
+
+/** A catalogue FAQ — both halves localized, as the site renders them. */
+export type LocalizedFaq = { question: Localized; answer: Localized };
 
 /** Per-locale GEO block body, matching the publish stage's JSON contract. */
 export type GeoLocaleBlock = {
@@ -250,6 +274,8 @@ export const tourRequests = pgTable("tour_requests", {
   locale: localeEnum("locale").notNull().default("pt"),
 
   // What they want
+  /** Tour, wedding hire or an event — the icon the Sales board leads with. */
+  kind: enquiryKindEnum("kind").notNull().default("tour"),
   /** Slug of the primary experience they're interested in (e.g. `rural-saloia`). */
   experienceSlug: text("experience_slug"),
   /** Slugs of add-on experiences (Tasco Galapito, Manzwine, …). */
@@ -263,6 +289,17 @@ export const tourRequests = pgTable("tour_requests", {
   status: requestStatusEnum("status").notNull().default("new"),
   /** Where the lead came from — website form, phone follow-up, import, … */
   source: text("source").notNull().default("website"),
+  /**
+   * The team's own notes on this lead — what was agreed on the phone, which car
+   * was promised, why it went quiet. Written only from the admin detail page.
+   *
+   * It is *about* a guest, so it is personal data like the rest of the row: the
+   * retention job clears it alongside the name and the message, and it is
+   * included in a subject-access export.
+   */
+  internalNotes: text("internal_notes"),
+  /** When someone last actually reached out. Set by "Log contact". */
+  lastContactedAt: timestamp("last_contacted_at", { withTimezone: true }),
 
   // Marketing consent — deliberately not `notNull().default(true)`.
   /** Opt-in to marketing email. Never a condition of sending the enquiry. */
@@ -291,6 +328,65 @@ export const tourRequests = pgTable("tour_requests", {
 
 export type TourRequest = typeof tourRequests.$inferSelect;
 export type NewTourRequest = typeof tourRequests.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// The experience catalogue
+// ---------------------------------------------------------------------------
+
+/**
+ * The experiences and add-ons Agorasim sells — Rural Saloia, Tasco Galapito,
+ * Manzwine, and whatever Diogo & Rita add next.
+ *
+ * This used to be a TypeScript array in `content/experiences.ts`, which meant a
+ * new add-on, a changed duration or a corrected price note was a code change and
+ * a deploy. The catalogue is theirs to edit, so it lives here and is edited from
+ * `/admin/experiences`.
+ *
+ * The columns mirror the `Experience` type the site already renders, so a row
+ * maps onto it one-for-one (see `lib/experience-catalogue.ts`). Every guest-
+ * facing string is `Localized` — PT and EN travel together, because a
+ * half-translated catalogue is what happens when they don't.
+ *
+ * Rows are **archived, not deleted** (`active = false`): `tour_requests.
+ * experience_slug` and `add_ons` reference these slugs as plain text, and a lead
+ * that says "Manzwine" must keep saying so after Manzwine is retired.
+ */
+export const experienceCatalogue = pgTable("experiences", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /** URL segment and the value stored on enquiries. Stable — renaming breaks links. */
+  slug: text("slug").notNull().unique(),
+  kind: experienceKindEnum("kind").notNull().default("complement"),
+  /** Key into `EXPERIENCE_ICONS` (`lib/experience-icons.ts`) — the admin's shorthand. */
+  icon: text("icon").notNull().default("sparkles"),
+  /** FareHarbor item id, or null while booking still goes through the form. */
+  fareharborItem: text("fareharbor_item"),
+
+  title: jsonb("title").$type<Localized>().notNull(),
+  tagline: jsonb("tagline").$type<Localized>().notNull(),
+  /** Answer-first summary — the first ~40 words, which is what GEO answers with. */
+  summary: jsonb("summary").$type<Localized>().notNull(),
+  description: jsonb("description").$type<Localized<string[]>>().notNull(),
+  duration: jsonb("duration").$type<Localized>().notNull(),
+  highlights: jsonb("highlights").$type<Localized<string[]>>().notNull(),
+  faqs: jsonb("faqs").$type<LocalizedFaq[]>().notNull().default(sql`'[]'::jsonb`),
+
+  image: text("image").notNull(),
+  imageAlt: jsonb("image_alt").$type<Localized>().notNull(),
+
+  /** Archived experiences keep their slug resolvable but leave the website. */
+  active: boolean("active").notNull().default(true),
+  /** Display order within a kind. Lower first. */
+  sortOrder: integer("sort_order").notNull().default(0),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  // The site asks for "the active ones, in order" on every render that matters.
+  index("experiences_active_sort_idx").on(table.active, table.sortOrder),
+]);
+
+export type ExperienceRow = typeof experienceCatalogue.$inferSelect;
+export type NewExperienceRow = typeof experienceCatalogue.$inferInsert;
 
 // ---------------------------------------------------------------------------
 // Internal feature requests
@@ -333,9 +429,12 @@ export const featureRequests = pgTable("feature_requests", {
   index("feature_requests_status_idx").on(table.status),
   index("feature_requests_created_at_idx").on(table.createdAt),
   /**
-   * Stops the proposal catalogue filing the same item twice when two clicks are
-   * in flight. Postgres treats NULLs as distinct, so this only binds rows that
-   * carry a category — free-form requests can still share a title.
+   * Was the guard against the proposal catalogue filing the same priced item
+   * twice when two clicks were in flight. That catalogue is gone — the contract
+   * is signed and the page is a plain form now — but the index stays: it costs
+   * nothing, and it still stops a categorised request being filed twice.
+   * Postgres treats NULLs as distinct, so it only binds rows that carry a
+   * category; free-form requests can still share a title.
    */
   uniqueIndex("feature_requests_title_category_key").on(table.title, table.category),
 ]);

@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Check, Lock, Minus, Plus, ShieldCheck } from "lucide-react";
 import { t, type Locale } from "@/i18n/config";
 import { bookingContent } from "@/content/booking";
-import { experiences, complementExperiences } from "@/content/experiences";
+import type { Experience } from "@/content/experiences";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,10 +21,23 @@ function previewPrice(slug: string): number {
  * until Stripe is wired in. Kept interactive so Diogo & Rita can feel exactly
  * how a guest will move through it on a phone.
  */
-export function BookingFlow({ locale }: { locale: Locale }) {
+export function BookingFlow({
+  locale,
+  experiences,
+}: {
+  locale: Locale;
+  /**
+   * The live catalogue, passed in by the page. This component used to import
+   * the shipped array directly, which is fine for a design preview and wrong
+   * the moment the team adds an add-on from the admin — a booking flow that
+   * cannot offer what is for sale is worse than one that is not wired up yet.
+   */
+  experiences: Experience[];
+}) {
   const c = bookingContent;
   const l = locale;
   const signature = experiences.find((e) => e.kind === "signature") ?? experiences[0];
+  const complementExperiences = experiences.filter((e) => e.kind === "complement");
 
   const [experienceSlug, setExperienceSlug] = useState(signature.slug);
   const [day, setDay] = useState<number | null>(null);

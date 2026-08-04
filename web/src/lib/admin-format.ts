@@ -2,6 +2,8 @@ import type { VariantProps } from "class-variance-authority";
 import type {
   AdminRole,
   ContentStatus,
+  EnquiryKind,
+  ExperienceKind,
   FeatureRequestPriority,
   FeatureRequestStatus,
   RequestStatus,
@@ -32,15 +34,20 @@ export const DELETE_CONFIRMATION = "DELETE";
  */
 type BadgeVariant = VariantProps<typeof badgeVariants>["variant"];
 
+/**
+ * The lead lifecycle: the status badge on a row, and the columns of the Sales
+ * board. One vocabulary for both — the board used to invent its own stage names
+ * ("Lead") next to a table that said "New" for the same record.
+ */
 export const requestStatusMeta: Record<
   RequestStatus,
-  { label: string; variant: BadgeVariant }
+  { label: string; variant: BadgeVariant; hint: string }
 > = {
-  new: { label: "New", variant: "default" },
-  contacted: { label: "Contacted", variant: "secondary" },
-  quoted: { label: "Quoted", variant: "secondary" },
-  booked: { label: "Booked", variant: "outline" },
-  archived: { label: "Archived", variant: "outline" },
+  new: { label: "New", variant: "default", hint: "Untouched — nobody has replied yet" },
+  contacted: { label: "Contacted", variant: "secondary", hint: "Waiting on their answer" },
+  quoted: { label: "Quoted", variant: "secondary", hint: "Proposal sent" },
+  booked: { label: "Booked", variant: "outline", hint: "Confirmed" },
+  archived: { label: "Archived", variant: "outline", hint: "Done, or gone quiet" },
 };
 
 /**
@@ -125,15 +132,54 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "admin_user.disabled": "disabled an account",
   "admin_user.enabled": "re-enabled an account",
   "admin_user.password_changed": "changed their password",
-  "tour_request.status_changed": "changed a submission's status",
-  "tour_request.bulk_status_changed": "bulk-changed submission statuses",
+  "tour_request.status_changed": "changed a lead's status",
+  "tour_request.bulk_status_changed": "bulk-changed lead statuses",
+  "tour_request.updated": "edited a lead's details",
+  "tour_request.contact_logged": "logged reaching out",
   "tour_request.deleted": "erased a submission",
   "tour_request.bulk_deleted": "bulk-erased submissions",
   "tour_request.exported": "exported a person's data",
   "tour_request.anonymised_by_retention": "anonymised expired submissions",
   "feature_request.created": "raised a feature request",
   "feature_request.status_changed": "changed a feature request's status",
+  "experience.created": "added an experience",
+  "experience.updated": "edited an experience",
+  "experience.archived": "archived an experience",
+  "experience.restored": "restored an experience",
+  "experience.reordered": "reordered the catalogue",
+  "experience.deleted": "deleted an experience",
 };
+
+/**
+ * The three kinds of job a lead can be about, as the admin words them. Mirrors
+ * `enquiryKindEnum`; the icons live in `lib/experience-icons.ts`.
+ */
+export const enquiryKindMeta: Record<EnquiryKind, { label: string }> = {
+  tour: { label: "Tour" },
+  wedding: { label: "Wedding" },
+  event: { label: "Event" },
+};
+
+export const ENQUIRY_KINDS = Object.keys(enquiryKindMeta) as EnquiryKind[];
+
+/** Catalogue entry kinds, as the editor words them. */
+export const experienceKindMeta: Record<
+  ExperienceKind,
+  { label: string; hint: string; variant: BadgeVariant }
+> = {
+  signature: {
+    label: "Signature",
+    hint: "The main tour, featured on the homepage and the experiences page.",
+    variant: "default",
+  },
+  complement: {
+    label: "Add-on",
+    hint: "A complement guests can add to the signature experience.",
+    variant: "secondary",
+  },
+};
+
+export const EXPERIENCE_KINDS = Object.keys(experienceKindMeta) as ExperienceKind[];
 
 /** Label for an action string read back from the database. */
 export function auditActionLabel(action: string): string {

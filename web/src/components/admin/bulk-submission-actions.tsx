@@ -91,9 +91,9 @@ function SubmitButton({
 }
 
 /**
- * Bulk archive or bulk erase, from the checkboxes on the submissions table — the
- * spam sweep the audit flagged as missing, and the only practical way to clear a
- * bot run.
+ * Bulk archive or bulk erase, from the checkboxes on the Sales table — the spam
+ * sweep the audit flagged as missing, and the only practical way to clear a bot
+ * run.
  *
  * The two operations are deliberately asymmetric. Archiving is ordinary triage
  * and any operator can do it; erasing is the same irreversible act as the
@@ -132,7 +132,7 @@ export function BulkSubmissionActions({
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground">
           {selected.length === 0
-            ? "Tick submissions to archive or erase them together."
+            ? "Tick leads to archive or erase them together."
             : `${selected.length} selected`}
         </span>
 
@@ -172,7 +172,7 @@ export function BulkSubmissionActions({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Erase {selected.length} submission{selected.length === 1 ? "" : "s"}?
+              Erase {selected.length} lead{selected.length === 1 ? "" : "s"}?
             </DialogTitle>
             <DialogDescription>
               Each selected record is deleted from the database — name, email, phone and

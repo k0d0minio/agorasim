@@ -49,6 +49,23 @@ const nextConfig: NextConfig = {
        */
       { source: "/pt/privacy", destination: "/pt/privacidade", permanent: true },
       { source: "/en/privacidade", destination: "/en/privacy", permanent: true },
+
+      /*
+       * Submissions, the CRM pipeline and Bookings were three admin screens over
+       * one dataset; they are now two views of `/admin/sales`. These keep the
+       * bookmarks and the home-screen shortcuts working — an operator who
+       * installed the admin as an app has "Submissions" pinned somewhere.
+       *
+       * Temporary, not permanent: a 308 would be cached by the browser forever,
+       * and these paths are ours to reuse when bookings get a table of their own.
+       */
+      { source: "/admin/submissions", destination: "/admin/sales", permanent: false },
+      { source: "/admin/crm", destination: "/admin/sales", permanent: false },
+      {
+        source: "/admin/bookings",
+        destination: "/admin/sales?source=booking&view=table",
+        permanent: false,
+      },
     ];
   },
 };

@@ -12,10 +12,9 @@
  */
 import type { ComponentType } from "react";
 import {
-  CalendarCheck,
+  CarFront,
   FileText,
   Inbox,
-  KanbanSquare,
   LayoutDashboard,
   Lightbulb,
   Mail,
@@ -89,36 +88,27 @@ export const ADMIN_NAV: AdminNavItem[] = [
     primary: true,
   },
   {
-    href: "/admin/submissions",
-    label: "Submissions",
-    cardTitle: "Form submissions",
-    shortLabel: "Inbox",
+    href: "/admin/sales",
+    label: "Sales",
+    cardTitle: "Enquiries & bookings",
+    shortLabel: "Sales",
     icon: Inbox,
     group: "Sales",
     description:
-      "Booking enquiries and contact requests will land here for triage and follow-up.",
+      "Every enquiry and booking on one board — New → Contacted → Quoted → Booked — or as a table.",
     dev: false,
     primary: true,
   },
   {
-    href: "/admin/crm",
-    label: "CRM pipeline",
-    shortLabel: "CRM",
-    icon: KanbanSquare,
+    href: "/admin/experiences",
+    label: "Experiences",
+    cardTitle: "The catalogue",
+    shortLabel: "Catalogue",
+    icon: CarFront,
     group: "Sales",
     description:
-      "Every lead on one board — Lead → Contacted → Quoted → Booked — so nothing falls through.",
-    dev: true,
-    primary: false,
-  },
-  {
-    href: "/admin/bookings",
-    label: "Bookings",
-    icon: CalendarCheck,
-    group: "Sales",
-    description:
-      "Paid tour and wedding bookings, with deposits, balances and payment status at a glance.",
-    dev: true,
+      "The experiences and add-ons you sell: names, descriptions, durations and what shows on the site.",
+    dev: false,
     primary: false,
   },
   {
