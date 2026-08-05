@@ -21,8 +21,17 @@
  * **Admin area — nonced, because it can be.** Every `/admin` route is already
  * dynamic (the layout reads cookies), so the nonce costs nothing there. It is
  * also where the guest personal data is, so it gets `'strict-dynamic'` with no
- * `'unsafe-inline'` and no third-party origins whatsoever. `proxy.ts` mints the
- * nonce per request.
+ * `'unsafe-inline'`, and third-party origins only by exception. `proxy.ts`
+ * mints the nonce per request.
+ *
+ * **The admin's one exception is Vercel Blob.** Experience photos upload from
+ * the catalogue editor straight to blob storage — client-side, because server
+ * actions cap the body below one phone photo — so the browser has to be
+ * allowed to `fetch` the Blob API (`connect-src`) and to render the uploaded
+ * photo's preview (`img-src`). Both grants are the narrowest that work: the
+ * API allowance is path-scoped to `/api/blob/` on vercel.com rather than the
+ * whole origin, and the image allowance is our store's public host pattern.
+ * Nothing here lets a third party run script in the admin.
  *
  * Styles keep `'unsafe-inline'` in both. Next inlines critical CSS and
  * `next/font` inlines its face declarations; note also that a nonce in
@@ -31,12 +40,14 @@
  */
 
 /**
- * FareHarbor, the booking provider. The only third party the site loads, and
- * only on the public half — and only after the visitor accepts the cookie
- * notice (`components/fareharbor-script.tsx`). Listed here as origins so the
- * lightbox's iframe, script and assets all resolve.
+ * Vercel Blob, where experience photos uploaded from `/admin/experiences`
+ * live — the only third party either policy admits. The public site only ever
+ * *shows* them (`img-src`); the admin also uploads them, via `upload()` from
+ * `@vercel/blob/client`, which PUTs to `https://vercel.com/api/blob/…` —
+ * hence the path-scoped `connect-src` entry rather than all of vercel.com.
  */
-const FAREHARBOR = ["https://fareharbor.com", "https://*.fareharbor.com"] as const;
+const BLOB_IMAGE_HOST = "https://*.public.blob.vercel-storage.com";
+const BLOB_UPLOAD_API = "https://vercel.com/api/blob/";
 
 /**
  * React uses `eval` in development to reconstruct server-side error stacks, and
@@ -55,9 +66,11 @@ function policy(directives: Record<string, string[] | null>): string {
 /**
  * CSP for the public, static site.
  *
- * `frame-ancestors 'none'` rather than a list: nothing on agorasim.pt is meant
- * to be embedded anywhere. The FareHarbor relationship runs the other way — we
- * frame their booking flow, which is `frame-src`.
+ * `frame-ancestors 'none'` and `frame-src 'none'` both: nothing on agorasim.pt
+ * is meant to be embedded anywhere, and the site embeds nothing in return —
+ * booking is the site's own `/reservar` form, so no booking provider needs
+ * framing. The one third-party origin left is the blob host the uploaded
+ * experience photos are served from, and it is an image source only.
  */
 export const PUBLIC_CSP = policy({
   "default-src": ["'self'"],
@@ -65,13 +78,13 @@ export const PUBLIC_CSP = policy({
   "object-src": ["'none'"],
   "frame-ancestors": ["'none'"],
   "form-action": ["'self'"],
-  "script-src": ["'self'", "'unsafe-inline'", ...(isDev ? ["'unsafe-eval'"] : []), ...FAREHARBOR],
+  "script-src": ["'self'", "'unsafe-inline'", ...(isDev ? ["'unsafe-eval'"] : [])],
   "style-src": ["'self'", "'unsafe-inline'"],
-  "img-src": ["'self'", "data:", "blob:", ...FAREHARBOR],
+  "img-src": ["'self'", "data:", "blob:", BLOB_IMAGE_HOST],
   "font-src": ["'self'", "data:"],
   "media-src": ["'self'"],
-  "connect-src": ["'self'", ...(isDev ? ["ws:"] : []), ...FAREHARBOR],
-  "frame-src": [...FAREHARBOR],
+  "connect-src": ["'self'", ...(isDev ? ["ws:"] : [])],
+  "frame-src": ["'none'"],
   "worker-src": ["'self'", "blob:"],
   "manifest-src": ["'self'"],
   "upgrade-insecure-requests": null,
@@ -80,10 +93,12 @@ export const PUBLIC_CSP = policy({
 /**
  * CSP for `/admin`, given the per-request nonce minted by `proxy.ts`.
  *
- * No third-party origin appears at all: the operations area talks to nothing but
- * itself. With `'strict-dynamic'`, CSP3 browsers ignore the `'self'` in
- * `script-src` and trust only the nonced bootstrap plus whatever it loads, which
- * is exactly Next's own bundle graph.
+ * The only third-party origins are the Vercel Blob pair (see the module note):
+ * uploads out through `connect-src`, previews in through `img-src`. Beyond
+ * that the operations area talks to nothing but itself. With
+ * `'strict-dynamic'`, CSP3 browsers ignore the `'self'` in `script-src` and
+ * trust only the nonced bootstrap plus whatever it loads, which is exactly
+ * Next's own bundle graph.
  */
 export function adminCsp(nonce: string): string {
   return policy({
@@ -99,10 +114,10 @@ export function adminCsp(nonce: string): string {
       ...(isDev ? ["'unsafe-eval'"] : []),
     ],
     "style-src": ["'self'", "'unsafe-inline'"],
-    "img-src": ["'self'", "data:", "blob:"],
+    "img-src": ["'self'", "data:", "blob:", BLOB_IMAGE_HOST],
     "font-src": ["'self'", "data:"],
     "media-src": ["'self'"],
-    "connect-src": ["'self'", ...(isDev ? ["ws:"] : [])],
+    "connect-src": ["'self'", ...(isDev ? ["ws:"] : []), BLOB_UPLOAD_API],
     "frame-src": ["'none'"],
     "worker-src": ["'self'", "blob:"],
     "manifest-src": ["'self'"],

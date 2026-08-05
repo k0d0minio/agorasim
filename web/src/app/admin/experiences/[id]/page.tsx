@@ -40,7 +40,6 @@ export default async function EditExperiencePage({
     slug: row.slug,
     kind: row.kind,
     icon: isExperienceIconKey(row.icon) ? row.icon : FALLBACK_EXPERIENCE_ICON,
-    fareharborItem: row.fareharborItem ?? "",
     image: row.image,
     active: row.active,
     sortOrder: row.sortOrder,

@@ -93,7 +93,7 @@ export default async function ExperienceDetailPage({
             {/* Answer-first summary for GEO */}
             <p className="mt-6 text-lg text-muted-foreground">{t(exp.summary, l)}</p>
             <div className="mt-8">
-              <BookingButton locale={l} label={dict.cta.bookExperience} item={exp.fareharborItem} />
+              <BookingButton locale={l} label={dict.cta.bookExperience} />
             </div>
           </div>
           <Media src={exp.image} label={t(exp.imageAlt, l)} priority className="aspect-4/3 w-full" />

@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   endSession,
   requireAdmin,
@@ -26,7 +26,6 @@ import { clientIp } from "@/lib/request-ip";
 import { db, tourRequests, featureRequests } from "@/db";
 import {
   adminUserIdSchema,
-  bulkTourRequestSchema,
   changePasswordSchema,
   deleteTourRequestSchema,
   exportSubjectSchema,
@@ -523,93 +522,6 @@ export async function deleteTourRequest(
   }
 
   return { ok: true, message: "Submission erased." };
-}
-
-/**
- * Bulk archive or bulk erase submissions, from the checkboxes on the Submissions
- * table. Archiving is ordinary triage and open to any operator; erasing is the
- * same irreversible act as {@link deleteTourRequest} and is owner-only.
- */
-export async function bulkTourRequestAction(
-  _prevState: DataRightsState,
-  formData: FormData,
-): Promise<DataRightsState> {
-  // Authorized for the weaker operation first, then escalated below, so a
-  // collaborator submitting `operation=delete` is rejected by `requireOwner`
-  // rather than by a hand-rolled check that could be forgotten.
-  const actor = await requireAdmin();
-
-  const parsed = bulkTourRequestSchema.safeParse(formValues(formData));
-  if (!parsed.success) {
-    return { error: "Select at least one submission." };
-  }
-
-  const { ids, operation } = parsed.data;
-
-  if (operation === "archive") {
-    try {
-      const updated = await db
-        .update(tourRequests)
-        .set({ status: "archived", updatedAt: new Date() })
-        .where(inArray(tourRequests.id, ids))
-        .returning({ id: tourRequests.id });
-
-      await recordAuditOrWarn({
-        actorUserId: actor.id,
-        action: "tour_request.bulk_status_changed",
-        entityType: "tour_request",
-        after: { status: "archived", count: updated.length, ids: updated.map((r) => r.id) },
-      });
-
-      return { ok: true, message: `Archived ${updated.length} submission(s).` };
-    } catch (err) {
-      console.error("[admin] failed to bulk-archive tour requests", err);
-      return { error: "Couldn't archive those submissions." };
-    }
-  }
-
-  await requireOwner();
-
-  const subjects = await db
-    .select({
-      id: tourRequests.id,
-      email: tourRequests.email,
-      name: tourRequests.name,
-      status: tourRequests.status,
-    })
-    .from(tourRequests)
-    .where(inArray(tourRequests.id, ids));
-
-  if (subjects.length === 0) return { error: "Those submissions no longer exist." };
-
-  try {
-    await recordAudit({
-      actorUserId: actor.id,
-      action: "tour_request.bulk_deleted",
-      entityType: "tour_request",
-      before: {
-        count: subjects.length,
-        subjects: subjects.map((s) => ({ id: s.id, ...redactSubject(s), status: s.status })),
-      },
-    });
-  } catch (err) {
-    console.error("[admin] refused to bulk-delete — could not write the audit entry", err);
-    return { error: "Couldn't record the erasure, so nothing was deleted. Try again." };
-  }
-
-  try {
-    await db.delete(tourRequests).where(
-      inArray(
-        tourRequests.id,
-        subjects.map((s) => s.id),
-      ),
-    );
-  } catch (err) {
-    console.error("[admin] failed to bulk-delete tour requests", err);
-    return { error: "Couldn't delete those submissions." };
-  }
-
-  return { ok: true, message: `Erased ${subjects.length} submission(s).` };
 }
 
 export type SubjectExportState = {

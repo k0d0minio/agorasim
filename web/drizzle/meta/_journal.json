@@ -64,6 +64,13 @@
       "when": 1785856107641,
       "tag": "0008_seed_experience_catalogue",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785932886955,
+      "tag": "0009_drop_fareharbor_item",
+      "breakpoints": true
     }
   ]
 }

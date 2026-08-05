@@ -1,7 +1,6 @@
 import type { VariantProps } from "class-variance-authority";
 import type {
   AdminRole,
-  ContentStatus,
   EnquiryKind,
   ExperienceKind,
   FeatureRequestPriority,
@@ -56,16 +55,6 @@ export const requestStatusMeta: Record<
  * exactly once, so the list cannot fall behind the database enum.
  */
 export const REQUEST_STATUSES = Object.keys(requestStatusMeta) as RequestStatus[];
-
-export const contentStatusMeta: Record<
-  ContentStatus,
-  { label: string; variant: BadgeVariant }
-> = {
-  draft: { label: "Draft", variant: "outline" },
-  in_review: { label: "In review", variant: "secondary" },
-  approved: { label: "Approved", variant: "default" },
-  published: { label: "Published", variant: "default" },
-};
 
 export const featureRequestStatusMeta: Record<
   FeatureRequestStatus,
@@ -133,17 +122,16 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "admin_user.enabled": "re-enabled an account",
   "admin_user.password_changed": "changed their password",
   "tour_request.status_changed": "changed a lead's status",
-  "tour_request.bulk_status_changed": "bulk-changed lead statuses",
   "tour_request.updated": "edited a lead's details",
   "tour_request.contact_logged": "logged reaching out",
   "tour_request.deleted": "erased a submission",
-  "tour_request.bulk_deleted": "bulk-erased submissions",
   "tour_request.exported": "exported a person's data",
   "tour_request.anonymised_by_retention": "anonymised expired submissions",
   "feature_request.created": "raised a feature request",
   "feature_request.status_changed": "changed a feature request's status",
   "experience.created": "added an experience",
   "experience.updated": "edited an experience",
+  "experience.image_uploaded": "uploaded an experience photo",
   "experience.archived": "archived an experience",
   "experience.restored": "restored an experience",
   "experience.reordered": "reordered the catalogue",
@@ -181,9 +169,21 @@ export const experienceKindMeta: Record<
 
 export const EXPERIENCE_KINDS = Object.keys(experienceKindMeta) as ExperienceKind[];
 
+/**
+ * Labels for actions nothing writes any more, still present in old rows. The
+ * bulk actions went with the Sales table's row checkboxes; the log is
+ * append-only, so their entries are history that must keep rendering.
+ */
+const retiredAuditActionLabels: Record<string, string> = {
+  "tour_request.bulk_status_changed": "bulk-changed lead statuses",
+  "tour_request.bulk_deleted": "bulk-erased submissions",
+};
+
 /** Label for an action string read back from the database. */
 export function auditActionLabel(action: string): string {
-  return auditActionLabels[action as AuditAction] ?? action;
+  return (
+    auditActionLabels[action as AuditAction] ?? retiredAuditActionLabels[action] ?? action
+  );
 }
 
 const dateFormatter = new Intl.DateTimeFormat("en-GB", {

@@ -4,25 +4,20 @@ import {
   enquiryRef,
   exampleBookingRecords,
   groupByStage,
-  readSourceFilter,
-  readStatusFilter,
-  readView,
   recordFromRequest,
-  salesHref,
   type SalesRecord,
 } from "@/lib/sales";
 import { REQUEST_STATUSES } from "@/lib/admin-format";
 import type { TourRequest } from "@/db";
 
 /**
- * The Sales screen's pure half: how a URL encodes which view and which filter,
- * how a database row becomes a card, and how cards land in columns.
+ * The Sales screen's pure half: how a database row becomes a card, and how
+ * cards land in columns.
  *
- * The reads themselves aren't here — they are one `db.batch` covered by types
- * and by the build. What is here is everything a wrong answer would show an
- * operator without erroring: a filter chip that drops the view, a board that
- * files a lead under the wrong stage, a paginated link that keeps page 3 after
- * the filter changed.
+ * The read itself isn't here — it is one `db.batch` covered by types and by
+ * the build. What is here is everything a wrong answer would show an operator
+ * without erroring: a board that files a lead under the wrong stage, an
+ * example booking passing itself off as real money.
  */
 
 function tourRequest(overrides: Partial<TourRequest> = {}): TourRequest {
@@ -61,11 +56,10 @@ describe("enquiryRef", () => {
 });
 
 describe("recordFromRequest", () => {
-  it("carries the fields both views render", () => {
+  it("carries the fields the board renders", () => {
     const record = recordFromRequest(tourRequest());
 
     expect(record).toMatchObject({
-      source: "enquiry",
       kind: "tour",
       status: "new",
       experienceSlug: "rural-saloia",
@@ -107,76 +101,6 @@ describe("exampleBookingRecords", () => {
   it("references the catalogue by slug, so the same icons draw for them", () => {
     const [first] = exampleBookingRecords();
     expect(first.experienceSlug).toMatch(/^[a-z0-9-]+$/);
-  });
-});
-
-describe("salesHref", () => {
-  const current = {
-    view: "board" as const,
-    filters: { source: "all" as const, status: null },
-  };
-
-  it("omits every default, so the plain screen is a plain URL", () => {
-    expect(salesHref(current)).toBe("/admin/sales");
-  });
-
-  it("keeps the facets it wasn't asked to change", () => {
-    const filtered = {
-      view: "table" as const,
-      filters: { source: "enquiry" as const, status: "new" as const },
-    };
-    expect(salesHref(filtered, { status: "quoted" })).toBe(
-      "/admin/sales?view=table&source=enquiry&status=quoted",
-    );
-  });
-
-  it("clears an explicit status back to every stage", () => {
-    const filtered = {
-      view: "board" as const,
-      filters: { source: "all" as const, status: "booked" as const },
-    };
-    expect(salesHref(filtered, { status: null })).toBe("/admin/sales");
-  });
-
-  it("drops the page number when a facet changes", () => {
-    const deep = {
-      view: "table" as const,
-      filters: { source: "all" as const, status: null },
-      page: 3,
-    };
-    // Page 3 of a filter that now matches four rows is an empty screen.
-    expect(salesHref(deep, { source: "booking" })).toBe(
-      "/admin/sales?view=table&source=booking",
-    );
-  });
-
-  it("keeps the page number when only paginating", () => {
-    const deep = {
-      view: "table" as const,
-      filters: { source: "all" as const, status: null },
-      page: 1,
-    };
-    expect(salesHref(deep, { page: 2 })).toBe("/admin/sales?view=table&page=2");
-  });
-});
-
-describe("reading the query string", () => {
-  it("defaults to the board — triage is the daily job", () => {
-    expect(readView(undefined)).toBe("board");
-    expect(readView("nonsense")).toBe("board");
-    expect(readView("table")).toBe("table");
-  });
-
-  it("defaults to showing everything", () => {
-    expect(readSourceFilter(undefined)).toBe("all");
-    expect(readSourceFilter("bookings")).toBe("all");
-    expect(readSourceFilter("booking")).toBe("booking");
-  });
-
-  it("treats an unknown stage as no stage filter", () => {
-    expect(readStatusFilter(undefined)).toBeNull();
-    expect(readStatusFilter("in_progress")).toBeNull();
-    expect(readStatusFilter("quoted")).toBe("quoted");
   });
 });
 

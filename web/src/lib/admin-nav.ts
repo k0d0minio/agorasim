@@ -13,7 +13,6 @@
 import type { ComponentType } from "react";
 import {
   CarFront,
-  FileText,
   Inbox,
   LayoutDashboard,
   Lightbulb,
@@ -57,10 +56,10 @@ export type AdminNavItem = {
   /** Design preview — the feature behind it is still in development. */
   dev: boolean;
   /**
-   * Earns one of the fixed slots in the mobile bottom toolbar. Reserved for the
-   * areas actually wired to real data: the toolbar used to spend two of its
-   * four slots on CRM and Bookings — design previews — while Content and
-   * Feature requests, which have data today, sat behind "More".
+   * Earns one of the fixed slots in the mobile bottom toolbar. Reserved for
+   * the areas an operator reaches for daily — the toolbar once spent two of
+   * its four slots on design previews while the screens with real data sat
+   * behind "More", and this flag is what keeps that from happening again.
    */
   primary: boolean;
   /**
@@ -95,7 +94,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     icon: Inbox,
     group: "Sales",
     description:
-      "Every enquiry and booking on one board — New → Contacted → Quoted → Booked — or as a table.",
+      "Every enquiry and booking on one board — New → Contacted → Quoted → Booked.",
     dev: false,
     primary: true,
   },
@@ -119,7 +118,12 @@ export const ADMIN_NAV: AdminNavItem[] = [
     description:
       "AI-drafted articles in your voice, waiting for a one-click review before publishing.",
     dev: true,
-    primary: false,
+    /*
+     * Inherited the retired Content screen's bottom-toolbar slot: the Blog and
+     * Social studios are the content surfaces now, so the replacement sits
+     * where the replaced thing used to be and the toolbar keeps four slots.
+     */
+    primary: true,
   },
   {
     href: "/admin/social",
@@ -150,17 +154,6 @@ export const ADMIN_NAV: AdminNavItem[] = [
       "Personal links for happy guests, tracked bookings, and the rewards you owe your fans.",
     dev: true,
     primary: false,
-  },
-  {
-    href: "/admin/content",
-    label: "Content",
-    cardTitle: "Generated content",
-    icon: FileText,
-    group: "System",
-    description:
-      "Review GEO/marketing drafts produced by the workspaces before publishing them to the site.",
-    dev: false,
-    primary: true,
   },
   {
     href: "/admin/notifications",

@@ -125,11 +125,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                 {t(signatureExperience.tagline, l)}
               </p>
               <div className="mt-8 flex justify-center gap-3">
-                <BookingButton
-                  locale={l}
-                  label={dict.cta.bookExperience}
-                  item={signatureExperience.fareharborItem}
-                />
+                <BookingButton locale={l} label={dict.cta.bookExperience} />
               </div>
             </div>
           </Section>
