@@ -7,6 +7,21 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
 
   /**
+   * Experience photos uploaded from `/admin/experiences` live in Vercel Blob,
+   * on the store's own public host. Without this allowance `next/image` would
+   * refuse to optimize them and every uploaded photo would 400 — silently, and
+   * only for the images an operator added rather than a developer.
+   */
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**.public.blob.vercel-storage.com",
+      },
+    ],
+  },
+
+  /**
    * Security headers. The baseline set applies everywhere; the Content-Security
    * -Policy is split, because the two halves of this app render differently and
    * are exposed differently — see `src/lib/security-headers.ts`.

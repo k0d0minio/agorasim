@@ -28,6 +28,7 @@ import {
 } from "@/db/schema";
 import { DELETE_CONFIRMATION } from "@/lib/admin-format";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
+import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 
 // ---------------------------------------------------------------------------
@@ -216,7 +217,18 @@ export const experienceSchema = z
     kind: experienceKindSchema.catch("complement"),
     icon: z.enum(EXPERIENCE_ICON_KEYS).catch(FALLBACK_EXPERIENCE_ICON),
     fareharborItem: optionalText,
-    image: text.min(1, "Point at an image, e.g. /images/car.jpg."),
+    /*
+     * Exactly two shapes: a blob URL from the upload field, or a legacy
+     * `/images/…` path committed to `web/public/` before uploads existed.
+     * Anything else — a random external URL, a bare filename — would render a
+     * broken image on the public site, so it is refused at the door.
+     */
+    image: z
+      .string()
+      .trim()
+      .refine((value) => isExperienceBlobUrl(value) || isLegacyImagePath(value), {
+        message: "This entry has no photo yet — choose one to upload before saving.",
+      }),
     active: z.preprocess((value) => value === "on" || value === "true", z.boolean()).catch(true),
     sortOrder: z
       .string()

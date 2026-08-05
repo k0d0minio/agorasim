@@ -144,6 +144,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "feature_request.status_changed": "changed a feature request's status",
   "experience.created": "added an experience",
   "experience.updated": "edited an experience",
+  "experience.image_uploaded": "uploaded an experience photo",
   "experience.archived": "archived an experience",
   "experience.restored": "restored an experience",
   "experience.reordered": "reordered the catalogue",
