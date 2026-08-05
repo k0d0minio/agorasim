@@ -20,8 +20,6 @@ export type Experience = {
   kind: "signature" | "complement";
   /** Which icon the admin lists draw for this entry — see `lib/experience-icons.ts`. */
   icon: ExperienceIconKey;
-  /** FareHarbor item id for this experience, or null while not yet wired. */
-  fareharborItem: string | null;
   title: Localized;
   tagline: Localized;
   /** Answer-first summary — the first ~40 words that directly describe the experience (GEO). */
@@ -39,7 +37,6 @@ export const experiences: Experience[] = [
     slug: "rural-saloia",
     kind: "signature",
     icon: "car",
-    fareharborItem: null,
     title: { pt: "Rural Saloia", en: "Rural Saloia" },
     tagline: {
       pt: "Um dia clássico pelo campo Saloio, de Sintra à Ericeira",
@@ -120,7 +117,6 @@ export const experiences: Experience[] = [
     slug: "tasco-galapito",
     kind: "complement",
     icon: "meal",
-    fareharborItem: null,
     title: { pt: "Tasco Galapito", en: "Tasco Galapito" },
     tagline: {
       pt: "Uma refeição de família, à mesa Saloia",
@@ -167,7 +163,6 @@ export const experiences: Experience[] = [
     slug: "manzwine",
     kind: "complement",
     icon: "wine",
-    fareharborItem: null,
     title: { pt: "Manzwine", en: "Manzwine" },
     tagline: {
       pt: "Prova de vinhos com história",
@@ -201,7 +196,6 @@ export const experiences: Experience[] = [
     slug: "ramilo-wines",
     kind: "complement",
     icon: "vineyard",
-    fareharborItem: null,
     title: { pt: "Ramilo Wines", en: "Ramilo Wines" },
     tagline: {
       pt: "Vinhas biológicas e provas junto ao mar",
@@ -235,7 +229,6 @@ export const experiences: Experience[] = [
     slug: "olaria-mz",
     kind: "complement",
     icon: "pottery",
-    fareharborItem: null,
     title: { pt: "Olaria MZ", en: "Olaria MZ" },
     tagline: {
       pt: "Uma tarde às mãos com o barro",

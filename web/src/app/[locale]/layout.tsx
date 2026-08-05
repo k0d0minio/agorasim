@@ -6,8 +6,6 @@ import { locales, isLocale, type Locale } from "@/i18n/config";
 import { site, taglines } from "@/content/site";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { FareHarborScript } from "@/components/fareharbor-script";
-import { CookieConsentProvider } from "@/components/cookie-consent";
 import { alternates } from "@/lib/seo";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -66,17 +64,9 @@ export default async function LocaleLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable}`}
     >
       <body className="flex min-h-screen flex-col antialiased">
-        {/*
-          Wraps the public site only. `/admin` is outside `[locale]`, so the
-          banner never appears there — its session cookie is strictly necessary
-          and there is nothing to consent to.
-        */}
-        <CookieConsentProvider locale={typedLocale}>
-          <SiteHeader locale={typedLocale} />
-          <main className="flex-1">{children}</main>
-          <SiteFooter locale={typedLocale} />
-          <FareHarborScript />
-        </CookieConsentProvider>
+        <SiteHeader locale={typedLocale} />
+        <main className="flex-1">{children}</main>
+        <SiteFooter locale={typedLocale} />
       </body>
     </html>
   );

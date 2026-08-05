@@ -105,11 +105,12 @@ the file and rendered with a visible draft banner on the page. The specific
   at the data subject's request prior to a contract. Plausible, but it is a
   choice, and it is the sentence a regulator reads first.
 - **Retention wording**, per the section above.
-- **Processors and transfers.** Drafted as Vercel (hosting), Neon (database) and
-  FareHarbor (booking). Confirm the list is complete, confirm the hosting
-  regions, and confirm the safeguard relied on for any transfer outside the EEA.
-  The `.env.example` Neon URL suggests `eu-central-1`, which is not the same as
-  having checked.
+- **Processors and transfers.** Drafted as Vercel (hosting, and blob storage
+  for the experience photos) and Neon (database). FareHarbor is no longer a
+  processor — booking runs through the site's own form. Confirm the list is
+  complete, confirm the hosting regions, and confirm the safeguard relied on
+  for any transfer outside the EEA. The `.env.example` Neon URL suggests
+  `eu-central-1`, which is not the same as having checked.
 - **Marketing consent text.** `MARKETING_CONSENT_VERSION` in `content/privacy.ts`
   stamps every stored consent with the wording that was shown. **Bump it whenever
   the checkbox text changes** — the version is only evidence if it moves when the
@@ -130,12 +131,12 @@ Listed so they are decisions rather than oversights:
   currently shows the in-development booking-flow preview. The notice and the
   consent capture are correct and in place for when it is mounted, but no
   visitor sees them today.
-- **Erasure is not propagated to processors.** Deleting a row here does not tell
-  FareHarbor to delete anything it holds about the same person. If a booking was
-  made through them, an erasure request has to be forwarded manually.
+- **Erasure of historical FareHarbor bookings is manual.** Bookings made while
+  FareHarbor was the provider live in their systems, outside this database. An
+  erasure request from someone who booked back then has to be forwarded to
+  FareHarbor by hand — removing the integration did not remove their copy.
 - **No DPA/records-of-processing document.** Art. 30 records and processor
-  agreements with Vercel/Neon/FareHarbor are a paperwork exercise nobody has
-  started.
+  agreements with Vercel/Neon are a paperwork exercise nobody has started.
 
 ## Runbook: answering a request
 
@@ -147,9 +148,9 @@ they are part of the answer.
 
 **"Delete my data" (Art. 17).** Sign in as an owner → Sales → open the lead →
 *Erase* → type `DELETE`. The record is gone; the audit log keeps a
-non-identifying note that an erasure happened. Several at once: tick them in the
-list and use *Erase* in the toolbar. If the person also booked through
-FareHarbor, forward the request to them separately.
+non-identifying note that an erasure happened. If the person booked through
+FareHarbor back when it was the provider, forward the request to them
+separately — their copy is outside this database.
 
 **"Stop emailing me."** Until there is an unsubscribe link, an owner has to clear
 `marketing_consent` on the row directly. Note this is not yet a self-service

@@ -3,8 +3,8 @@
 This repository is a **toolkit for operating the Agorasim business**, structured in two halves:
 
 - **`web/`** — the product. A Next.js (App Router) + Tailwind + shadcn/ui site rebuilding
-  agorasim.pt. Bilingual PT/EN. This is the funnel destination; all marketing leads here and,
-  eventually, to a booking form. Booking currently goes through FareHarbor.
+  agorasim.pt. Bilingual PT/EN. This is the funnel destination; all marketing leads here.
+  Booking goes through the site's own form (`/reservar`), straight into the Sales board.
 - **`workspaces/`** — the operations engine. ICM workspaces (see `icm.pdf`, *Interpretable
   Context Methodology*) that generate GEO/marketing content as reviewable markdown, then publish
   it into the website.
