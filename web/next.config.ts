@@ -76,11 +76,7 @@ const nextConfig: NextConfig = {
        */
       { source: "/admin/submissions", destination: "/admin/sales", permanent: false },
       { source: "/admin/crm", destination: "/admin/sales", permanent: false },
-      {
-        source: "/admin/bookings",
-        destination: "/admin/sales?source=booking&view=table",
-        permanent: false,
-      },
+      { source: "/admin/bookings", destination: "/admin/sales", permanent: false },
     ];
   },
 };

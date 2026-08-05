@@ -95,7 +95,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     icon: Inbox,
     group: "Sales",
     description:
-      "Every enquiry and booking on one board — New → Contacted → Quoted → Booked — or as a table.",
+      "Every enquiry and booking on one board — New → Contacted → Quoted → Booked.",
     dev: false,
     primary: true,
   },

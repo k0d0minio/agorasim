@@ -53,7 +53,9 @@ export function SalesBoard({
                   <p className="font-heading text-sm font-semibold">{meta.label}</p>
                   <p className="truncate text-xs text-muted-foreground">{meta.hint}</p>
                 </div>
-                {/* The column total, not the filtered count — see `listSales`. */}
+                {/* The true stage total, not how many cards were fetched — a
+                    column capped at `SALES_STAGE_LIMIT` says so instead of
+                    quietly undercounting. See `listSalesBoard`. */}
                 <Badge variant="secondary">{countsByStatus[column.status] ?? 0}</Badge>
               </header>
 
@@ -64,7 +66,7 @@ export function SalesBoard({
 
                 {column.records.map((record) => (
                   <article
-                    key={`${record.source}-${record.id}`}
+                    key={record.id}
                     className="rounded-lg border bg-card p-3 shadow-xs"
                   >
                     <div className="flex items-start justify-between gap-2">

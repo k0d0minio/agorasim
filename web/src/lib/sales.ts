@@ -7,13 +7,16 @@
  * ("Lead" here, "New" there), three layouts to keep in step, and no answer to
  * "what is actually happening this week?" without visiting all three.
  *
- * This module is the join: {@link SalesRecord} is the row shape both views
- * render, whether it came from the `tour_requests` table or — until the payment
+ * This module is the join: {@link SalesRecord} is the row shape the board
+ * renders, whether it came from the `tour_requests` table or — until the payment
  * engine ships — from the example bookings in `admin-preview.ts`. Everything
  * example-shaped carries `example: true` and is labelled as such in the UI;
  * nothing here silently mixes real money with imagined money.
  *
- * The board and the table are two views of *this*, not two datasets.
+ * There is deliberately no enquiry/booking split in this shape. An instant
+ * booking is just a record that arrives already in the `booked` stage, so
+ * "where did this row come from" stopped being a question the UI asks — the
+ * board's columns answer the question that matters, which is "where is it now".
  */
 import "server-only";
 
@@ -30,15 +33,11 @@ import {
 import { previewBookings, type PreviewBooking } from "@/lib/admin-preview";
 import { REQUEST_STATUSES } from "@/lib/admin-format";
 
-/** Where a row came from. Not the same question as what stage it is at. */
-export type SalesSource = "enquiry" | "booking";
-
-/** The one row shape the board and the table both render. */
+/** The one row shape the board renders. */
 export type SalesRecord = {
-  source: SalesSource;
   /** Row identity. A `tour_requests` uuid, or the booking reference. */
   id: string;
-  /** Short human handle shown in the table's first column. */
+  /** Short human handle, shown on detail surfaces. */
   ref: string;
   /** Detail page, where there is one. Example bookings have none yet. */
   href: string | null;
@@ -46,9 +45,9 @@ export type SalesRecord = {
   email: string | null;
   phone: string | null;
   locale: AppLocale | null;
-  /** Tour, wedding or event — the icon the row leads with. */
+  /** Tour, wedding or event — the icon the card leads with. */
   kind: EnquiryKind;
-  /** Lifecycle stage: the board's columns, the table's status badge. */
+  /** Lifecycle stage: which of the board's columns this card sits in. */
   status: RequestStatus;
   experienceSlug: string | null;
   addOns: string[];
@@ -66,7 +65,7 @@ export type SalesRecord = {
   example: boolean;
 };
 
-/** The reference an enquiry wears in the table: short, stable, greppable. */
+/** The reference an enquiry wears: short, stable, greppable. */
 export function enquiryRef(id: string): string {
   return `EN-${id.slice(0, 6).toUpperCase()}`;
 }
@@ -74,7 +73,6 @@ export function enquiryRef(id: string): string {
 /** A `tour_requests` row as a sales record. */
 export function recordFromRequest(row: TourRequest): SalesRecord {
   return {
-    source: "enquiry",
     id: row.id,
     ref: enquiryRef(row.id),
     href: `/admin/sales/${row.id}`,
@@ -108,7 +106,6 @@ export function recordFromRequest(row: TourRequest): SalesRecord {
  */
 export function exampleBookingRecords(): SalesRecord[] {
   return previewBookings.map((booking) => ({
-    source: "booking",
     id: booking.ref,
     ref: booking.ref,
     href: null,
@@ -133,85 +130,28 @@ export function exampleBookingRecords(): SalesRecord[] {
 }
 
 // ---------------------------------------------------------------------------
-// Filters
-// ---------------------------------------------------------------------------
-
-export const SALES_SOURCE_FILTERS = ["all", "enquiry", "booking"] as const;
-export type SalesSourceFilter = (typeof SALES_SOURCE_FILTERS)[number];
-
-export const SALES_VIEWS = ["board", "table"] as const;
-export type SalesView = (typeof SALES_VIEWS)[number];
-
-/** Read the view out of a query string, defaulting to the board. */
-export function readView(value: string | undefined): SalesView {
-  return (SALES_VIEWS as readonly string[]).includes(value ?? "")
-    ? (value as SalesView)
-    : "board";
-}
-
-export function readSourceFilter(value: string | undefined): SalesSourceFilter {
-  return (SALES_SOURCE_FILTERS as readonly string[]).includes(value ?? "")
-    ? (value as SalesSourceFilter)
-    : "all";
-}
-
-/** Read a status filter, where absent (or unknown) means "every stage". */
-export function readStatusFilter(value: string | undefined): RequestStatus | null {
-  return (REQUEST_STATUSES as readonly string[]).includes(value ?? "")
-    ? (value as RequestStatus)
-    : null;
-}
-
-export type SalesFilters = {
-  source: SalesSourceFilter;
-  status: RequestStatus | null;
-};
-
-/** The Sales screen's own URL, with one facet changed and the rest preserved. */
-export function salesHref(
-  current: { view: SalesView; filters: SalesFilters; page?: number },
-  change: Partial<{
-    view: SalesView;
-    source: SalesSourceFilter;
-    status: RequestStatus | null;
-    page: number;
-  }> = {},
-): string {
-  const view = change.view ?? current.view;
-  const source = change.source ?? current.filters.source;
-  const status = change.status === undefined ? current.filters.status : change.status;
-  // Any change of facet invalidates the page number — page 3 of a filter that
-  // now matches four rows is an empty screen.
-  const page = change.page ?? (Object.keys(change).length > 0 ? 1 : (current.page ?? 1));
-
-  const params = new URLSearchParams();
-  if (view !== "board") params.set("view", view);
-  if (source !== "all") params.set("source", source);
-  if (status) params.set("status", status);
-  if (page > 1) params.set("page", String(page));
-
-  const query = params.toString();
-  return query ? `/admin/sales?${query}` : "/admin/sales";
-}
-
-/** Whether a record survives the current filters. */
-function matches(record: SalesRecord, filters: SalesFilters): boolean {
-  if (filters.source !== "all" && record.source !== filters.source) return false;
-  if (filters.status && record.status !== filters.status) return false;
-  return true;
-}
-
-// ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
 
-export type SalesPage = {
+/**
+ * How many records each column fetches, most recent first.
+ *
+ * Offset pagination over a board is incoherent — page 2 of a five-column board
+ * is four near-empty columns — so the board is bounded per stage instead. The
+ * column header still shows the true per-stage total from `countsByStatus`, so
+ * a column holding its 50 newest of 180 is visibly capped rather than quietly
+ * lying about how much work exists.
+ */
+export const SALES_STAGE_LIMIT = 50;
+
+export type SalesBoardData = {
+  /** Up to {@link SALES_STAGE_LIMIT} per stage, plus the example bookings. */
   records: SalesRecord[];
-  /** Enquiries matching the filter, for pagination — bookings are not paged. */
+  /** Every enquiry in the database, whatever its stage. */
   totalEnquiries: number;
   /** Example bookings included in `records`, so the UI can say so. */
   exampleCount: number;
-  /** Enquiries per stage, unfiltered — the counts on the board's columns. */
+  /** Enquiries per stage, uncapped — the true counts on the board's columns. */
   countsByStatus: Record<RequestStatus, number>;
 };
 
@@ -222,53 +162,43 @@ const EMPTY_COUNTS = (): Record<RequestStatus, number> =>
   >;
 
 /**
- * One page of the Sales list, plus the per-stage totals the board's headers show.
- *
- * Paging applies to enquiries only. Example bookings are a fixed handful and
- * ride along on every page rather than being interleaved into the offset
- * arithmetic — when real bookings land in a table of their own, they get a real
- * `UNION` and this note goes away.
+ * Everything the Sales board renders, in one round trip: the newest
+ * {@link SALES_STAGE_LIMIT} enquiries of each stage, and the uncapped per-stage
+ * tallies for the column headers. The example bookings ride along until real
+ * bookings exist.
  */
-export async function listSales({
-  limit,
-  offset,
-  filters,
-}: {
-  limit: number;
-  offset: number;
-  filters: SalesFilters;
-}): Promise<SalesPage> {
-  const wantsEnquiries = filters.source !== "booking";
-  const where = filters.status ? eq(tourRequests.status, filters.status) : undefined;
-
-  // Three statements, one round trip. The per-stage tallies are deliberately
-  // unfiltered: a board whose column headers only counted the current filter
-  // would report "0 booked" while filtering to new leads.
-  const [[total], rows, tallies] = await db.batch([
-    db.select({ n: count() }).from(tourRequests).where(where),
-    db
-      .select()
-      .from(tourRequests)
-      .where(where)
-      .orderBy(desc(tourRequests.createdAt))
-      .limit(limit)
-      .offset(offset),
+export async function listSalesBoard(): Promise<SalesBoardData> {
+  // One bounded SELECT per stage plus the tallies — six statements, one
+  // `db.batch` round trip on Neon's HTTP driver.
+  const [tallies, ...perStage] = await db.batch([
     db
       .select({ status: tourRequests.status, n: count() })
       .from(tourRequests)
       .groupBy(tourRequests.status),
+    ...REQUEST_STATUSES.map((status) =>
+      db
+        .select()
+        .from(tourRequests)
+        .where(eq(tourRequests.status, status))
+        .orderBy(desc(tourRequests.createdAt))
+        .limit(SALES_STAGE_LIMIT),
+    ),
   ]);
 
   const countsByStatus = EMPTY_COUNTS();
   for (const row of tallies) countsByStatus[row.status] = row.n;
 
-  const records = [...rows.map(recordFromRequest), ...exampleBookingRecords()].filter(
-    (record) => matches(record, filters),
-  );
+  const records = [
+    ...perStage.flat().map(recordFromRequest),
+    ...exampleBookingRecords(),
+  ];
 
   return {
     records,
-    totalEnquiries: wantsEnquiries ? (total?.n ?? 0) : 0,
+    totalEnquiries: REQUEST_STATUSES.reduce(
+      (sum, status) => sum + countsByStatus[status],
+      0,
+    ),
     exampleCount: records.filter((record) => record.example).length,
     countsByStatus,
   };

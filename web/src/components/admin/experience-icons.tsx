@@ -3,12 +3,11 @@ import { cn } from "@/lib/utils";
 import type { CatalogueEntry } from "@/lib/experience-catalogue";
 import {
   ENQUIRY_KIND_ICONS,
-  SALES_SOURCE_ICONS,
   experienceIcon,
   type IconComponent,
 } from "@/lib/experience-icons";
 import type { EnquiryKind } from "@/db/schema";
-import type { SalesRecord, SalesSource } from "@/lib/sales";
+import type { SalesRecord } from "@/lib/sales";
 
 /**
  * Drawing what a lead booked, instead of spelling it out.
@@ -58,18 +57,6 @@ export function EnquiryKindIcon({
 }) {
   const meta = ENQUIRY_KIND_ICONS[kind];
   return <IconChip icon={meta.icon} label={meta.label} tone="primary" className={className} />;
-}
-
-/** Website enquiry or confirmed booking. */
-export function SalesSourceIcon({
-  source,
-  className,
-}: {
-  source: SalesSource;
-  className?: string;
-}) {
-  const meta = SALES_SOURCE_ICONS[source];
-  return <IconChip icon={meta.icon} label={meta.label} tone="accent" className={className} />;
 }
 
 /** The name a slug goes by, for the chip's label. Unknown slugs speak for themselves. */
@@ -144,7 +131,7 @@ export function ExperienceNames({
 
 /**
  * The whole "what is this?" of a record in one strip: what kind of job it is,
- * where it came from, and which experiences it involves.
+ * and which experiences it involves.
  */
 export function RecordIcons({
   record,
@@ -158,7 +145,6 @@ export function RecordIcons({
   return (
     <span className={cn("inline-flex flex-wrap items-center gap-1", className)}>
       <EnquiryKindIcon kind={record.kind} />
-      <SalesSourceIcon source={record.source} />
       <ExperienceIconRow
         experienceSlug={record.experienceSlug}
         addOns={record.addOns}
