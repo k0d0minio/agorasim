@@ -382,32 +382,6 @@ export const exportSubjectSchema = z.object({
   email: z.string().trim().toLowerCase().regex(EMAIL_RE),
 });
 
-/**
- * Bulk triage. `ids` arrives as repeated checkbox values, which `formValues`
- * collapses to a single string when only one box is ticked — hence the
- * preprocess, the same shape the add-ons field uses.
- */
-const idList = z
-  .preprocess(
-    (value) => (value === undefined ? [] : Array.isArray(value) ? value : [value]),
-    z.array(z.uuid()),
-  )
-  .refine((ids) => ids.length > 0, "Select at least one submission.");
-
-export const bulkTourRequestSchema = z
-  .object({
-    ids: idList,
-    /** `archive` re-triages the rows; `delete` erases them. */
-    operation: z.enum(["archive", "delete"]),
-    confirm: z.string().optional(),
-  })
-  // The typed confirmation is checked server-side too, not just by the dialog
-  // that renders it: a disabled button is a UI affordance, not a safeguard.
-  .refine(
-    (value) => value.operation !== "delete" || value.confirm === DELETE_CONFIRMATION,
-    { path: ["confirm"], message: `Type ${DELETE_CONFIRMATION} to confirm.` },
-  );
-
 // ---------------------------------------------------------------------------
 // Public tour-request form
 // ---------------------------------------------------------------------------

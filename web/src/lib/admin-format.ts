@@ -133,11 +133,9 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "admin_user.enabled": "re-enabled an account",
   "admin_user.password_changed": "changed their password",
   "tour_request.status_changed": "changed a lead's status",
-  "tour_request.bulk_status_changed": "bulk-changed lead statuses",
   "tour_request.updated": "edited a lead's details",
   "tour_request.contact_logged": "logged reaching out",
   "tour_request.deleted": "erased a submission",
-  "tour_request.bulk_deleted": "bulk-erased submissions",
   "tour_request.exported": "exported a person's data",
   "tour_request.anonymised_by_retention": "anonymised expired submissions",
   "feature_request.created": "raised a feature request",
@@ -182,9 +180,21 @@ export const experienceKindMeta: Record<
 
 export const EXPERIENCE_KINDS = Object.keys(experienceKindMeta) as ExperienceKind[];
 
+/**
+ * Labels for actions nothing writes any more, still present in old rows. The
+ * bulk actions went with the Sales table's row checkboxes; the log is
+ * append-only, so their entries are history that must keep rendering.
+ */
+const retiredAuditActionLabels: Record<string, string> = {
+  "tour_request.bulk_status_changed": "bulk-changed lead statuses",
+  "tour_request.bulk_deleted": "bulk-erased submissions",
+};
+
 /** Label for an action string read back from the database. */
 export function auditActionLabel(action: string): string {
-  return auditActionLabels[action as AuditAction] ?? action;
+  return (
+    auditActionLabels[action as AuditAction] ?? retiredAuditActionLabels[action] ?? action
+  );
 }
 
 const dateFormatter = new Intl.DateTimeFormat("en-GB", {

@@ -29,7 +29,7 @@ staff, and which expires on its own schedule (also below).
 | Privacy policy | `/pt/privacidade`, `/en/privacy` — **draft**, see below |
 | Consent for marketing (Art. 6(1)(a), 7) | Unticked checkbox on the form; `marketing_consent`, `marketing_consent_at`, `marketing_consent_version` on `tour_requests` |
 | Right of access (Art. 15) | Owner-only export on `/admin/sales` → `lib/subject-data.ts` |
-| Right to erasure (Art. 17) | Owner-only erase on a lead's page (`/admin/sales/<id>`) and bulk delete on `/admin/sales` |
+| Right to erasure (Art. 17) | Owner-only erase on a lead's page (`/admin/sales/<id>`) |
 | Storage limitation (Art. 5(1)(e)) | `lib/retention.ts` + `/api/cron/retention`, scheduled in `vercel.json` |
 | Accountability (Art. 5(2)) | `audit_log`, written by `lib/audit.ts` from every mutating admin action |
 | Cookies / ePrivacy | See `cookies-and-third-parties.md` |
