@@ -1,7 +1,6 @@
 import type { VariantProps } from "class-variance-authority";
 import type {
   AdminRole,
-  ContentStatus,
   EnquiryKind,
   ExperienceKind,
   FeatureRequestPriority,
@@ -56,16 +55,6 @@ export const requestStatusMeta: Record<
  * exactly once, so the list cannot fall behind the database enum.
  */
 export const REQUEST_STATUSES = Object.keys(requestStatusMeta) as RequestStatus[];
-
-export const contentStatusMeta: Record<
-  ContentStatus,
-  { label: string; variant: BadgeVariant }
-> = {
-  draft: { label: "Draft", variant: "outline" },
-  in_review: { label: "In review", variant: "secondary" },
-  approved: { label: "Approved", variant: "default" },
-  published: { label: "Published", variant: "default" },
-};
 
 export const featureRequestStatusMeta: Record<
   FeatureRequestStatus,
