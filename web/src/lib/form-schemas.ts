@@ -216,7 +216,6 @@ export const experienceSchema = z
       .regex(SLUG_RE, "Use lowercase words joined by hyphens, e.g. rural-saloia."),
     kind: experienceKindSchema.catch("complement"),
     icon: z.enum(EXPERIENCE_ICON_KEYS).catch(FALLBACK_EXPERIENCE_ICON),
-    fareharborItem: optionalText,
     /*
      * Exactly two shapes: a blob URL from the upload field, or a legacy
      * `/images/…` path committed to `web/public/` before uploads existed.
@@ -266,7 +265,6 @@ export const experienceSchema = z
     slug: value.slug,
     kind: value.kind,
     icon: value.icon,
-    fareharborItem: value.fareharborItem,
     image: value.image,
     active: value.active,
     sortOrder: value.sortOrder,

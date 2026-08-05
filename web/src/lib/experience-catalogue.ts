@@ -43,7 +43,6 @@ function toEntry(row: ExperienceRow): CatalogueEntry {
     // The column is plain text; an unknown key gets the fallback rather than
     // taking a page down over a typo made in the editor.
     icon: isExperienceIconKey(row.icon) ? row.icon : FALLBACK_EXPERIENCE_ICON,
-    fareharborItem: row.fareharborItem,
     title: row.title,
     tagline: row.tagline,
     summary: row.summary,

@@ -41,7 +41,6 @@ const rows = experiences.map((experience, index) => {
     quote(experience.slug),
     quote(experience.kind),
     quote(experience.icon),
-    experience.fareharborItem ? quote(experience.fareharborItem) : "NULL",
     jsonb(experience.title),
     jsonb(experience.tagline),
     jsonb(experience.summary),
@@ -59,7 +58,7 @@ const rows = experiences.map((experience, index) => {
 process.stdout.write(
   `${header}
 INSERT INTO "experiences" (
-  "slug", "kind", "icon", "fareharbor_item",
+  "slug", "kind", "icon",
   "title", "tagline", "summary", "description", "duration", "highlights", "faqs",
   "image", "image_alt", "sort_order"
 ) VALUES

@@ -40,19 +40,11 @@
  */
 
 /**
- * FareHarbor, the booking provider. The only third party the site loads, and
- * only on the public half — and only after the visitor accepts the cookie
- * notice (`components/fareharbor-script.tsx`). Listed here as origins so the
- * lightbox's iframe, script and assets all resolve.
- */
-const FAREHARBOR = ["https://fareharbor.com", "https://*.fareharbor.com"] as const;
-
-/**
  * Vercel Blob, where experience photos uploaded from `/admin/experiences`
- * live. The public site only ever *shows* them (`img-src`); the admin also
- * uploads them, via `upload()` from `@vercel/blob/client`, which PUTs to
- * `https://vercel.com/api/blob/…` — hence the path-scoped `connect-src` entry
- * rather than all of vercel.com.
+ * live — the only third party either policy admits. The public site only ever
+ * *shows* them (`img-src`); the admin also uploads them, via `upload()` from
+ * `@vercel/blob/client`, which PUTs to `https://vercel.com/api/blob/…` —
+ * hence the path-scoped `connect-src` entry rather than all of vercel.com.
  */
 const BLOB_IMAGE_HOST = "https://*.public.blob.vercel-storage.com";
 const BLOB_UPLOAD_API = "https://vercel.com/api/blob/";
@@ -74,9 +66,11 @@ function policy(directives: Record<string, string[] | null>): string {
 /**
  * CSP for the public, static site.
  *
- * `frame-ancestors 'none'` rather than a list: nothing on agorasim.pt is meant
- * to be embedded anywhere. The FareHarbor relationship runs the other way — we
- * frame their booking flow, which is `frame-src`.
+ * `frame-ancestors 'none'` and `frame-src 'none'` both: nothing on agorasim.pt
+ * is meant to be embedded anywhere, and the site embeds nothing in return —
+ * booking is the site's own `/reservar` form, so no booking provider needs
+ * framing. The one third-party origin left is the blob host the uploaded
+ * experience photos are served from, and it is an image source only.
  */
 export const PUBLIC_CSP = policy({
   "default-src": ["'self'"],
@@ -84,13 +78,13 @@ export const PUBLIC_CSP = policy({
   "object-src": ["'none'"],
   "frame-ancestors": ["'none'"],
   "form-action": ["'self'"],
-  "script-src": ["'self'", "'unsafe-inline'", ...(isDev ? ["'unsafe-eval'"] : []), ...FAREHARBOR],
+  "script-src": ["'self'", "'unsafe-inline'", ...(isDev ? ["'unsafe-eval'"] : [])],
   "style-src": ["'self'", "'unsafe-inline'"],
-  "img-src": ["'self'", "data:", "blob:", BLOB_IMAGE_HOST, ...FAREHARBOR],
+  "img-src": ["'self'", "data:", "blob:", BLOB_IMAGE_HOST],
   "font-src": ["'self'", "data:"],
   "media-src": ["'self'"],
-  "connect-src": ["'self'", ...(isDev ? ["ws:"] : []), ...FAREHARBOR],
-  "frame-src": [...FAREHARBOR],
+  "connect-src": ["'self'", ...(isDev ? ["ws:"] : [])],
+  "frame-src": ["'none'"],
   "worker-src": ["'self'", "blob:"],
   "manifest-src": ["'self'"],
   "upgrade-insecure-requests": null,

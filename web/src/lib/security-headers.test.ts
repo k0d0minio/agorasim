@@ -102,15 +102,12 @@ describe("admin CSP", () => {
 });
 
 describe("public CSP", () => {
-  it("admits FareHarbor and the blob image host, and nothing else", () => {
+  it("admits the blob image host, and nothing else", () => {
+    // Booking is the site's own form, so no booking provider appears here any
+    // more. The one third party left is where uploaded experience photos are
+    // served from — an image source and nothing more.
     const origins = new Set(PUBLIC_CSP.match(/https?:\/\/[^\s;]+/g) ?? []);
-    expect([...origins].sort()).toEqual([
-      "https://*.fareharbor.com",
-      "https://*.public.blob.vercel-storage.com",
-      "https://fareharbor.com",
-    ]);
-    // Uploaded experience photos render on the public pages; the blob host is
-    // an image source and nothing more.
+    expect([...origins].sort()).toEqual(["https://*.public.blob.vercel-storage.com"]);
     expect(directive(PUBLIC_CSP, "img-src")).toContain(
       "https://*.public.blob.vercel-storage.com",
     );
@@ -119,9 +116,10 @@ describe("public CSP", () => {
     );
   });
 
-  it("allows FareHarbor to be framed but never frames us", () => {
-    // The embed relationship runs one way: we frame their booking flow.
-    expect(directive(PUBLIC_CSP, "frame-src")).toContain("https://fareharbor.com");
+  it("frames nothing and is framed by nothing", () => {
+    // The FareHarbor lightbox was the only embed the site ever loaded; with
+    // booking on our own form, both directions are closed.
+    expect(directive(PUBLIC_CSP, "frame-src")).toEqual(["'none'"]);
     expect(directive(PUBLIC_CSP, "frame-ancestors")).toEqual(["'none'"]);
   });
 });

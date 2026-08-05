@@ -2,7 +2,7 @@ import type { Localized } from "@/i18n/config";
 
 /**
  * Privacy / data-protection copy — the policy page, the notice next to the
- * booking form, the marketing opt-in and the cookie banner.
+ * booking form and the marketing opt-in.
  *
  * ⚠️ **DRAFT LEGAL TEXT — NOT REVIEWED.** Everything below was written by an
  * engineer to give the mechanisms something honest to point at. It is not legal
@@ -25,12 +25,6 @@ import type { Localized } from "@/i18n/config";
  * does. Date-based so the ordering is obvious.
  */
 export const MARKETING_CONSENT_VERSION = "2026-07-31";
-
-/** Cookie the banner writes its decision into. Read by the FareHarbor loader. */
-export const COOKIE_CONSENT_COOKIE = "agorasim_cookie_consent";
-
-/** How long a banner decision is remembered before we ask again. */
-export const COOKIE_CONSENT_MAX_AGE_SECONDS = 60 * 60 * 24 * 180; // 180 days
 
 /**
  * Who the controller is. Kept next to the copy because the policy has to state
@@ -113,7 +107,7 @@ export const privacyContent = {
       {
         heading: "Com quem partilhamos os dados",
         body: [
-          "Recorremos a prestadores de serviços que tratam dados por nossa conta: a Vercel (alojamento do site), a Neon (base de dados onde os pedidos ficam guardados) e a FareHarbor (plataforma de reservas, quando a reserva é feita através dela).",
+          "Recorremos a prestadores de serviços que tratam dados por nossa conta: a Vercel (alojamento do site e armazenamento das fotografias das experiências) e a Neon (base de dados onde os pedidos ficam guardados).",
           "Não vendemos os seus dados nem os partilhamos para fins de marketing de terceiros.",
           "TODO(legal): confirmar as regiões de alojamento e, quando existam transferências para fora do Espaço Económico Europeu, o mecanismo aplicável (por exemplo, cláusulas contratuais-tipo).",
         ],
@@ -121,8 +115,8 @@ export const privacyContent = {
       {
         heading: "Cookies e serviços externos",
         body: [
-          "O site não usa cookies de análise nem de publicidade. As fontes tipográficas são servidas a partir do nosso próprio domínio, pelo que a sua visita não gera pedidos a servidores da Google.",
-          "O sistema de reservas FareHarbor é um serviço externo que pode colocar cookies próprios. Por esse motivo só é carregado depois de o autorizar no aviso de cookies; se recusar, o site funciona normalmente e a reserva abre no site da FareHarbor.",
+          "O site não usa cookies de análise nem de publicidade, e não coloca cookies de terceiros: a reserva é feita através do nosso próprio formulário, sem sistemas externos incorporados na página. Por isso não verá um aviso de cookies — não há nada a que consentir.",
+          "As fontes tipográficas são servidas a partir do nosso próprio domínio, pelo que a sua visita não gera pedidos a servidores da Google.",
           "A área reservada de administração usa um cookie estritamente necessário para manter a sessão iniciada. Não é usado para qualquer outro fim.",
         ],
       },
@@ -177,7 +171,7 @@ export const privacyContent = {
       {
         heading: "Who we share it with",
         body: [
-          "We use service providers who process data on our behalf: Vercel (website hosting), Neon (the database the enquiries are stored in) and FareHarbor (the booking platform, where a booking is made through it).",
+          "We use service providers who process data on our behalf: Vercel (website hosting and storage of the experience photos) and Neon (the database the enquiries are stored in).",
           "We do not sell your data and we do not share it for third-party marketing.",
           "TODO(legal): confirm the hosting regions and, where any transfer outside the European Economic Area occurs, the safeguard relied on (for example standard contractual clauses).",
         ],
@@ -185,8 +179,8 @@ export const privacyContent = {
       {
         heading: "Cookies and third-party services",
         body: [
-          "The site uses no analytics and no advertising cookies. Web fonts are served from our own domain, so visiting the site sends no request to Google's servers.",
-          "The FareHarbor booking system is a third-party service that may set its own cookies. It is therefore loaded only after you allow it in the cookie notice; if you decline, the site works normally and booking opens on FareHarbor's own site.",
+          "The site uses no analytics and no advertising cookies, and sets no third-party cookies at all: booking happens through our own form, with no external systems embedded in the page. That is why there is no cookie banner — there is nothing to consent to.",
+          "Web fonts are served from our own domain, so visiting the site sends no request to Google's servers.",
           "The admin area uses one strictly necessary cookie to keep an operator signed in. It is used for nothing else.",
         ],
       },
@@ -234,15 +228,4 @@ export const privacyContent = {
     } as Localized,
   },
 
-  /** The cookie banner. It gates loading, so the buttons are not decorative. */
-  cookies: {
-    title: { pt: "Cookies do sistema de reservas", en: "Booking-system cookies" } as Localized,
-    body: {
-      pt: "Este site não usa cookies de análise nem de publicidade. Para abrir a reserva sem sair da página, precisamos de carregar o sistema externo FareHarbor, que pode colocar os seus próprios cookies. Se recusar, a reserva abre no site da FareHarbor e nada mais muda.",
-      en: "This site uses no analytics or advertising cookies. To open booking without leaving the page we need to load FareHarbor, a third-party system that may set its own cookies. If you decline, booking opens on FareHarbor's own site and nothing else changes.",
-    } as Localized,
-    accept: { pt: "Aceitar", en: "Accept" } as Localized,
-    decline: { pt: "Recusar", en: "Decline" } as Localized,
-    more: { pt: "Mais informação", en: "More information" } as Localized,
-  },
 } as const;

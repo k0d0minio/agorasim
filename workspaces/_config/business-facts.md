@@ -7,7 +7,7 @@ Use these facts verbatim. Do not invent prices, dates or claims not listed here.
 - What: guided rural experiences in classic cars in the Saloia region of Portugal.
 - Region served: Saloia — the countryside between Sintra, Mafra and Ericeira.
 - Languages: Portuguese (default) and English.
-- Booking: FareHarbor. Enquiries by phone/email.
+- Booking: the website's own request form (agorasim.pt/reservar). Enquiries by phone/email.
 - Contacts: Diogo +351 926 210 707 · Rita +351 919 272 077 · info@agorasim.pt
 - Instagram / Facebook: @agorasim.pt
 

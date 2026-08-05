@@ -29,7 +29,6 @@ export type ExperienceFormValues = {
   slug: string;
   kind: "signature" | "complement";
   icon: ExperienceIconKey;
-  fareharborItem: string;
   image: string;
   active: boolean;
   sortOrder: number;
@@ -50,7 +49,6 @@ export const EMPTY_EXPERIENCE: ExperienceFormValues = {
   slug: "",
   kind: "complement",
   icon: "sparkles",
-  fareharborItem: "",
   image: "/images/car.jpg",
   active: true,
   sortOrder: 0,
@@ -363,18 +361,6 @@ export function ExperienceForm({ values }: { values: ExperienceFormValues }) {
               defaultValue={values.image}
               error={state.fieldErrors?.image}
             />
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="fareharborItem">
-                FareHarbor item <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="fareharborItem"
-                name="fareharborItem"
-                defaultValue={values.fareharborItem}
-                placeholder="Leave empty while booking goes through the form"
-              />
-            </div>
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="sortOrder">Order</Label>
