@@ -1,4 +1,4 @@
-# Agorasim Toolkit
+# Agorasim Toolkit & Operations Manual
 
 A toolkit for operating the **Agorasim** business — guided classic-car countryside tours of the
 Saloia region (Sintra · Mafra · Ericeira), Portugal.
