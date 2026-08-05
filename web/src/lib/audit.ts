@@ -58,6 +58,7 @@ export const AUDIT_ACTIONS = [
   "feature_request.status_changed",
   "experience.created",
   "experience.updated",
+  "experience.image_uploaded",
   "experience.archived",
   "experience.restored",
   "experience.reordered",
