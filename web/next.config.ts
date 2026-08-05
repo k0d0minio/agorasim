@@ -77,6 +77,14 @@ const nextConfig: NextConfig = {
       { source: "/admin/submissions", destination: "/admin/sales", permanent: false },
       { source: "/admin/crm", destination: "/admin/sales", permanent: false },
       { source: "/admin/bookings", destination: "/admin/sales", permanent: false },
+
+      /*
+       * The Content screen is retired — the Blog and Social studios are the
+       * content surfaces now. Same reasoning as the trio above: bookmarks and
+       * home-screen shortcuts keep working, and temporary rather than
+       * permanent so the path stays ours to reuse.
+       */
+      { source: "/admin/content", destination: "/admin/blog", permanent: false },
     ];
   },
 };
