@@ -71,6 +71,21 @@ export async function findAdminUserById(
   return row ?? null;
 }
 
+/**
+ * Look an account up by address, normalizing the way {@link verifyCredentials}
+ * does. Returns disabled accounts too — callers decide what that means.
+ */
+export async function findAdminUserByEmail(
+  email: string,
+): Promise<AdminUserSummary | null> {
+  const [row] = await db
+    .select(summaryColumns)
+    .from(adminUsers)
+    .where(eq(adminUsers.email, normalizeEmail(email)))
+    .limit(1);
+  return row ?? null;
+}
+
 /** How many accounts can still sign in. Guards the "last owner" checks. */
 export async function countActiveOwners(): Promise<number> {
   const [row] = await db
@@ -180,6 +195,37 @@ export async function setAdminUserPassword(
     .where(eq(adminUsers.id, id));
 
   return { ok: true };
+}
+
+export type ResetPasswordResult =
+  | { ok: true; user: AdminUserSummary }
+  | { ok: false; reason: "unknown" | "weak-password" };
+
+/**
+ * Reset the password of the account at an address — the break-glass path for an
+ * operator locked out of `/admin`, driven by `scripts/reset-password.ts`.
+ *
+ * Keyed by email rather than id because whoever runs it is reading the address
+ * off a login screen, not a database row. It resolves to an existing account or
+ * fails: unlike {@link ensureSeedOwner} it will never create one, so a mistyped
+ * address is an error rather than a second, unnoticed admin.
+ *
+ * A disabled account is reset rather than refused, and reported back through
+ * `user.disabledAt` so the caller can say the password now works but sign-in
+ * still does not. Refusing would leave the only recovery path for a disabled
+ * owner behind the very screen they cannot reach.
+ */
+export async function resetAdminUserPasswordByEmail(
+  email: string,
+  password: string,
+): Promise<ResetPasswordResult> {
+  const user = await findAdminUserByEmail(email);
+  if (!user) return { ok: false, reason: "unknown" };
+
+  const result = await setAdminUserPassword(user.id, password);
+  if (!result.ok) return { ok: false, reason: "weak-password" };
+
+  return { ok: true, user };
 }
 
 /** Sign an account out of every device by invalidating tokens issued so far. */
