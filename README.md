@@ -27,14 +27,9 @@ pnpm lint
   (+ `[slug]` per experience), `eventos`, `contactos`.
 - **Content** lives in `web/src/content/` as `Localized<T>` objects (keep PT/EN in sync). Reviewed
   pipeline output lands in `web/src/content/generated/`.
-- **Booking** goes through FareHarbor. Set the shortname to activate the booking lightbox:
-
-  ```bash
-  # web/.env.local
-  NEXT_PUBLIC_FAREHARBOR_SHORTNAME=your-fareharbor-shortname
-  ```
-
-  Until it's set, "Reservas" CTAs fall back to the contact page.
+- **Booking** goes through the site's own form (`/[locale]/reservar`), which stores the
+  enquiry in the database for the admin Sales board to triage. No third-party booking
+  provider is involved.
 - **GEO**: per-page JSON-LD (`web/src/lib/jsonld.ts`), canonical + hreflang (`web/src/lib/seo.ts`),
   `sitemap.ts`, `robots.ts` (allows AI crawlers), and `public/llms.txt`.
 
@@ -45,6 +40,7 @@ ICM workspaces — plain folders of markdown that drive human-reviewed content p
 
 ## Status / follow-ups
 
-- Real photos & hero video are wired from `web/public/images/`.
-- FareHarbor shortname + per-experience item IDs still needed to go live with booking.
-- Later: more pipelines (blog/social/email) and a native booking form (the end-goal funnel).
+- Real photos & hero video are wired from `web/public/images/`; experience photos added
+  from the admin upload to Vercel Blob.
+- Later: more pipelines (blog/social/email) and instant booking with payments on top of
+  the native booking form.

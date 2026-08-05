@@ -358,8 +358,6 @@ export const experienceCatalogue = pgTable("experiences", {
   kind: experienceKindEnum("kind").notNull().default("complement"),
   /** Key into `EXPERIENCE_ICONS` (`lib/experience-icons.ts`) — the admin's shorthand. */
   icon: text("icon").notNull().default("sparkles"),
-  /** FareHarbor item id, or null while booking still goes through the form. */
-  fareharborItem: text("fareharbor_item"),
 
   title: jsonb("title").$type<Localized>().notNull(),
   tagline: jsonb("tagline").$type<Localized>().notNull(),

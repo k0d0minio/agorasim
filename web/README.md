@@ -75,8 +75,9 @@ no seed secrets has to be seeded from a database console.
 
 The site collects personal data through the tour-request form, so `web/` carries
 the machinery for handling it: a privacy policy, consent capture, subject-access
-export, erasure, a retention job, and a cookie banner that gates the FareHarbor
-embed. Two things to read before touching any of it:
+export, erasure and a retention job. There is no cookie banner — the site loads
+no non-essential third party, so there is nothing to consent to. Two things to
+read before touching any of it:
 
 - `docs/data-protection.md` — what exists, and the policy questions (the
   retention period above all) that still need a human decision. The privacy

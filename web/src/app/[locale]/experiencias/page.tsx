@@ -73,7 +73,7 @@ export default async function ExperiencesPage({
               ))}
             </ul>
             <div className="mt-8 flex flex-wrap gap-3">
-              <BookingButton locale={l} label={dict.cta.bookExperience} item={sig.fareharborItem} />
+              <BookingButton locale={l} label={dict.cta.bookExperience} />
               <Link
                 href={href(l, "experiencias", sig.slug)}
                 className="inline-flex items-center gap-1 self-center text-sm font-medium text-primary hover:underline"

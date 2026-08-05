@@ -28,6 +28,7 @@ import {
 } from "@/db/schema";
 import { DELETE_CONFIRMATION } from "@/lib/admin-format";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
+import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 
 // ---------------------------------------------------------------------------
@@ -215,8 +216,18 @@ export const experienceSchema = z
       .regex(SLUG_RE, "Use lowercase words joined by hyphens, e.g. rural-saloia."),
     kind: experienceKindSchema.catch("complement"),
     icon: z.enum(EXPERIENCE_ICON_KEYS).catch(FALLBACK_EXPERIENCE_ICON),
-    fareharborItem: optionalText,
-    image: text.min(1, "Point at an image, e.g. /images/car.jpg."),
+    /*
+     * Exactly two shapes: a blob URL from the upload field, or a legacy
+     * `/images/…` path committed to `web/public/` before uploads existed.
+     * Anything else — a random external URL, a bare filename — would render a
+     * broken image on the public site, so it is refused at the door.
+     */
+    image: z
+      .string()
+      .trim()
+      .refine((value) => isExperienceBlobUrl(value) || isLegacyImagePath(value), {
+        message: "This entry has no photo yet — choose one to upload before saving.",
+      }),
     active: z.preprocess((value) => value === "on" || value === "true", z.boolean()).catch(true),
     sortOrder: z
       .string()
@@ -254,7 +265,6 @@ export const experienceSchema = z
     slug: value.slug,
     kind: value.kind,
     icon: value.icon,
-    fareharborItem: value.fareharborItem,
     image: value.image,
     active: value.active,
     sortOrder: value.sortOrder,
@@ -371,32 +381,6 @@ export const deleteTourRequestSchema = z.object({
 export const exportSubjectSchema = z.object({
   email: z.string().trim().toLowerCase().regex(EMAIL_RE),
 });
-
-/**
- * Bulk triage. `ids` arrives as repeated checkbox values, which `formValues`
- * collapses to a single string when only one box is ticked — hence the
- * preprocess, the same shape the add-ons field uses.
- */
-const idList = z
-  .preprocess(
-    (value) => (value === undefined ? [] : Array.isArray(value) ? value : [value]),
-    z.array(z.uuid()),
-  )
-  .refine((ids) => ids.length > 0, "Select at least one submission.");
-
-export const bulkTourRequestSchema = z
-  .object({
-    ids: idList,
-    /** `archive` re-triages the rows; `delete` erases them. */
-    operation: z.enum(["archive", "delete"]),
-    confirm: z.string().optional(),
-  })
-  // The typed confirmation is checked server-side too, not just by the dialog
-  // that renders it: a disabled button is a UI affordance, not a safeguard.
-  .refine(
-    (value) => value.operation !== "delete" || value.confirm === DELETE_CONFIRMATION,
-    { path: ["confirm"], message: `Type ${DELETE_CONFIRMATION} to confirm.` },
-  );
 
 // ---------------------------------------------------------------------------
 // Public tour-request form

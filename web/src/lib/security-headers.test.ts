@@ -76,13 +76,24 @@ describe("admin CSP", () => {
     expect(directive(ADMIN_CSP, "script-src")).not.toContain("'unsafe-inline'");
   });
 
-  it("admits no third party at all", () => {
-    // The operations area talks to nothing but itself. Guest personal data lives
-    // behind this policy, so a third party appearing here should be a decision
-    // someone had to make deliberately, not a copy-paste from the public list.
-    expect(ADMIN_CSP).not.toMatch(/https?:\/\//);
+  it("admits only the Vercel Blob pair — uploads out, previews in", () => {
+    // Guest personal data lives behind this policy, so every third party here
+    // is a decision someone had to make deliberately, not a copy-paste from
+    // the public list. Today that is exactly one feature: experience photos
+    // uploading from the catalogue editor to blob storage.
+    const origins = new Set(ADMIN_CSP.match(/https?:\/\/[^\s;]+/g) ?? []);
+    expect([...origins].sort()).toEqual([
+      "https://*.public.blob.vercel-storage.com",
+      "https://vercel.com/api/blob/",
+    ]);
     expect(directive(ADMIN_CSP, "frame-src")).toEqual(["'none'"]);
-    expect(directive(ADMIN_CSP, "connect-src")).toEqual(["'self'"]);
+    // The upload allowance is path-scoped and fetch-only. Scripts stay
+    // first-party: nothing above may creep into script-src.
+    expect(directive(ADMIN_CSP, "connect-src")).toEqual([
+      "'self'",
+      "https://vercel.com/api/blob/",
+    ]);
+    expect(directive(ADMIN_CSP, "script-src").join(" ")).not.toMatch(/https?:\/\//);
   });
 
   it("is unique per request", () => {
@@ -91,17 +102,24 @@ describe("admin CSP", () => {
 });
 
 describe("public CSP", () => {
-  it("admits FareHarbor, and only FareHarbor", () => {
+  it("admits the blob image host, and nothing else", () => {
+    // Booking is the site's own form, so no booking provider appears here any
+    // more. The one third party left is where uploaded experience photos are
+    // served from — an image source and nothing more.
     const origins = new Set(PUBLIC_CSP.match(/https?:\/\/[^\s;]+/g) ?? []);
-    expect([...origins].sort()).toEqual([
-      "https://*.fareharbor.com",
-      "https://fareharbor.com",
-    ]);
+    expect([...origins].sort()).toEqual(["https://*.public.blob.vercel-storage.com"]);
+    expect(directive(PUBLIC_CSP, "img-src")).toContain(
+      "https://*.public.blob.vercel-storage.com",
+    );
+    expect(directive(PUBLIC_CSP, "script-src").join(" ")).not.toContain(
+      "blob.vercel-storage.com",
+    );
   });
 
-  it("allows FareHarbor to be framed but never frames us", () => {
-    // The embed relationship runs one way: we frame their booking flow.
-    expect(directive(PUBLIC_CSP, "frame-src")).toContain("https://fareharbor.com");
+  it("frames nothing and is framed by nothing", () => {
+    // The FareHarbor lightbox was the only embed the site ever loaded; with
+    // booking on our own form, both directions are closed.
+    expect(directive(PUBLIC_CSP, "frame-src")).toEqual(["'none'"]);
     expect(directive(PUBLIC_CSP, "frame-ancestors")).toEqual(["'none'"]);
   });
 });

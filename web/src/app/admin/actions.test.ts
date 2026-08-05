@@ -138,7 +138,6 @@ vi.mock("@/lib/admin-users", () => ({
 const { ADMIN_FORBIDDEN_PATH } = await import("@/lib/admin-auth");
 const { ADMIN_SESSION_COOKIE } = await import("@/lib/admin-session");
 const {
-  bulkTourRequestAction,
   deleteTourRequest,
   exportSubject,
   logContactAttempt,
@@ -243,38 +242,6 @@ describe("a collaborator cannot reach owner-only data actions", () => {
     expect(called("select")).toBe(false);
   });
 
-  it("is refused when bulk-erasing, even though it may bulk-archive", async () => {
-    await signInAs("collaborator");
-
-    expect(
-      await redirectedTo(() =>
-        bulkTourRequestAction(
-          {},
-          form({ ids: [REQUEST_ID], operation: "delete", confirm: "DELETE" }),
-        ),
-      ),
-    ).toBe(ADMIN_FORBIDDEN_PATH);
-
-    expect(called("delete")).toBe(false);
-  });
-
-  it("may still bulk-archive, which is ordinary triage", async () => {
-    await signInAs("collaborator");
-    queueResult([{ id: REQUEST_ID }]); // the UPDATE ... RETURNING
-    queueResult(undefined); // the audit insert
-
-    const result = await bulkTourRequestAction(
-      {},
-      form({ ids: [REQUEST_ID], operation: "archive" }),
-    );
-
-    expect(result.ok).toBe(true);
-    expect(called("update")).toBe(true);
-    expect(insertedValues()[0]).toMatchObject({
-      actorUserId: COLLABORATOR_ID,
-      action: "tour_request.bulk_status_changed",
-    });
-  });
 });
 
 describe("every mutation lands in the audit log with the right actor", () => {
@@ -361,18 +328,6 @@ describe("erasing a submission", () => {
     expect(result.error).toBeTruthy();
     expect(called("delete")).toBe(false);
     expect(called("select")).toBe(false);
-  });
-
-  it("refuses a bulk erase without the typed confirmation, whatever the dialog did", async () => {
-    await signInAs("owner");
-
-    const result = await bulkTourRequestAction(
-      {},
-      form({ ids: [REQUEST_ID], operation: "delete" }),
-    );
-
-    expect(result.error).toBeTruthy();
-    expect(called("delete")).toBe(false);
   });
 });
 

@@ -15,6 +15,7 @@ import {
   type ExperienceIconKey,
 } from "@/lib/experience-icons";
 import { cn } from "@/lib/utils";
+import { ExperienceImageField } from "@/components/admin/experience-image-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,7 +29,6 @@ export type ExperienceFormValues = {
   slug: string;
   kind: "signature" | "complement";
   icon: ExperienceIconKey;
-  fareharborItem: string;
   image: string;
   active: boolean;
   sortOrder: number;
@@ -49,7 +49,6 @@ export const EMPTY_EXPERIENCE: ExperienceFormValues = {
   slug: "",
   kind: "complement",
   icon: "sparkles",
-  fareharborItem: "",
   image: "/images/car.jpg",
   active: true,
   sortOrder: 0,
@@ -358,33 +357,10 @@ export function ExperienceForm({ values }: { values: ExperienceFormValues }) {
               </p>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="image">Image</Label>
-              <Input
-                id="image"
-                name="image"
-                defaultValue={values.image}
-                placeholder="/images/car.jpg"
-                required
-              />
-              {state.fieldErrors?.image ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {state.fieldErrors.image}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="fareharborItem">
-                FareHarbor item <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="fareharborItem"
-                name="fareharborItem"
-                defaultValue={values.fareharborItem}
-                placeholder="Leave empty while booking goes through the form"
-              />
-            </div>
+            <ExperienceImageField
+              defaultValue={values.image}
+              error={state.fieldErrors?.image}
+            />
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="sortOrder">Order</Label>

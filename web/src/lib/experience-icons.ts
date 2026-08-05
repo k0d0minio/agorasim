@@ -23,7 +23,6 @@
 import type { ComponentType } from "react";
 import {
   Amphora,
-  CalendarCheck,
   Camera,
   CarFront,
   Coffee,
@@ -31,7 +30,6 @@ import {
   Gift,
   Hammer,
   Heart,
-  Inbox,
   Landmark,
   MapPin,
   Music,
@@ -120,17 +118,4 @@ export const ENQUIRY_KIND_ICONS: Record<
   tour: { label: "Tour", icon: CarFront },
   wedding: { label: "Wedding", icon: Heart },
   event: { label: "Event", icon: PartyPopper },
-};
-
-/**
- * Where a record came from: an enquiry someone typed into the website, or a
- * confirmed booking. One row type, two origins — the Sales list shows both and
- * this is how it says which is which.
- */
-export const SALES_SOURCE_ICONS: Record<
-  "enquiry" | "booking",
-  { label: string; icon: LucideIcon }
-> = {
-  enquiry: { label: "Website enquiry", icon: Inbox },
-  booking: { label: "Confirmed booking", icon: CalendarCheck },
 };

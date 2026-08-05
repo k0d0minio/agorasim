@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { del } from "@vercel/blob";
 import { z } from "zod";
 import { asc, eq, ne, and } from "drizzle-orm";
 
 import { db, experienceCatalogue } from "@/db";
 import { requireAdmin, requireOwner } from "@/lib/admin-auth";
 import { recordAudit, recordAuditOrWarn } from "@/lib/audit";
+import { isExperienceBlobUrl } from "@/lib/experience-images";
 import {
   deleteExperienceSchema,
   experienceSchema,
@@ -35,6 +37,27 @@ import {
 /** Every public route renders some part of the catalogue, directly or in a nav. */
 function revalidatePublicSite(): void {
   revalidatePath("/", "layout");
+}
+
+/**
+ * Best-effort removal of a blob an entry no longer points at — a replaced
+ * photo, or the image of a deleted row. Storage that only ever grows is a
+ * bill for photos nobody can see.
+ *
+ * Best-effort is the whole contract: the row change has already succeeded, and
+ * failing the operator's save over an orphaned blob would trade a cent of
+ * storage for a lost edit. Failures are logged and left for a future sweep.
+ *
+ * Legacy `/images/*` paths are committed files, not blobs — `del()` must never
+ * see one, which is what the predicate is for.
+ */
+async function deleteImageBlob(image: string): Promise<void> {
+  if (!isExperienceBlobUrl(image)) return;
+  try {
+    await del(image);
+  } catch (err) {
+    console.warn(`[admin] couldn't delete the replaced image blob ${image}`, err);
+  }
 }
 
 export type ExperienceFormState = {
@@ -109,6 +132,19 @@ export async function saveExperience(
     return { fieldErrors: { slug: "Another experience already uses that address." } };
   }
 
+  // The image the row held before this save, so a replaced upload can be
+  // cleaned up once the write lands — `returning()` only reports post-update
+  // values, so it has to be read up front.
+  let previousImage: string | null = null;
+  if (id) {
+    const [existing] = await db
+      .select({ image: experienceCatalogue.image })
+      .from(experienceCatalogue)
+      .where(eq(experienceCatalogue.id, id))
+      .limit(1);
+    previousImage = existing?.image ?? null;
+  }
+
   try {
     if (id) {
       const [updated] = await db
@@ -137,6 +173,12 @@ export async function saveExperience(
   });
 
   revalidatePublicSite();
+
+  // Only after the save succeeded: a replaced photo's blob has nothing
+  // pointing at it any more.
+  if (previousImage && previousImage !== entry.image) {
+    await deleteImageBlob(previousImage);
+  }
 
   return {
     ok: true,
@@ -291,7 +333,11 @@ export async function deleteExperience(
   if (!parsed.success) return { error: "Type DELETE to confirm." };
 
   const [entry] = await db
-    .select({ id: experienceCatalogue.id, slug: experienceCatalogue.slug })
+    .select({
+      id: experienceCatalogue.id,
+      slug: experienceCatalogue.slug,
+      image: experienceCatalogue.image,
+    })
     .from(experienceCatalogue)
     .where(eq(experienceCatalogue.id, parsed.data.id))
     .limit(1);
@@ -319,6 +365,9 @@ export async function deleteExperience(
   }
 
   revalidatePublicSite();
+
+  // The row is gone, so its uploaded photo is unreachable — clean it up.
+  await deleteImageBlob(entry.image);
 
   return { ok: true, message: `${entry.slug} deleted.` };
 }
