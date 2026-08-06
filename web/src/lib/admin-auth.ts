@@ -30,7 +30,7 @@
  */
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import type { AdminRole } from "@/db/schema";
@@ -112,6 +112,34 @@ export async function getCurrentUser(): Promise<AdminUserSummary | null> {
 }
 
 /**
+ * The login screen, carrying where the caller was when their session ran out.
+ *
+ * `proxy.ts` no longer redirects Server Action POSTs (redirecting one re-POSTs
+ * its body at the login screen — see the note there), so an action is now where
+ * an expired session is usually discovered. An action has no URL of its own, so
+ * the page it was called from has to come off a header: `Next-Url` when Next
+ * sends one, and otherwise the `Referer` of the POST.
+ *
+ * Best-effort by design — neither header is guaranteed, and the bare login path
+ * is the right answer when both are missing. Only the path is ever used, and
+ * only when it is under `/admin`: the login screen validates `next` again before
+ * following it, but an open redirect should not get that far.
+ */
+async function loginPathFor(): Promise<string> {
+  const requestHeaders = await headers();
+
+  const referer = requestHeaders.get("referer");
+  const from =
+    requestHeaders.get("next-url") ??
+    (referer ? URL.parse(referer)?.pathname : undefined);
+
+  if (!from?.startsWith("/admin") || from.startsWith("/admin/login")) {
+    return "/admin/login";
+  }
+  return `/admin/login?next=${encodeURIComponent(from)}`;
+}
+
+/**
  * Assert that the caller holds a valid admin session — and, when `required` is
  * given, that their account holds at least that role. Returns the operator, so
  * callers have the actor id for the audit log without a second lookup.
@@ -133,7 +161,9 @@ export async function requireAdmin(required?: AdminRole): Promise<AdminUserSumma
     // A signed-in operator who simply lacks the role should not be bounced to a
     // login form: they are already logged in, and re-authenticating would not
     // help. Everything else is an authentication problem.
-    redirect(decision.reason === "role" ? ADMIN_FORBIDDEN_PATH : "/admin/login");
+    redirect(
+      decision.reason === "role" ? ADMIN_FORBIDDEN_PATH : await loginPathFor(),
+    );
   }
 
   // `authorize` returning ok guarantees both are non-null.

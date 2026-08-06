@@ -13,6 +13,8 @@ import type { AdminUserSummary } from "./admin-users";
  * contract of `requireAdmin` is that nothing after a failed check runs.
  */
 const cookieJar = new Map<string, string>();
+/** Request headers, for the "where were they?" part of the login redirect. */
+const headerBag = new Map<string, string>();
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({
@@ -22,6 +24,9 @@ vi.mock("next/headers", () => ({
     },
     set: (name: string, value: string) => cookieJar.set(name, value),
     delete: (name: string) => cookieJar.delete(name),
+  }),
+  headers: async () => ({
+    get: (name: string) => headerBag.get(name.toLowerCase()) ?? null,
   }),
 }));
 
@@ -83,6 +88,7 @@ async function redirectedTo(fn: () => Promise<unknown>): Promise<string | null> 
 
 beforeEach(() => {
   cookieJar.clear();
+  headerBag.clear();
   findAdminUserById.mockReset();
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
@@ -196,6 +202,73 @@ describe("requireAdmin", () => {
     await expect(requireAdmin("owner")).resolves.toBeTruthy();
 
     findAdminUserById.mockResolvedValue(user({ role: "collaborator" }));
+    expect(await redirectedTo(() => requireAdmin("owner"))).toBe(ADMIN_FORBIDDEN_PATH);
+  });
+});
+
+/**
+ * Where a turned-away caller lands.
+ *
+ * This matters more than it looks: `proxy.ts` no longer redirects Server Action
+ * POSTs, so an expired session is now usually discovered inside an action —
+ * which has no URL of its own. Without these headers every bounced interaction
+ * would drop the operator on the dashboard rather than back where they were.
+ */
+describe("requireAdmin — where it sends a turned-away caller", () => {
+  it("carries the page the action was called from, from `Next-Url`", async () => {
+    headerBag.set("next-url", "/admin/sales");
+    expect(await redirectedTo(() => requireAdmin())).toBe(
+      "/admin/login?next=%2Fadmin%2Fsales",
+    );
+  });
+
+  it("falls back to the referring page when there is no `Next-Url`", async () => {
+    headerBag.set("referer", "https://agorasim.pt/admin/settings/account");
+    expect(await redirectedTo(() => requireAdmin())).toBe(
+      "/admin/login?next=%2Fadmin%2Fsettings%2Faccount",
+    );
+  });
+
+  it("prefers `Next-Url` over the referrer", async () => {
+    headerBag.set("next-url", "/admin/experiences");
+    headerBag.set("referer", "https://agorasim.pt/admin/sales");
+    expect(await redirectedTo(() => requireAdmin())).toBe(
+      "/admin/login?next=%2Fadmin%2Fexperiences",
+    );
+  });
+
+  it("takes only the path, never the referrer's origin", async () => {
+    // The referrer is attacker-influenceable; only its pathname is ever used,
+    // so it can point the operator at our own admin and nowhere else.
+    headerBag.set("referer", "https://evil.example/admin/sales");
+    expect(await redirectedTo(() => requireAdmin())).toBe(
+      "/admin/login?next=%2Fadmin%2Fsales",
+    );
+  });
+
+  it("ignores a path outside /admin", async () => {
+    headerBag.set("next-url", "/pt/reservar");
+    expect(await redirectedTo(() => requireAdmin())).toBe("/admin/login");
+  });
+
+  it("ignores a protocol-relative path that only looks absolute", async () => {
+    headerBag.set("next-url", "//evil.example/admin");
+    expect(await redirectedTo(() => requireAdmin())).toBe("/admin/login");
+  });
+
+  it("does not point the login screen back at itself", async () => {
+    headerBag.set("next-url", "/admin/login");
+    expect(await redirectedTo(() => requireAdmin())).toBe("/admin/login");
+  });
+
+  it("ignores an unparseable referrer", async () => {
+    headerBag.set("referer", "not a url");
+    expect(await redirectedTo(() => requireAdmin())).toBe("/admin/login");
+  });
+
+  it("sends a wrong-role caller to the forbidden screen regardless", async () => {
+    headerBag.set("next-url", "/admin/settings/users");
+    await signIn(user({ role: "collaborator" }));
     expect(await redirectedTo(() => requireAdmin("owner"))).toBe(ADMIN_FORBIDDEN_PATH);
   });
 });
