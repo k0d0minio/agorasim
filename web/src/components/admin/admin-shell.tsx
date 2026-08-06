@@ -6,10 +6,10 @@ import { usePathname } from "next/navigation";
 import { ArrowLeft, LayoutGrid, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  ADMIN_HOME_HREF,
   ADMIN_PRIMARY_NAV,
   adminNavGroups,
   adminPageTitle,
+  adminUpHref,
   isAdminNavItemActive,
   type AdminNavGroup,
   type AdminNavItem,
@@ -45,9 +45,38 @@ function SidebarLink({ item, pathname }: { item: AdminNavItem; pathname: string 
 }
 
 /**
- * One slot in the mobile bottom toolbar: icon over a label. Sized past the
- * 44pt / 48dp touch guidance rather than exactly at it, and labelled at 12px in
- * a colour that clears WCAG AA — this is a tool used outdoors, in sunlight.
+ * Who is signed in, and the way out. One component, two homes: the sidebar
+ * footer on desktop and the "More" sheet on the phone — the header does not
+ * carry either any more, because sign-out is a rare deliberate act and the
+ * page's own action deserves that space more (spec §6 N5).
+ */
+function ViewerFooter({ className }: { className?: string }) {
+  const viewer = useAdminViewer();
+  return (
+    <div className={cn("flex items-center gap-3", className)}>
+      {viewer ? (
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{viewer.name}</p>
+          <p className="truncate text-xs text-muted-foreground">{viewer.role}</p>
+        </div>
+      ) : null}
+      <form action={logout}>
+        <Button type="submit" variant="outline" size="sm">
+          <LogOut className="size-4" />
+          Sign out
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+/**
+ * One slot in the mobile bottom toolbar: icon over a label. Bottom-edge
+ * controls are the *least* accurately hit region of the screen (Hoober's
+ * touch data — ~12mm at the bottom edge vs ~7mm mid-screen), so these are
+ * sized past the 44pt / 48dp guidance rather than exactly at it, and
+ * labelled at 12px in a colour that clears WCAG AA — this is a tool used
+ * outdoors, in sunlight.
  */
 function ToolbarTab({
   active,
@@ -65,7 +94,7 @@ function ToolbarTab({
   buttonProps?: React.ComponentProps<"button">;
 }) {
   const className = cn(
-    "flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+    "flex min-h-12 min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
     active ? "text-primary" : "text-muted-foreground hover:text-foreground",
   );
   const body = (
@@ -89,7 +118,8 @@ function ToolbarTab({
 
 /**
  * Mobile navigation: a fixed bottom toolbar with the everyday destinations,
- * plus "More" opening a bottom sheet with the full grouped map.
+ * plus "More" opening a bottom sheet with the full grouped map — and, at its
+ * foot, who is signed in and the sign-out that used to crowd the header.
  */
 function MobileBottomNav({
   pathname,
@@ -172,6 +202,7 @@ function MobileBottomNav({
                 </div>
               ))}
             </div>
+            <ViewerFooter className="border-t px-6 pt-4" />
             <InDevLegend className="px-6" />
           </SheetContent>
         </Sheet>
@@ -184,17 +215,30 @@ function MobileBottomNav({
  * Dashboard chrome (sidebar on desktop, bottom toolbar on mobile). The heading
  * comes from the nav map keyed on the current route, so a page never restates
  * its own name.
+ *
+ * The header is a phone app bar: up-affordance, title, and one page-level
+ * `action` slot on the trailing side — the HIG toolbar grammar. Installed
+ * standalone there is no browser chrome, so this bar is the only title and the
+ * only way out; it stays sticky and padded for the status bar, and the arrow
+ * goes *up* (see `adminUpHref`), not home.
  */
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({
+  children,
+  action,
+}: {
+  children: React.ReactNode;
+  /** The page's one primary action, e.g. "Add" on the catalogue. */
+  action?: React.ReactNode;
+}) {
   const pathname = usePathname();
   const viewer = useAdminViewer();
   // Entries above the viewer's role are simply not drawn. The pages behind them
   // enforce the role themselves — see `admin-user-context.tsx`.
   const groups = adminNavGroups(viewer?.role ?? null);
-  const isHome = pathname === ADMIN_HOME_HREF;
+  const upHref = adminUpHref(pathname);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-dvh">
       <aside className="hidden w-60 shrink-0 flex-col border-r bg-muted/30 p-4 md:flex">
         <div className="px-2 py-3">
           <p className="font-heading text-lg font-semibold">Agorasim</p>
@@ -214,48 +258,27 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
-        <InDevLegend className="mt-auto px-3 pt-6" />
+        <div className="mt-auto flex flex-col gap-4 pt-6">
+          <InDevLegend className="px-3" />
+          <ViewerFooter className="border-t px-1 pt-4" />
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/*
-          Sticky, and padded for the status bar: installed standalone there is
-          no browser chrome, so this header is the only title and the only way
-          out — scrolling a long list must not take it away.
-        */}
-        <header className="sticky top-0 z-30 flex min-h-14 items-center gap-1 border-b bg-background/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur supports-backdrop-filter:bg-background/85 sm:px-6">
-          {!isHome && (
-            <Button
-              asChild
-              variant="ghost"
-              size="icon"
-              className="-ml-2 size-11 shrink-0 md:hidden"
-            >
-              {/* No browser back button in the installed PWA — this is the way up. */}
-              <Link href={ADMIN_HOME_HREF} aria-label="Back to dashboard">
+        <header className="sticky top-0 z-30 flex min-h-14 items-center gap-1 border-b bg-background/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur supports-backdrop-filter:bg-background/85 sm:px-4">
+          {upHref ? (
+            <Button asChild variant="ghost" size="icon" className="shrink-0">
+              {/* No browser back button in the installed PWA — this is the way
+                  up. A symbol, not the word "Back" (HIG toolbars). */}
+              <Link href={upHref} aria-label="Back">
                 <ArrowLeft />
               </Link>
             </Button>
-          )}
-          <h1 className="min-w-0 flex-1 truncate font-heading text-base font-semibold">
+          ) : null}
+          <h1 className={cn("min-w-0 flex-1 truncate font-heading text-base font-semibold", !upHref && "pl-2")}>
             {adminPageTitle(pathname)}
           </h1>
-          {/* Who you are signed in as. With a shared password there was
-              nothing to show here — and no way to notice you were on a
-              colleague's session. Hidden on the narrowest screens, where the
-              title and the way out have to win. */}
-          {viewer ? (
-            <span className="hidden shrink-0 truncate text-xs text-muted-foreground sm:inline">
-              {viewer.name}
-              <span className="ml-1 opacity-70">({viewer.role})</span>
-            </span>
-          ) : null}
-          <form action={logout}>
-            <Button type="submit" variant="ghost" className="h-11 sm:h-8">
-              <LogOut className="size-4" />
-              Sign out
-            </Button>
-          </form>
+          {action ? <div className="shrink-0">{action}</div> : null}
         </header>
 
         {/* Bottom toolbar height + safe area, so content never hides behind it. */}
