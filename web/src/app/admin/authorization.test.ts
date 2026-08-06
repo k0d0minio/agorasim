@@ -74,3 +74,78 @@ describe("admin pages", () => {
     }
   });
 });
+
+/**
+ * The same rule for Server Actions, and it is not a formality here.
+ *
+ * `proxy.ts` deliberately lets action POSTs through without checking the
+ * session cookie, because redirecting one re-POSTs its body at the login screen
+ * and hands the operator a broken error page instead of a sign-in prompt. The
+ * proxy was never the boundary — but with actions no longer passing under it at
+ * all, `requireAdmin()` inside each action is the *only* thing standing between
+ * a signed-out POST and the database. An action that forgets the call is now a
+ * hole rather than a near miss, so the omission is caught here.
+ *
+ * `login` is the exception by design: it is the one action a signed-out caller
+ * is supposed to reach, and it is throttled per IP instead.
+ */
+const UNAUTHENTICATED_ACTIONS = new Set(["login"]);
+
+/** Every `actions.ts` under `app/admin`, as paths relative to that directory. */
+function actionFiles(dir: string = ADMIN_DIR, prefix = ""): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      found.push(...actionFiles(join(dir, entry.name), relative));
+    } else if (entry.name === "actions.ts") {
+      found.push(relative);
+    }
+  }
+  return found.sort();
+}
+
+/**
+ * Split a `"use server"` module into one entry per exported action, each paired
+ * with its body. Bodies are delimited by a column-zero `}` — the formatting
+ * every file here already follows, and the same blunt-instrument trade the page
+ * walk above makes.
+ */
+function exportedActions(source: string): { name: string; body: string }[] {
+  const found: { name: string; body: string }[] = [];
+  const lines = source.split("\n");
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = /^export async function (\w+)/.exec(lines[i]);
+    if (!match) continue;
+
+    const body: string[] = [];
+    for (let j = i + 1; j < lines.length && lines[j] !== "}"; j++) {
+      body.push(lines[j]);
+    }
+    found.push({ name: match[1], body: body.join("\n") });
+  }
+
+  return found;
+}
+
+describe("admin server actions", () => {
+  const files = actionFiles();
+
+  it("finds the action modules to check", () => {
+    expect(files).toContain("actions.ts");
+    expect(files).toContain("experiences/actions.ts");
+  });
+
+  it.each(files)("%s: every action authorizes itself", (file) => {
+    const actions = exportedActions(readFileSync(join(ADMIN_DIR, file), "utf8"));
+    expect(actions.length).toBeGreaterThan(0);
+
+    const unauthorized = actions
+      .filter(({ name }) => !UNAUTHENTICATED_ACTIONS.has(name))
+      .filter(({ body }) => !/\b(requireAdmin|requireOwner)\(/.test(body))
+      .map(({ name }) => name);
+
+    expect(unauthorized).toEqual([]);
+  });
+});
