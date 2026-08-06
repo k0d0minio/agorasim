@@ -49,7 +49,7 @@ export function UserRowActions({
     return (
       <form action={formAction} className="flex flex-col items-start gap-1">
         <input type="hidden" name="id" value={id} />
-        <Button type="submit" variant="outline" size="sm">
+        <Button type="submit" variant="outline">
           Re-enable
         </Button>
         {state.error ? (
@@ -63,7 +63,7 @@ export function UserRowActions({
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(true)}>
+      <Button type="button" variant="ghost" onClick={() => setOpen(true)}>
         Disable
       </Button>
       {state.error ? (

@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { eq } from "drizzle-orm";
 import { db, experienceCatalogue } from "@/db";
 import { t } from "@/i18n/config";
@@ -63,16 +61,8 @@ export default async function EditExperiencePage({
 
   return (
     <AdminShell>
-      <div className="mb-4">
-        <Link
-          href="/admin/experiences"
-          className="inline-flex min-h-9 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          The catalogue
-        </Link>
-      </div>
-
+      {/* The way back to the catalogue is the app bar's up arrow — derived
+          from the route by the shell, not drawn per page. */}
       <ExperienceForm values={values} />
 
       {/* Deleting is owner-only and almost never the right move — hiding keeps
