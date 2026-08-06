@@ -125,7 +125,7 @@ export default async function AdminReferralsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     {r.rewardDue && (
-                      <Button size="sm" variant="outline" disabled>
+                      <Button variant="outline" disabled>
                         Mark fulfilled
                       </Button>
                     )}

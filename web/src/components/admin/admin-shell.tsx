@@ -31,7 +31,7 @@ function SidebarLink({ item, pathname }: { item: AdminNavItem; pathname: string 
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+        "flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
         isAdminNavItemActive(href, pathname)
           ? "bg-primary text-primary-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -61,7 +61,7 @@ function ViewerFooter({ className }: { className?: string }) {
         </div>
       ) : null}
       <form action={logout}>
-        <Button type="submit" variant="outline" size="sm">
+        <Button type="submit" variant="outline">
           <LogOut className="size-4" />
           Sign out
         </Button>

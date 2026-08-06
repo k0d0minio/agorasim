@@ -71,7 +71,6 @@ export function DeleteSubmissionDialog({
       <Button
         type="button"
         variant="ghost"
-        size="sm"
         onClick={() => setOpen(true)}
         aria-label={`Erase the record for ${name}`}
        
