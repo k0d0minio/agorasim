@@ -20,18 +20,28 @@ export default async function AdminLoginPage({
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-lg">Agorasim Admin</CardTitle>
-          <CardDescription>
-            Sign in with your own account to access the operations area.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <LoginForm next={next} />
-        </CardContent>
-      </Card>
+    // dvh + safe-area padding: centred between the status bar and the home
+    // indicator of the installed app, at every keyboard state.
+    <div className="flex min-h-dvh items-center justify-center bg-muted/30 p-4 pt-[max(env(safe-area-inset-top),1rem)] pb-[max(env(safe-area-inset-bottom),1rem)]">
+      <div className="w-full max-w-sm">
+        {/* The word mark above the card, so the front door of the installed
+            app reads as the app — not as a form on a blank page. */}
+        <div className="mb-6 text-center">
+          <p className="font-heading text-2xl font-semibold">Agorasim</p>
+          <p className="text-sm text-muted-foreground">Operations</p>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Sign in</CardTitle>
+            <CardDescription>
+              With your own account — everything in here is recorded against it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LoginForm next={next} />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

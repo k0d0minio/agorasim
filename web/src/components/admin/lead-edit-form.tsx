@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { FormActionBar } from "@/components/admin/form-action-bar";
 
 /** One catalogue entry, reduced to what this form needs to draw a choice. */
 export type CatalogueOption = {
@@ -97,7 +98,16 @@ export function LeadEditForm({
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="name">Name</Label>
-              <Input id="name" name="name" defaultValue={lead.name} required />
+              {/* This form edits the *guest's* record, so the operator's own
+                  autofill (their name, their email) would only ever be wrong. */}
+              <Input
+                id="name"
+                name="name"
+                defaultValue={lead.name}
+                autoComplete="off"
+                enterKeyHint="next"
+                required
+              />
               {state.fieldErrors?.name ? (
                 <p className="text-sm text-destructive" role="alert">
                   {state.fieldErrors.name}
@@ -107,7 +117,15 @@ export function LeadEditForm({
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" defaultValue={lead.email} required />
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                defaultValue={lead.email}
+                autoComplete="off"
+                enterKeyHint="next"
+                required
+              />
               {state.fieldErrors?.email ? (
                 <p className="text-sm text-destructive" role="alert">
                   {state.fieldErrors.email}
@@ -117,7 +135,14 @@ export function LeadEditForm({
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" name="phone" type="tel" defaultValue={lead.phone ?? ""} />
+              <Input
+                id="phone"
+                name="phone"
+                type="tel"
+                defaultValue={lead.phone ?? ""}
+                autoComplete="off"
+                enterKeyHint="next"
+              />
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -156,16 +181,20 @@ export function LeadEditForm({
                 type="number"
                 min={1}
                 inputMode="numeric"
+                enterKeyHint="next"
                 defaultValue={lead.partySize ?? ""}
               />
             </div>
 
             <div className="flex flex-col gap-1.5 sm:col-span-2">
               <Label htmlFor="preferredDate">Preferred date</Label>
+              {/* Deliberately prose, not a date input — "late summer, flexible"
+                  is a real answer here, so no date keyboard (spec §8 E2). */}
               <Input
                 id="preferredDate"
                 name="preferredDate"
                 defaultValue={lead.preferredDate ?? ""}
+                enterKeyHint="done"
                 placeholder="15 August, late summer, flexible…"
               />
             </div>
@@ -228,9 +257,9 @@ export function LeadEditForm({
             </p>
           ) : null}
 
-          <div>
+          <FormActionBar>
             <SubmitButton />
-          </div>
+          </FormActionBar>
         </form>
       </CardContent>
     </Card>

@@ -21,6 +21,12 @@ function SubmitButton() {
  *
  * Email *and* password, since the area moved from one shared password to per-user
  * accounts — which is what gives the audit log an actor to name.
+ *
+ * This is the front door of the installed app, so the details matter (spec §8
+ * E7): 16px fields so iOS never zooms on focus, `username`/`current-password`
+ * tokens so password managers fill both, `enterkeyhint` so the keyboard's
+ * action key reads next/go, and no `autoFocus` — popping the keyboard before
+ * the operator has even seen the screen hides half of it on a phone.
  */
 export function LoginForm({ next }: { next?: string }) {
   const [state, formAction] = useActionState<LoginState, FormData>(login, {});
@@ -35,7 +41,7 @@ export function LoginForm({ next }: { next?: string }) {
           name="email"
           type="email"
           autoComplete="username"
-          autoFocus
+          enterKeyHint="next"
           required
         />
       </div>
@@ -46,6 +52,7 @@ export function LoginForm({ next }: { next?: string }) {
           name="password"
           type="password"
           autoComplete="current-password"
+          enterKeyHint="go"
           required
         />
       </div>

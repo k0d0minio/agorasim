@@ -124,14 +124,14 @@ export default async function AdminLeadPage({
               otherwise with a dead "Send" button would be worse than this.
             */}
             <div className="flex flex-wrap gap-2">
-              <Button asChild variant="outline" className="h-11 sm:h-9">
+              <Button asChild variant="outline">
                 <a href={mailtoHref(lead.email, context)}>
                   <Mail className="size-4" />
                   Email
                 </a>
               </Button>
               {tel ? (
-                <Button asChild variant="outline" className="h-11 sm:h-9">
+                <Button asChild variant="outline">
                   <a href={tel}>
                     <Phone className="size-4" />
                     Call
@@ -139,7 +139,7 @@ export default async function AdminLeadPage({
                 </Button>
               ) : null}
               {whatsAppNumber ? (
-                <Button asChild variant="outline" className="h-11 sm:h-9">
+                <Button asChild variant="outline">
                   <a
                     href={whatsAppHref(whatsAppNumber, context)}
                     target="_blank"
