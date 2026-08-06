@@ -71,6 +71,24 @@ This seed is the only route to a first account. The login form authenticates
 against `admin_users` and nothing else, so a deployment with an empty table and
 no seed secrets has to be seeded from a database console.
 
+### Locked out
+
+Passwords are stored as salted scrypt digests (`src/lib/password.ts`), so a
+forgotten one cannot be looked up or recovered from the database — it can only
+be replaced. If an owner still has access, do it from **Settings → Team
+accounts**. If nobody can sign in, reset from the command line against the
+production `DATABASE_URL`:
+
+```bash
+ADMIN_RESET_EMAIL=diogo@agorasim.pt \
+ADMIN_RESET_PASSWORD='a long passphrase' \
+pnpm db:reset-password
+```
+
+Unlike the seed, this only ever touches an account that already exists, and it
+is not wired into any deploy step — it revokes every live session for that
+account and records an `admin_user.password_changed` audit entry with no actor.
+
 ## Data protection
 
 The site collects personal data through the tour-request form, so `web/` carries
