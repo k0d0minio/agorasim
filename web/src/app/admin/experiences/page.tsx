@@ -49,19 +49,22 @@ export default async function AdminExperiencesPage() {
   const seeded = stored.length > 0;
 
   return (
-    <AdminShell>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          {catalogue.length} {catalogue.length === 1 ? "experience" : "experiences"} ·{" "}
-          {catalogue.filter((entry) => entry.active).length} shown on the website
-        </p>
+    <AdminShell
+      // The page's one primary action rides in the app bar (spec §6 N3), so it
+      // never scrolls away and the list below starts with the list.
+      action={
         <Button asChild>
           <Link href="/admin/experiences/new">
             <Plus className="size-4" />
-            Add an experience
+            Add
           </Link>
         </Button>
-      </div>
+      }
+    >
+      <p className="mb-4 text-sm text-muted-foreground">
+        {catalogue.length} {catalogue.length === 1 ? "experience" : "experiences"} ·{" "}
+        {catalogue.filter((entry) => entry.active).length} shown on the website
+      </p>
 
       {!seeded ? (
         <div className="mb-4 rounded-xl border border-accent-foreground/20 bg-accent/50 p-4 text-sm">
