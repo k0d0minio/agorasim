@@ -109,7 +109,12 @@ export function SalesStagePager({ stages }: { stages: StageSlide[] }) {
       <div
         ref={scroller}
         onScroll={syncActive}
-        className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-px-4 px-4 pb-4 sm:-mx-6 sm:scroll-px-6 sm:px-6"
+        // `relative` is load-bearing: the cards contain absolutely-positioned
+        // sr-only spans, and without a positioned ancestor *inside* the scroll
+        // container their boxes escape its clip and widen the page itself —
+        // horizontal overflow on the html element, the exact thing this
+        // layout exists to prevent.
+        className="relative -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-px-4 px-4 pb-4 sm:-mx-6 sm:scroll-px-6 sm:px-6"
       >
         {stages.map((stage) => (
           <div

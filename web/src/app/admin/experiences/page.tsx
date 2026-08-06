@@ -98,12 +98,14 @@ export default async function AdminExperiencesPage() {
                   {id ? (
                     <Link
                       href={`/admin/experiences/${id}`}
-                      className="font-medium hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                      // The row's way in — full-height touch target, not a
+                      // text-sized sliver (spec §2 T1).
+                      className="inline-flex min-h-11 items-center font-medium hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                       {name}
                     </Link>
                   ) : (
-                    <span className="font-medium">{name}</span>
+                    <span className="inline-flex min-h-11 items-center font-medium">{name}</span>
                   )}
                   <Badge variant={kind.variant}>{kind.label}</Badge>
                   {entry.active ? null : <Badge variant="outline">Hidden</Badge>}
