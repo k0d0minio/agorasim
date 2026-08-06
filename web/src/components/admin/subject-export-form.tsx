@@ -64,7 +64,15 @@ export function SubjectExportForm() {
         <form action={formAction} className="flex flex-wrap items-end gap-3">
           <div className="flex min-w-64 flex-col gap-1.5">
             <Label htmlFor="export-email">Email address</Label>
-            <Input id="export-email" name="email" type="email" required />
+            {/* The guest's address, not the owner's — keep autofill out. */}
+            <Input
+              id="export-email"
+              name="email"
+              type="email"
+              autoComplete="off"
+              enterKeyHint="go"
+              required
+            />
           </div>
           <SubmitButton />
           {state.error ? (

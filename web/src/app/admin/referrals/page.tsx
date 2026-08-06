@@ -51,8 +51,10 @@ export default async function AdminReferralsPage() {
         <span>Top referrers</span>
       </div>
 
-      {/* Same card-below-md / table-at-md pattern as Submissions. */}
-      <ul className="flex flex-col gap-3 md:hidden">
+      {/* Stacked rows until the table's 700px minimum genuinely fits beside
+          the sidebar — at `md` it didn't, and the old wrapper answered with a
+          two-dimensional scroll (spec §9 L1). */}
+      <ul className="flex flex-col gap-3 lg:hidden">
         {previewReferrers.map((r) => (
           <li key={r.name}>
             <Card className="gap-3">
@@ -75,7 +77,7 @@ export default async function AdminReferralsPage() {
                 </dl>
 
                 {r.rewardDue && (
-                  <Button variant="outline" className="h-11 w-full" disabled>
+                  <Button variant="outline" className="w-full" disabled>
                     Mark fulfilled
                   </Button>
                 )}
@@ -85,7 +87,7 @@ export default async function AdminReferralsPage() {
         ))}
       </ul>
 
-      <Card className="hidden p-0 md:block">
+      <Card className="hidden p-0 lg:block">
         {/* `relative` matters: without a containing block of its own, the
             table's overflow escapes this scroller and scrolls the whole page
             sideways at widths where the table doesn't fit. */}

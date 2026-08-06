@@ -74,7 +74,7 @@ export function DeleteSubmissionDialog({
         size="sm"
         onClick={() => setOpen(true)}
         aria-label={`Erase the record for ${name}`}
-        className="h-11 sm:h-9"
+       
       >
         <Trash2 className="size-4" />
         Erase

@@ -32,7 +32,7 @@ function PendingButton({
 }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant={variant} disabled={pending} className="h-11 sm:h-9">
+    <Button type="submit" variant={variant} disabled={pending}>
       {children}
       {pending ? "Saving…" : idleLabel}
     </Button>

@@ -50,7 +50,6 @@ function IconSubmit({
       aria-label={label}
       title={label}
       disabled={disabled || pending}
-      className="size-9"
     >
       {children}
     </Button>
@@ -177,7 +176,7 @@ export function DeleteExperienceDialog({ id, name }: { id: string; name: string 
         variant="ghost"
         onClick={() => setOpen(true)}
         aria-label={`Delete ${name}`}
-        className="h-11 sm:h-9"
+       
       >
         <Trash2 className="size-4" />
         Delete

@@ -125,7 +125,7 @@ export default async function AdminExperiencesPage() {
                     isLast={index === catalogue.length - 1}
                   />
                   <ToggleExperienceButton id={id} active={entry.active} name={name} />
-                  <Button asChild variant="outline" size="sm" className="h-9">
+                  <Button asChild variant="outline">
                     <Link href={`/admin/experiences/${id}`}>Edit</Link>
                   </Button>
                 </div>
