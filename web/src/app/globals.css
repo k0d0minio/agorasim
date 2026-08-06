@@ -83,7 +83,14 @@
      on `bg-destructive/10` measures 4.07:1, under the 4.5:1 AA floor. */
   --destructive: oklch(0.53 0.19 27);
   --border: oklch(0.9 0.018 78);
-  --input: oklch(0.9 0.018 78);
+  /*
+   * Field borders, split from --border and darkened: an input's border is the
+   * only thing that says "you can type here", and at the old lightness it
+   * measured ~1.2:1 against the page — invisible in sunlight and under the
+   * WCAG 1.4.11 3:1 floor for component boundaries. Decorative card/divider
+   * borders stay on the lighter --border; only fields wear this one.
+   */
+  --input: oklch(0.62 0.025 70);
   --ring: oklch(0.47 0.075 148);
   --chart-1: oklch(0.47 0.075 148);
   --chart-2: oklch(0.7 0.09 55);
@@ -110,6 +117,11 @@
   }
   html {
     @apply font-sans;
+    /*
+     * Every control paints its own pressed state (the buttons translate on
+     * :active), so iOS's grey tap flash is a second, competing signal.
+     */
+    -webkit-tap-highlight-color: transparent;
   }
   h1, h2, h3, h4 {
     font-family: var(--font-heading);
