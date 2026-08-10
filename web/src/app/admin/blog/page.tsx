@@ -54,11 +54,11 @@ export default async function AdminBlogPage() {
                 <p className="text-xs text-muted-foreground">{draft.scheduled}</p>
               </div>
               <div className="flex shrink-0 gap-2">
-                <Button variant="outline" size="sm" disabled>
+                <Button variant="outline" disabled>
                   <Eye className="size-4" />
                   Preview
                 </Button>
-                <Button size="sm" disabled>
+                <Button disabled>
                   <PenLine className="size-4" />
                   {draft.status === "Published" ? "Edit" : "Review & publish"}
                 </Button>

@@ -30,6 +30,10 @@ export const viewport: Viewport = {
   themeColor: "#fdfaf4",
   // Let the bottom toolbar extend under the iOS home indicator (safe-area).
   viewportFit: "cover",
+  // On Android, resize the layout viewport when the keyboard opens so sticky
+  // form-action bars rise above it. Safari ignores this (WebKit #259770) — the
+  // iOS answer is in-flow action bars, see the spec §5 V4.
+  interactiveWidget: "resizes-content",
 };
 
 /**
@@ -53,9 +57,14 @@ export default async function AdminLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable}`}
+      // The scroll padding keeps a focused or anchored element from being
+      // scrolled underneath the sticky header or the bottom toolbar
+      // (WCAG 2.4.11 Focus Not Obscured).
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} scroll-pt-[calc(3.5rem+env(safe-area-inset-top))] scroll-pb-[calc(5rem+env(safe-area-inset-bottom))]`}
     >
-      <body className="min-h-screen antialiased">
+      {/* dvh, not vh/screen: classic vh is the *largest* mobile viewport and
+          overflows behind browser chrome when the URL bar is showing. */}
+      <body className="min-h-dvh antialiased">
         <AdminViewerProvider
           viewer={
             user

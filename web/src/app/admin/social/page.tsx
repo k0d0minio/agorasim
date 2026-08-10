@@ -72,12 +72,12 @@ export default async function AdminSocialPage() {
               <div className="flex items-center justify-between gap-2 border-t pt-3">
                 <span className="text-xs text-muted-foreground">{post.slot}</span>
                 {post.status === "Needs approval" ? (
-                  <Button size="sm" disabled>
+                  <Button disabled>
                     <Check className="size-4" />
                     Approve
                   </Button>
                 ) : (
-                  <Button size="sm" variant="outline" disabled>
+                  <Button variant="outline" disabled>
                     Edit
                   </Button>
                 )}

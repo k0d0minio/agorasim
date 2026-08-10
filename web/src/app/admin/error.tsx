@@ -30,7 +30,7 @@ export default function AdminError({
   const c = adminSystemContent.error;
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="flex min-h-dvh items-center justify-center p-4 pt-[max(env(safe-area-inset-top),1rem)] pb-[max(env(safe-area-inset-bottom),1rem)]">
       <Card className="w-full max-w-md">
         <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
           <div className="flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">

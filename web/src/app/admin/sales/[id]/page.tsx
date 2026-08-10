@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Mail, MessageCircle, Phone } from "lucide-react";
+import { Mail, MessageCircle, Phone } from "lucide-react";
 import { eq } from "drizzle-orm";
 import { db, tourRequests } from "@/db";
 import { t } from "@/i18n/config";
@@ -89,15 +88,8 @@ export default async function AdminLeadPage({
   return (
     <AdminShell>
       <div className="flex flex-col gap-6">
-        <div>
-          <Link
-            href="/admin/sales"
-            className="inline-flex min-h-9 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            All leads
-          </Link>
-        </div>
+        {/* The way back to the board is the app bar's up arrow — the shell
+            derives it from the route, so the page no longer draws its own. */}
 
         {/* Who, what, and where in the pipeline — the header answers all three. */}
         <Card>
@@ -132,14 +124,14 @@ export default async function AdminLeadPage({
               otherwise with a dead "Send" button would be worse than this.
             */}
             <div className="flex flex-wrap gap-2">
-              <Button asChild variant="outline" className="h-11 sm:h-9">
+              <Button asChild variant="outline">
                 <a href={mailtoHref(lead.email, context)}>
                   <Mail className="size-4" />
                   Email
                 </a>
               </Button>
               {tel ? (
-                <Button asChild variant="outline" className="h-11 sm:h-9">
+                <Button asChild variant="outline">
                   <a href={tel}>
                     <Phone className="size-4" />
                     Call
@@ -147,7 +139,7 @@ export default async function AdminLeadPage({
                 </Button>
               ) : null}
               {whatsAppNumber ? (
-                <Button asChild variant="outline" className="h-11 sm:h-9">
+                <Button asChild variant="outline">
                   <a
                     href={whatsAppHref(whatsAppNumber, context)}
                     target="_blank"

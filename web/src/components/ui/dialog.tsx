@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
 
 /**
- * A centred modal dialog. Same Radix primitive as `sheet.tsx`, different
- * placement: a sheet slides in from an edge and is right for navigation, a
- * dialog sits over the page and is right for "are you sure?".
+ * A modal dialog for "are you sure?" — erasing a guest's record, disabling an
+ * account — where an accidental click has no undo.
  *
- * The admin uses it only for confirming irreversible things — erasing a guest's
- * record, disabling an account — where an accidental click has no undo.
+ * Placement is responsive (docs/admin-mobile-design-spec.md §7): on a phone it
+ * rises from the bottom edge as a sheet, where the thumb already is and where
+ * both platforms put confirmations; from `sm` up it is the centred dialog it
+ * always was. Same Radix primitive as `sheet.tsx` — that one slides in from an
+ * edge for navigation, this one carries a decision.
  */
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
@@ -61,7 +63,11 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-2xl border bg-popover p-5 text-sm text-popover-foreground shadow-lg duration-150 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Phone: a bottom sheet — full width, top corners only, padded past
+          // the home indicator, sliding up from where the thumb is.
+          "fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] w-full flex-col gap-4 overflow-y-auto overscroll-contain rounded-t-2xl border-t bg-popover p-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] text-sm text-popover-foreground shadow-lg duration-150 data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-8 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-8",
+          // sm+: the centred dialog.
+          "sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-[calc(100%-2rem)] sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:pb-5 sm:data-open:zoom-in-95 sm:data-open:slide-in-from-bottom-0 sm:data-closed:zoom-out-95 sm:data-closed:slide-out-to-bottom-0",
           className
         )}
         {...props}
@@ -69,7 +75,7 @@ function DialogContent({
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
-            <Button variant="ghost" className="absolute top-3 right-3" size="icon-sm">
+            <Button variant="ghost" className="absolute top-2 right-2" size="icon">
               <XIcon />
               <span className="sr-only">Close</span>
             </Button>
@@ -90,11 +96,20 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+/**
+ * On a phone the actions stack full width — the safe choice (Cancel) lands at
+ * the bottom, nearest the thumb, with the risky one a clear 8px above it. From
+ * `sm` up they return to the usual right-aligned row. `col-reverse` is what
+ * lets the DOM keep Cancel first while the phone paints it last.
+ */
 function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-footer"
-      className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
+      className={cn(
+        "flex flex-col-reverse gap-2 **:data-[slot=button]:w-full sm:flex-row sm:justify-end sm:**:data-[slot=button]:w-auto [&>form]:contents",
+        className
+      )}
       {...props}
     />
   )

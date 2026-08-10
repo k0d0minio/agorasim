@@ -269,3 +269,19 @@ export function findAdminNavItem(pathname: string): AdminNavItem | undefined {
 export function adminPageTitle(pathname: string): string {
   return findAdminNavItem(pathname)?.label ?? "Admin";
 }
+
+/**
+ * Where the app bar's up-affordance goes from `pathname` — up, not home.
+ *
+ * The header arrow used to send every page to the dashboard, which from
+ * `/admin/sales/[id]` threw away the board the operator was just triaging.
+ * Up is the section the page belongs to (`/admin/sales/[id]` → `/admin/sales`),
+ * and only a section root goes up to the dashboard. `null` at the dashboard
+ * itself: there is no up from the top.
+ */
+export function adminUpHref(pathname: string): string | null {
+  if (pathname === ADMIN_HOME_HREF) return null;
+  const item = findAdminNavItem(pathname);
+  if (item && item.href !== ADMIN_HOME_HREF && pathname !== item.href) return item.href;
+  return ADMIN_HOME_HREF;
+}

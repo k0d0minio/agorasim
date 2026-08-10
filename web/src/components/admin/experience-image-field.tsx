@@ -123,7 +123,7 @@ export function ExperienceImageField({
             <Button
               type="button"
               variant="outline"
-              size="sm"
+
               disabled={uploading}
               onClick={() => fileInputRef.current?.click()}
             >
@@ -133,7 +133,7 @@ export function ExperienceImageField({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
+
               disabled={uploading}
               onClick={() => setValue("")}
             >
