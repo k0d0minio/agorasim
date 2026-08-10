@@ -16,6 +16,7 @@ import {
 } from "@/lib/experience-icons";
 import { cn } from "@/lib/utils";
 import { ExperienceImageField } from "@/components/admin/experience-image-field";
+import { FormActionBar } from "@/components/admin/form-action-bar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -78,7 +79,8 @@ function SubmitButton({ editing }: { editing: boolean }) {
  * Portuguese and English sit side by side rather than behind a language tab,
  * because the rule this catalogue lives by is that both exist. A tab makes the
  * other language something you can forget; two boxes make it something you can
- * see is empty.
+ * see is empty. On a phone the pair stacks, PT above EN, each wearing a small
+ * language chip — same rule, one column (spec §8 E5).
  */
 function LocalizedField({
   name,
@@ -113,7 +115,10 @@ function LocalizedField({
           const error = locale === "pt" ? errorPt : errorEn;
           return (
             <div key={locale} className="flex flex-col gap-1.5">
-              <Label htmlFor={fieldName} className="text-xs text-muted-foreground uppercase">
+              <Label
+                htmlFor={fieldName}
+                className="inline-flex w-fit items-center rounded-md bg-muted px-1.5 py-0.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+              >
                 {locale}
                 <span className="sr-only"> — {capitalized}</span>
               </Label>
@@ -235,7 +240,7 @@ function FaqEditor({ defaultValue }: { defaultValue: FaqDraft[] }) {
             <Button
               type="button"
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={() => setRows(rows.filter((existing) => existing.key !== row.key))}
               aria-label={`Remove question ${i + 1}`}
             >
@@ -325,11 +330,16 @@ export function ExperienceForm({ values }: { values: ExperienceFormValues }) {
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="slug">Web address</Label>
+              {/* A slug typed on a phone fights autocapitalise and autocorrect
+                  — both off, it is an identifier, not prose. */}
               <Input
                 id="slug"
                 name="slug"
                 defaultValue={values.slug}
                 placeholder="rural-saloia"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 required
               />
               <p className="text-xs text-muted-foreground">
@@ -368,6 +378,7 @@ export function ExperienceForm({ values }: { values: ExperienceFormValues }) {
                 id="sortOrder"
                 name="sortOrder"
                 type="number"
+                inputMode="numeric"
                 defaultValue={values.sortOrder}
               />
               <p className="text-xs text-muted-foreground">
@@ -477,12 +488,12 @@ export function ExperienceForm({ values }: { values: ExperienceFormValues }) {
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <FormActionBar>
         <SubmitButton editing={editing} />
         <Button type="button" variant="outline" onClick={() => router.push("/admin/experiences")}>
           Back to the catalogue
         </Button>
-      </div>
+      </FormActionBar>
     </form>
   );
 }

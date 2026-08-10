@@ -84,7 +84,14 @@ export default async function AdminAuditPage({
             </p>
 
             {row.before || row.after ? (
-              <pre className="mt-1 overflow-x-auto rounded-lg bg-muted/50 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+              /* A JSON dump is 1.4.10's excepted 2-D content: it scrolls in
+                 its own box, never the page — and is focusable so a keyboard
+                 can scroll it too. 12px is the floor, not 11 (spec §3 F2). */
+              <pre
+                tabIndex={0}
+                aria-label="Recorded change, as JSON"
+                className="mt-1 overflow-x-auto rounded-lg bg-muted/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
                 {JSON.stringify({ before: row.before, after: row.after }, null, 2)}
               </pre>
             ) : null}

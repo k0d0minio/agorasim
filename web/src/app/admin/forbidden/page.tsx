@@ -36,7 +36,7 @@ export default async function AdminForbiddenPage() {
               erasing guest data. Ask Diogo or Rita if you need it.
             </p>
           </div>
-          <Link href="/admin" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+          <Link href="/admin" className={cn(buttonVariants({ variant: "outline" }))}>
             Back to the dashboard
           </Link>
         </CardContent>

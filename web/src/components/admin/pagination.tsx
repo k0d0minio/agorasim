@@ -37,14 +37,14 @@ export function AdminPagination({
       </p>
       <div className="flex items-center gap-2">
         {page > 1 ? (
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline">
             <Link href={hrefFor(page - 1)} rel="prev">
               <ChevronLeft />
               Previous
             </Link>
           </Button>
         ) : (
-          <Button variant="outline" size="sm" disabled>
+          <Button variant="outline" disabled>
             <ChevronLeft />
             Previous
           </Button>
@@ -53,14 +53,14 @@ export function AdminPagination({
           {page} / {pages}
         </span>
         {page < pages ? (
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline">
             <Link href={hrefFor(page + 1)} rel="next">
               Next
               <ChevronRight />
             </Link>
           </Button>
         ) : (
-          <Button variant="outline" size="sm" disabled>
+          <Button variant="outline" disabled>
             Next
             <ChevronRight />
           </Button>

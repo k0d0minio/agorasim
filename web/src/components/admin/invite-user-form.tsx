@@ -43,7 +43,9 @@ export function InviteUserForm() {
         <form action={formAction} className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="invite-name">Name</Label>
-            <Input id="invite-name" name="name" required />
+            {/* The owner is entering a *colleague's* details — their own
+                autofill would only ever be wrong here. */}
+            <Input id="invite-name" name="name" autoComplete="off" enterKeyHint="next" required />
             {state.fieldErrors?.name ? (
               <p className="text-sm text-destructive" role="alert">
                 {state.fieldErrors.name}
@@ -53,7 +55,14 @@ export function InviteUserForm() {
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="invite-email">Email</Label>
-            <Input id="invite-email" name="email" type="email" required />
+            <Input
+              id="invite-email"
+              name="email"
+              type="email"
+              autoComplete="off"
+              enterKeyHint="next"
+              required
+            />
             {state.fieldErrors?.email ? (
               <p className="text-sm text-destructive" role="alert">
                 {state.fieldErrors.email}

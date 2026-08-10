@@ -74,7 +74,7 @@ export default async function AdminEmailPage() {
                 )}
               </div>
               <div className="shrink-0">
-                <Button size="sm" variant="outline" disabled>
+                <Button variant="outline" disabled>
                   {campaign.status === "Draft" ? "Review & schedule" : "View report"}
                 </Button>
               </div>

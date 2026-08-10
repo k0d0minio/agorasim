@@ -49,19 +49,22 @@ export default async function AdminExperiencesPage() {
   const seeded = stored.length > 0;
 
   return (
-    <AdminShell>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          {catalogue.length} {catalogue.length === 1 ? "experience" : "experiences"} ·{" "}
-          {catalogue.filter((entry) => entry.active).length} shown on the website
-        </p>
+    <AdminShell
+      // The page's one primary action rides in the app bar (spec §6 N3), so it
+      // never scrolls away and the list below starts with the list.
+      action={
         <Button asChild>
           <Link href="/admin/experiences/new">
             <Plus className="size-4" />
-            Add an experience
+            Add
           </Link>
         </Button>
-      </div>
+      }
+    >
+      <p className="mb-4 text-sm text-muted-foreground">
+        {catalogue.length} {catalogue.length === 1 ? "experience" : "experiences"} ·{" "}
+        {catalogue.filter((entry) => entry.active).length} shown on the website
+      </p>
 
       {!seeded ? (
         <div className="mb-4 rounded-xl border border-accent-foreground/20 bg-accent/50 p-4 text-sm">
@@ -95,12 +98,14 @@ export default async function AdminExperiencesPage() {
                   {id ? (
                     <Link
                       href={`/admin/experiences/${id}`}
-                      className="font-medium hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                      // The row's way in — full-height touch target, not a
+                      // text-sized sliver (spec §2 T1).
+                      className="inline-flex min-h-11 items-center font-medium hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                       {name}
                     </Link>
                   ) : (
-                    <span className="font-medium">{name}</span>
+                    <span className="inline-flex min-h-11 items-center font-medium">{name}</span>
                   )}
                   <Badge variant={kind.variant}>{kind.label}</Badge>
                   {entry.active ? null : <Badge variant="outline">Hidden</Badge>}
@@ -122,7 +127,7 @@ export default async function AdminExperiencesPage() {
                     isLast={index === catalogue.length - 1}
                   />
                   <ToggleExperienceButton id={id} active={entry.active} name={name} />
-                  <Button asChild variant="outline" size="sm" className="h-9">
+                  <Button asChild variant="outline">
                     <Link href={`/admin/experiences/${id}`}>Edit</Link>
                   </Button>
                 </div>
