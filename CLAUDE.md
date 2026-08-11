@@ -19,6 +19,8 @@ Olaria MZ. Contacts: Diogo +351 926 210 707 · Rita +351 919 272 077 · info@ago
   notes; content lives in `web/src/content/`).
 - Producing marketing / GEO content → open the relevant workspace under `workspaces/` and follow
   its `CONTEXT.md`. Reviewed output lands in `web/src/content/generated/`.
+- Picking up or cutting work items (tickets) → `.icm/intake/` (contract in its `README.md`;
+  finished tickets move to `.icm/intake/_done/`).
 
 ## Conventions
 - The site is fully static (SSG) and bilingual. Content is modelled as `Localized<T>` objects in
