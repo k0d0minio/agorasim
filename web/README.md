@@ -97,10 +97,10 @@ export, erasure and a retention job. There is no cookie banner — the site load
 no non-essential third party, so there is nothing to consent to. Two things to
 read before touching any of it:
 
-- `docs/data-protection.md` — what exists, and the policy questions (the
+- `.icm/docs/data-protection.md` — what exists, and the policy questions (the
   retention period above all) that still need a human decision. The privacy
   policy in `src/content/privacy.ts` is a **draft** pending legal review.
-- `docs/cookies-and-third-parties.md` — what the public site actually loads and
+- `.icm/docs/cookies-and-third-parties.md` — what the public site actually loads and
   why the banner works the way it does.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
