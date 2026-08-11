@@ -13,7 +13,12 @@ export function SiteHeader({ locale }: { locale: Locale }) {
   const items = navOrder.map((key) => ({ label: dict.nav[key], href: href(locale, key) }));
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/85 backdrop-blur supports-backdrop-filter:bg-background/70">
+    /*
+     * `viewport-fit=cover` lets the page paint into the status bar and, in
+     * landscape, under the notch — so the bar pads itself back out by the
+     * insets. The blurred background still runs edge to edge behind them.
+     */
+    <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/85 pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] backdrop-blur supports-backdrop-filter:bg-background/70">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href={href(locale, "home")} className="flex items-center gap-2" aria-label={site.name}>
           <Image src="/images/logo.png" alt={site.name} width={44} height={44} priority className="h-11 w-11" />
