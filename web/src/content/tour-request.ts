@@ -13,6 +13,16 @@ export const tourRequestContent = {
     en: "Tell us what you are looking for and we will take care of the rest. We reply by email or phone to arrange your outing through the Saloia region.",
   } as Localized,
 
+  /**
+   * Sets expectations on `/reservar`: the request is real and reaches the team,
+   * but the date is confirmed by a person — online payment with a live calendar
+   * is still being built. Remove this when instant booking ships.
+   */
+  note: {
+    pt: "O pedido chega-nos de imediato e confirmamos a data consigo. A reserva instantânea com pagamento online está a ser construída.",
+    en: "Your request reaches us straight away and we confirm the date with you. Instant booking with online payment is still being built.",
+  } as Localized,
+
   labels: {
     name: { pt: "Nome", en: "Name" } as Localized,
     email: { pt: "Email", en: "Email" } as Localized,

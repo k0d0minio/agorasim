@@ -98,4 +98,13 @@ export const contact = {
     pt: "Fale connosco para reservar uma experiência, planear um evento ou tirar qualquer dúvida. Respondemos com gosto.",
     en: "Get in touch to book an experience, plan an event or ask any question. We are happy to help.",
   } as Localized,
+
+  /** Pointer to the tour-request form on `/reservar`, for visitors who would rather write than call. */
+  request: {
+    title: { pt: "Prefere escrever?", en: "Rather write to us?" } as Localized,
+    body: {
+      pt: "Preencha o formulário de pedido com as datas e o que gostaria de fazer — respondemos com uma proposta.",
+      en: "Fill in the request form with your dates and what you would like to do — we reply with a proposal.",
+    } as Localized,
+  },
 };
