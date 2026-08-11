@@ -8,6 +8,8 @@ import { t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
 import { privacyContent } from "@/content/privacy";
 import type { Experience } from "@/content/experiences";
+import type { PublicMonth } from "@/lib/availability";
+import { BookingDatePicker } from "@/components/booking-date-picker";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { href } from "@/lib/routes";
 import { submitTourRequest, type TourRequestState } from "@/app/[locale]/reservar/actions";
@@ -32,14 +34,24 @@ function SubmitButton({ locale }: { locale: Locale }) {
 export function TourRequestForm({
   locale,
   experiences,
+  availability = [],
 }: {
   locale: Locale;
   /** The live catalogue, passed in by the page that renders this form. */
   experiences: Experience[];
+  /**
+   * The open days, month by month, passed in by the page. Empty when the
+   * calendar has nothing to offer or could not be read — in which case the date
+   * field stays what it always was, a text box asking when they'd like to come.
+   * A booking page that stops taking leads because a table is empty is worse
+   * than one with no calendar.
+   */
+  availability?: PublicMonth[];
 }) {
   const [state, formAction] = useActionState<TourRequestState, FormData>(submitTourRequest, {});
   const c = tourRequestContent;
   const complementExperiences = experiences.filter((e) => e.kind === "complement");
+  const hasCalendar = availability.some((month) => month.hasOpenings);
 
   if (state.ok) {
     return (
@@ -122,15 +134,32 @@ export function TourRequestForm({
           </Select>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="preferredDate">{t(c.labels.preferredDate, locale)}</Label>
-          <Input
-            id="preferredDate"
-            name="preferredDate"
-            placeholder={t(c.placeholders.preferredDate, locale)}
-          />
-        </div>
+        {/*
+          The date field is a text box only when there is no live calendar to
+          offer. When there is, the picker owns the `preferredDate` name and
+          posts either a `YYYY-MM-DD` key or the guest's own words — so nothing
+          downstream (the column, the Sales board, the lead page) had to change.
+        */}
+        {hasCalendar ? null : (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="preferredDate">{t(c.labels.preferredDate, locale)}</Label>
+            <Input
+              id="preferredDate"
+              name="preferredDate"
+              placeholder={t(c.placeholders.preferredDate, locale)}
+            />
+          </div>
+        )}
       </div>
+
+      {hasCalendar ? (
+        <BookingDatePicker
+          locale={locale}
+          months={availability}
+          defaultValue={state.values?.preferredDate}
+          error={state.fieldErrors?.preferredDate}
+        />
+      ) : null}
 
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-medium">{t(c.labels.addOns, locale)}</legend>
