@@ -12,6 +12,7 @@
  */
 import type { ComponentType } from "react";
 import {
+  CalendarDays,
   CarFront,
   Inbox,
   LayoutDashboard,
@@ -99,6 +100,24 @@ export const ADMIN_NAV: AdminNavItem[] = [
     primary: true,
   },
   {
+    href: "/admin/calendar",
+    label: "Calendar",
+    cardTitle: "Availability",
+    shortLabel: "Calendar",
+    icon: CalendarDays,
+    group: "Sales",
+    description:
+      "Which days are on sale, how many seats each one has, and the days you're keeping for yourselves.",
+    dev: false,
+    /*
+     * Takes the toolbar slot the Blog studio was holding. The flag's whole
+     * purpose (see its doc comment) is to keep design previews out of the four
+     * slots while screens with real data sit behind "More" — and this is the
+     * screen Diogo & Rita open every morning to say what the week looks like.
+     */
+    primary: true,
+  },
+  {
     href: "/admin/experiences",
     label: "Experiences",
     cardTitle: "The catalogue",
@@ -119,11 +138,12 @@ export const ADMIN_NAV: AdminNavItem[] = [
       "AI-drafted articles in your voice, waiting for a one-click review before publishing.",
     dev: true,
     /*
-     * Inherited the retired Content screen's bottom-toolbar slot: the Blog and
-     * Social studios are the content surfaces now, so the replacement sits
-     * where the replaced thing used to be and the toolbar keeps four slots.
+     * Gave its bottom-toolbar slot to the availability calendar. It inherited
+     * the slot from the retired Content screen, but it is still a design
+     * preview, and the calendar is a daily tool with real data behind it —
+     * which is the trade the `primary` flag exists to keep making correctly.
      */
-    primary: true,
+    primary: false,
   },
   {
     href: "/admin/social",

@@ -71,6 +71,13 @@
       "when": 1785932886955,
       "tag": "0009_drop_fareharbor_item",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786471599424,
+      "tag": "0010_availability_calendar",
+      "breakpoints": true
     }
   ]
 }
