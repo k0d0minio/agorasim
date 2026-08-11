@@ -2,6 +2,10 @@
 
 **Owner:** Jamie · **Written:** 10 August 2026 · **Target: live in ~14 days (≈ 24 August)**
 
+> **Tickets:** the phases of this plan are cut as [`../intake/`](../intake/) tickets
+> `AGORA-001`–`AGORA-006`; work them there. This file stays as the narrative source
+> (decisions, codebase audit, risks).
+
 Companion doc: [`information-request-diogo-rita.md`](./information-request-diogo-rita.md) — send it on day 1; Section 1 of that doc gates Phases 1–2 here.
 
 ## Decisions locked in
