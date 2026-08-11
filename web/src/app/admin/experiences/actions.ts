@@ -169,7 +169,14 @@ export async function saveExperience(
     entityId: id ?? null,
     // The catalogue is public copy, not personal data — the entry is named in
     // full so the log answers "who renamed Manzwine?" without a second lookup.
-    after: { slug: entry.slug, kind: entry.kind, active: entry.active },
+    after: {
+      slug: entry.slug,
+      kind: entry.kind,
+      active: entry.active,
+      // Money changed by whom, and to what — the one field on this table an
+      // operator will be asked about after the fact.
+      priceCents: entry.priceCents,
+    },
   });
 
   revalidatePublicSite();

@@ -43,6 +43,7 @@ import "server-only";
 import { and, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
 
 import { auditLog, db, tourRequests } from "@/db";
+import { expireLapsedHolds } from "@/lib/bookings";
 
 /** Proposed, **not decided**. Override with `ENQUIRY_RETENTION_DAYS`. */
 export const DEFAULT_RETENTION_DAYS = 730;
@@ -130,6 +131,16 @@ export type RetentionRun = {
   days: number;
   /** Rows anonymised by this run. */
   anonymised: number;
+  /**
+   * Abandoned checkout holds relabelled `expired` by this run.
+   *
+   * Not retention, and not load-bearing: the seat was already free the moment
+   * the hold lapsed (`lib/bookings.ts` counts by the clock, not by this
+   * status). It rides along here because this is the one scheduled job the
+   * deployment has, and a `pending` list full of March's abandoned checkouts
+   * is a screen that lies to an operator.
+   */
+  holdsExpired: number;
   /** Cutoff used for {@link RetentionRun.auditIpsCleared}. */
   auditIpCutoff: string;
   auditIpDays: number;
@@ -178,10 +189,13 @@ export async function runRetention(now: Date = new Date()): Promise<RetentionRun
   const { cutoff: auditIpCutoff, days: auditIpDays, cleared } =
     await clearExpiredAuditIps(now);
 
+  const holdsExpired = await expireLapsedHolds(now);
+
   return {
     cutoff: cutoff.toISOString(),
     days,
     anonymised: rows.length,
+    holdsExpired,
     auditIpCutoff: auditIpCutoff.toISOString(),
     auditIpDays,
     auditIpsCleared: cleared,

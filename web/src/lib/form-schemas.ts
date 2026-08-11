@@ -30,6 +30,7 @@ import {
 } from "@/db/schema";
 import { DELETE_CONFIRMATION } from "@/lib/admin-format";
 import { DEFAULT_CAPACITY, isDateKey, MAX_CAPACITY } from "@/lib/availability";
+import { parsePriceInput } from "@/lib/bookings";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
 import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
@@ -233,6 +234,17 @@ export const experienceSchema = z
       .refine((value) => isExperienceBlobUrl(value) || isLegacyImagePath(value), {
         message: "This entry has no photo yet — choose one to upload before saving.",
       }),
+    /**
+     * Price per person, as euros in a text box. Blank means unpriced, which is
+     * a real and meaningful state — an unpriced experience cannot be sold, and
+     * that is the correct behaviour until the real prices arrive (AGORA-002).
+     * Anything unreadable is treated the same way rather than becoming zero:
+     * a free tour is not a plausible reading of a typo.
+     */
+    price: z
+      .string()
+      .catch("")
+      .transform((value) => parsePriceInput(value)),
     active: z.preprocess((value) => value === "on" || value === "true", z.boolean()).catch(true),
     sortOrder: z
       .string()
@@ -271,6 +283,7 @@ export const experienceSchema = z
     kind: value.kind,
     icon: value.icon,
     image: value.image,
+    priceCents: value.price,
     active: value.active,
     sortOrder: value.sortOrder,
     title: { pt: value.titlePt, en: value.titleEn },
