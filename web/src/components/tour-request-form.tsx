@@ -136,15 +136,17 @@ export function TourRequestForm({
         <legend className="text-sm font-medium">{t(c.labels.addOns, locale)}</legend>
         <div className="grid gap-2 sm:grid-cols-2">
           {complementExperiences.map((exp) => (
+            // The whole row is the target — a 16px checkbox is the glyph, not
+            // the hit area — so the row carries the 44px minimum (spec §2 T1/T4).
             <label
               key={exp.slug}
-              className="flex items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm"
+              className="flex min-h-11 touch-manipulation items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm"
             >
               <input
                 type="checkbox"
                 name="addOns"
                 value={exp.slug}
-                className="size-4 rounded border-border accent-primary"
+                className="size-4 shrink-0 rounded border-border accent-primary"
               />
               {t(exp.title, locale)}
             </label>
