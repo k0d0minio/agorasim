@@ -8,12 +8,9 @@ import { t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
 import { privacyContent } from "@/content/privacy";
 import type { Experience } from "@/content/experiences";
+import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { href } from "@/lib/routes";
-import {
-  HONEYPOT_FIELD,
-  submitTourRequest,
-  type TourRequestState,
-} from "@/app/[locale]/reservar/actions";
+import { submitTourRequest, type TourRequestState } from "@/app/[locale]/reservar/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

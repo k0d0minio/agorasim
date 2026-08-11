@@ -6,6 +6,7 @@ import { isLocale, t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { listExperiences } from "@/lib/experience-catalogue";
+import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { formValues, tourRequestSchema, type TourRequestField } from "@/lib/form-schemas";
@@ -16,13 +17,6 @@ export type TourRequestState = {
   /** Field-level errors keyed by input name, for inline display. */
   fieldErrors?: Partial<Record<TourRequestField, string>>;
 };
-
-/**
- * Name of the honeypot input rendered (visually hidden) by the form. Real people
- * never see it, so anything filled in came from a bot that autofilled every
- * field it found.
- */
-export const HONEYPOT_FIELD = "company_website";
 
 /**
  * Handle the public onboarding form. Validates the submission, inserts a row
