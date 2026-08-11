@@ -24,7 +24,12 @@ haven't started.
 - [ ] `.icm/docs/information-request-diogo-rita.md` sent to Diogo & Rita; the 15-min DNS
       call booked (human step — confirm with Jamie).
 - [ ] Stripe onboarding started the moment their details arrive (human step).
-- [ ] CI green.
+- [x] CI green.
+
+**Closed with the code item shipped (PR #20).** The unticked boxes are Jamie's to run —
+they need a phone, an inbox and a Stripe account, not a branch. They stay tracked as
+Phase 0 of [`../../docs/launch-plan.md`](../../docs/launch-plan.md), and AGORA-002 still
+names the information request as its blocker, so nothing is lost by closing this.
 
 ## Prompt
 

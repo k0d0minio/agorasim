@@ -7,7 +7,22 @@ export function Container({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={cn("mx-auto max-w-6xl px-4 sm:px-6", className)}>{children}</div>;
+  /*
+   * The page gutter is `max(gutter, safe-area inset)`: with `viewport-fit=cover`
+   * a landscape phone puts the notch inside the viewport on one side, and a
+   * flat 1rem would run text underneath it. Both sides are set from their own
+   * inset, since only one of them has the cutout.
+   */
+  return (
+    <div
+      className={cn(
+        "mx-auto max-w-6xl pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))]",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 export function Section({
