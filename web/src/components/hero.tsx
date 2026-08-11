@@ -31,8 +31,9 @@ export function Hero({
           sizes="100vw"
           className="object-cover object-center"
         />
-        {/* Skipped entirely for `prefers-reduced-motion` — see `HeroVideo`. */}
-        {videoSrc && <HeroVideo src={videoSrc} poster={poster} />}
+        {/* Skipped entirely on phones and for `prefers-reduced-motion`, in which
+            case the poster above is the whole hero — see `HeroVideo`. */}
+        {videoSrc && <HeroVideo src={videoSrc} />}
       </div>
 
       {/* Scrim for legibility */}
