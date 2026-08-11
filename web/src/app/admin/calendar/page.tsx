@@ -7,6 +7,7 @@ import {
   isMonthInWindow,
   isMonthKey,
   MAX_CAPACITY,
+  monthBounds,
   monthGrid,
   monthOf,
   monthWindow,
@@ -15,6 +16,7 @@ import {
   WEEKDAY_INITIALS,
   type MonthKey,
 } from "@/lib/availability";
+import { countBookedSeats } from "@/lib/bookings";
 import { AdminShell } from "@/components/admin/admin-shell";
 import {
   AvailabilityCalendar,
@@ -57,13 +59,11 @@ export default async function AdminCalendarPage({
   const previousMonth = month > first ? addMonths(month, -1) : null;
   const nextMonth = month < last ? addMonths(month, 1) : null;
 
-  /*
-   * `booked` is 0 on every day here: the bookings table lands with checkout,
-   * and this page will pass its per-day counts in as `bookedByDate` when it
-   * does. Until then "seats left" is simply capacity, which is true — nothing
-   * has been sold through the site yet.
-   */
-  const days = await readMonth({ month, today });
+  // Supply and demand, read together: the seats each day has, minus the ones
+  // sold into it (confirmed bookings, plus holds that have not lapsed).
+  const { first: monthStart, last: monthEnd } = monthBounds(month);
+  const bookedByDate = await countBookedSeats({ from: monthStart, to: monthEnd });
+  const days = await readMonth({ month, today, bookedByDate });
 
   const calendarDays: CalendarDay[] = days.map((day) => ({
     ...day,

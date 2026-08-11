@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireAdmin } from "@/lib/admin-auth";
 import { clearDays, upsertDays, type DateKey } from "@/lib/availability";
+import { datesWithBookings } from "@/lib/bookings";
 import { recordAuditOrWarn } from "@/lib/audit";
 import {
   clearAvailabilitySchema,
@@ -107,11 +108,12 @@ export async function setAvailability(
  * absent day is one nobody has made. Absence is also the default, so this is
  * the undo for "I opened the wrong month".
  *
- * It does not check for bookings, because at this stage there are none to
- * check for — the bookings table arrives with checkout. Clearing a day that has
- * been sold must become impossible in the same change that makes selling
- * possible; there is a test-visible reminder in the booking work, and this
- * comment is the other half of it.
+ * **A day that has been sold cannot be forgotten.** Clearing it would leave a
+ * guest holding a booking for a day the calendar has no opinion about — the
+ * tour still happens, but nothing on the admin's screens says so. Closing it is
+ * still allowed, and is the right move for "we have to cancel the 20th": the
+ * day stops taking new bookings, the existing ones stay visible, and calling
+ * those guests is a conversation, not a database change.
  */
 export async function clearAvailability(
   _prevState: AvailabilityActionState,
@@ -124,6 +126,25 @@ export async function clearAvailability(
 
   const { dates, slot } = parsed.data;
   if (dates.length === 0) return { error: "No days were selected." };
+
+  let sold: Set<string>;
+  try {
+    sold = await datesWithBookings(dates, slot);
+  } catch (err) {
+    // Refuse rather than proceed: the check exists to protect a sold day, and
+    // a check that fails open is not a check.
+    console.error("[admin] couldn't check for bookings before clearing days", err);
+    return { error: "Couldn't check for bookings, so nothing was cleared. Try again." };
+  }
+
+  if (sold.size > 0) {
+    const listed = [...sold].sort().join(", ");
+    return {
+      error:
+        `${listed} ${sold.size === 1 ? "has" : "have"} bookings on ${sold.size === 1 ? "it" : "them"}, ` +
+        "so nothing was cleared. Close the day instead — the bookings stay visible.",
+    };
+  }
 
   let removed: number;
   try {
