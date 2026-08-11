@@ -5,7 +5,7 @@ import { db, experienceCatalogue } from "@/db";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import { experienceKindMeta } from "@/lib/admin-format";
-import { formatPrice } from "@/lib/bookings";
+import { formatPrice } from "@/lib/money";
 import { experienceIcon } from "@/lib/experience-icons";
 import { listCatalogue } from "@/lib/experience-catalogue";
 import { AdminShell } from "@/components/admin/admin-shell";

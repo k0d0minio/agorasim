@@ -30,7 +30,7 @@ import {
 } from "@/db/schema";
 import { DELETE_CONFIRMATION } from "@/lib/admin-format";
 import { DEFAULT_CAPACITY, isDateKey, MAX_CAPACITY } from "@/lib/availability";
-import { parsePriceInput } from "@/lib/bookings";
+import { parsePriceInput } from "@/lib/money";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
 import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
@@ -498,3 +498,45 @@ export const tourRequestSchema = z.object({
 
 /** Field names `submitTourRequest` can report an inline error against. */
 export type TourRequestField = "name" | "email" | "preferredDate";
+
+// ---------------------------------------------------------------------------
+// Public booking checkout
+// ---------------------------------------------------------------------------
+
+/**
+ * A booking, as the checkout form submits it.
+ *
+ * Stricter than the enquiry schema above, and the difference is the point: an
+ * enquiry is a conversation starter, so an unrecognised add-on slug is dropped
+ * and a missing date is fine. This one ends in a card being charged, so every
+ * field it prices from has to be exactly what it says it is. The action refuses
+ * anything the catalogue does not recognise rather than quietly selling a
+ * cheaper day than the guest chose.
+ *
+ * Note what is *not* here: a price. The total is computed server-side from the
+ * catalogue (`lib/bookings.ts`), and the number the browser was shown is never
+ * read back.
+ */
+export const bookingCheckoutSchema = z.object({
+  name: text.min(1),
+  email: z.string().trim().toLowerCase().regex(EMAIL_RE),
+  phone: optionalText,
+  message: optionalText,
+
+  /** Must be a real calendar day; the action re-checks it is on sale. */
+  date: z.string().trim().refine(isDateKey),
+  experience: z.string().trim().regex(SLUG_RE),
+  addOns: repeated.transform((slugs) => slugs.filter((slug) => SLUG_RE.test(slug))),
+  partySize: z
+    .string()
+    .trim()
+    .transform((value) => Number.parseInt(value, 10))
+    .refine((n) => Number.isInteger(n) && n >= 1 && n <= MAX_CAPACITY),
+
+  marketingConsent: z
+    .preprocess((value) => value === "on" || value === "true", z.boolean())
+    .catch(false),
+});
+
+/** Field names `startCheckout` can report an inline error against. */
+export type BookingCheckoutField = "name" | "email" | "date" | "partySize";

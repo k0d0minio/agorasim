@@ -64,6 +64,8 @@ export const AUDIT_ACTIONS = [
   "availability.opened",
   "availability.closed",
   "availability.cleared",
+  "booking.confirmed",
+  "booking.expired",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -74,7 +76,8 @@ export type AuditEntityType =
   | "tour_request"
   | "feature_request"
   | "experience"
-  | "availability";
+  | "availability"
+  | "booking";
 
 export type AuditInput = {
   /** The signed-in operator, or `null` for an automated job (the retention cron). */

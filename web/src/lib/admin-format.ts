@@ -139,6 +139,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "availability.opened": "opened days for booking",
   "availability.closed": "closed days",
   "availability.cleared": "cleared days from the calendar",
+  "booking.confirmed": "a booking was paid and confirmed",
+  "booking.expired": "a booking was not paid in time",
 };
 
 /**
