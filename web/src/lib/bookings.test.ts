@@ -3,12 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   BOOKING_HOLD_MINUTES,
   bookingRef,
-  formatPrice,
   holdExpiryFrom,
   isSellable,
   occupiesSeat,
-  parsePriceInput,
-  priceInputValue,
   quote,
 } from "@/lib/bookings";
 import type { Experience } from "@/content/experiences";
@@ -19,9 +16,9 @@ import type { Booking } from "@/db";
  *
  * Everything here is a wrong answer that costs somebody something real: a tour
  * sold for nothing because its price was never set, a party charged for one
- * person, a rounding error in a decimal separator, an abandoned checkout
- * sitting on the last seat of a Saturday in August. The queries themselves are
- * typed and covered by the build, per the convention in `sales.test.ts`.
+ * person, an abandoned checkout sitting on the last seat of a Saturday in
+ * August. Formatting and parsing money live in `money.test.ts`; the queries
+ * themselves are typed and covered by the build, per `sales.test.ts`.
  */
 
 function experience(overrides: Partial<Experience> = {}): Experience {
@@ -137,47 +134,6 @@ describe("isSellable", () => {
     expect(isSellable(experience({ priceCents: null }))).toBe(false);
     expect(isSellable(experience({ priceCents: 0 }))).toBe(false);
     expect(isSellable(undefined)).toBe(false);
-  });
-});
-
-describe("parsePriceInput", () => {
-  it("reads what an operator actually types", () => {
-    expect(parsePriceInput("145")).toBe(14500);
-    // Portugal writes the decimal with a comma, and the phone keyboard offers
-    // whichever it feels like.
-    expect(parsePriceInput("145,50")).toBe(14550);
-    expect(parsePriceInput("145.50")).toBe(14550);
-    expect(parsePriceInput(" 145 ")).toBe(14500);
-    expect(parsePriceInput("0.99")).toBe(99);
-  });
-
-  it("rounds a stray third digit to the nearest cent", () => {
-    expect(parsePriceInput("145.505")).toBe(14551);
-  });
-
-  it("treats blank and unreadable as 'no price', never as free", () => {
-    for (const value of ["", "   ", "free", "€145", "1e3", "-10", "0", "145,5,5"]) {
-      expect(parsePriceInput(value)).toBeNull();
-    }
-  });
-
-  it("round-trips through the field it fills", () => {
-    expect(priceInputValue(parsePriceInput("145"))).toBe("145");
-    expect(priceInputValue(parsePriceInput("145,50"))).toBe("145.50");
-    expect(priceInputValue(null)).toBe("");
-    expect(priceInputValue(0)).toBe("");
-  });
-});
-
-describe("formatPrice", () => {
-  it("drops the cents when there are none, and keeps them when there are", () => {
-    expect(formatPrice(14500, "en")).toBe("€145");
-    expect(formatPrice(14550, "en")).toBe("€145.50");
-  });
-
-  it("formats in the reader's language", () => {
-    // pt-PT puts the symbol after the amount and uses a comma.
-    expect(formatPrice(14550, "pt")).toContain("145,50");
   });
 });
 

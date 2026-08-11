@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { isLocale, t, type Locale } from "@/i18n/config";
+import { bookingContent } from "@/content/booking";
 import { tourRequestContent } from "@/content/tour-request";
 import { Section } from "@/components/section";
+import { BookingCheckoutForm } from "@/components/booking-checkout-form";
 import { TourRequestForm } from "@/components/tour-request-form";
 import { listExperiences } from "@/lib/experience-catalogue";
 import {
@@ -13,13 +15,22 @@ import {
   PUBLIC_CALENDAR_MONTHS,
   readPublicCalendar,
   type DateKey,
+  type PublicMonth,
 } from "@/lib/availability";
-import { countBookedSeats } from "@/lib/bookings";
+import { countBookedSeats, isSellable } from "@/lib/bookings";
+import { isStripeConfigured, isTestMode } from "@/lib/stripe";
 import { JsonLd } from "@/components/json-ld";
 import { organizationJsonLd } from "@/lib/jsonld";
 import { alternates } from "@/lib/seo";
 
-/** See the note on the home page: the catalogue is editable, so this re-renders. */
+/**
+ * Cached like the rest of the public site — the catalogue and the calendar both
+ * change, and both revalidate the whole layout when they do (see the admin
+ * actions), so the hour is a backstop rather than the mechanism.
+ *
+ * Nothing on this page is per-guest. The Stripe session is created by a server
+ * action on submit, and the confirmation lives on its own dynamic route.
+ */
 export const revalidate = 3600;
 
 export async function generateMetadata({
@@ -36,25 +47,6 @@ export async function generateMetadata({
   };
 }
 
-/**
- * Booking page.
- *
- * The date field is the live availability calendar: the days Diogo & Rita have
- * actually opened at `/admin/calendar`, with the sold-out ones already gone.
- * The hardcoded August 2026 grid with its invented busy days is not rendered
- * anywhere any more.
- *
- * Everything else is unchanged and deliberately so — the submission still lands
- * in `tour_requests` for the Sales board to triage, and payment (launch plan
- * Phase 2) is the next slice. This is also the shape the plan's fallback takes
- * if Stripe activation slips: slot-pick now, pay offline.
- *
- * When the calendar has nothing to offer — a fresh environment, an unreachable
- * database during a build, or simply a season nobody has opened — the read
- * returns no months and the form falls back to asking for a date in words. A
- * booking page that stops collecting leads because a table is empty would be a
- * worse failure than having no calendar at all.
- */
 /**
  * Seats already sold across the window the picker shows.
  *
@@ -77,6 +69,26 @@ async function bookedSeats(): Promise<Map<DateKey, number>> {
   }
 }
 
+/**
+ * Booking page — checkout when everything needed to take money is in place,
+ * the enquiry form otherwise.
+ *
+ * Three conditions have to hold before this page will sell anything, and each
+ * one is a real state this project passes through:
+ *
+ * 1. **Stripe is configured.** The launch plan's biggest external risk is
+ *    activation slipping past the window, and its documented fallback is
+ *    slot-pick with payment offline. That fallback is not a revert — it is this
+ *    deployment with no `STRIPE_SECRET_KEY`, and this branch is where it lives.
+ * 2. **The tour has a price.** Real prices are AGORA-002, still blocked on
+ *    Diogo & Rita's answers, so today every entry is unpriced and this is the
+ *    branch that runs. An unpriced tour is unsellable rather than free.
+ * 3. **Some day is open.** A calendar with nothing on it can only say no; the
+ *    enquiry form can still take the lead and arrange it by hand.
+ *
+ * Falling back is not a degraded page. It is the form that has been capturing
+ * leads since AGORA-001, now with a real date picker on it.
+ */
 export default async function BookingPage({
   params,
 }: {
@@ -85,11 +97,21 @@ export default async function BookingPage({
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
-  const c = tourRequestContent;
-  const [experiences, availability] = await Promise.all([
-    listExperiences(),
-    readPublicCalendar({ locale: l, bookedByDate: await bookedSeats() }),
-  ]);
+
+  const [experiences, availability]: [Awaited<ReturnType<typeof listExperiences>>, PublicMonth[]] =
+    await Promise.all([
+      listExperiences(),
+      readPublicCalendar({ locale: l, bookedByDate: await bookedSeats() }),
+    ]);
+
+  const signature = experiences.find((entry) => entry.kind === "signature");
+  const sellable = experiences.filter(isSellable);
+  const canCheckout =
+    isStripeConfigured() &&
+    isSellable(signature) &&
+    availability.some((month) => month.hasOpenings);
+
+  const c = canCheckout ? bookingContent : tourRequestContent;
 
   return (
     <>
@@ -98,15 +120,32 @@ export default async function BookingPage({
         <div className="max-w-2xl">
           <h1 className="text-4xl font-semibold sm:text-5xl">{t(c.title, l)}</h1>
           <p className="mt-6 text-lg text-muted-foreground">{t(c.lead, l)}</p>
-          <p className="mt-3 text-sm text-muted-foreground">{t(c.note, l)}</p>
+          {canCheckout ? null : (
+            <p className="mt-3 text-sm text-muted-foreground">
+              {t(tourRequestContent.note, l)}
+            </p>
+          )}
         </div>
 
-        <div className="mt-10 max-w-2xl">
-          <TourRequestForm
-            locale={l}
-            experiences={experiences}
-            availability={availability}
-          />
+        <div className="mt-10">
+          {canCheckout ? (
+            <BookingCheckoutForm
+              locale={l}
+              // Only priced entries: an add-on with no price would render as a
+              // free extra and then fail at the till.
+              experiences={sellable}
+              availability={availability}
+              testMode={isTestMode()}
+            />
+          ) : (
+            <div className="max-w-2xl">
+              <TourRequestForm
+                locale={l}
+                experiences={experiences}
+                availability={availability}
+              />
+            </div>
+          )}
         </div>
       </Section>
     </>
