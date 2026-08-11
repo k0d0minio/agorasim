@@ -9,7 +9,7 @@ import type { Localized } from "@/i18n/config";
  * advice and it has not been reviewed by anyone qualified. Before this goes
  * live, a human with Portuguese/EU data-protection knowledge must read it and
  * sign it off, and every `TODO(legal)` below must be resolved. The specific open
- * questions are collected in `docs/data-protection.md`.
+ * questions are collected in `.icm/docs/data-protection.md`.
  *
  * Conventions follow the rest of `src/content/`: `Localized<T>` pairs, PT and EN
  * kept in step.
@@ -100,7 +100,7 @@ export const privacyContent = {
         heading: "Durante quanto tempo guardamos os dados",
         body: [
           "Pedidos que não se convertem numa reserva são anonimizados automaticamente ao fim do prazo de conservação definido — os dados que o identificam (nome, email, telefone e mensagem) são apagados e fica apenas informação estatística que não permite identificá-lo.",
-          "PROPOSTA, A CONFIRMAR: 24 meses a contar do último contacto. Este prazo ainda não foi decidido — ver a nota em docs/data-protection.md.",
+          "PROPOSTA, A CONFIRMAR: 24 meses a contar do último contacto. Este prazo ainda não foi decidido — ver a nota em .icm/docs/data-protection.md.",
           "Dados associados a reservas efetivamente realizadas podem ter de ser conservados por prazos mais longos por obrigação legal (por exemplo, fiscal). TODO(legal): confirmar estes prazos.",
         ],
       },
@@ -164,7 +164,7 @@ export const privacyContent = {
         heading: "How long we keep it",
         body: [
           "Enquiries that never turn into a booking are anonymised automatically once the retention period is reached — the data that identifies you (name, email, phone and message) is erased, leaving only statistical information that cannot identify you.",
-          "PROPOSED, NOT YET DECIDED: 24 months from the last contact. This period has not been signed off — see the note in docs/data-protection.md.",
+          "PROPOSED, NOT YET DECIDED: 24 months from the last contact. This period has not been signed off — see the note in .icm/docs/data-protection.md.",
           "Data attached to bookings that actually took place may have to be kept longer to meet legal obligations (for example tax record-keeping). TODO(legal): confirm those periods.",
         ],
       },

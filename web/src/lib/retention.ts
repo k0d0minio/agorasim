@@ -8,7 +8,7 @@
  * summer and returning the next is still recognised. It has not been signed off
  * by anyone at Agorasim and it is not legal advice. Set `ENQUIRY_RETENTION_DAYS`
  * to whatever is decided; the default is a fallback, not a recommendation.
- * See `docs/data-protection.md`.
+ * See `.icm/docs/data-protection.md`.
  *
  * **Anonymise, not delete.** Expired rows have their identifying columns cleared
  * (name, email, phone, message) and the rest — party size, locale, status, dates

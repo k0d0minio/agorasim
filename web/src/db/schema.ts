@@ -79,7 +79,7 @@ export const contentStatusEnum = pgEnum("content_status", [
   "published",
 ]);
 
-/** Social networks the social pipeline targets (see social-media-automation.md). */
+/** Social networks the social pipeline targets (see .icm/docs/social-media-automation.md). */
 export const socialPlatformEnum = pgEnum("social_platform", [
   "instagram",
   "facebook",
@@ -262,7 +262,7 @@ export type NewAuditLogEntry = typeof auditLog.$inferInsert;
  * - Rows that never convert are anonymised by the retention job
  *   (`app/api/cron/retention`) after `ENQUIRY_RETENTION_DAYS`.
  *
- * See `docs/data-protection.md`.
+ * See `.icm/docs/data-protection.md`.
  */
 export const tourRequests = pgTable("tour_requests", {
   id: uuid("id").primaryKey().defaultRandom(),
