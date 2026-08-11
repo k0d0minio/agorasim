@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | today |
+| Status | in-progress |
 | Type | feature |
 | Priority | P0 |
 | Size | S |
@@ -18,7 +18,7 @@ haven't started.
 
 ## Acceptance
 
-- [ ] `TourRequestForm` mounted on `/reservar` (replacing the `BookingFlow` preview) and
+- [x] `TourRequestForm` mounted on `/reservar` (replacing the `BookingFlow` preview) and
       reachable from `/contactos`.
 - [ ] A submission lands on the admin Sales board end-to-end, verified on a phone.
 - [ ] `.icm/docs/information-request-diogo-rita.md` sent to Diogo & Rita; the 15-min DNS

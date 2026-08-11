@@ -6,6 +6,7 @@ import { getDictionary } from "@/i18n/dictionaries";
 import { contact } from "@/content/pages";
 import { site } from "@/content/site";
 import { Section } from "@/components/section";
+import { BookingButton } from "@/components/booking-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { JsonLd } from "@/components/json-ld";
 import { organizationJsonLd } from "@/lib/jsonld";
@@ -76,6 +77,19 @@ export default async function ContactPage({ params }: { params: Promise<{ locale
               <p className="mt-2 text-lg text-muted-foreground">{site.region}</p>
             </CardContent>
           </Card>
+        </div>
+
+        {/*
+          The phone numbers above are the fastest route for most visitors, but a
+          written enquiry is the one that reaches the Sales board with the dates
+          and party size already filled in — so the form gets its own row here.
+        */}
+        <div className="mt-12 flex flex-col gap-4 rounded-2xl border border-border bg-secondary/20 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+          <div className="max-w-prose">
+            <p className="font-heading text-lg font-medium">{t(contact.request.title, l)}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t(contact.request.body, l)}</p>
+          </div>
+          <BookingButton locale={l} label={dict.cta.bookExperience} className="sm:shrink-0" />
         </div>
       </Section>
     </>
