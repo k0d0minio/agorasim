@@ -14,24 +14,34 @@ import { useSyncExternalStore } from "react";
  *    honouring the preference — the element would still be there, still playing,
  *    still animating behind `display: none` in some engines.
  * 2. Hiding it with CSS also would not stop the *download*, and the download is
- *    the expensive part: `/images/video.mp4` is ~40 MB. Not rendering the
- *    element at all is the only way to not fetch it.
+ *    the expensive part. Not rendering the element at all is the only way to
+ *    not fetch it.
  *
- * ⚠️ **The 40 MB is still a problem for everyone else.** This spares the visitors
- * who opted out of motion; it does nothing for the ones who did not, and they are
- * most of them. The file needs re-encoding (and ideally moving off the repo onto
- * a CDN or Vercel Blob) — a modern two-pass H.264/AV1 encode at 1080p should land
- * this comfortably under 5 MB. It was not done in the commit that added this
- * component because no H.264 encoder was available in that environment, not
- * because the file is acceptable as it is.
+ * `/images/video.mp4` was 40 MB when this component was written, which made the
+ * second point urgent for everyone, not just the reduced-motion minority. It is
+ * now 3.2 MB — 1280×720, 30fps, two-pass H.264 at ~780 kbps, audio stripped
+ * (the element is `muted`, so the audio track was 470 KB nobody could hear).
+ * Re-encode with `ffmpeg`, not by hand, and keep it in that range: this plays
+ * behind a dark scrim on rural 4G, and detail spent there is detail wasted.
  *
  * The poster image carries the hero on its own until the video is ready, so
  * deciding after hydration costs nothing visually — and the poster is the LCP
  * element either way.
  */
 
-/** `prefers-reduced-motion` as an external store, so React can subscribe to it. */
-const QUERY = "(prefers-reduced-motion: reduce)";
+/**
+ * Two reasons not to play it, in one query: the visitor asked for less motion,
+ * or they are on a phone.
+ *
+ * The phone half is a performance decision, measured rather than assumed.
+ * Lighthouse mobile on the home page, with the video loading: LCP 7.8s and a
+ * performance score of 56 — 1.7 MB of video streaming in parallel with the
+ * hero photo that *is* the LCP element, over simulated 4G. The photo is the
+ * whole hero on a 390px screen anyway; the pan and drift of a background clip
+ * is a wide-screen pleasure. So below `md` the poster stands alone, and the
+ * video is a desktop enhancement.
+ */
+const QUERY = "(prefers-reduced-motion: reduce), (max-width: 767px)";
 
 function subscribe(onChange: () => void): () => void {
   const list = window.matchMedia(QUERY);
@@ -44,19 +54,19 @@ function snapshot(): boolean {
 }
 
 /**
- * Server snapshot: assume reduced motion. A static render cannot know the
- * preference, and the safe assumption is the one that renders no video and
- * downloads nothing — the alternative starts a 40 MB fetch for someone who
- * asked us not to animate, and cancels it a moment later.
+ * Server snapshot: assume we are not playing it. A static render knows neither
+ * the motion preference nor the viewport, and the safe assumption is the one
+ * that renders no video and downloads nothing — the alternative starts the
+ * fetch for someone who asked us not to animate, and cancels it a moment later.
  */
 function serverSnapshot(): boolean {
   return true;
 }
 
-export function HeroVideo({ src, poster }: { src: string; poster: string }) {
-  const reducedMotion = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+export function HeroVideo({ src }: { src: string }) {
+  const skip = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
 
-  if (reducedMotion) return null;
+  if (skip) return null;
 
   return (
     <video
@@ -65,8 +75,13 @@ export function HeroVideo({ src, poster }: { src: string; poster: string }) {
       muted
       loop
       playsInline
-      poster={poster}
       preload="metadata"
+      /*
+       * No `poster`: the same photograph is already rendered underneath by the
+       * hero's `<Image>`, and it shows through until the first frame paints.
+       * Setting it here fetched that photo a second time — 353 KB, straight
+       * from `/images/`, bypassing the optimizer that served the `<Image>`.
+       */
       // Decorative: the poster already carries an alt, and narrating a looping
       // background clip adds nothing.
       aria-hidden="true"
