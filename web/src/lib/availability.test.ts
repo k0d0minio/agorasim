@@ -21,6 +21,7 @@ import {
   monthWindow,
   parseDateKey,
   todayKey,
+  toPublicDay,
   weekdayIndex,
 } from "@/lib/availability";
 import type { AvailabilityRow } from "@/db";
@@ -307,6 +308,39 @@ describe("describeMonth", () => {
     const fifteenth = days.find((day) => day.date === "2026-08-15")!;
     expect(fifteenth.booked).toBe(DEFAULT_CAPACITY);
     expect(fifteenth.bookable).toBe(false);
+  });
+});
+
+describe("toPublicDay", () => {
+  const today = "2026-08-10";
+
+  it("tells a guest only whether they can book, and how many seats are left", () => {
+    const day = describeDay({
+      date: "2026-08-15",
+      row: row({ note: "Diogo em casamento" }),
+      booked: 1,
+      today,
+    });
+
+    // The exact shape is the assertion. The stored row also carries the note,
+    // the status and the capacity — between them a fair sketch of the family's
+    // diary — and the way to guarantee a guest is never told *why* a day is
+    // unavailable is for the reason not to be in the payload at all.
+    expect(toPublicDay(day)).toEqual({
+      date: "2026-08-15",
+      bookable: true,
+      seatsLeft: DEFAULT_CAPACITY - 1,
+    });
+  });
+
+  it("reports no seats on a day that cannot be booked, whatever the row says", () => {
+    // A closed day with three empty seats must not advertise three seats.
+    const closed = describeDay({ date: "2026-08-15", row: row({ status: "closed" }), today });
+    expect(toPublicDay(closed)).toEqual({
+      date: "2026-08-15",
+      bookable: false,
+      seatsLeft: 0,
+    });
   });
 });
 

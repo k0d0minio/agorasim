@@ -484,4 +484,4 @@ export const tourRequestSchema = z.object({
 });
 
 /** Field names `submitTourRequest` can report an inline error against. */
-export type TourRequestField = "name" | "email";
+export type TourRequestField = "name" | "email" | "preferredDate";
