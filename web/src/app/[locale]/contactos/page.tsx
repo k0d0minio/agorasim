@@ -49,7 +49,12 @@ export default async function ContactPage({ params }: { params: Promise<{ locale
                   <Phone className="h-5 w-5" />
                   <span className="font-semibold">{c.name}</span>
                 </div>
-                <a href={`tel:${c.phone}`} className="mt-2 block text-lg hover:text-primary">
+                {/* Tapping a number to call is the main job of this page, so
+                    the link is a 44px row, not a 28px line (spec §2 T1). */}
+                <a
+                  href={`tel:${c.phone}`}
+                  className="mt-1 inline-flex min-h-11 touch-manipulation items-center text-lg hover:text-primary"
+                >
                   {c.phoneDisplay}
                 </a>
               </CardContent>
@@ -62,7 +67,10 @@ export default async function ContactPage({ params }: { params: Promise<{ locale
                 <Mail className="h-5 w-5" />
                 <span className="font-semibold">Email</span>
               </div>
-              <a href={`mailto:${site.email}`} className="mt-2 block text-lg hover:text-primary">
+              <a
+                href={`mailto:${site.email}`}
+                className="mt-1 inline-flex min-h-11 touch-manipulation items-center text-lg hover:text-primary"
+              >
                 {site.email}
               </a>
             </CardContent>

@@ -76,7 +76,9 @@ export default async function ExperiencesPage({
               <BookingButton locale={l} label={dict.cta.bookExperience} />
               <Link
                 href={href(l, "experiencias", sig.slug)}
-                className="inline-flex items-center gap-1 self-center text-sm font-medium text-primary hover:underline"
+                // min-h-11: this sits beside a 48px button and was a 20px-tall
+                // target (spec §2 T1).
+                className="inline-flex min-h-11 touch-manipulation items-center gap-1 self-center text-sm font-medium text-primary hover:underline"
               >
                 {dict.cta.learnMore}
                 <ArrowRight className="h-4 w-4" />
