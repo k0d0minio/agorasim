@@ -2,7 +2,7 @@
 
 ICM workspaces that operate the Agorasim business. Each subfolder is a self-contained pipeline: a
 folder of markdown that tells one agent what to do at each numbered stage, with human review at
-every boundary. See `../icm.pdf` for the methodology.
+every boundary.
 
 ## Shared configuration (Layer 3 — the factory, stable across runs)
 - `_config/brand.md` — palette, logo, tone, naming.
