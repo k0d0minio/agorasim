@@ -155,6 +155,7 @@ export function TourRequestForm({
       {hasCalendar ? (
         <BookingDatePicker
           locale={locale}
+          name="preferredDate"
           months={availability}
           defaultValue={state.values?.preferredDate}
           error={state.fieldErrors?.preferredDate}
