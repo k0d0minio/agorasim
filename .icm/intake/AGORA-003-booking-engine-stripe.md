@@ -18,16 +18,40 @@ at booking; fallback if Stripe activation slips is slot-pick → pay offline (de
 
 ## Acceptance
 
-- [ ] `availability` schema in Drizzle + migration (date, slot, capacity, status).
-- [ ] Admin calendar management usable from a phone (reuse the admin mobile patterns —
+- [x] `availability` schema in Drizzle + migration (date, slot, capacity, status).
+- [x] Admin calendar management usable from a phone (reuse the admin mobile patterns —
       this is Diogo & Rita's daily tool).
-- [ ] Public calendar on `/reservar` reads real availability, server-checked.
-- [ ] Stripe Checkout: full payment, price from the server, webhook confirms → booking on
+- [x] Public calendar on `/reservar` reads real availability, server-checked.
+- [x] Stripe Checkout: full payment, price from the server, webhook confirms → booking on
       the Sales board + availability consumed; abandoned/failed payments handled (slot
       hold with expiry, or optimistic release).
-- [ ] PT/EN confirmation emails (Resend) to customer and to Diogo/Rita.
-- [ ] Tests to the standard of the existing suite; test-mode Stripe end-to-end on a phone.
-- [ ] CI green.
+- [x] PT/EN confirmation emails (Resend) to customer and to Diogo/Rita.
+- [x] Tests to the standard of the existing suite; **test-mode Stripe end-to-end on a
+      phone is still to do** — it needs a real deployment with keys, and nobody has run
+      it yet.
+- [x] CI green.
+
+## What is left before this can be closed
+
+The engine is built and merged; two things outside the code stand between it and a real
+booking, so the ticket stays open until both are done.
+
+1. **Prices.** Every catalogue entry is unpriced, which makes it unsellable by design —
+   `/reservar` offers the enquiry form instead of a checkout. Real prices are AGORA-002,
+   blocked on Diogo & Rita's Section 1 answers. Entering them at `/admin/experiences`
+   turns payment on; no deploy involved.
+2. **Configuration and the phone rehearsal.** Set `STRIPE_SECRET_KEY` (a `sk_test_…` key
+   labels the checkout as test mode), `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_SITE_URL`,
+   `RESEND_API_KEY`, `BOOKING_EMAIL_FROM`, `BOOKING_NOTIFICATION_EMAILS` — all documented
+   in `web/.env.example`. Subscribe the webhook endpoint to `checkout.session.completed`,
+   `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`
+   and `checkout.session.expired`. Then run the plan's own definition of done: open a
+   day, book it on a phone with a Stripe test card, and check the day closes, both emails
+   arrive, and the booking is on the Sales board.
+
+Leaving `STRIPE_SECRET_KEY` unset is the plan's Stripe-slips fallback (Risks table),
+already working: slot-pick through the enquiry form, pay offline. The day-10 decision is
+therefore a configuration choice, not a code change.
 
 ## Prompt
 
