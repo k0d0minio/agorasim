@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, experienceCatalogue } from "@/db";
+import { priceInputValue } from "@/lib/bookings";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import { FALLBACK_EXPERIENCE_ICON, isExperienceIconKey } from "@/lib/experience-icons";
@@ -39,6 +40,7 @@ export default async function EditExperiencePage({
     kind: row.kind,
     icon: isExperienceIconKey(row.icon) ? row.icon : FALLBACK_EXPERIENCE_ICON,
     image: row.image,
+    price: priceInputValue(row.priceCents),
     active: row.active,
     sortOrder: row.sortOrder,
     title: row.title,
