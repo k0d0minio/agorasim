@@ -197,8 +197,23 @@ export async function confirmPaidBooking(options: {
   paymentIntentId?: string | null;
   /** Resolves experience slugs to names for the emails. */
   catalogue: Map<string, Experience>;
+  /**
+   * The locale of the path the guest is standing on as this runs — `pt` for
+   * `/pt/reservar/confirmacao`, `en` for `/en/…`.
+   *
+   * The booking already carries the language it was made in, and the two agree
+   * in the ordinary case because Stripe returns the guest to a `success_url`
+   * built from that same locale. This is what settles the case where they do
+   * not: the confirmation the guest is reading *right now*, in the language
+   * they are reading it in, is the better evidence of which language to write
+   * to them in, so it wins and is written back to the booking.
+   *
+   * Omitted by the Stripe webhook, which has no path — it confirms from the
+   * language recorded at checkout.
+   */
+  pathLocale?: Locale;
 }): Promise<ConfirmationOutcome> {
-  const { sessionId, paymentIntentId, catalogue } = options;
+  const { sessionId, paymentIntentId, catalogue, pathLocale } = options;
   const now = new Date();
 
   const [existing] = await db
@@ -229,6 +244,10 @@ export async function confirmPaidBooking(options: {
       status: "confirmed",
       confirmedAt: now,
       stripePaymentIntentId: paymentIntentId ?? existing.stripePaymentIntentId,
+      // Persisted, not just used for the mail: the Sales board, the admin's
+      // "write to this guest" templates and this page all have to agree about
+      // which language this person reads.
+      ...(pathLocale && pathLocale !== existing.locale ? { locale: pathLocale } : {}),
       updatedAt: now,
     })
     // The guard. Two callers race here; exactly one row comes back.
@@ -248,7 +267,11 @@ export async function confirmPaidBooking(options: {
   if (confirmed.tourRequestId) {
     [lead] = await db
       .update(tourRequests)
-      .set({ status: "booked", updatedAt: now })
+      .set({
+        status: "booked",
+        ...(pathLocale && pathLocale !== existing.locale ? { locale: pathLocale } : {}),
+        updatedAt: now,
+      })
       .where(eq(tourRequests.id, confirmed.tourRequestId))
       .returning();
   }

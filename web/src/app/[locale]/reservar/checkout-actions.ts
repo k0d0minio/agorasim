@@ -1,9 +1,16 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { bookingContent } from "@/content/booking";
-import { isLocale, t, type Locale } from "@/i18n/config";
+import {
+  defaultLocale,
+  isLocale,
+  localeFromPathname,
+  t,
+  type Locale,
+} from "@/i18n/config";
 import { checkDayAvailable } from "@/lib/availability";
 import { startBookingCheckout } from "@/lib/booking-checkout";
 import { countBookedSeatsOn, quote } from "@/lib/bookings";
@@ -17,6 +24,34 @@ import { isStripeConfigured } from "@/lib/stripe";
 /** A form value as a trimmed string, or undefined when it was never filled in. */
 function text(value: FormDataEntryValue | FormDataEntryValue[] | undefined) {
   return typeof value === "string" ? value.trim() || undefined : undefined;
+}
+
+/**
+ * The language this booking is happening in.
+ *
+ * The form posts it as a hidden field carrying the page's own `[locale]` — a
+ * server action gets no route params of its own, so that field is how the path
+ * reaches here. It decides more than the error messages below: it is stored on
+ * the booking, sets Stripe's checkout language, builds the `success_url` the
+ * guest returns to, and is the language their confirmation email is written in.
+ *
+ * When the field is missing or unrecognised the referring URL answers the same
+ * question — a form on `/en/reservar` was submitted from `/en/reservar` — which
+ * is worth one header read to avoid quietly mailing a Portuguese confirmation
+ * to somebody who booked in English.
+ */
+async function bookingLocale(field: unknown): Promise<Locale> {
+  const raw = String(field ?? "");
+  if (isLocale(raw)) return raw;
+
+  const referer = (await headers()).get("referer");
+  if (!referer) return defaultLocale;
+  try {
+    return localeFromPathname(new URL(referer).pathname);
+  } catch {
+    // A referer that isn't a URL. Nothing to learn from it.
+    return defaultLocale;
+  }
 }
 
 export type CheckoutState = {
@@ -62,8 +97,7 @@ export async function startCheckout(
   formData: FormData,
 ): Promise<CheckoutState> {
   const values = formValues(formData);
-  const localeRaw = String(values.locale ?? "");
-  const locale: Locale = isLocale(localeRaw) ? localeRaw : "pt";
+  const locale = await bookingLocale(values.locale);
   const c = bookingContent.errors;
 
   /** Echoed back on every failure path — see `CheckoutState.values`. */
