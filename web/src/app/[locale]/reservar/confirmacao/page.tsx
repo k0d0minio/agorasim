@@ -141,6 +141,11 @@ async function resolve(sessionId: string, locale: Locale): Promise<ResolvedBooki
           ? session.payment_intent
           : (session.payment_intent?.id ?? null),
       catalogue: new Map(catalogue.map((entry) => [entry.slug, entry])),
+      // The `/pt` or `/en` this page was reached on. Whichever of this page and
+      // the webhook gets to the booking first sends the confirmation, and when
+      // it is this one, the guest's mail goes out in the language of the page
+      // they are looking at.
+      pathLocale: locale,
     });
 
     if (outcome.status !== "confirmed") return { kind: "pending" };
