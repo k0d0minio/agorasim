@@ -429,6 +429,169 @@ export async function readDay(
 }
 
 // ---------------------------------------------------------------------------
+// The public calendar
+// ---------------------------------------------------------------------------
+
+/**
+ * How many months the public picker offers.
+ *
+ * Not the same number as {@link CALENDAR_HORIZON_MONTHS}, which bounds what the
+ * *team* can plan. The public page is statically rendered and ships every month
+ * it offers in the payload, so this is a page-weight decision: six months is
+ * two seasons of choice at a few kilobytes.
+ */
+export const PUBLIC_CALENDAR_MONTHS = 6;
+
+/**
+ * One day, as a guest is allowed to see it.
+ *
+ * Deliberately three fields. The stored row also carries `note` — "Diogo em
+ * casamento", "carro na revisão" — and `status`, which together say rather more
+ * about the family's diary than a booking page should. A guest is told a day is
+ * unavailable; they are never told why, and the way to guarantee that is for
+ * the reason not to be in the payload at all.
+ */
+export type PublicDay = {
+  date: DateKey;
+  bookable: boolean;
+  /** Only meaningful when `bookable`; 0 otherwise. */
+  seatsLeft: number;
+};
+
+/** One month of the public picker, ready to render without a round trip. */
+export type PublicMonth = {
+  month: MonthKey;
+  /** Localized heading, e.g. "Agosto de 2026". */
+  label: string;
+  /** Monday-first grid, `null` for the blanks before the 1st. */
+  grid: (DateKey | null)[];
+  days: PublicDay[];
+  /** Whether anything in this month can actually be booked. */
+  hasOpenings: boolean;
+};
+
+/** Strip a day down to what a guest may know about it. */
+export function toPublicDay(day: AvailabilityDay): PublicDay {
+  return {
+    date: day.date,
+    bookable: day.bookable,
+    seatsLeft: day.bookable ? day.seatsLeft : 0,
+  };
+}
+
+/**
+ * The months the public picker shows, from this one forward.
+ *
+ * **Never throws.** `/reservar` is statically rendered, and CI builds it with
+ * no `DATABASE_URL` at all — so an unreachable database returns no months and
+ * the page falls back to asking for a date in words, exactly as it did before
+ * the calendar existed. The same fallback covers the honest case where nobody
+ * has opened a day yet: a booking page with no calendar still has to take
+ * leads, or the first week of the season quietly captures nothing.
+ *
+ * This mirrors the resolver in `lib/experience-catalogue.ts`, for the same
+ * reason and with the same warn-once discipline.
+ */
+export async function readPublicCalendar(options: {
+  locale: "pt" | "en";
+  months?: number;
+  slot?: AvailabilitySlot;
+  bookedByDate?: Map<DateKey, number>;
+  today?: DateKey;
+}): Promise<PublicMonth[]> {
+  const {
+    locale,
+    months = PUBLIC_CALENDAR_MONTHS,
+    slot = DEFAULT_SLOT,
+    bookedByDate,
+    today = todayKey(),
+  } = options;
+
+  const first = monthOf(today);
+  const monthKeys = Array.from({ length: months }, (_, i) => addMonths(first, i));
+
+  let rows: AvailabilityRow[];
+  try {
+    rows = await listAvailabilityRows(
+      monthBounds(monthKeys[0]).first,
+      monthBounds(monthKeys[monthKeys.length - 1]).last,
+      slot,
+    );
+  } catch (err) {
+    console.warn(
+      "[availability] no public calendar — falling back to asking for a date in words: " +
+        `${err instanceof Error ? err.message : String(err)}`,
+    );
+    return [];
+  }
+
+  const byMonth = new Map<MonthKey, AvailabilityRow[]>();
+  for (const row of rows) {
+    const key = monthOf(row.date);
+    const bucket = byMonth.get(key);
+    if (bucket) bucket.push(row);
+    else byMonth.set(key, [row]);
+  }
+
+  return monthKeys.map((month) => {
+    const days = describeMonth({
+      month,
+      rows: byMonth.get(month) ?? [],
+      bookedByDate,
+      today,
+    }).map(toPublicDay);
+
+    return {
+      month,
+      label: formatMonth(month, locale),
+      grid: monthGrid(month),
+      days,
+      hasOpenings: days.some((day) => day.bookable),
+    };
+  });
+}
+
+/**
+ * Re-check one day, server-side, at the moment of a submission.
+ *
+ * The browser was shown a calendar; what it posts back is whatever the person
+ * posting it wants, and by the time it arrives the day may have sold out or
+ * been closed anyway. Everything that accepts a date from a guest goes through
+ * here — today the enquiry form, tomorrow the checkout session.
+ *
+ * A database failure is a "no". A booking engine that cannot read availability
+ * must not fall back to accepting the date; the guest is told to try again,
+ * which is true, rather than being sold a day nobody can confirm.
+ */
+export async function checkDayAvailable(options: {
+  date: string;
+  partySize?: number | null;
+  slot?: AvailabilitySlot;
+  booked?: number;
+  today?: DateKey;
+}): Promise<
+  { ok: true; day: AvailabilityDay } | { ok: false; reason: "invalid" | "unavailable" | "too-many" | "unreadable" }
+> {
+  const { date, partySize, slot = DEFAULT_SLOT, booked = 0, today } = options;
+
+  if (!isDateKey(date)) return { ok: false, reason: "invalid" };
+
+  let row: AvailabilityRow | undefined;
+  try {
+    row = await readDay(date, slot);
+  } catch (err) {
+    console.error("[availability] could not re-check a submitted date", err);
+    return { ok: false, reason: "unreadable" };
+  }
+
+  const day = describeDay({ date, row, booked, today });
+  if (!day.bookable) return { ok: false, reason: "unavailable" };
+  if (partySize && !fitsParty(day, partySize)) return { ok: false, reason: "too-many" };
+
+  return { ok: true, day };
+}
+
+// ---------------------------------------------------------------------------
 // Writes
 // ---------------------------------------------------------------------------
 
