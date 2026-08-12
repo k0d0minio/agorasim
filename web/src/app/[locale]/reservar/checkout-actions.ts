@@ -14,9 +14,29 @@ import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { isStripeConfigured } from "@/lib/stripe";
 
+/** A form value as a trimmed string, or undefined when it was never filled in. */
+function text(value: FormDataEntryValue | FormDataEntryValue[] | undefined) {
+  return typeof value === "string" ? value.trim() || undefined : undefined;
+}
+
 export type CheckoutState = {
   error?: string;
   fieldErrors?: Partial<Record<BookingCheckoutField, string>>;
+  /**
+   * What the guest had entered, echoed back on every failure path.
+   *
+   * Not a nicety. React resets an uncontrolled `<form action>` once the action
+   * returns, so without this a rejected submission wipes the name, email,
+   * phone and notes they just typed — on a phone, at the last step, with their
+   * card already out. Nobody types all that twice.
+   */
+  values?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    message?: string;
+    date?: string;
+  };
 };
 
 /**
@@ -46,12 +66,21 @@ export async function startCheckout(
   const locale: Locale = isLocale(localeRaw) ? localeRaw : "pt";
   const c = bookingContent.errors;
 
+  /** Echoed back on every failure path — see `CheckoutState.values`. */
+  const entered = {
+    name: text(values.name),
+    email: text(values.email),
+    phone: text(values.phone),
+    message: text(values.message),
+    date: text(values.date),
+  };
+
   if (!isStripeConfigured()) {
     // Should be unreachable: the page only renders this form when payments are
     // switched on. Checked anyway, because "should be unreachable" and "cannot
     // happen" are different claims, and a deployment can lose its key.
     console.error("[checkout] refused — Stripe is not configured");
-    return { error: t(c.paymentsOff, locale) };
+    return { error: t(c.paymentsOff, locale), values: entered };
   }
 
   const ip = await clientIp();
@@ -64,7 +93,7 @@ export async function startCheckout(
 
   const throttle = await rateLimit(`checkout:${ip}`, TOUR_REQUEST_RATE_LIMIT);
   if (!throttle.allowed) {
-    return { error: t(c.rateLimited, locale) };
+    return { error: t(c.rateLimited, locale), values: entered };
   }
 
   const parsed = bookingCheckoutSchema.safeParse(values);
@@ -78,8 +107,8 @@ export async function startCheckout(
     // A schema failure with no field we render an error against is a crafted
     // request, not a guest — one generic message rather than a shrug.
     return Object.keys(fieldErrors).length > 0
-      ? { fieldErrors }
-      : { error: t(c.generic, locale) };
+      ? { fieldErrors, values: entered }
+      : { error: t(c.generic, locale), values: entered };
   }
 
   const booking = parsed.data;
@@ -107,6 +136,7 @@ export async function startCheckout(
     );
     return {
       error: t(priced.reason === "unpriced" ? c.paymentsOff : c.generic, locale),
+      values: entered,
     };
   }
 
@@ -121,6 +151,7 @@ export async function startCheckout(
       fieldErrors: {
         date: t(check.reason === "too-many" ? c.partyTooLarge : c.dayGone, locale),
       },
+      values: entered,
     };
   }
 
@@ -145,7 +176,7 @@ export async function startCheckout(
     url = started.url;
   } catch (err) {
     console.error("[checkout] could not start a Stripe session", err);
-    return { error: t(c.generic, locale) };
+    return { error: t(c.generic, locale), values: entered };
   }
 
   // Outside the try: `redirect` signals by throwing, and catching it here would
