@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, experienceCatalogue } from "@/db";
-import { priceInputValue } from "@/lib/bookings";
+import { priceInputValue } from "@/lib/money";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import { FALLBACK_EXPERIENCE_ICON, isExperienceIconKey } from "@/lib/experience-icons";

@@ -77,10 +77,24 @@ describe("recordFromRequest", () => {
     expect(recordFromRequest(lead).href).toBe(`/admin/sales/${lead.id}`);
   });
 
-  it("has no money on it — quoting is not built yet", () => {
+  it("has no money on it when nothing has been booked", () => {
     const record = recordFromRequest(tourRequest());
     expect(record.value).toBeNull();
     expect(record.payment).toBeNull();
+  });
+
+  it("carries the money, and the booked day, when a booking is behind it", () => {
+    const record = recordFromRequest(tourRequest(), {
+      value: "€340",
+      payment: "Paid in full",
+      date: "2026-08-22",
+    });
+
+    expect(record.value).toBe("€340");
+    expect(record.payment).toBe("Paid in full");
+    // The day that was actually sold wins over the guest's free-text guess:
+    // "15 August" was a hope, the 22nd is a booking.
+    expect(record.when).toBe("2026-08-22");
   });
 });
 

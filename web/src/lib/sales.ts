@@ -17,12 +17,18 @@
  * booking is just a record that arrives already in the `booked` stage, so
  * "where did this row come from" stopped being a question the UI asks — the
  * board's columns answer the question that matters, which is "where is it now".
+ *
+ * Since checkout shipped, a lead can have a real `bookings` row behind it, and
+ * that is where the money on a card comes from. Bookings and enquiries are
+ * still one shape here: a paid booking is a lead whose card happens to know
+ * what it is worth.
  */
 import "server-only";
 
-import { count, desc, eq } from "drizzle-orm";
+import { asc, count, desc, eq, inArray } from "drizzle-orm";
 
 import {
+  bookings,
   db,
   tourRequests,
   type AppLocale,
@@ -32,6 +38,8 @@ import {
 } from "@/db";
 import { previewBookings, type PreviewBooking } from "@/lib/admin-preview";
 import { REQUEST_STATUSES } from "@/lib/admin-format";
+import { occupiesSeat } from "@/lib/bookings";
+import { formatPrice } from "@/lib/money";
 
 /** The one row shape the board renders. */
 export type SalesRecord = {
@@ -54,7 +62,7 @@ export type SalesRecord = {
   partySize: number | null;
   /** The date in play: the guest's preferred day, or the booked one. */
   when: string | null;
-  /** Money, where any is known. Bookings only, until quoting ships. */
+  /** Money, where any is known — from a real `bookings` row, or an example. */
   value: string | null;
   payment: PreviewBooking["payment"] | null;
   createdAt: Date;
@@ -70,8 +78,27 @@ export function enquiryRef(id: string): string {
   return `EN-${id.slice(0, 6).toUpperCase()}`;
 }
 
+/**
+ * What a real, paid booking adds to the lead it belongs to: the money.
+ *
+ * Kept as a separate argument rather than folded into {@link TourRequest}
+ * because it comes from a different table — `bookings` holds the commercial
+ * side, `tour_requests` the person — and the board is where the two are shown
+ * as one card.
+ */
+export type BookingSummary = {
+  /** Already formatted, e.g. "€340". */
+  value: string;
+  payment: PreviewBooking["payment"];
+  /** The day sold, `YYYY-MM-DD`, which beats the guest's free-text guess. */
+  date: string;
+};
+
 /** A `tour_requests` row as a sales record. */
-export function recordFromRequest(row: TourRequest): SalesRecord {
+export function recordFromRequest(
+  row: TourRequest,
+  booking?: BookingSummary,
+): SalesRecord {
   return {
     id: row.id,
     ref: enquiryRef(row.id),
@@ -85,9 +112,11 @@ export function recordFromRequest(row: TourRequest): SalesRecord {
     experienceSlug: row.experienceSlug,
     addOns: row.addOns,
     partySize: row.partySize,
-    when: row.preferredDate,
-    value: null,
-    payment: null,
+    // The booked day where there is one: it is the day that was actually sold,
+    // not the day the guest hoped for before anyone confirmed it.
+    when: booking?.date ?? row.preferredDate,
+    value: booking?.value ?? null,
+    payment: booking?.payment ?? null,
     createdAt: row.createdAt,
     lastContactedAt: row.lastContactedAt,
     marketingConsent: row.marketingConsent,
@@ -188,8 +217,11 @@ export async function listSalesBoard(): Promise<SalesBoardData> {
   const countsByStatus = EMPTY_COUNTS();
   for (const row of tallies) countsByStatus[row.status] = row.n;
 
+  const leads = perStage.flat();
+  const money = await bookingSummaries(leads.map((lead) => lead.id));
+
   const records = [
-    ...perStage.flat().map(recordFromRequest),
+    ...leads.map((lead) => recordFromRequest(lead, money.get(lead.id))),
     ...exampleBookingRecords(),
   ];
 
@@ -202,6 +234,42 @@ export async function listSalesBoard(): Promise<SalesBoardData> {
     exampleCount: records.filter((record) => record.example).length,
     countsByStatus,
   };
+}
+
+/**
+ * The money against a page of leads, in one query.
+ *
+ * Only bookings that are `confirmed` or still holding a live `pending` seat
+ * are shown. An expired hold is not money — putting "€340 · awaiting payment"
+ * on a card for a checkout somebody abandoned in March would have the team
+ * chasing a payment nobody owes.
+ *
+ * A lead with several attempts (they came back and paid the second time) keeps
+ * the last one, which is the one that matters.
+ */
+async function bookingSummaries(
+  leadIds: string[],
+): Promise<Map<string, BookingSummary>> {
+  const summaries = new Map<string, BookingSummary>();
+  if (leadIds.length === 0) return summaries;
+
+  const rows = await db
+    .select()
+    .from(bookings)
+    .where(inArray(bookings.tourRequestId, leadIds))
+    .orderBy(asc(bookings.createdAt));
+
+  const now = new Date();
+  for (const row of rows) {
+    if (!row.tourRequestId || !occupiesSeat(row, now)) continue;
+    summaries.set(row.tourRequestId, {
+      value: formatPrice(row.amountCents, "en", row.currency),
+      payment: row.status === "confirmed" ? "Paid in full" : "Awaiting payment",
+      date: row.date,
+    });
+  }
+
+  return summaries;
 }
 
 /** Group records into the board's columns, in lifecycle order. */
