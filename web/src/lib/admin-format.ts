@@ -136,6 +136,9 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "experience.restored": "restored an experience",
   "experience.reordered": "reordered the catalogue",
   "experience.deleted": "deleted an experience",
+  "availability.opened": "opened days for booking",
+  "availability.closed": "closed days",
+  "availability.cleared": "cleared days from the calendar",
 };
 
 /**

@@ -12,6 +12,10 @@
  *    themselves, so the offer can change without a deploy. Leads reference it by
  *    slug.
  *
+ * 1c. **Availability** — `availability` is which days are actually on sale, the
+ *    supply side of the booking engine. The public calendar reads it, the admin
+ *    calendar writes it, and no row means no tour.
+ *
  * 2. **Generated content drafts** — one table per output type produced by the
  *    `workspaces/` ICM pipelines. Each row is a reviewable draft that the admin
  *    "Content" page lists before it is published to the site. The JSON payload
@@ -71,6 +75,32 @@ export const enquiryKindEnum = pgEnum("enquiry_kind", ["tour", "wedding", "event
 /** Where an experience sits in the catalogue: the main tour, or an add-on. */
 export const experienceKindEnum = pgEnum("experience_kind", ["signature", "complement"]);
 
+/**
+ * Which part of a day a bookable slot occupies.
+ *
+ * The launch model is **one slot per day** (`full_day`) — that is what Diogo &
+ * Rita run, one car, one tour, one day. The other two exist because the column
+ * is the thing that would otherwise need a migration on the morning they decide
+ * to run a morning and an afternoon departure, and because a calendar keyed on
+ * `date` alone cannot express that at all.
+ */
+export const availabilitySlotEnum = pgEnum("availability_slot", [
+  "full_day",
+  "morning",
+  "afternoon",
+]);
+
+/**
+ * Whether a slot is on sale.
+ *
+ * Note what is *not* here: "booked". A slot being sold out is arithmetic
+ * (`capacity` minus the bookings against it), not a state an operator sets, and
+ * a status column that has to be kept in step with a count is a status column
+ * that will disagree with it. `closed` means a human closed it — a wedding, a
+ * service, a day off.
+ */
+export const availabilityStatusEnum = pgEnum("availability_status", ["open", "closed"]);
+
 /** Review lifecycle shared by every generated-content draft table. */
 export const contentStatusEnum = pgEnum("content_status", [
   "draft",
@@ -122,6 +152,8 @@ export type AppLocale = (typeof localeEnum.enumValues)[number];
 export type RequestStatus = (typeof requestStatusEnum.enumValues)[number];
 export type EnquiryKind = (typeof enquiryKindEnum.enumValues)[number];
 export type ExperienceKind = (typeof experienceKindEnum.enumValues)[number];
+export type AvailabilitySlot = (typeof availabilitySlotEnum.enumValues)[number];
+export type AvailabilityStatus = (typeof availabilityStatusEnum.enumValues)[number];
 export type ContentStatus = (typeof contentStatusEnum.enumValues)[number];
 export type SocialPlatform = (typeof socialPlatformEnum.enumValues)[number];
 export type FeatureRequestStatus = (typeof featureRequestStatusEnum.enumValues)[number];
@@ -385,6 +417,70 @@ export const experienceCatalogue = pgTable("experiences", {
 
 export type ExperienceRow = typeof experienceCatalogue.$inferSelect;
 export type NewExperienceRow = typeof experienceCatalogue.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Availability — which days are actually on sale
+// ---------------------------------------------------------------------------
+
+/**
+ * The bookable calendar: one row per day (per slot) that Diogo & Rita have
+ * opened for sale.
+ *
+ * **No row means not bookable.** This is the load-bearing decision in the table
+ * and it is deliberate: a calendar that defaults to "open" sells every day of
+ * every year the moment the table exists, including the ones the car is at the
+ * garage and the ones nobody has thought about yet. Availability is something a
+ * human asserts, so the absence of an assertion is a no. The admin calendar
+ * exists to make asserting it cheap — a month at a time, from a phone.
+ *
+ * `date` is a plain SQL `date`, not a timestamp. A tour on the 15th of August is
+ * on the 15th of August in Sintra whatever timezone the browser asking about it
+ * is in, and the moment this becomes an instant it starts drifting a day for
+ * somebody. Every date in the booking engine is a `YYYY-MM-DD` key — see
+ * `lib/availability.ts`, which owns the conversion at the edges.
+ *
+ * The row is *supply*. Demand — the bookings placed against it — lives in its
+ * own table and is counted, never subtracted from `capacity` in place: an
+ * operator lowering capacity to 2 must not be able to un-sell a seat that has
+ * been paid for.
+ */
+export const availability = pgTable("availability", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  /** The calendar day, in Europe/Lisbon terms. `YYYY-MM-DD`. */
+  date: date("date").notNull(),
+  /** Which departure on that day. One per day (`full_day`) at launch. */
+  slot: availabilitySlotEnum("slot").notNull().default("full_day"),
+
+  /**
+   * How many guests can be sold into this slot. One car, three seats, at
+   * launch — but the number is per-slot rather than global because "we can take
+   * six on the 20th, we're running both cars" is a sentence Rita will say.
+   */
+  capacity: integer("capacity").notNull().default(3),
+
+  /** `closed` keeps the row (and its note) while taking the day off sale. */
+  status: availabilityStatusEnum("status").notNull().default("open"),
+
+  /**
+   * Why, in the team's own words — "Diogo em casamento", "carro na revisão".
+   * Internal only: it is never rendered to a guest, who is only ever told a day
+   * is unavailable, not what the family is doing that day.
+   */
+  note: text("note"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  // One row per day per slot — the whole model depends on this being true, and
+  // the upsert the admin calendar writes with resolves onto it.
+  uniqueIndex("availability_date_slot_key").on(table.date, table.slot),
+  // Every read is "the open days between these two dates".
+  index("availability_date_idx").on(table.date),
+]);
+
+export type AvailabilityRow = typeof availability.$inferSelect;
+export type NewAvailabilityRow = typeof availability.$inferInsert;
 
 // ---------------------------------------------------------------------------
 // Internal feature requests
