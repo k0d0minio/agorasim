@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { t, type Locale } from "@/i18n/config";
@@ -22,12 +23,15 @@ import { Label } from "@/components/ui/label";
  *
  * Three things it deliberately does:
  *
- * - **Posts into the same field.** Whatever is chosen ends up in
- *   `preferredDate`, as either a `YYYY-MM-DD` key or the words the guest typed.
- *   The Sales board, the admin lead page and the enquiry row are unchanged.
- * - **Keeps a way out.** "None of these days work?" swaps the grid for the old
- *   text box. A calendar that can only say no is a lead-capture form that
- *   throws away everyone whose holiday falls in the wrong week.
+ * - **Posts into the field the caller names.** The enquiry form takes
+ *   `preferredDate` and accepts the guest's own words; the checkout takes
+ *   `date` and accepts only a real day. `name` is a required prop rather than
+ *   a default precisely because getting it wrong is invisible: the form looks
+ *   right, the guest picks a day, and the server never sees one.
+ * - **Keeps a way out.** "None of these days work?" swaps the grid for a text
+ *   box in an enquiry, and becomes a link to the contact page in a checkout. A
+ *   calendar that can only say no is a booking page that throws away everyone
+ *   whose holiday falls in the wrong week.
  * - **Pages without the network.** Every month is already in the payload, so
  *   the arrows are client state. `/reservar` is statically rendered and this
  *   keeps it that way; the admin's calendar pages through the URL because it is
@@ -59,12 +63,36 @@ function formatChosenDay(key: string, locale: Locale): string {
 export function BookingDatePicker({
   locale,
   months,
+  name,
+  allowFlexible = true,
+  contactHref,
   /** Pre-fill after a failed submit, so a rejected day is not silently lost. */
   defaultValue,
   error,
 }: {
   locale: Locale;
   months: PublicMonth[];
+  /**
+   * The form field this posts into. **Required, deliberately.**
+   *
+   * Two forms use this picker and they want different names — the enquiry form
+   * takes `preferredDate` (free text welcome), the checkout takes `date` (a
+   * real day or nothing). It used to default to `preferredDate`, which meant
+   * the checkout silently posted a field its schema never read: every booking
+   * failed validation on a date the guest could plainly see they had chosen.
+   * Making the caller say it is what stops that happening again.
+   */
+  name: string;
+  /**
+   * Whether "none of these days work?" swaps the grid for a text box.
+   *
+   * True for an enquiry, where "late August, flexible" is a fine answer. False
+   * for a checkout, which cannot charge a card for a day nobody has picked —
+   * there, the same prompt becomes a link to {@link contactHref}.
+   */
+  allowFlexible?: boolean;
+  /** Where the "none of these days work?" link goes when not flexible. */
+  contactHref?: string;
   defaultValue?: string;
   error?: string;
 }) {
@@ -86,9 +114,10 @@ export function BookingDatePicker({
       : null,
   );
   // A guest whose day is not on the calendar types it instead — and one who
-  // arrives back here with free text already entered keeps it.
+  // arrives back here with free text already entered keeps it. Never in a
+  // checkout, which has no way to charge for "late August".
   const [flexible, setFlexible] = useState(
-    Boolean(defaultValue) && defaultValue !== selected,
+    allowFlexible && Boolean(defaultValue) && defaultValue !== selected,
   );
 
   const month = months[monthIndex];
@@ -97,12 +126,12 @@ export function BookingDatePicker({
   if (flexible) {
     return (
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="preferredDate">
+        <Label htmlFor={name}>
           {t(tourRequestContent.labels.preferredDate, l)}
         </Label>
         <Input
-          id="preferredDate"
-          name="preferredDate"
+          id={name}
+          name={name}
           defaultValue={defaultValue}
           placeholder={t(tourRequestContent.placeholders.preferredDate, l)}
           autoFocus
@@ -127,7 +156,7 @@ export function BookingDatePicker({
       <p className="text-sm text-muted-foreground">{t(c.hint, l)}</p>
 
       {/* The value the form actually posts. The grid below is the control. */}
-      <input type="hidden" name="preferredDate" value={selected ?? ""} />
+      <input type="hidden" name={name} value={selected ?? ""} />
 
       <Card className="gap-3 p-3">
         <div className="flex items-center justify-between gap-2">
@@ -221,17 +250,30 @@ export function BookingDatePicker({
         </p>
       ) : null}
 
-      <Button
-        type="button"
-        variant="ghost"
-        className="self-start"
-        onClick={() => {
-          setSelected(null);
-          setFlexible(true);
-        }}
-      >
-        {t(c.flexible, l)}
-      </Button>
+      {/*
+        The way out for someone whose day is not on the calendar. In an enquiry
+        it swaps the grid for a text box; in a checkout it has to be a link,
+        because a card cannot be charged for "late August" — but the way out
+        still has to exist, or the booking page silently discards everyone
+        whose holiday falls in the wrong week.
+      */}
+      {allowFlexible ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="self-start"
+          onClick={() => {
+            setSelected(null);
+            setFlexible(true);
+          }}
+        >
+          {t(c.flexible, l)}
+        </Button>
+      ) : contactHref ? (
+        <Button asChild variant="ghost" className="self-start">
+          <Link href={contactHref}>{t(c.flexible, l)}</Link>
+        </Button>
+      ) : null}
     </div>
   );
 }

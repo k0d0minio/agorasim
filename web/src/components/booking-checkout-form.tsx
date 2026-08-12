@@ -80,6 +80,15 @@ export function BookingCheckoutForm({
    */
   const price = (cents: number) => formatPrice(cents, l);
 
+  // Whatever stopped the submission, in one place — the field errors render
+  // next to their fields too, but those are off-screen from the pay button.
+  const problem =
+    state.error ??
+    state.fieldErrors?.date ??
+    state.fieldErrors?.partySize ??
+    state.fieldErrors?.name ??
+    state.fieldErrors?.email;
+
   const signature = experiences.find((entry) => entry.kind === "signature")!;
   const complements = experiences.filter((entry) => entry.kind === "complement");
 
@@ -130,7 +139,13 @@ export function BookingCheckoutForm({
       <div className="flex flex-col gap-10">
         <BookingDatePicker
           locale={l}
+          // The checkout's field, not the enquiry's. A card cannot be charged
+          // for "late August", so the free-text escape becomes a link out.
+          name="date"
+          allowFlexible={false}
+          contactHref={href(l, "contactos")}
           months={availability}
+          defaultValue={state.values?.date}
           error={state.fieldErrors?.date}
         />
 
@@ -237,7 +252,14 @@ export function BookingCheckoutForm({
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="name">{t(c.labels.name, l)}</Label>
-              <Input id="name" name="name" required autoComplete="name" enterKeyHint="next" />
+              <Input
+                id="name"
+                name="name"
+                required
+                autoComplete="name"
+                enterKeyHint="next"
+                defaultValue={state.values?.name}
+              />
               {state.fieldErrors?.name ? (
                 <p className="text-sm text-destructive" role="alert">
                   {state.fieldErrors.name}
@@ -254,6 +276,7 @@ export function BookingCheckoutForm({
                 required
                 autoComplete="email"
                 enterKeyHint="next"
+                defaultValue={state.values?.email}
               />
               {state.fieldErrors?.email ? (
                 <p className="text-sm text-destructive" role="alert">
@@ -264,7 +287,13 @@ export function BookingCheckoutForm({
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="phone">{t(c.labels.phone, l)}</Label>
-              <Input id="phone" name="phone" type="tel" autoComplete="tel" />
+              <Input
+                id="phone"
+                name="phone"
+                type="tel"
+                autoComplete="tel"
+                defaultValue={state.values?.phone}
+              />
             </div>
           </div>
 
@@ -275,6 +304,7 @@ export function BookingCheckoutForm({
               name="message"
               rows={3}
               placeholder={t(c.labels.messagePlaceholder, l)}
+              defaultValue={state.values?.message}
             />
           </div>
 
@@ -343,9 +373,16 @@ export function BookingCheckoutForm({
             <span>{price(total)}</span>
           </div>
 
-          {state.error ? (
+          {/*
+            The pay button is the last thing on the page on a phone, and the
+            fields it validates are all above it. Without this, tapping pay on
+            a bad date scrolled nothing, showed nothing where the thumb was,
+            and read as "the button is broken" — so whatever went wrong is
+            repeated here, next to the control that triggered it.
+          */}
+          {problem ? (
             <p className="text-sm text-destructive" role="alert">
-              {state.error}
+              {problem}
             </p>
           ) : null}
 
