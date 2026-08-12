@@ -7,6 +7,7 @@ import { tourRequestContent } from "@/content/tour-request";
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { listExperiences } from "@/lib/experience-catalogue";
 import { checkDayAvailable, isDateKey } from "@/lib/availability";
+import { countBookedSeatsOn } from "@/lib/bookings";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
@@ -90,9 +91,11 @@ export async function submitTourRequest(
    * perfectly good answer to when someone wants to come, and always was.
    */
   if (isDateKey(parsed.data.preferredDate ?? "")) {
+    const chosen = parsed.data.preferredDate!;
     const check = await checkDayAvailable({
-      date: parsed.data.preferredDate!,
+      date: chosen,
       partySize: parsed.data.partySize,
+      booked: await countBookedSeatsOn(chosen),
     });
 
     if (!check.ok) {

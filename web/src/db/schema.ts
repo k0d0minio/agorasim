@@ -12,9 +12,11 @@
  *    themselves, so the offer can change without a deploy. Leads reference it by
  *    slug.
  *
- * 1c. **Availability** — `availability` is which days are actually on sale, the
- *    supply side of the booking engine. The public calendar reads it, the admin
- *    calendar writes it, and no row means no tour.
+ * 1c. **Availability and bookings** — `availability` is which days are on sale
+ *    (supply); `bookings` is what has been sold against them (demand, and the
+ *    money). The public calendar reads both, the admin calendar writes the
+ *    first, and no availability row means no tour. Guest identity stays on
+ *    `tourRequests` — `bookings` deliberately holds none.
  *
  * 2. **Generated content drafts** — one table per output type produced by the
  *    `workspaces/` ICM pipelines. Each row is a reviewable draft that the admin
@@ -101,6 +103,27 @@ export const availabilitySlotEnum = pgEnum("availability_slot", [
  */
 export const availabilityStatusEnum = pgEnum("availability_status", ["open", "closed"]);
 
+/**
+ * Where a booking is in its life.
+ *
+ * `pending` is a **hold**: a seat reserved while the guest is on Stripe's
+ * payment page, which stops counting against capacity once `holdExpiresAt`
+ * passes. It is not a state anything has to clean up for the arithmetic to be
+ * right — see `lib/bookings.ts`.
+ *
+ * `expired` and `cancelled` are different failures worth telling apart: nobody
+ * finished paying, versus somebody (guest or team) called it off after they
+ * had. `refunded` closes the loop the refund policy opens — money went back,
+ * and the row says so rather than being deleted.
+ */
+export const bookingStatusEnum = pgEnum("booking_status", [
+  "pending",
+  "confirmed",
+  "cancelled",
+  "expired",
+  "refunded",
+]);
+
 /** Review lifecycle shared by every generated-content draft table. */
 export const contentStatusEnum = pgEnum("content_status", [
   "draft",
@@ -154,6 +177,7 @@ export type EnquiryKind = (typeof enquiryKindEnum.enumValues)[number];
 export type ExperienceKind = (typeof experienceKindEnum.enumValues)[number];
 export type AvailabilitySlot = (typeof availabilitySlotEnum.enumValues)[number];
 export type AvailabilityStatus = (typeof availabilityStatusEnum.enumValues)[number];
+export type BookingStatus = (typeof bookingStatusEnum.enumValues)[number];
 export type ContentStatus = (typeof contentStatusEnum.enumValues)[number];
 export type SocialPlatform = (typeof socialPlatformEnum.enumValues)[number];
 export type FeatureRequestStatus = (typeof featureRequestStatusEnum.enumValues)[number];
@@ -403,6 +427,22 @@ export const experienceCatalogue = pgTable("experiences", {
   image: text("image").notNull(),
   imageAlt: jsonb("image_alt").$type<Localized>().notNull(),
 
+  /**
+   * What this costs, **per person, in euro cents**. `null` means no price has
+   * been set.
+   *
+   * Cents, integer, because money in a float is a rounding error waiting for a
+   * customer to find it, and because it is the unit Stripe charges in — a
+   * conversion that only happens at the API boundary cannot drift.
+   *
+   * Nullable, and nullable is load-bearing: the real prices are Diogo & Rita's
+   * to give (AGORA-002), and until they do, **an unpriced experience cannot be
+   * sold**. The checkout refuses it and the site offers the enquiry form
+   * instead. That is deliberately more annoying than a placeholder, because a
+   * placeholder is a number a guest can be charged.
+   */
+  priceCents: integer("price_cents"),
+
   /** Archived experiences keep their slug resolvable but leave the website. */
   active: boolean("active").notNull().default(true),
   /** Display order within a kind. Lower first. */
@@ -481,6 +521,114 @@ export const availability = pgTable("availability", {
 
 export type AvailabilityRow = typeof availability.$inferSelect;
 export type NewAvailabilityRow = typeof availability.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Bookings — the demand side, and the money
+// ---------------------------------------------------------------------------
+
+/**
+ * A seat sold, or being sold: one row per checkout the site starts.
+ *
+ * **This table holds no personal data.** Who the guest is lives on the
+ * `tour_requests` row this points at — one home for names, emails and phone
+ * numbers, already covered by the retention job, the subject-access export and
+ * the erasure path. Duplicating them here would mean a second place to
+ * remember, and the one thing certain about a second place to remember is that
+ * somebody will forget it. What is here is commercial: what was sold, for how
+ * much, on which day, and how the payment went.
+ *
+ * **A `pending` row is a hold.** The seat is reserved from the moment the guest
+ * is sent to Stripe until `hold_expires_at`, and then it simply stops counting.
+ * There is no sweeper the arithmetic depends on: `lib/bookings.ts` counts
+ * confirmed rows plus pending rows whose hold is still live, so an abandoned
+ * checkout releases its seat by the clock rather than by a job that might not
+ * have run. (A job does mark them `expired` eventually, for tidiness on the
+ * admin's screens — that is cosmetics, not correctness.)
+ *
+ * **`date`/`slot` are copied, not referenced.** They are what was actually
+ * sold. An availability row can be edited, closed or deleted afterwards and the
+ * booking must still say "the 15th of August, full day".
+ */
+export const bookings = pgTable("bookings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  /**
+   * The enquiry this booking belongs to — the guest's side of it, and the row
+   * the Sales board draws.
+   *
+   * `set null` rather than `cascade`: an Art. 17 erasure removes the person,
+   * and the financial record of a tour that was sold and paid for has its own
+   * reasons to survive that (tax, among others). What is left is a booking with
+   * no name on it, which is the correct outcome of an erasure, not an accident.
+   */
+  tourRequestId: uuid("tour_request_id").references(() => tourRequests.id, {
+    onDelete: "set null",
+  }),
+
+  /** The day sold. Copied from availability, never a foreign key — see above. */
+  date: date("date").notNull(),
+  slot: availabilitySlotEnum("slot").notNull().default("full_day"),
+
+  experienceSlug: text("experience_slug").notNull(),
+  addOns: jsonb("add_ons").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  /** Guests, and therefore seats consumed out of the slot's capacity. */
+  partySize: integer("party_size").notNull(),
+
+  /**
+   * What the guest was charged, in the smallest unit. Computed on the server
+   * from the catalogue — never read off the form, which is the whole reason
+   * this column and `price_breakdown` exist rather than a price in a hidden
+   * input.
+   */
+  amountCents: integer("amount_cents").notNull(),
+  currency: text("currency").notNull().default("eur"),
+
+  /**
+   * The line items as they stood at the moment of sale: `{ slug, unitCents,
+   * quantity }` per experience and add-on.
+   *
+   * A snapshot, because the catalogue is edited. Rita raising the Rural Saloia
+   * price in September must not silently rewrite what August's guests paid, and
+   * "what was this person actually charged for?" is a question a refund
+   * conversation starts with.
+   */
+  priceBreakdown: jsonb("price_breakdown").$type<BookingLineItem[]>().notNull(),
+
+  status: bookingStatusEnum("status").notNull().default("pending"),
+  /** The language the guest bought in — which one their emails go out in. */
+  locale: localeEnum("locale").notNull().default("pt"),
+
+  /** Stripe's Checkout Session. Unique: the webhook resolves a booking by it. */
+  stripeSessionId: text("stripe_session_id").unique(),
+  /** Set once payment succeeds — the handle a refund is issued against. */
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+
+  /** When a `pending` hold stops reserving the seat. */
+  holdExpiresAt: timestamp("hold_expires_at", { withTimezone: true }).notNull(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  // "How many seats are gone on these days" — the query behind every calendar.
+  index("bookings_date_slot_idx").on(table.date, table.slot, table.status),
+  index("bookings_status_idx").on(table.status),
+  index("bookings_tour_request_idx").on(table.tourRequestId),
+]);
+
+/** One priced line of a booking, frozen at the moment of sale. */
+export type BookingLineItem = {
+  slug: string;
+  kind: ExperienceKind;
+  /** Per person, in cents, as the catalogue had it that day. */
+  unitCents: number;
+  /** People — add-ons are priced per person, like the tour itself. */
+  quantity: number;
+};
+
+export type Booking = typeof bookings.$inferSelect;
+export type NewBooking = typeof bookings.$inferInsert;
 
 // ---------------------------------------------------------------------------
 // Internal feature requests

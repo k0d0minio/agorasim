@@ -5,7 +5,16 @@ import { tourRequestContent } from "@/content/tour-request";
 import { Section } from "@/components/section";
 import { TourRequestForm } from "@/components/tour-request-form";
 import { listExperiences } from "@/lib/experience-catalogue";
-import { readPublicCalendar } from "@/lib/availability";
+import {
+  monthBounds,
+  monthOf,
+  addMonths,
+  todayKey,
+  PUBLIC_CALENDAR_MONTHS,
+  readPublicCalendar,
+  type DateKey,
+} from "@/lib/availability";
+import { countBookedSeats } from "@/lib/bookings";
 import { JsonLd } from "@/components/json-ld";
 import { organizationJsonLd } from "@/lib/jsonld";
 import { alternates } from "@/lib/seo";
@@ -46,6 +55,28 @@ export async function generateMetadata({
  * booking page that stops collecting leads because a table is empty would be a
  * worse failure than having no calendar at all.
  */
+/**
+ * Seats already sold across the window the picker shows.
+ *
+ * Wrapped in a catch for the same reason `readPublicCalendar` is: this page is
+ * built with no database in CI. An unreadable count is an *empty* map rather
+ * than a failure, which means the grid falls back to showing raw capacity —
+ * safe, because the server re-checks the day against live bookings before
+ * anything is sold on it.
+ */
+async function bookedSeats(): Promise<Map<DateKey, number>> {
+  const today = todayKey();
+  const first = monthOf(today);
+  try {
+    return await countBookedSeats({
+      from: monthBounds(first).first,
+      to: monthBounds(addMonths(first, PUBLIC_CALENDAR_MONTHS - 1)).last,
+    });
+  } catch {
+    return new Map();
+  }
+}
+
 export default async function BookingPage({
   params,
 }: {
@@ -57,7 +88,7 @@ export default async function BookingPage({
   const c = tourRequestContent;
   const [experiences, availability] = await Promise.all([
     listExperiences(),
-    readPublicCalendar({ locale: l }),
+    readPublicCalendar({ locale: l, bookedByDate: await bookedSeats() }),
   ]);
 
   return (

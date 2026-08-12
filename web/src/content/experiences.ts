@@ -30,6 +30,16 @@ export type Experience = {
   image: string;
   imageAlt: Localized;
   faqs: Faq[];
+  /**
+   * Price per person in euro cents, or `null`/absent when none is set.
+   *
+   * Optional here on purpose. This array is the *shipped* catalogue — the seed
+   * and the offline fallback — and the real prices are Diogo & Rita's to give
+   * (AGORA-002). Putting a number in this file would be inventing one, and an
+   * invented price is a price somebody can be charged. Entries without one
+   * cannot be sold; the site offers the enquiry form for them instead.
+   */
+  priceCents?: number | null;
 };
 
 export const experiences: Experience[] = [

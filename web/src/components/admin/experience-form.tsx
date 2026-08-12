@@ -31,6 +31,8 @@ export type ExperienceFormValues = {
   kind: "signature" | "complement";
   icon: ExperienceIconKey;
   image: string;
+  /** Price per person, in euros, as typed. `""` means no price is set. */
+  price: string;
   active: boolean;
   sortOrder: number;
   title: { pt: string; en: string };
@@ -51,6 +53,7 @@ export const EMPTY_EXPERIENCE: ExperienceFormValues = {
   kind: "complement",
   icon: "sparkles",
   image: "/images/car.jpg",
+  price: "",
   active: true,
   sortOrder: 0,
   title: { pt: "", en: "" },
@@ -371,6 +374,27 @@ export function ExperienceForm({ values }: { values: ExperienceFormValues }) {
               defaultValue={values.image}
               error={state.fieldErrors?.image}
             />
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="price">Price per person (€)</Label>
+              {/* Text, not `type="number"`: the spinner is useless on a phone
+                  and a number input rejects the comma half of Portugal types
+                  the decimal with. `inputMode="decimal"` still gets the right
+                  keyboard (spec §8 E2). */}
+              <Input
+                id="price"
+                name="price"
+                inputMode="decimal"
+                autoComplete="off"
+                defaultValue={values.price}
+                placeholder="145"
+              />
+              <p className="text-xs text-muted-foreground">
+                What one guest pays for this. Leave it blank and the experience stays on
+                the website but cannot be booked and paid for online — guests get the
+                enquiry form instead.
+              </p>
+            </div>
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="sortOrder">Order</Label>

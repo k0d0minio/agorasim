@@ -33,6 +33,8 @@ export type CatalogueEntry = Experience & {
   /** Archived entries keep their slug resolvable but leave the website. */
   active: boolean;
   sortOrder: number;
+  /** Always present here, unlike on the shipped array where it is optional. */
+  priceCents: number | null;
 };
 
 /** Map a database row onto the shape the site already renders. */
@@ -52,6 +54,7 @@ function toEntry(row: ExperienceRow): CatalogueEntry {
     image: row.image,
     imageAlt: row.imageAlt,
     faqs: row.faqs as Faq[],
+    priceCents: row.priceCents,
     active: row.active,
     sortOrder: row.sortOrder,
   };
@@ -75,10 +78,20 @@ function warnFallbackOnce(context: string, err: unknown): void {
   );
 }
 
-/** The shipped array, in the same shape — signature first, then the add-ons. */
+/**
+ * The shipped array, in the same shape — signature first, then the add-ons.
+ *
+ * Everything in it is `priceCents: null`, and stays that way: the fallback
+ * exists so an unreachable database costs the site its newest catalogue rather
+ * than the whole page, and a hardcoded price surviving into that scenario would
+ * mean the one copy of the offer nobody can edit is also the one that can take
+ * money. Unpriced entries are unsellable, so the fallback shows the tours and
+ * offers the enquiry form.
+ */
 function shippedCatalogue(): CatalogueEntry[] {
   return shippedExperiences.map((experience, index) => ({
     ...experience,
+    priceCents: experience.priceCents ?? null,
     active: true,
     sortOrder: index,
   }));
