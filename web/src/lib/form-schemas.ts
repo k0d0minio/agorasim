@@ -19,6 +19,8 @@ import { z } from "zod";
 
 import {
   adminRoleEnum,
+  availabilitySlotEnum,
+  availabilityStatusEnum,
   enquiryKindEnum,
   experienceKindEnum,
   featureRequestPriorityEnum,
@@ -27,6 +29,7 @@ import {
   requestStatusEnum,
 } from "@/db/schema";
 import { DELETE_CONFIRMATION } from "@/lib/admin-format";
+import { DEFAULT_CAPACITY, isDateKey, MAX_CAPACITY } from "@/lib/availability";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
 import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
@@ -42,6 +45,8 @@ export const featureRequestStatusSchema = z.enum(featureRequestStatusEnum.enumVa
 export const featureRequestPrioritySchema = z.enum(featureRequestPriorityEnum.enumValues);
 export const localeSchema = z.enum(localeEnum.enumValues);
 export const adminRoleSchema = z.enum(adminRoleEnum.enumValues);
+export const availabilitySlotSchema = z.enum(availabilitySlotEnum.enumValues);
+export const availabilityStatusSchema = z.enum(availabilityStatusEnum.enumValues);
 
 // ---------------------------------------------------------------------------
 // Field helpers
@@ -324,6 +329,58 @@ export const moveExperienceSchema = z.object({
 export const deleteExperienceSchema = z.object({
   id: z.uuid(),
   confirm: z.literal(DELETE_CONFIRMATION, "Type DELETE to confirm."),
+});
+
+// ---------------------------------------------------------------------------
+// The availability calendar
+// ---------------------------------------------------------------------------
+
+/**
+ * The days a calendar write applies to.
+ *
+ * One field for both shapes the admin submits: a single tapped day, and the
+ * whole month behind a bulk button. `formValues` collapses one occurrence to a
+ * string, so `repeated` widens it back, and anything that is not a real
+ * calendar day is dropped rather than rejected — a form carrying one malformed
+ * date should still open the other thirty.
+ *
+ * The list is capped: a month is 31 days and a year is 366, so a request
+ * naming more days than that is not the admin calendar talking.
+ */
+const dateKeys = repeated.transform((values) =>
+  Array.from(new Set(values.filter(isDateKey))).sort().slice(0, 366),
+);
+
+/**
+ * Open or close days. One schema for one day and for a bulk sweep, because the
+ * action is the same action — see the note on `saveExperience` for the same
+ * reasoning about create-vs-update.
+ */
+export const setAvailabilitySchema = z.object({
+  dates: dateKeys,
+  slot: availabilitySlotSchema.catch("full_day"),
+  status: availabilityStatusSchema,
+  /**
+   * Seats on offer. Clamped rather than refused: this arrives from a stepper
+   * whose buttons already stop at the bounds, so an out-of-range value is a
+   * crafted request, and the useful answer to one is the nearest legal number.
+   */
+  capacity: z
+    .string()
+    .trim()
+    .catch("")
+    .transform((value) => {
+      const n = Number.parseInt(value, 10);
+      if (!Number.isFinite(n)) return DEFAULT_CAPACITY;
+      return Math.min(MAX_CAPACITY, Math.max(1, n));
+    }),
+  note: optionalText,
+});
+
+/** Remove rows outright — "nobody has decided about these days". */
+export const clearAvailabilitySchema = z.object({
+  dates: dateKeys,
+  slot: availabilitySlotSchema.catch("full_day"),
 });
 
 // ---------------------------------------------------------------------------
