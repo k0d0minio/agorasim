@@ -6,6 +6,7 @@ import { isLocale, t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { listExperiences } from "@/lib/experience-catalogue";
+import { checkDayAvailable, isDateKey } from "@/lib/availability";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
@@ -16,6 +17,15 @@ export type TourRequestState = {
   error?: string;
   /** Field-level errors keyed by input name, for inline display. */
   fieldErrors?: Partial<Record<TourRequestField, string>>;
+  /**
+   * What the guest had chosen, echoed back on a rejected submission.
+   *
+   * Only the date, and only because the date picker is the one control whose
+   * value the browser cannot restore for itself: the rest of the form is
+   * uncontrolled inputs that keep what was typed. A day that sold out while
+   * someone was filling the form in should cost them the day, not the form.
+   */
+  values?: { preferredDate?: string };
 };
 
 /**
@@ -39,6 +49,8 @@ export async function submitTourRequest(
   const localeRaw = String(values.locale ?? "");
   const locale: Locale = isLocale(localeRaw) ? localeRaw : "pt";
   const c = tourRequestContent;
+  // Echoed back on every failure path so the picker can restore the day.
+  const chosenDate = String(values.preferredDate ?? "").trim() || undefined;
 
   const ip = await clientIp();
 
@@ -63,7 +75,34 @@ export async function submitTourRequest(
     const state: TourRequestState["fieldErrors"] = {};
     if (fieldErrors.name) state.name = t(c.errors.name, locale);
     if (fieldErrors.email) state.email = t(c.errors.email, locale);
-    return { fieldErrors: state };
+    return { fieldErrors: state, values: { preferredDate: chosenDate } };
+  }
+
+  /*
+   * A date picked from the calendar is re-checked here, against the live rows.
+   *
+   * The page that rendered the calendar is statically generated and revalidated
+   * hourly, so the grid a guest is looking at can be an hour stale — and even a
+   * fresh one is only a suggestion, because what a browser posts is whatever
+   * the person posting it wants. `checkDayAvailable` is the check that counts.
+   *
+   * Only date-shaped values are checked. "late August, flexible" is still a
+   * perfectly good answer to when someone wants to come, and always was.
+   */
+  if (isDateKey(parsed.data.preferredDate ?? "")) {
+    const check = await checkDayAvailable({
+      date: parsed.data.preferredDate!,
+      partySize: parsed.data.partySize,
+    });
+
+    if (!check.ok) {
+      const message =
+        check.reason === "too-many" ? c.errors.partyTooLarge : c.errors.unavailableDate;
+      return {
+        fieldErrors: { preferredDate: t(message, locale) },
+        values: { preferredDate: chosenDate },
+      };
+    }
   }
 
   try {
@@ -94,7 +133,7 @@ export async function submitTourRequest(
     });
   } catch (err) {
     console.error("[reservar] failed to store tour request", err);
-    return { error: t(c.errors.generic, locale) };
+    return { error: t(c.errors.generic, locale), values: { preferredDate: chosenDate } };
   }
 
   return { ok: true };

@@ -5,6 +5,7 @@ import { tourRequestContent } from "@/content/tour-request";
 import { Section } from "@/components/section";
 import { TourRequestForm } from "@/components/tour-request-form";
 import { listExperiences } from "@/lib/experience-catalogue";
+import { readPublicCalendar } from "@/lib/availability";
 import { JsonLd } from "@/components/json-ld";
 import { organizationJsonLd } from "@/lib/jsonld";
 import { alternates } from "@/lib/seo";
@@ -27,11 +28,23 @@ export async function generateMetadata({
 }
 
 /**
- * Booking page. Until the availability calendar and Stripe checkout ship
- * (launch plan Phase 2), this is the tour-request form: a real submission that
- * lands in `tour_requests` for the admin Sales board to triage. The interactive
- * `BookingFlow` preview it replaced stays in the repo as the design reference
- * for that build.
+ * Booking page.
+ *
+ * The date field is the live availability calendar: the days Diogo & Rita have
+ * actually opened at `/admin/calendar`, with the sold-out ones already gone.
+ * The hardcoded August 2026 grid with its invented busy days is not rendered
+ * anywhere any more.
+ *
+ * Everything else is unchanged and deliberately so — the submission still lands
+ * in `tour_requests` for the Sales board to triage, and payment (launch plan
+ * Phase 2) is the next slice. This is also the shape the plan's fallback takes
+ * if Stripe activation slips: slot-pick now, pay offline.
+ *
+ * When the calendar has nothing to offer — a fresh environment, an unreachable
+ * database during a build, or simply a season nobody has opened — the read
+ * returns no months and the form falls back to asking for a date in words. A
+ * booking page that stops collecting leads because a table is empty would be a
+ * worse failure than having no calendar at all.
  */
 export default async function BookingPage({
   params,
@@ -42,7 +55,10 @@ export default async function BookingPage({
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
   const c = tourRequestContent;
-  const experiences = await listExperiences();
+  const [experiences, availability] = await Promise.all([
+    listExperiences(),
+    readPublicCalendar({ locale: l }),
+  ]);
 
   return (
     <>
@@ -55,7 +71,11 @@ export default async function BookingPage({
         </div>
 
         <div className="mt-10 max-w-2xl">
-          <TourRequestForm locale={l} experiences={experiences} />
+          <TourRequestForm
+            locale={l}
+            experiences={experiences}
+            availability={availability}
+          />
         </div>
       </Section>
     </>
