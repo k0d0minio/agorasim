@@ -7,7 +7,7 @@
 | Priority | P1 |
 | Size | S |
 | Depends on | AGORA-001–005 |
-| Sources | [.icm/docs/launch-plan.md](../docs/launch-plan.md) Phase 5 |
+| Sources | [.icm/docs/launch-plan.md](../docs/launch-plan.md) Phase 5 · **runbook: [.icm/docs/launch-runbook.md](../docs/launch-runbook.md)** |
 
 ## Problem
 
