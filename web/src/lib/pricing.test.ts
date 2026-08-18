@@ -247,6 +247,7 @@ describe("add-ons on a private countryside tour", () => {
   });
 
   it("prices the Galapito table for adults and children, minimum two at it", () => {
+    // Group 220 + the tour's own child surcharge 30 + the table: adult 60, child 25.
     expect(
       priceBooking({
         tour: countryside,
@@ -255,7 +256,7 @@ describe("add-ons on a private countryside tour", () => {
         party: party(1, 1),
         date: A_TUESDAY,
       }),
-    ).toMatchObject({ ok: true, totalCents: 22000 + 6000 + 2500 });
+    ).toMatchObject({ ok: true, totalCents: 22000 + 3000 + 6000 + 2500 });
 
     // One adult alone is below the table's minimum of two guests.
     expect(
