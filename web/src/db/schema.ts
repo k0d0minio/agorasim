@@ -47,6 +47,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import type { ExperiencePricing } from "@/lib/pricing";
+
 // ---------------------------------------------------------------------------
 // Shared enums
 // ---------------------------------------------------------------------------
@@ -80,11 +82,10 @@ export const experienceKindEnum = pgEnum("experience_kind", ["signature", "compl
 /**
  * Which part of a day a bookable slot occupies.
  *
- * The launch model is **one slot per day** (`full_day`) — that is what Diogo &
- * Rita run, one car, one tour, one day. The other two exist because the column
- * is the thing that would otherwise need a migration on the morning they decide
- * to run a morning and an afternoon departure, and because a calendar keyed on
- * `date` alone cannot express that at all.
+ * The business runs **two departures a day** — 10:00 (`morning`) and 14:00
+ * (`afternoon`), straight from Diogo & Rita's capacity answers (AGORA-002).
+ * `full_day` is the launch-era value the enum cannot drop; the 0012 migration
+ * moved its rows to `morning` and nothing writes it any more.
  */
 export const availabilitySlotEnum = pgEnum("availability_slot", [
   "full_day",
@@ -102,6 +103,14 @@ export const availabilitySlotEnum = pgEnum("availability_slot", [
  * service, a day off.
  */
 export const availabilityStatusEnum = pgEnum("availability_status", ["open", "closed"]);
+
+/**
+ * How a departure was sold. A `public` booking shares the slot with strangers
+ * up to its capacity; a `private` one takes whatever is left of the slot
+ * exclusively (see `bookings.exclusive`), which is what "the cars are yours"
+ * means in the price list.
+ */
+export const bookingModeEnum = pgEnum("booking_mode", ["public", "private"]);
 
 /**
  * Where a booking is in its life.
@@ -443,6 +452,15 @@ export const experienceCatalogue = pgTable("experiences", {
    */
   priceCents: integer("price_cents"),
 
+  /**
+   * The real price list (AGORA-002): public/private tiers, child rates,
+   * partner minimums — the `ExperiencePricing` shape from `lib/pricing.ts`,
+   * which owns the arithmetic. Supersedes `price_cents`, which one flat
+   * number could never say. `null` still means unsellable: the checkout
+   * refuses, the enquiry form takes over.
+   */
+  pricing: jsonb("pricing").$type<ExperiencePricing>(),
+
   /** Archived experiences keep their slug resolvable but leave the website. */
   active: boolean("active").notNull().default(true),
   /** Display order within a kind. Lower first. */
@@ -487,10 +505,19 @@ export type NewExperienceRow = typeof experienceCatalogue.$inferInsert;
 export const availability = pgTable("availability", {
   id: uuid("id").primaryKey().defaultRandom(),
 
+  /**
+   * Which tour this calendar belongs to. Two tours share the drivers but not
+   * a calendar: opening a Saturday for Rural Saloia says nothing about
+   * Óbidos, and the team decides — day by day — which routes they can staff.
+   * A slug, not a foreign key, matching how `bookings` and `tour_requests`
+   * reference the catalogue.
+   */
+  experienceSlug: text("experience_slug").notNull().default("rural-saloia"),
+
   /** The calendar day, in Europe/Lisbon terms. `YYYY-MM-DD`. */
   date: date("date").notNull(),
-  /** Which departure on that day. One per day (`full_day`) at launch. */
-  slot: availabilitySlotEnum("slot").notNull().default("full_day"),
+  /** Which departure on that day — 10:00 or 14:00, per Diogo & Rita's answers. */
+  slot: availabilitySlotEnum("slot").notNull().default("morning"),
 
   /**
    * How many guests can be sold into this slot. One car, three seats, at
@@ -512,11 +539,15 @@ export const availability = pgTable("availability", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
-  // One row per day per slot — the whole model depends on this being true, and
-  // the upsert the admin calendar writes with resolves onto it.
-  uniqueIndex("availability_date_slot_key").on(table.date, table.slot),
-  // Every read is "the open days between these two dates".
-  index("availability_date_idx").on(table.date),
+  // One row per tour per day per slot — the whole model depends on this being
+  // true, and the upsert the admin calendar writes with resolves onto it.
+  uniqueIndex("availability_experience_date_slot_key").on(
+    table.experienceSlug,
+    table.date,
+    table.slot,
+  ),
+  // Every read is "the open days for this tour between these two dates".
+  index("availability_experience_date_idx").on(table.experienceSlug, table.date),
 ]);
 
 export type AvailabilityRow = typeof availability.$inferSelect;
@@ -567,11 +598,31 @@ export const bookings = pgTable("bookings", {
 
   /** The day sold. Copied from availability, never a foreign key — see above. */
   date: date("date").notNull(),
-  slot: availabilitySlotEnum("slot").notNull().default("full_day"),
+  slot: availabilitySlotEnum("slot").notNull().default("morning"),
 
   experienceSlug: text("experience_slug").notNull(),
   addOns: jsonb("add_ons").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-  /** Guests, and therefore seats consumed out of the slot's capacity. */
+
+  /** Shared departure or the whole slot — decides everything about pricing. */
+  mode: bookingModeEnum("mode").notNull().default("public"),
+  /**
+   * Who is coming, in the price list's own bands: adults (13+), children
+   * (4–12, reduced rate), infants (under 4, free). The DEFAULT 1 on adults is
+   * migration scaffolding for rows priced before the bands existed — every
+   * insert states all three.
+   */
+  adults: integer("adults").notNull().default(1),
+  children: integer("children").notNull().default(0),
+  infants: integer("infants").notNull().default(0),
+
+  /**
+   * A private departure owns the slot: while a live booking has this set, the
+   * slot answers "sold out" regardless of arithmetic, and a slot with any
+   * seat sold refuses an exclusive hold. See `lib/bookings.ts`.
+   */
+  exclusive: boolean("exclusive").notNull().default(false),
+
+  /** Everyone aboard — infants included — and therefore seats consumed. */
   partySize: integer("party_size").notNull(),
 
   /**
@@ -617,14 +668,22 @@ export const bookings = pgTable("bookings", {
   index("bookings_tour_request_idx").on(table.tourRequestId),
 ]);
 
-/** One priced line of a booking, frozen at the moment of sale. */
+/**
+ * One priced line of a booking, frozen at the moment of sale.
+ *
+ * Since the tiered price list (AGORA-002) this is `PricedLine` from
+ * `lib/pricing.ts`: `unit` says whether the quantity counts adults, children
+ * or one whole group. Rows priced before then lack `unit` and carried the old
+ * catalogue kinds — renderers treat a missing `unit` as per-person, which is
+ * what those rows meant.
+ */
 export type BookingLineItem = {
   slug: string;
-  kind: ExperienceKind;
-  /** Per person, in cents, as the catalogue had it that day. */
+  kind: ExperienceKind | "tour" | "addon";
+  /** In cents, as the price list had it that day. */
   unitCents: number;
-  /** People — add-ons are priced per person, like the tour itself. */
   quantity: number;
+  unit?: "adult" | "child" | "group";
 };
 
 export type Booking = typeof bookings.$inferSelect;
