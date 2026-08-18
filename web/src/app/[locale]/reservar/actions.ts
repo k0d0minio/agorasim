@@ -6,8 +6,8 @@ import { isLocale, t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { listExperiences } from "@/lib/experience-catalogue";
-import { checkDayAvailable, isDateKey } from "@/lib/availability";
-import { countBookedSeatsOn } from "@/lib/bookings";
+import { checkSlotAvailable, isDateKey, TOUR_SLOTS } from "@/lib/availability";
+import { slotOccupancyOn } from "@/lib/bookings";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
@@ -92,17 +92,30 @@ export async function submitTourRequest(
    */
   if (isDateKey(parsed.data.preferredDate ?? "")) {
     const chosen = parsed.data.preferredDate!;
-    const check = await checkDayAvailable({
-      date: chosen,
-      partySize: parsed.data.partySize,
-      booked: await countBookedSeatsOn(chosen),
-    });
+    // An enquiry names a tour loosely (or not at all), so the check is loose
+    // too: the day passes if *any* departure of the relevant tour could take
+    // the party — publicly or privately. The countryside tour answers for an
+    // enquiry that named no tour, or named an add-on.
+    const tourSlug =
+      parsed.data.experience === "obidos-medieval-villages"
+        ? "obidos-medieval-villages"
+        : "rural-saloia";
+    const seats = parsed.data.partySize ?? 1;
 
-    if (!check.ok) {
-      const message =
-        check.reason === "too-many" ? c.errors.partyTooLarge : c.errors.unavailableDate;
+    const checks = await Promise.all(
+      TOUR_SLOTS.map(async (slot) => {
+        const occupancy = await slotOccupancyOn(tourSlug, chosen, slot);
+        const [publicCheck, privateCheck] = await Promise.all([
+          checkSlotAvailable({ experienceSlug: tourSlug, date: chosen, slot, seats, mode: "public", occupancy }),
+          checkSlotAvailable({ experienceSlug: tourSlug, date: chosen, slot, seats, mode: "private", occupancy }),
+        ]);
+        return publicCheck.ok || privateCheck.ok;
+      }),
+    );
+
+    if (!checks.some(Boolean)) {
       return {
-        fieldErrors: { preferredDate: t(message, locale) },
+        fieldErrors: { preferredDate: t(c.errors.unavailableDate, locale) },
         values: { preferredDate: chosenDate },
       };
     }

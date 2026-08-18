@@ -369,9 +369,23 @@ const dateKeys = repeated.transform((values) =>
  * action is the same action — see the note on `saveExperience` for the same
  * reasoning about create-vs-update.
  */
+/**
+ * The departures a calendar write applies to — the two the business runs.
+ * `full_day` is enum history (see `db/schema.ts`), never a valid submission.
+ */
+const tourSlots = repeated.transform((values) =>
+  Array.from(
+    new Set(values.filter((value): value is "morning" | "afternoon" =>
+      value === "morning" || value === "afternoon",
+    )),
+  ),
+);
+
 export const setAvailabilitySchema = z.object({
+  /** Which tour's calendar this writes. Checked against the catalogue in the action. */
+  experience: text.regex(SLUG_RE),
   dates: dateKeys,
-  slot: availabilitySlotSchema.catch("full_day"),
+  slots: tourSlots,
   status: availabilityStatusSchema,
   /**
    * Seats on offer. Clamped rather than refused: this arrives from a stepper
@@ -390,10 +404,11 @@ export const setAvailabilitySchema = z.object({
   note: optionalText,
 });
 
-/** Remove rows outright — "nobody has decided about these days". */
+/** Remove rows outright — "nobody has decided about these departures". */
 export const clearAvailabilitySchema = z.object({
+  experience: text.regex(SLUG_RE),
   dates: dateKeys,
-  slot: availabilitySlotSchema.catch("full_day"),
+  slots: tourSlots,
 });
 
 // ---------------------------------------------------------------------------
@@ -517,6 +532,14 @@ export type TourRequestField = "name" | "email" | "preferredDate";
  * catalogue (`lib/bookings.ts`), and the number the browser was shown is never
  * read back.
  */
+/** A stepper's count: an integer within [min, max], refused otherwise. */
+const partyCount = (min: number, max: number) =>
+  z
+    .string()
+    .trim()
+    .transform((value) => Number.parseInt(value, 10))
+    .refine((n) => Number.isInteger(n) && n >= min && n <= max);
+
 export const bookingCheckoutSchema = z.object({
   name: text.min(1),
   email: z.string().trim().toLowerCase().regex(EMAIL_RE),
@@ -525,13 +548,19 @@ export const bookingCheckoutSchema = z.object({
 
   /** Must be a real calendar day; the action re-checks it is on sale. */
   date: z.string().trim().refine(isDateKey),
+  /** Which departure of that day — 10:00 or 14:00. */
+  slot: z.enum(["morning", "afternoon"]),
   experience: z.string().trim().regex(SLUG_RE),
+  /** Shared departure or the whole slot — repriced server-side either way. */
+  mode: z.enum(["public", "private"]),
   addOns: repeated.transform((slugs) => slugs.filter((slug) => SLUG_RE.test(slug))),
-  partySize: z
-    .string()
-    .trim()
-    .transform((value) => Number.parseInt(value, 10))
-    .refine((n) => Number.isInteger(n) && n >= 1 && n <= MAX_CAPACITY),
+  /**
+   * The party in the price list's bands. Bounds are sanity only — the pricing
+   * engine and the availability re-check are the real referees.
+   */
+  adults: partyCount(1, MAX_CAPACITY),
+  children: partyCount(0, MAX_CAPACITY).catch(0),
+  infants: partyCount(0, MAX_CAPACITY).catch(0),
 
   marketingConsent: z
     .preprocess((value) => value === "on" || value === "true", z.boolean())
@@ -539,4 +568,4 @@ export const bookingCheckoutSchema = z.object({
 });
 
 /** Field names `startCheckout` can report an inline error against. */
-export type BookingCheckoutField = "name" | "email" | "date" | "partySize";
+export type BookingCheckoutField = "name" | "email" | "date" | "party" | "addOns";
