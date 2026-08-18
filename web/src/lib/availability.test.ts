@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   addMonths,
-  bookableDates,
-  DEFAULT_CAPACITY,
+  defaultCapacityFor,
   describeDay,
   describeMonth,
   dateKey,
@@ -19,9 +18,11 @@ import {
   monthGrid,
   monthOf,
   monthWindow,
+  occupancySlotKey,
   parseDateKey,
   todayKey,
   toPublicDay,
+  TOUR_SLOTS,
   weekdayIndex,
 } from "@/lib/availability";
 import type { AvailabilityRow } from "@/db";
@@ -30,18 +31,22 @@ import type { AvailabilityRow } from "@/db";
  * The calendar's pure half.
  *
  * Everything here is a wrong answer that would not throw: a February that
- * grows a 30th, a grid whose first column is Sunday, a day in the past
+ * grows a 30th, a grid whose first column is Sunday, a departure in the past
  * offered for sale, a "seats left" that goes negative when capacity is
- * lowered under a paid booking. The reads and writes are not here — they are
- * typed queries covered by the build, per the convention in `sales.test.ts`.
+ * lowered under a paid booking, a slot with a live private booking sold as if
+ * it were shared. The reads and writes are not here — they are typed queries
+ * covered by the build, per the convention in `sales.test.ts`.
  */
+
+const CAPACITY = defaultCapacityFor("rural-saloia");
 
 function row(overrides: Partial<AvailabilityRow> = {}): AvailabilityRow {
   return {
     id: "11111111-2222-3333-4444-555555555555",
+    experienceSlug: "rural-saloia",
     date: "2026-08-15",
-    slot: "full_day",
-    capacity: DEFAULT_CAPACITY,
+    slot: "morning",
+    capacity: CAPACITY,
     status: "open",
     note: null,
     createdAt: new Date("2026-08-01T10:00:00Z"),
@@ -194,56 +199,105 @@ describe("monthWindow", () => {
 describe("describeDay", () => {
   const today = "2026-08-10";
 
-  it("is not bookable when nobody has opened the day", () => {
-    const day = describeDay({ date: "2026-08-15", row: null, today });
+  it("is not bookable when nobody has opened the departure", () => {
+    const day = describeDay({ date: "2026-08-15", slot: "morning", row: null, today });
     expect(day).toMatchObject({
       status: null,
       capacity: 0,
       seatsLeft: 0,
       bookable: false,
+      privateBookable: false,
       past: false,
     });
   });
 
   it("is bookable when a row says open and seats remain", () => {
-    const day = describeDay({ date: "2026-08-15", row: row(), booked: 1, today });
+    const day = describeDay({
+      date: "2026-08-15",
+      slot: "morning",
+      row: row(),
+      occupancy: { seats: 1, exclusive: false },
+      today,
+    });
     expect(day.bookable).toBe(true);
-    expect(day.seatsLeft).toBe(DEFAULT_CAPACITY - 1);
+    expect(day.seatsLeft).toBe(CAPACITY - 1);
+    // One seat sold: the slot can no longer be taken privately.
+    expect(day.privateBookable).toBe(false);
+  });
+
+  it("can be taken privately only while nothing is sold into it", () => {
+    const untouched = describeDay({ date: "2026-08-15", slot: "morning", row: row(), today });
+    expect(untouched.privateBookable).toBe(true);
+  });
+
+  it("answers sold out while a private booking owns the slot", () => {
+    // The whole point of `exclusive`: two seats of arithmetic would say ten
+    // seats remain, and every one of them belongs to the private group.
+    const day = describeDay({
+      date: "2026-08-15",
+      slot: "morning",
+      row: row(),
+      occupancy: { seats: 2, exclusive: true },
+      today,
+    });
+    expect(day.exclusiveHold).toBe(true);
+    expect(day.bookable).toBe(false);
+    expect(day.privateBookable).toBe(false);
   });
 
   it("is not bookable when the team closed it", () => {
     const day = describeDay({
       date: "2026-08-15",
+      slot: "morning",
       row: row({ status: "closed", note: "Diogo em casamento" }),
       today,
     });
     expect(day.bookable).toBe(false);
+    expect(day.privateBookable).toBe(false);
     // The note stays on the record — the admin renders it, the guest never does.
     expect(day.note).toBe("Diogo em casamento");
   });
 
   it("is not bookable once the seats are gone", () => {
-    const day = describeDay({ date: "2026-08-15", row: row(), booked: DEFAULT_CAPACITY, today });
+    const day = describeDay({
+      date: "2026-08-15",
+      slot: "morning",
+      row: row(),
+      occupancy: { seats: CAPACITY, exclusive: false },
+      today,
+    });
     expect(day.seatsLeft).toBe(0);
     expect(day.bookable).toBe(false);
   });
 
   it("never reports negative seats when capacity is cut under a paid booking", () => {
-    const day = describeDay({ date: "2026-08-15", row: row({ capacity: 1 }), booked: 3, today });
+    const day = describeDay({
+      date: "2026-08-15",
+      slot: "morning",
+      row: row({ capacity: 1 }),
+      occupancy: { seats: 3, exclusive: false },
+      today,
+    });
     expect(day.seatsLeft).toBe(0);
     expect(day.bookable).toBe(false);
   });
 
   it("refuses the past, however open the row is", () => {
-    const day = describeDay({ date: "2026-08-09", row: row({ date: "2026-08-09" }), today });
+    const day = describeDay({
+      date: "2026-08-09",
+      slot: "morning",
+      row: row({ date: "2026-08-09" }),
+      today,
+    });
     expect(day.past).toBe(true);
     expect(day.bookable).toBe(false);
+    expect(day.privateBookable).toBe(false);
   });
 
   it("still sells today", () => {
     // The day itself is not the past. Whether a same-day booking is *wise* is
     // the team's call, and they make it by closing the day.
-    const day = describeDay({ date: today, row: row({ date: today }), today });
+    const day = describeDay({ date: today, slot: "morning", row: row({ date: today }), today });
     expect(day.past).toBe(false);
     expect(day.bookable).toBe(true);
   });
@@ -251,14 +305,20 @@ describe("describeDay", () => {
 
 describe("fitsParty", () => {
   const today = "2026-08-10";
-  const day = describeDay({ date: "2026-08-15", row: row({ capacity: 3 }), booked: 2, today });
+  const day = describeDay({
+    date: "2026-08-15",
+    slot: "morning",
+    row: row({ capacity: 3 }),
+    occupancy: { seats: 2, exclusive: false },
+    today,
+  });
 
   it("takes a party that fits in what is left", () => {
     expect(fitsParty(day, 1)).toBe(true);
   });
 
   it("refuses a party larger than the remaining seats", () => {
-    // The day is bookable and still a "no" to this group — two different
+    // The slot is bookable and still a "no" to this group — two different
     // messages for the guest, which is why this is not folded into `bookable`.
     expect(day.bookable).toBe(true);
     expect(fitsParty(day, 2)).toBe(false);
@@ -269,57 +329,93 @@ describe("fitsParty", () => {
     expect(fitsParty(day, -1)).toBe(false);
   });
 
-  it("refuses any party on a day that cannot be booked at all", () => {
-    const closed = describeDay({ date: "2026-08-15", row: row({ status: "closed" }), today });
+  it("refuses any party on a departure that cannot be booked at all", () => {
+    const closed = describeDay({
+      date: "2026-08-15",
+      slot: "morning",
+      row: row({ status: "closed" }),
+      today,
+    });
     expect(fitsParty(closed, 1)).toBe(false);
+  });
+
+  it("judges a private party against the whole slot, not the seats left", () => {
+    const untouched = describeDay({
+      date: "2026-08-15",
+      slot: "morning",
+      row: row({ capacity: 8 }),
+      today,
+    });
+    expect(fitsParty(untouched, 8, "private")).toBe(true);
+    expect(fitsParty(untouched, 9, "private")).toBe(false);
+    // One seat sold and the slot can no longer be private at all.
+    expect(fitsParty(day, 1, "private")).toBe(false);
   });
 });
 
 describe("describeMonth", () => {
   const today = "2026-08-10";
 
-  it("returns a cell for every day, row or no row", () => {
+  it("returns a cell for every day with both departures, row or no row", () => {
     const days = describeMonth({ month: "2026-08", rows: [], today });
     expect(days).toHaveLength(31);
-    expect(days.every((day) => day.status === null)).toBe(true);
+    expect(
+      days.every(
+        (day) =>
+          day.slots.length === TOUR_SLOTS.length &&
+          day.slots.every((slot) => slot.status === null),
+      ),
+    ).toBe(true);
   });
 
-  it("matches stored rows onto their days and leaves the rest untouched", () => {
+  it("matches stored rows onto their departures and leaves the rest untouched", () => {
     const days = describeMonth({
       month: "2026-08",
-      rows: [row({ date: "2026-08-15" }), row({ date: "2026-08-16", status: "closed" })],
-      today,
-    });
-
-    const byDate = new Map(days.map((day) => [day.date, day]));
-    expect(byDate.get("2026-08-15")?.bookable).toBe(true);
-    expect(byDate.get("2026-08-16")?.bookable).toBe(false);
-    expect(byDate.get("2026-08-17")?.status).toBeNull();
-  });
-
-  it("subtracts the bookings it is given", () => {
-    const days = describeMonth({
-      month: "2026-08",
-      rows: [row({ date: "2026-08-15" })],
-      bookedByDate: new Map([["2026-08-15", DEFAULT_CAPACITY]]),
+      rows: [
+        row({ date: "2026-08-15" }),
+        row({ date: "2026-08-15", slot: "afternoon", status: "closed" }),
+      ],
       today,
     });
 
     const fifteenth = days.find((day) => day.date === "2026-08-15")!;
-    expect(fifteenth.booked).toBe(DEFAULT_CAPACITY);
-    expect(fifteenth.bookable).toBe(false);
+    const morning = fifteenth.slots.find((slot) => slot.slot === "morning")!;
+    const afternoon = fifteenth.slots.find((slot) => slot.slot === "afternoon")!;
+    expect(morning.bookable).toBe(true);
+    expect(afternoon.bookable).toBe(false);
+    expect(days.find((day) => day.date === "2026-08-16")!.slots[0].status).toBeNull();
+  });
+
+  it("subtracts the occupancy it is given, per departure", () => {
+    const days = describeMonth({
+      month: "2026-08",
+      rows: [row({ date: "2026-08-15" }), row({ date: "2026-08-15", slot: "afternoon" })],
+      occupancy: new Map([
+        [occupancySlotKey("2026-08-15", "morning"), { seats: CAPACITY, exclusive: false }],
+      ]),
+      today,
+    });
+
+    const fifteenth = days.find((day) => day.date === "2026-08-15")!;
+    const morning = fifteenth.slots.find((slot) => slot.slot === "morning")!;
+    const afternoon = fifteenth.slots.find((slot) => slot.slot === "afternoon")!;
+    expect(morning.booked).toBe(CAPACITY);
+    expect(morning.bookable).toBe(false);
+    expect(afternoon.bookable).toBe(true);
   });
 });
 
 describe("toPublicDay", () => {
   const today = "2026-08-10";
 
-  it("tells a guest only whether they can book, and how many seats are left", () => {
-    const day = describeDay({
-      date: "2026-08-15",
-      row: row({ note: "Diogo em casamento" }),
-      booked: 1,
-      today,
+  it("tells a guest only what they may know about each departure", () => {
+    const [day] = describeMonth({
+      month: "2026-08",
+      rows: [row({ date: "2026-08-01", note: "Diogo em casamento" })],
+      occupancy: new Map([
+        [occupancySlotKey("2026-08-01", "morning"), { seats: 1, exclusive: false }],
+      ]),
+      today: "2026-07-01",
     });
 
     // The exact shape is the assertion. The stored row also carries the note,
@@ -327,37 +423,35 @@ describe("toPublicDay", () => {
     // diary — and the way to guarantee a guest is never told *why* a day is
     // unavailable is for the reason not to be in the payload at all.
     expect(toPublicDay(day)).toEqual({
-      date: "2026-08-15",
+      date: "2026-08-01",
       bookable: true,
-      seatsLeft: DEFAULT_CAPACITY - 1,
-    });
-  });
-
-  it("reports no seats on a day that cannot be booked, whatever the row says", () => {
-    // A closed day with three empty seats must not advertise three seats.
-    const closed = describeDay({ date: "2026-08-15", row: row({ status: "closed" }), today });
-    expect(toPublicDay(closed)).toEqual({
-      date: "2026-08-15",
-      bookable: false,
-      seatsLeft: 0,
-    });
-  });
-});
-
-describe("bookableDates", () => {
-  it("keeps only the days a guest could actually pick", () => {
-    const today = "2026-08-10";
-    const days = describeMonth({
-      month: "2026-08",
-      rows: [
-        row({ date: "2026-08-05" }), // open, but in the past
-        row({ date: "2026-08-15" }),
-        row({ date: "2026-08-16", status: "closed" }),
-        row({ date: "2026-08-17" }),
+      slots: [
+        {
+          slot: "morning",
+          bookable: true,
+          seatsLeft: CAPACITY - 1,
+          privateBookable: false,
+          capacity: 0,
+        },
+        {
+          slot: "afternoon",
+          bookable: false,
+          seatsLeft: 0,
+          privateBookable: false,
+          capacity: 0,
+        },
       ],
-      today,
     });
+  });
 
-    expect(bookableDates(days)).toEqual(["2026-08-15", "2026-08-17"]);
+  it("advertises nothing on a departure that cannot be booked", () => {
+    // A closed slot with empty seats must not advertise them.
+    const [day] = describeMonth({
+      month: "2026-08",
+      rows: [row({ date: "2026-08-01", status: "closed" })],
+      today: "2026-07-01",
+    });
+    expect(toPublicDay(day).bookable).toBe(false);
+    expect(toPublicDay(day).slots.every((slot) => slot.seatsLeft === 0)).toBe(true);
   });
 });

@@ -66,13 +66,21 @@ export async function setAvailability(
   const parsed = setAvailabilitySchema.safeParse(formValues(formData));
   if (!parsed.success) return { error: "Couldn't read which days to change." };
 
-  const { dates, slot, status, capacity, note } = parsed.data;
+  const { experience, dates, slots, status, capacity, note } = parsed.data;
   if (dates.length === 0) return { error: "No days were selected." };
+  if (slots.length === 0) return { error: "Pick at least one departure." };
 
   let written: DateKey[];
   try {
-    const rows = await upsertDays({ dates, slot, status, capacity, note });
-    written = rows.map((row) => row.date);
+    const rows = await upsertDays({
+      experienceSlug: experience,
+      dates,
+      slots,
+      status,
+      capacity,
+      note,
+    });
+    written = Array.from(new Set(rows.map((row) => row.date)));
   } catch (err) {
     console.error("[admin] failed to write availability", err);
     return { error: "Couldn't save — the calendar was not changed." };
@@ -85,17 +93,18 @@ export async function setAvailability(
     // A day, not a row id: bulk writes touch many rows, and "which days" is the
     // question anyone reading this log back is actually asking.
     entityId: written.length === 1 ? written[0] : null,
-    after: { dates: written, slot, status, capacity, hasNote: Boolean(note) },
+    after: { experience, dates: written, slots, status, capacity, hasNote: Boolean(note) },
   });
 
   revalidatePublicSite();
 
+  const departures = written.length * slots.length;
   return {
     ok: true,
-    changed: written.length,
+    changed: departures,
     message:
       status === "open"
-        ? `${days(written.length)} on sale, ${capacity} ${capacity === 1 ? "seat" : "seats"} each.`
+        ? `${days(written.length)} on sale (${departures} departures), ${capacity} ${capacity === 1 ? "seat" : "seats"} each.`
         : `${days(written.length)} closed.`,
   };
 }
@@ -124,12 +133,13 @@ export async function clearAvailability(
   const parsed = clearAvailabilitySchema.safeParse(formValues(formData));
   if (!parsed.success) return { error: "Couldn't read which days to clear." };
 
-  const { dates, slot } = parsed.data;
+  const { experience, dates, slots } = parsed.data;
   if (dates.length === 0) return { error: "No days were selected." };
+  if (slots.length === 0) return { error: "Pick at least one departure." };
 
   let sold: Set<string>;
   try {
-    sold = await datesWithBookings(dates, slot);
+    sold = await datesWithBookings({ experienceSlug: experience, dates, slots });
   } catch (err) {
     // Refuse rather than proceed: the check exists to protect a sold day, and
     // a check that fails open is not a check.
@@ -148,7 +158,7 @@ export async function clearAvailability(
 
   let removed: number;
   try {
-    removed = await clearDays(dates, slot);
+    removed = await clearDays({ experienceSlug: experience, dates, slots });
   } catch (err) {
     console.error("[admin] failed to clear availability", err);
     return { error: "Couldn't save — the calendar was not changed." };
@@ -159,7 +169,7 @@ export async function clearAvailability(
     action: "availability.cleared",
     entityType: "availability",
     entityId: dates.length === 1 ? dates[0] : null,
-    before: { dates, slot },
+    before: { experience, dates, slots },
   });
 
   revalidatePublicSite();
@@ -167,6 +177,6 @@ export async function clearAvailability(
   return {
     ok: true,
     changed: removed,
-    message: `${days(removed)} cleared — back to "not decided".`,
+    message: `${removed} ${removed === 1 ? "departure" : "departures"} cleared — back to "not decided".`,
   };
 }
