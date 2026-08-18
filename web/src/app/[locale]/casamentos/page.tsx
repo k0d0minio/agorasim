@@ -1,24 +1,18 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { CarFront, Heart } from "lucide-react";
+import { CarFront, Check, Heart } from "lucide-react";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { weddingsContent } from "@/content/weddings";
+import { fleet } from "@/content/site";
 import { Section, SectionHeading } from "@/components/section";
-import { InDevBanner } from "@/components/in-dev-banner";
 import { FaqList } from "@/components/faq";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { WeddingQuoteForm } from "@/components/wedding-quote-form";
 import { JsonLd } from "@/components/json-ld";
 import { organizationJsonLd, faqJsonLd } from "@/lib/jsonld";
 import { alternates } from "@/lib/seo";
-
-/** Every field on this page is a disabled preview of the form still to come. */
-const disabledClass = "disabled:opacity-70";
 
 export async function generateMetadata({
   params,
@@ -31,12 +25,14 @@ export async function generateMetadata({
     title: t(weddingsContent.title, locale),
     description: t(weddingsContent.lead, locale),
     alternates: alternates(locale, "casamentos"),
-    // Preview page — keep out of the index until the feature ships.
-    robots: { index: false, follow: false },
   };
 }
 
-/** Wedding-car-hire landing (proposal Feature 4) — design preview. */
+/**
+ * Wedding-car-hire landing — live since AGORA-005, with Diogo & Rita's real
+ * offer and a working quote form. Each fleet card joins the wedding copy with
+ * the car's own name, year and story from `content/site.ts`.
+ */
 export default async function WeddingsPage({
   params,
 }: {
@@ -46,6 +42,8 @@ export default async function WeddingsPage({
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
   const c = weddingsContent;
+
+  const carBySlug = new Map(fleet.map((car) => [car.model, car]));
 
   return (
     <>
@@ -88,11 +86,42 @@ export default async function WeddingsPage({
           </div>
         </div>
 
-        <InDevBanner locale={l} body={c.inDev} className="mt-10" />
+        {/* Wedding Awards — five consecutive years, worn quietly. */}
+        <div className="mt-10 flex flex-col items-center gap-3 border-t border-border pt-8">
+          <p className="text-sm font-medium text-muted-foreground">{t(c.awards.title, l)}</p>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            {c.awards.years.map((year) => (
+              <Image
+                key={year}
+                src={`/images/wedding-awards/${year}.jpg`}
+                alt={`${t(c.awards.alt, l)} ${year}`}
+                width={72}
+                height={72}
+                className="size-16 rounded-full object-contain sm:size-18"
+              />
+            ))}
+          </div>
+        </div>
+      </Section>
+
+      {/* What's included */}
+      <Section>
+        <SectionHeading title={t(c.offer.title, l)} />
+        <ul className="mt-8 grid gap-3 sm:grid-cols-2">
+          {c.offer.items.map((item, i) => (
+            <li
+              key={i}
+              className="flex items-start gap-3 rounded-xl border border-border bg-card p-4"
+            >
+              <Check className="mt-0.5 size-5 shrink-0 text-primary" />
+              <span>{t(item, l)}</span>
+            </li>
+          ))}
+        </ul>
       </Section>
 
       {/* How it works */}
-      <Section>
+      <Section muted>
         <SectionHeading title={t(c.howItWorks.title, l)} />
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
           {c.howItWorks.steps.map((step, i) => (
@@ -109,109 +138,62 @@ export default async function WeddingsPage({
         </div>
       </Section>
 
-      {/* Fleet */}
-      <Section muted>
+      {/* Fleet — the cars by name, with their stories. */}
+      <Section>
         <SectionHeading title={t(c.fleet.title, l)} intro={t(c.fleet.intro, l)} />
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {c.fleet.cars.map((car) => (
-            <div key={car.name} className="group overflow-hidden rounded-2xl border border-border bg-card">
-              {car.image ? (
-                <div className="relative aspect-4/3">
-                  <Image
-                    src={car.image}
-                    alt={car.name}
-                    fill
-                    sizes="(max-width: 640px) 100vw, 320px"
-                    className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                  />
+        <div className="mt-8 grid gap-6 sm:grid-cols-2">
+          {c.fleet.cars.map((entry) => {
+            const car = carBySlug.get(entry.model);
+            return (
+              <div
+                key={entry.model}
+                className="group overflow-hidden rounded-2xl border border-border bg-card"
+              >
+                {entry.image ? (
+                  <div className="relative aspect-4/3">
+                    <Image
+                      src={entry.image}
+                      alt={car ? `${car.name} — ${entry.model}` : entry.model}
+                      fill
+                      sizes="(max-width: 640px) 100vw, 480px"
+                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex aspect-4/3 flex-col items-center justify-center gap-2 bg-secondary/50 text-muted-foreground">
+                    <CarFront className="size-8" strokeWidth={1.5} />
+                    <p className="text-xs">{t(c.fleet.photosSoon, l)}</p>
+                  </div>
+                )}
+                <div className="p-5">
+                  <p className="font-heading text-lg font-semibold">
+                    {car ? car.name : entry.model}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {entry.model}
+                    {car ? ` · ${car.year}` : ""}
+                  </p>
+                  {car ? (
+                    <p className="mt-2 text-sm text-muted-foreground">{t(car.story, l)}</p>
+                  ) : null}
                 </div>
-              ) : (
-                <div className="flex aspect-4/3 flex-col items-center justify-center gap-2 bg-secondary/50 text-muted-foreground">
-                  <CarFront className="size-8" strokeWidth={1.5} />
-                  <p className="text-xs">{t(c.fleet.photosSoon, l)}</p>
-                </div>
-              )}
-              <div className="p-4">
-                <p className="font-heading text-lg font-semibold">{car.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{t(car.note, l)}</p>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Section>
 
-      {/* Quote request — design preview, submit disabled until the engine ships */}
-      <Section>
+      {/* Quote request — live. */}
+      <Section muted>
         <div className="scroll-mt-24" id="orcamento" />
         <div className="mx-auto max-w-2xl">
           <SectionHeading title={t(c.quote.title, l)} intro={t(c.quote.lead, l)} />
-          <form className="mt-8 flex flex-col gap-5">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="wd-names">{t(c.quote.labels.names, l)}</Label>
-                <Input id="wd-names" disabled className={disabledClass} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="wd-email">{t(c.quote.labels.email, l)}</Label>
-                <Input id="wd-email" type="email" disabled className={disabledClass} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="wd-phone">{t(c.quote.labels.phone, l)}</Label>
-                <Input id="wd-phone" type="tel" disabled className={disabledClass} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="wd-date">{t(c.quote.labels.date, l)}</Label>
-                <Input id="wd-date" type="date" disabled className={disabledClass} />
-              </div>
-              <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <Label htmlFor="wd-venue">{t(c.quote.labels.venue, l)}</Label>
-                <Input
-                  id="wd-venue"
-                  disabled
-                  placeholder={t(c.quote.labels.venuePlaceholder, l)}
-                  className={disabledClass}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="wd-hours">{t(c.quote.labels.hours, l)}</Label>
-                <Select id="wd-hours" disabled className={disabledClass}>
-                  {t(c.quote.labels.hoursOptions, l).map((opt) => (
-                    <option key={opt}>{opt}</option>
-                  ))}
-                </Select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="wd-car">{t(c.quote.labels.car, l)}</Label>
-                <Select id="wd-car" disabled className={disabledClass}>
-                  <option>{t(c.quote.labels.carNone, l)}</option>
-                  {c.fleet.cars.map((car) => (
-                    <option key={car.name}>{car.name}</option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="wd-message">{t(c.quote.labels.message, l)}</Label>
-              <Textarea
-                id="wd-message"
-                rows={4}
-                disabled
-                placeholder={t(c.quote.labels.messagePlaceholder, l)}
-                className={disabledClass}
-              />
-            </div>
-            <div>
-              <Button type="button" size="lg" disabled>
-                {t(c.quote.labels.submit, l)}
-              </Button>
-              <p className="mt-2 text-xs text-muted-foreground">{t(c.quote.labels.soon, l)}</p>
-            </div>
-          </form>
+          <WeddingQuoteForm locale={l} />
         </div>
       </Section>
 
       {/* FAQ */}
-      <Section muted>
+      <Section>
         <div className="max-w-3xl">
           <FaqList faqs={[...c.faqs]} locale={l} heading={t(c.faqTitle, l)} />
         </div>

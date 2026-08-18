@@ -69,6 +69,7 @@ export const liveKeys: RouteKey[] = [
   "sobre",
   "experiencias",
   "eventos",
+  "casamentos",
   "contactos",
   "reservar",
   "privacidade",
