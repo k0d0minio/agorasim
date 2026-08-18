@@ -24,9 +24,13 @@ function submission(overrides: Record<string, unknown> = {}) {
     phone: "+351912345678",
     message: "Fazemos anos nesse dia.",
     date: "2026-08-15",
+    slot: "morning",
     experience: "rural-saloia",
+    mode: "private",
     addOns: ["manzwine"],
-    partySize: "2",
+    adults: "2",
+    children: "1",
+    infants: "0",
     marketingConsent: "on",
     ...overrides,
   };
@@ -41,9 +45,13 @@ describe("bookingCheckoutSchema", () => {
       // Lower-cased so the lead matches however they typed it.
       email: "sofia@example.com",
       date: "2026-08-15",
+      slot: "morning",
       experience: "rural-saloia",
+      mode: "private",
       addOns: ["manzwine"],
-      partySize: 2,
+      adults: 2,
+      children: 1,
+      infants: 0,
       marketingConsent: true,
     });
   });
@@ -67,12 +75,24 @@ describe("bookingCheckoutSchema", () => {
     }
   });
 
-  it("refuses a party size that is not a countable number of people", () => {
-    for (const partySize of ["", "0", "-1", "two", "999"]) {
-      expect(bookingCheckoutSchema.safeParse(submission({ partySize })).success).toBe(
+  it("refuses a party with no countable adult", () => {
+    for (const adults of ["", "0", "-1", "two", "999"]) {
+      expect(bookingCheckoutSchema.safeParse(submission({ adults })).success).toBe(
         false,
       );
     }
+  });
+
+  it("refuses a departure that is not one the business runs", () => {
+    for (const slot of ["", "full_day", "evening"]) {
+      expect(bookingCheckoutSchema.safeParse(submission({ slot })).success).toBe(false);
+    }
+  });
+
+  it("refuses a mode that is not public or private", () => {
+    expect(bookingCheckoutSchema.safeParse(submission({ mode: "vip" })).success).toBe(
+      false,
+    );
   });
 
   it("treats an absent marketing checkbox as a no", () => {
