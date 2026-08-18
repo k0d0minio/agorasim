@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { CheckCircle2, Clock, HelpCircle } from "lucide-react";
 
 import { bookingContent } from "@/content/booking";
+import { bookingEmails } from "@/content/emails";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { formatDay } from "@/lib/availability";
 import { confirmPaidBooking } from "@/lib/booking-checkout";
@@ -70,7 +71,7 @@ export default async function BookingConfirmationPage({
               <Row label={t(bookingContent.labels.experience, l)} value={state.experience} />
               <Row label={t(bookingContent.labels.summary, l)} value={state.date} />
               <Row
-                label={t(bookingContent.labels.partySize, l)}
+                label={t(bookingEmails.guest.labels.party, l)}
                 value={String(state.partySize)}
               />
               <Row label={t(bookingContent.labels.total, l)} value={state.total} />

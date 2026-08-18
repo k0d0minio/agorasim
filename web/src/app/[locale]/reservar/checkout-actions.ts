@@ -11,10 +11,11 @@ import {
   t,
   type Locale,
 } from "@/i18n/config";
-import { checkDayAvailable } from "@/lib/availability";
+import { checkSlotAvailable } from "@/lib/availability";
 import { startBookingCheckout } from "@/lib/booking-checkout";
-import { countBookedSeatsOn, quote } from "@/lib/bookings";
+import { slotOccupancyOn } from "@/lib/bookings";
 import { listExperiences } from "@/lib/experience-catalogue";
+import { priceBooking, type PricingFailure } from "@/lib/pricing";
 import { bookingCheckoutSchema, formValues, type BookingCheckoutField } from "@/lib/form-schemas";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
@@ -75,14 +76,44 @@ export type CheckoutState = {
 };
 
 /**
+ * Which sentence a pricing refusal deserves, and next to which control.
+ *
+ * The browser disables the combinations the engine would refuse, so arriving
+ * here means a stale page or a crafted request — but the sentence still has to
+ * be true and still has to name a way forward.
+ */
+function pricingFailureState(
+  failure: PricingFailure,
+  locale: Locale,
+): { field: BookingCheckoutField; message: string } | { message: string } {
+  const c = bookingContent.errors;
+  switch (failure.reason) {
+    case "bad-party":
+      return { field: "party", message: t(c.partySize, locale) };
+    case "party-too-large":
+      return { field: "party", message: t(c.groupTooLarge, locale) };
+    case "min-adults":
+      return { field: "party", message: t(c.minAdults, locale) };
+    case "addons-not-allowed":
+    case "addon-min-adults":
+    case "addon-min-guests":
+    case "addon-closed-day":
+      return { field: "addOns", message: t(c.addOnUnavailable, locale) };
+    case "unpriced":
+    case "mode-unavailable":
+      return { message: t(c.paymentsOff, locale) };
+  }
+}
+
+/**
  * Take a booking to Stripe.
  *
  * The action's job is to be suspicious. Everything the browser sends is a
- * suggestion: the date is re-checked against the live calendar, the party is
- * re-checked against the seats actually left, and **the price is not read from
- * the form at all** — it is computed here from the catalogue rows. A hidden
- * `total` input would be the obvious way to build this and the obvious way to
- * get robbed.
+ * suggestion: the departure is re-checked against the live calendar and the
+ * seats actually left, and **the price is not read from the form at all** — it
+ * is computed here by the same engine the browser used for display
+ * (`lib/pricing.ts`), from the catalogue rows. A hidden `total` input would be
+ * the obvious way to build this and the obvious way to get robbed.
  *
  * Failures are localized and returned to the form. Success does not return: the
  * function redirects to Stripe, which means the `redirect()` call has to live
@@ -136,8 +167,8 @@ export async function startCheckout(
     const flat = parsed.error.flatten().fieldErrors;
     if (flat.name) fieldErrors.name = t(c.name, locale);
     if (flat.email) fieldErrors.email = t(c.email, locale);
-    if (flat.date) fieldErrors.date = t(c.chooseDate, locale);
-    if (flat.partySize) fieldErrors.partySize = t(c.partySize, locale);
+    if (flat.date || flat.slot) fieldErrors.date = t(c.chooseDate, locale);
+    if (flat.adults) fieldErrors.party = t(c.partySize, locale);
     // A schema failure with no field we render an error against is a crafted
     // request, not a guest — one generic message rather than a shrug.
     return Object.keys(fieldErrors).length > 0
@@ -146,38 +177,58 @@ export async function startCheckout(
   }
 
   const booking = parsed.data;
+  const party = {
+    adults: booking.adults,
+    children: booking.children,
+    infants: booking.infants,
+  };
   const catalogue = await listExperiences();
   const bySlug = new Map(catalogue.map((entry) => [entry.slug, entry]));
 
   const experience = bySlug.get(booking.experience);
+  if (!experience || experience.kind !== "signature") {
+    console.error(`[checkout] refused unknown tour "${booking.experience}"`);
+    return { error: t(c.generic, locale), values: entered };
+  }
   const addOns = booking.addOns.map((slug) => bySlug.get(slug));
-
-  const priced = quote({
-    experience,
-    addOns,
-    partySize: booking.partySize,
-    requested: { experience: booking.experience, addOns: booking.addOns },
-  });
-
-  if (!priced.ok) {
-    // `unpriced` is the state the whole catalogue is in until AGORA-002 lands,
-    // and it is not the guest's fault or their problem to solve — they are told
-    // the tour cannot be paid for online, and pointed at the enquiry form.
-    console.error(
-      `[checkout] refused to price a basket (${priced.reason}${
-        "slug" in priced ? `: ${priced.slug}` : ""
-      })`,
-    );
+  if (addOns.some((entry) => !entry)) {
+    console.error(`[checkout] refused a basket naming an unknown add-on`);
     return {
-      error: t(priced.reason === "unpriced" ? c.paymentsOff : c.generic, locale),
+      fieldErrors: { addOns: t(c.addOnUnavailable, locale) },
       values: entered,
     };
   }
+  const knownAddOns = addOns.filter((entry): entry is NonNullable<typeof entry> =>
+    Boolean(entry),
+  );
 
-  const check = await checkDayAvailable({
+  const priced = priceBooking({
+    tour: { slug: experience.slug, pricing: experience.pricing },
+    addOns: knownAddOns.map((entry) => ({ slug: entry.slug, pricing: entry.pricing })),
+    mode: booking.mode,
+    party,
     date: booking.date,
-    partySize: booking.partySize,
-    booked: await countBookedSeatsOn(booking.date),
+  });
+
+  if (!priced.ok) {
+    // `unpriced` is a catalogue state, not the guest's fault or their problem
+    // to solve — they are told the tour cannot be paid for online, and pointed
+    // at the enquiry form. The rest are combinations the form disables, so
+    // reaching them means a stale page: the message names the control to fix.
+    console.error(`[checkout] refused to price a basket (${priced.reason})`);
+    const state = pricingFailureState(priced, locale);
+    return "field" in state
+      ? { fieldErrors: { [state.field]: state.message }, values: entered }
+      : { error: state.message, values: entered };
+  }
+
+  const check = await checkSlotAvailable({
+    experienceSlug: experience.slug,
+    date: booking.date,
+    slot: booking.slot,
+    seats: priced.seats,
+    mode: booking.mode,
+    occupancy: await slotOccupancyOn(experience.slug, booking.date, booking.slot),
   });
 
   if (!check.ok) {
@@ -201,10 +252,12 @@ export async function startCheckout(
       },
       locale,
       date: booking.date,
-      experience: experience!,
-      addOns: addOns.filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
-      partySize: booking.partySize,
-      items: priced.items,
+      slot: booking.slot,
+      mode: booking.mode,
+      party,
+      experience,
+      addOns: knownAddOns,
+      lines: priced.lines,
       totalCents: priced.totalCents,
     });
     url = started.url;

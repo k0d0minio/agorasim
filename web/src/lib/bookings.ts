@@ -1,20 +1,16 @@
 /**
- * Bookings: what a tour costs, and how many seats are gone.
+ * Bookings: how many seats are gone, and who owns a slot.
  *
- * Two jobs, one module, for the same reason `lib/availability.ts` keeps its
- * arithmetic next to its queries — the seat count *is* the demand side of the
- * calendar, and separating "what we sold" from "how much of the day is left"
- * would put a file boundary through one idea.
+ * The *price* of a booking lives in `lib/pricing.ts`, which is pure and shared
+ * with the browser. What lives here is demand: the seat counts and exclusive
+ * holds the calendar's arithmetic runs on, next to the queries they are
+ * arithmetic about — the same reason `lib/availability.ts` keeps its grid
+ * logic next to its rows.
  *
- * **Money is integer cents, everywhere.** Floats are a rounding error looking
- * for a customer to find them, and cents are what Stripe charges in, so the
- * only conversion is at the display edge ({@link formatPrice}).
- *
- * **The price is never read off a form.** {@link quote} computes it from the
- * catalogue rows on the server; the browser is told the total so it can show
- * it, and told again by Stripe, and neither telling is trusted. An unpriced
- * experience is unsellable rather than free — see {@link quote}'s failure
- * cases.
+ * **Occupancy is two numbers.** A public booking consumes seats; a private
+ * booking owns whatever was left of its slot (`exclusive`), and while a live
+ * one exists the slot answers "sold out" no matter what the seat arithmetic
+ * says. Both live in {@link SlotOccupancy}, and every count here reports both.
  *
  * Server-only: it imports `@/db`. The pure half is unit-tested through the
  * `server-only` stub, as elsewhere in this repo.
@@ -26,14 +22,11 @@ import { and, count, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
 import {
   bookings,
   db,
-  type Booking,
-  type BookingLineItem,
-  type BookingStatus,
   type AvailabilitySlot,
+  type Booking,
+  type BookingStatus,
 } from "@/db";
-import type { Experience } from "@/content/experiences";
-import { DEFAULT_SLOT, type DateKey } from "@/lib/availability";
-import { BOOKING_CURRENCY } from "@/lib/money";
+import type { DateKey } from "@/lib/availability";
 
 /**
  * How long a seat is held while the guest is on Stripe's payment page.
@@ -57,101 +50,17 @@ export function holdExpiryFrom(now: Date = new Date()): Date {
 }
 
 // ---------------------------------------------------------------------------
-// Pricing
-// ---------------------------------------------------------------------------
-
-/** A priced quote for a party — what the guest is about to be charged. */
-export type Quote = {
-  items: BookingLineItem[];
-  totalCents: number;
-  currency: string;
-  partySize: number;
-};
-
-/** Why a basket could not be priced. Each one is a different thing to say. */
-export type QuoteFailure =
-  | { ok: false; reason: "unknown-experience"; slug: string }
-  | { ok: false; reason: "unpriced"; slug: string }
-  | { ok: false; reason: "bad-party-size" };
-
-/**
- * Price a basket from the catalogue.
- *
- * Everything is **per person**, tour and add-ons alike, which is how the offer
- * has always been described. Two guests taking the Manzwine stop pay for two
- * tastings.
- *
- * The failure cases are the interesting part:
- *
- * - `unknown-experience` — a slug that is not in the catalogue. Refused, not
- *   dropped: dropping it would charge for a smaller day than the guest chose.
- *   (The enquiry form *does* drop unknown slugs, because an enquiry is not a
- *   contract. This is.)
- * - `unpriced` — the entry exists and has no price. **Not free.** Until Diogo &
- *   Rita set real prices (AGORA-002) this is the state everything is in, and
- *   selling a €0 tour would be a worse outcome than not selling one.
- * - `bad-party-size` — zero or negative people.
- */
-export function quote(options: {
-  experience: Experience | undefined;
-  addOns: (Experience | undefined)[];
-  partySize: number;
-  /** Slugs as submitted, so a rejection can name the one that failed. */
-  requested?: { experience: string; addOns: string[] };
-}): ({ ok: true } & Quote) | QuoteFailure {
-  const { experience, addOns, partySize, requested } = options;
-
-  if (!Number.isInteger(partySize) || partySize < 1) {
-    return { ok: false, reason: "bad-party-size" };
-  }
-  if (!experience) {
-    return {
-      ok: false,
-      reason: "unknown-experience",
-      slug: requested?.experience ?? "",
-    };
-  }
-
-  const items: BookingLineItem[] = [];
-
-  for (const [index, entry] of [experience, ...addOns].entries()) {
-    const slug =
-      entry?.slug ??
-      (index === 0 ? requested?.experience : requested?.addOns[index - 1]) ??
-      "";
-
-    if (!entry) return { ok: false, reason: "unknown-experience", slug };
-
-    const unitCents = entry.priceCents;
-    if (typeof unitCents !== "number" || unitCents <= 0) {
-      return { ok: false, reason: "unpriced", slug: entry.slug };
-    }
-
-    items.push({
-      slug: entry.slug,
-      kind: entry.kind,
-      unitCents,
-      quantity: partySize,
-    });
-  }
-
-  return {
-    ok: true,
-    items,
-    totalCents: items.reduce((sum, item) => sum + item.unitCents * item.quantity, 0),
-    currency: BOOKING_CURRENCY,
-    partySize,
-  };
-}
-
-/** Whether an experience can be sold at all right now. */
-export function isSellable(entry: Experience | undefined): boolean {
-  return typeof entry?.priceCents === "number" && entry.priceCents > 0;
-}
-
-// ---------------------------------------------------------------------------
 // Seats
 // ---------------------------------------------------------------------------
+
+/**
+ * What one (tour, day, slot) has sold: seats gone, and whether a live private
+ * booking owns the slot outright.
+ */
+export type SlotOccupancy = {
+  seats: number;
+  exclusive: boolean;
+};
 
 /**
  * The statuses that occupy a seat.
@@ -181,80 +90,93 @@ export function occupiesSeat(
   return booking.holdExpiresAt.getTime() > now.getTime();
 }
 
+/** The seat-occupancy rule, in SQL. Keep in step with {@link occupiesSeat}. */
+function occupiesSeatSql(now: Date) {
+  return or(
+    eq(bookings.status, "confirmed"),
+    and(eq(bookings.status, "pending"), gt(bookings.holdExpiresAt, now)),
+  );
+}
+
 /**
- * Seats taken, per day, between two dates.
+ * Occupancy for one tour, per (day, slot), between two dates.
  *
- * The map is what both calendars pass to `describeMonth` as `bookedByDate`; a
- * day missing from it has nothing sold against it.
+ * The map is what the calendars pass to `describeMonth` as `occupancy`, keyed
+ * with `occupancySlotKey` from `lib/availability.ts`; a slot missing from it
+ * has nothing sold against it.
  */
-export async function countBookedSeats(options: {
+export async function countSlotOccupancy(options: {
+  experienceSlug: string;
   from: DateKey;
   to: DateKey;
-  slot?: AvailabilitySlot;
   now?: Date;
-}): Promise<Map<DateKey, number>> {
-  const { from, to, slot = DEFAULT_SLOT, now = new Date() } = options;
+}): Promise<Map<string, SlotOccupancy>> {
+  const { experienceSlug, from, to, now = new Date() } = options;
 
   const rows = await db
     .select({
       date: bookings.date,
+      slot: bookings.slot,
       seats: sql<number>`coalesce(sum(${bookings.partySize}), 0)::int`,
+      exclusive: sql<boolean>`bool_or(${bookings.exclusive})`,
     })
     .from(bookings)
     .where(
       and(
-        eq(bookings.slot, slot),
+        eq(bookings.experienceSlug, experienceSlug),
         sql`${bookings.date} between ${from} and ${to}`,
-        // The seat-occupancy rule, in SQL. Keep it in step with
-        // `occupiesSeat` — they are the same sentence twice.
-        or(
-          eq(bookings.status, "confirmed"),
-          and(eq(bookings.status, "pending"), gt(bookings.holdExpiresAt, now)),
-        ),
+        occupiesSeatSql(now),
       ),
     )
-    .groupBy(bookings.date);
+    .groupBy(bookings.date, bookings.slot);
 
-  return new Map(rows.map((row) => [row.date, row.seats]));
+  return new Map(
+    rows.map((row) => [
+      `${row.date}#${row.slot}`,
+      { seats: row.seats, exclusive: row.exclusive },
+    ]),
+  );
 }
 
 /**
- * Seats taken on one day — the number the checkout re-checks against, in the
+ * Occupancy of one departure — what the checkout re-checks against, in the
  * same statement shape as the bulk count above.
  */
-export async function countBookedSeatsOn(
+export async function slotOccupancyOn(
+  experienceSlug: string,
   date: DateKey,
-  slot: AvailabilitySlot = DEFAULT_SLOT,
+  slot: AvailabilitySlot,
   now: Date = new Date(),
-): Promise<number> {
-  return (await countBookedSeats({ from: date, to: date, slot, now })).get(date) ?? 0;
+): Promise<SlotOccupancy> {
+  const map = await countSlotOccupancy({ experienceSlug, from: date, to: date, now });
+  return map.get(`${date}#${slot}`) ?? { seats: 0, exclusive: false };
 }
 
 /**
- * Whether any live booking exists on these days.
+ * Whether any live booking exists on these departures of this tour.
  *
  * The guard the admin calendar needs before clearing days: a day nobody has
  * decided about and a day somebody has paid for look identical in the
  * `availability` table, and only one of them is safe to forget.
  */
-export async function datesWithBookings(
-  dates: DateKey[],
-  slot: AvailabilitySlot = DEFAULT_SLOT,
-  now: Date = new Date(),
-): Promise<Set<DateKey>> {
-  if (dates.length === 0) return new Set();
+export async function datesWithBookings(options: {
+  experienceSlug: string;
+  dates: DateKey[];
+  slots: AvailabilitySlot[];
+  now?: Date;
+}): Promise<Set<DateKey>> {
+  const { experienceSlug, dates, slots, now = new Date() } = options;
+  if (dates.length === 0 || slots.length === 0) return new Set();
 
   const rows = await db
     .select({ date: bookings.date, n: count() })
     .from(bookings)
     .where(
       and(
+        eq(bookings.experienceSlug, experienceSlug),
         inArray(bookings.date, dates),
-        eq(bookings.slot, slot),
-        or(
-          eq(bookings.status, "confirmed"),
-          and(eq(bookings.status, "pending"), gt(bookings.holdExpiresAt, now)),
-        ),
+        inArray(bookings.slot, slots),
+        occupiesSeatSql(now),
       ),
     )
     .groupBy(bookings.date);

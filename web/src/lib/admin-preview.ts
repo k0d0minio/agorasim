@@ -130,7 +130,7 @@ export const previewReferrers: PreviewReferrer[] = [
   { name: "Maria Fernandes", link: "agorasim.pt/r/maria-2cv", shares: 14, bookings: 3, reward: "Manzwine tasting", rewardDue: true },
   { name: "Hans Weber", link: "agorasim.pt/r/hans-t3", shares: 8, bookings: 2, reward: "10% next tour", rewardDue: true },
   { name: "Claire Dubois", link: "agorasim.pt/r/claire-r4l", shares: 6, bookings: 2, reward: "10% next tour", rewardDue: false },
-  { name: "Laura Bianchi", link: "agorasim.pt/r/laura-600", shares: 5, bookings: 1, reward: "Olaria MZ visit", rewardDue: true },
+  { name: "Laura Bianchi", link: "agorasim.pt/r/laura-600", shares: 5, bookings: 1, reward: "Manzwine tasting", rewardDue: true },
   { name: "Pedro Santos", link: "agorasim.pt/r/pedro-2cv", shares: 3, bookings: 1, reward: "10% next tour", rewardDue: false },
 ];
 

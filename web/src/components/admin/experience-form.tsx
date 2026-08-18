@@ -303,7 +303,14 @@ function FaqEditor({ defaultValue }: { defaultValue: FaqDraft[] }) {
  * without an id. On a successful create it navigates to the list, where the new
  * entry is visible in place; on an edit it stays put and says so.
  */
-export function ExperienceForm({ values }: { values: ExperienceFormValues }) {
+export function ExperienceForm({
+  values,
+  pricingSummary,
+}: {
+  values: ExperienceFormValues;
+  /** The entry's price list in one sentence, formatted server-side. */
+  pricingSummary?: string | null;
+}) {
   const router = useRouter();
   const editing = Boolean(values.id);
   const [state, formAction] = useActionState<ExperienceFormState, FormData>(
@@ -376,23 +383,15 @@ export function ExperienceForm({ values }: { values: ExperienceFormValues }) {
             />
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="price">Price per person (€)</Label>
-              {/* Text, not `type="number"`: the spinner is useless on a phone
-                  and a number input rejects the comma half of Portugal types
-                  the decimal with. `inputMode="decimal"` still gets the right
-                  keyboard (spec §8 E2). */}
-              <Input
-                id="price"
-                name="price"
-                inputMode="decimal"
-                autoComplete="off"
-                defaultValue={values.price}
-                placeholder="145"
-              />
+              <span className="text-sm font-medium">Prices</span>
+              <p className="rounded-lg border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                {pricingSummary ??
+                  "No price list yet — this entry cannot be booked and paid for online; guests get the enquiry form instead."}
+              </p>
               <p className="text-xs text-muted-foreground">
-                What one guest pays for this. Leave it blank and the experience stays on
-                the website but cannot be booked and paid for online — guests get the
-                enquiry form instead.
+                The price list (shared/private tiers, child rates, minimums) is managed
+                with Jamie for now — changing a price is a message away. An editor for
+                it is on the roadmap.
               </p>
             </div>
 

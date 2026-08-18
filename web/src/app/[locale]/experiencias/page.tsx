@@ -46,6 +46,10 @@ export default async function ExperiencesPage({
   const catalogue = await listExperiences();
   const sig = signatureOf(catalogue);
   const complementExperiences = complementsOf(catalogue);
+  // The other bookable tours — Óbidos joined the catalogue with AGORA-002.
+  const otherTours = catalogue.filter(
+    (entry) => entry.kind === "signature" && entry.slug !== sig?.slug,
+  );
 
   // An empty catalogue is a misconfiguration, not a page — better a 404 than a
   // hero with no title in it.
@@ -54,6 +58,9 @@ export default async function ExperiencesPage({
   return (
     <>
       <JsonLd data={experienceJsonLd(sig, l)} />
+      {otherTours.map((tour) => (
+        <JsonLd key={tour.slug} data={experienceJsonLd(tour, l)} />
+      ))}
 
       {/* Signature experience feature */}
       <Section>
@@ -88,6 +95,26 @@ export default async function ExperiencesPage({
           <Media src={sig.image} label={t(sig.imageAlt, l)} className="aspect-4/3 w-full" />
         </div>
       </Section>
+
+      {/* The other tours — Óbidos & Medieval Villages since AGORA-002. */}
+      {otherTours.length > 0 ? (
+        <Section>
+          <SectionHeading
+            eyebrow={l === "pt" ? "Também connosco" : "Also with us"}
+            title={l === "pt" ? "Outras experiências" : "More experiences"}
+          />
+          <Container className="mt-10 grid gap-6 px-0 sm:grid-cols-2">
+            {otherTours.map((exp) => (
+              <ExperienceCard
+                key={exp.slug}
+                experience={exp}
+                locale={l}
+                learnMore={dict.cta.learnMore}
+              />
+            ))}
+          </Container>
+        </Section>
+      ) : null}
 
       {/* Complements */}
       <Section muted>
