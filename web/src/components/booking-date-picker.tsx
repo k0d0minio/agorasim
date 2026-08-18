@@ -74,6 +74,7 @@ export function BookingDatePicker({
   slotLabels,
   mode = "public",
   onSlotChange,
+  onDateChange,
 }: {
   locale: Locale;
   months: PublicMonth[];
