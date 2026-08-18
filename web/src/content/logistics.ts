@@ -51,13 +51,12 @@ export const departureLabels: Record<
 };
 
 /** The label for one departure, with a safe generic fallback per slot. */
-export function departureLabel(
-  experienceSlug: string,
-  slot: "morning" | "afternoon" | (string & {}),
-): Localized {
+export function departureLabel(experienceSlug: string, slot: string): Localized {
+  const key: "morning" | "afternoon" | null =
+    slot === "morning" ? "morning" : slot === "afternoon" ? "afternoon" : null;
   const forTour = departureLabels[experienceSlug];
-  if (forTour && (slot === "morning" || slot === "afternoon")) return forTour[slot];
-  return slot === "afternoon"
+  if (forTour && key) return forTour[key];
+  return key === "afternoon"
     ? { pt: "Tarde", en: "Afternoon" }
     : { pt: "Manhã", en: "Morning" };
 }
