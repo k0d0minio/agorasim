@@ -315,3 +315,54 @@ export function maxAdultsOf(pricing: ExperiencePricing | null | undefined): numb
     ...(pricing.private?.tiers ?? []).map((tier) => tier.maxAdults),
   );
 }
+
+/**
+ * The whole price list in one admin-readable sentence — what the catalogue
+ * editor shows instead of an input, until the pricing editor exists. English
+ * only, like the rest of the admin.
+ */
+export function describePricing(pricing: ExperiencePricing | null | undefined): string | null {
+  if (!pricing) return null;
+  const euros = (cents: number) => `€${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
+
+  if (pricing.type === "addon") {
+    const parts = [`${euros(pricing.perAdultCents)}/adult`];
+    if (typeof pricing.childCents === "number") {
+      parts.push(`child ${euros(pricing.childCents)}`);
+    }
+    if (pricing.minAdults) parts.push(`min ${pricing.minAdults} adults`);
+    if (pricing.minGuests) parts.push(`min ${pricing.minGuests} guests`);
+    if (pricing.closedWeekdays?.length) parts.push("closed Mondays");
+    return `Add-on (private countryside only): ${parts.join(" · ")}`;
+  }
+
+  const modeLine = (label: string, mode: TourModePricing | undefined): string | null => {
+    if (!mode) return null;
+    const perAdult = mode.tiers
+      .map((tier) => tier.perAdultCents)
+      .filter((cents): cents is number => typeof cents === "number");
+    const group = mode.tiers
+      .map((tier) => tier.groupCents)
+      .filter((cents): cents is number => typeof cents === "number");
+    const parts: string[] = [];
+    if (perAdult.length > 0) {
+      const min = Math.min(...perAdult);
+      const max = Math.max(...perAdult);
+      parts.push(min === max ? `${euros(min)}/adult` : `${euros(max)}–${euros(min)}/adult`);
+    }
+    if (group.length > 0) {
+      const min = Math.min(...group);
+      const max = Math.max(...group);
+      parts.push(
+        min === max ? `${euros(min)}/group` : `${euros(min)}–${euros(max)}/group by adults`,
+      );
+    }
+    parts.push(`child ${euros(mode.childCents)}`);
+    if (mode.minAdults) parts.push(`min ${mode.minAdults} adults`);
+    return `${label}: ${parts.join(", ")}`;
+  };
+
+  return [modeLine("Shared", pricing.public), modeLine("Private", pricing.private)]
+    .filter(Boolean)
+    .join(" · ");
+}

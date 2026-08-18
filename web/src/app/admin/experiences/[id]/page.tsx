@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db, experienceCatalogue } from "@/db";
 import { priceInputValue } from "@/lib/money";
+import { describePricing } from "@/lib/pricing";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import { FALLBACK_EXPERIENCE_ICON, isExperienceIconKey } from "@/lib/experience-icons";
@@ -65,7 +66,7 @@ export default async function EditExperiencePage({
     <AdminShell>
       {/* The way back to the catalogue is the app bar's up arrow — derived
           from the route by the shell, not drawn per page. */}
-      <ExperienceForm values={values} />
+      <ExperienceForm values={values} pricingSummary={describePricing(row.pricing)} />
 
       {/* Deleting is owner-only and almost never the right move — hiding keeps
           old enquiries readable. The action refuses anyone else regardless. */}
