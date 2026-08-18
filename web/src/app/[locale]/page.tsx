@@ -4,6 +4,7 @@ import { isLocale, t, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
 import { home } from "@/content/pages";
 import { classicCars } from "@/content/site";
+import { testimonials, testimonialsHeading } from "@/content/testimonials";
 import { listExperiences, signatureOf } from "@/lib/experience-catalogue";
 import { Hero } from "@/components/hero";
 import { Section, SectionHeading } from "@/components/section";
@@ -102,6 +103,32 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {experiences.map((exp) => (
             <ExperienceCard key={exp.slug} experience={exp} locale={l} learnMore={dict.cta.learnMore} />
+          ))}
+        </div>
+      </Section>
+
+      {/* Testimonials — real guests, their own words (AGORA-005). */}
+      <Section>
+        <SectionHeading
+          eyebrow={t(testimonialsHeading.eyebrow, l)}
+          title={t(testimonialsHeading.title, l)}
+        />
+        <div className="mt-10 grid gap-6 lg:grid-cols-3">
+          {testimonials.map((entry) => (
+            <figure
+              key={entry.names}
+              className="flex flex-col justify-between rounded-2xl border border-border bg-card p-6"
+            >
+              <blockquote className="text-muted-foreground">
+                “{t(entry.quote, l)}”
+              </blockquote>
+              <figcaption className="mt-4 font-medium">
+                {entry.names}
+                <span className="ml-1 font-normal text-muted-foreground">
+                  · {t(entry.origin, l)}
+                </span>
+              </figcaption>
+            </figure>
           ))}
         </div>
       </Section>

@@ -2,12 +2,19 @@
 
 | | |
 |---|---|
-| Status | blocked |
+| Status | in-progress |
 | Type | feature |
 | Priority | P1 |
 | Size | M |
-| Blocked by | Diogo & Rita's Section 2 answers (photos, car details, weddings offer, testimonials) |
+| Blocked by | — (Section 2 answers arrived 18 Aug: `.icm/docs/agorasim-info.pdf`, local only) |
 | Sources | [.icm/docs/launch-plan.md](../docs/launch-plan.md) Phase 4 |
+
+> **Done 2026-08-18, content-only**: weddings offer + `/casamentos` live with the
+> quote form and Wedding Awards badges, car names/years/stories in `site.ts`,
+> testimonials on the home page, PT/EN throughout. The **photos** acceptance is
+> carved out to [AGORA-008](../AGORA-008-photo-ingestion.md) — the WeTransfer
+> links in the answers had expired before ingestion; everything is structured so
+> the images drop in without further copy changes.
 
 ## Problem
 

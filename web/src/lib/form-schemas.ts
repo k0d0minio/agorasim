@@ -569,3 +569,31 @@ export const bookingCheckoutSchema = z.object({
 
 /** Field names `startCheckout` can report an inline error against. */
 export type BookingCheckoutField = "name" | "email" | "date" | "party" | "addOns";
+
+// ---------------------------------------------------------------------------
+// The wedding quote form
+// ---------------------------------------------------------------------------
+
+/**
+ * A wedding enquiry (`/casamentos`). Loose on purpose, like the tour enquiry:
+ * it is a conversation-starter, not a contract — the only things it insists on
+ * are a way to address the couple and a way to write back. The venue, hours
+ * and car land in the lead's message, composed by the action.
+ */
+export const weddingQuoteSchema = z.object({
+  names: text.min(1),
+  email: z.string().trim().toLowerCase().regex(EMAIL_RE),
+  phone: optionalText,
+  /** Free-form — "12 de setembro de 2026" or a `date` input's YYYY-MM-DD. */
+  date: optionalText,
+  venue: optionalText,
+  hours: optionalText,
+  car: optionalText,
+  message: optionalText,
+  marketingConsent: z
+    .preprocess((value) => value === "on" || value === "true", z.boolean())
+    .catch(false),
+});
+
+/** Field names `submitWeddingQuote` can report an inline error against. */
+export type WeddingQuoteField = "names" | "email";
