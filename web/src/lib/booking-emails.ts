@@ -50,10 +50,17 @@ export type BookingEmailFacts = {
   locale: Locale;
   /** "Saturday, 15 August 2026" — already in the guest's language. */
   date: string;
+  /** "Rural Saloia — experiência privada" — name plus how it was sold. */
   experience: string;
+  /** "Manhã · 10h00" — the departure, in the guest's language. */
+  departure: string;
+  /** Where to be, with the team's own maps pin. `null` when the tour has none. */
+  meetingPoint: { address: string; mapsUrl: string } | null;
   /** Add-on names, in the guest's language. Empty when there are none. */
   addOns: string[];
   partySize: number;
+  /** "2 adultos · 1 criança (4–12)" — already in the guest's language. */
+  partyLabel: string;
   /** "€340" — already formatted. */
   total: string;
   /** Deep link to the lead on the Sales board, for the team's copy. */
@@ -125,7 +132,17 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     { label: t(c.labels.reference, l), value: facts.ref, mono: true },
     { label: t(c.labels.experience, l), value: facts.experience },
     { label: t(c.labels.date, l), value: facts.date },
-    { label: t(c.labels.party, l), value: String(facts.partySize) },
+    { label: t(c.labels.departure, l), value: facts.departure },
+    ...(facts.meetingPoint
+      ? [
+          {
+            label: t(c.labels.meetingPoint, l),
+            value: facts.meetingPoint.address,
+            href: facts.meetingPoint.mapsUrl,
+          },
+        ]
+      : []),
+    { label: t(c.labels.party, l), value: facts.partyLabel },
     ...(facts.addOns.length > 0
       ? [{ label: t(c.labels.addOns, l), value: addOnsList }]
       : []),
@@ -138,10 +155,11 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     t(c.lead, l),
     "",
     ...rows.map((row) => `${row.label}: ${row.value}`),
+    facts.meetingPoint ? `${t(c.labels.meetingPoint, l)}: ${facts.meetingPoint.mapsUrl}` : null,
     "",
     // One paragraph in text, two blocks in HTML: on a phone a wall of text is
     // read as a wall, but in a plain text mail an isolated line looks truncated.
-    `${t(c.next.body, l)} ${t(c.changeNote, l)}`,
+    `${t(c.next.body, l)} ${t(c.cancellationNote, l)} ${t(c.changeNote, l)}`,
     "",
     `${diogo.name} ${diogo.phoneDisplay}`,
     `${rita.name} ${rita.phoneDisplay}`,
@@ -162,7 +180,9 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
       emailDetails(rows),
       emailSpacer(24),
       emailNote({ title: t(c.next.title, l), body: t(c.next.body, l) }),
-      emailSpacer(24),
+      emailSpacer(16),
+      emailParagraph(t(c.cancellationNote, l), { muted: true, spaceBelow: 8 }),
+      emailSpacer(8),
       emailParagraph(t(c.changeNote, l), { spaceBelow: 12 }),
       emailContacts(
         [diogo, rita].map((contact) => ({
@@ -214,11 +234,12 @@ export function teamNotificationEmail(
   const bookingRows: DetailRow[] = [
     { label: c.labels.reference, value: facts.ref, mono: true },
     { label: c.labels.date, value: facts.date },
+    { label: c.labels.departure, value: facts.departure },
     { label: c.labels.experience, value: facts.experience },
     ...(facts.addOns.length > 0
       ? [{ label: c.labels.addOns, value: facts.addOns.join(", ") }]
       : []),
-    { label: c.labels.party, value: String(facts.partySize) },
+    { label: c.labels.party, value: facts.partyLabel },
     { label: c.labels.total, value: facts.total, emphasis: true },
   ];
 

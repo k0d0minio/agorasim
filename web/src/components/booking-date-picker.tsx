@@ -69,6 +69,11 @@ export function BookingDatePicker({
   /** Pre-fill after a failed submit, so a rejected day is not silently lost. */
   defaultValue,
   error,
+  slotName,
+  slotHeading,
+  slotLabels,
+  mode = "public",
+  onSlotChange,
 }: {
   locale: Locale;
   months: PublicMonth[];
@@ -95,9 +100,32 @@ export function BookingDatePicker({
   contactHref?: string;
   defaultValue?: string;
   error?: string;
+  /**
+   * When set, picking a day reveals its departures as chips and the chosen one
+   * posts into this field. The enquiry form leaves it unset — a preference does
+   * not need a departure; a checkout does.
+   */
+  slotName?: string;
+  /** "Pick your departure" — required whenever `slotName` is set. */
+  slotHeading?: string;
+  /** What each departure is called for the tour being booked. */
+  slotLabels?: Record<"morning" | "afternoon", string>;
+  /**
+   * How the party wants the departure: `public` enables days with seats left,
+   * `private` enables days with an untouched slot to own.
+   */
+  mode?: "public" | "private";
+  /** Tells the form which slot is chosen, for its live summary. */
+  onSlotChange?: (slot: "morning" | "afternoon" | null) => void;
+  /** Tells the form which day is chosen — the add-on rules read the weekday. */
+  onDateChange?: (date: string | null) => void;
 }) {
   const c = tourRequestContent.calendar;
   const l = locale;
+
+  /** Whether one departure works for the way the party wants to come. */
+  const slotUsable = (slot: { bookable: boolean; privateBookable: boolean }) =>
+    mode === "private" ? slot.privateBookable : slot.bookable;
 
   // Open on the first month that has something to offer, not blankly on this
   // one: in November, a calendar that opens on an empty November reads as
@@ -113,6 +141,25 @@ export function BookingDatePicker({
       ? defaultValue
       : null,
   );
+  const [selectedSlot, setSelectedSlot] = useState<"morning" | "afternoon" | null>(null);
+
+  const chooseSlot = (slot: "morning" | "afternoon" | null) => {
+    setSelectedSlot(slot);
+    onSlotChange?.(slot);
+  };
+
+  const chooseDay = (date: string | null) => {
+    setSelected(date);
+    onDateChange?.(date);
+    if (!slotName) return;
+    // A day with one usable departure needs no second tap; a day with two
+    // waits for the guest to say which.
+    const day = date
+      ? months.flatMap((m) => m.days).find((d) => d.date === date)
+      : undefined;
+    const usable = day ? day.slots.filter(slotUsable) : [];
+    chooseSlot(usable.length === 1 ? (usable[0].slot as "morning" | "afternoon") : null);
+  };
   // A guest whose day is not on the calendar types it instead — and one who
   // arrives back here with free text already entered keeps it. Never in a
   // checkout, which has no way to charge for "late August".
@@ -155,8 +202,9 @@ export function BookingDatePicker({
       <p className="text-sm font-medium">{t(c.label, l)}</p>
       <p className="text-sm text-muted-foreground">{t(c.hint, l)}</p>
 
-      {/* The value the form actually posts. The grid below is the control. */}
+      {/* The values the form actually posts. The grid below is the control. */}
       <input type="hidden" name={name} value={selected ?? ""} />
+      {slotName ? <input type="hidden" name={slotName} value={selectedSlot ?? ""} /> : null}
 
       <Card className="gap-3 p-3">
         <div className="flex items-center justify-between gap-2">
@@ -197,6 +245,7 @@ export function BookingDatePicker({
           {month.grid.map((date, i) => {
             if (date === null) return <span key={`blank-${i}`} />;
             const day = byDate.get(date);
+            const usable = Boolean(day && day.slots.some(slotUsable));
             const number = Number(date.slice(8));
             const chosen = selected === date;
 
@@ -204,30 +253,71 @@ export function BookingDatePicker({
               <button
                 key={date}
                 type="button"
-                disabled={!day?.bookable}
+                disabled={!usable}
                 aria-pressed={chosen}
-                onClick={() => setSelected(chosen ? null : date)}
+                onClick={() => chooseDay(chosen ? null : date)}
                 className={cn(
                   // 44px floor, square-ish, still a grid at 320px.
                   "flex min-h-11 touch-manipulation flex-col items-center justify-center rounded-lg border text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
                   chosen
                     ? "border-primary bg-primary font-semibold text-primary-foreground"
-                    : day?.bookable
+                    : usable
                       ? "border-primary/40 text-foreground hover:bg-primary/10"
                       : "cursor-not-allowed border-transparent text-muted-foreground/40",
                 )}
               >
                 <span>{number}</span>
-                {day?.bookable && day.seatsLeft <= 2 ? (
-                  <span className="text-[0.625rem] leading-tight font-normal opacity-80">
-                    {day.seatsLeft} {seatsWord(day.seatsLeft)}
-                  </span>
-                ) : null}
               </button>
             );
           })}
         </div>
       </Card>
+
+      {/*
+        The departures of the chosen day, when this picker is selling one. Two
+        chips at most; a chip the party's mode cannot use is shown disabled with
+        the reason, because a missing option reads as a bug and a greyed one
+        reads as a fact.
+      */}
+      {slotName && selected ? (
+        <div className="flex flex-col gap-2">
+          {slotHeading ? <p className="text-sm font-medium">{slotHeading}</p> : null}
+          <div className="flex flex-wrap gap-2" role="group" aria-label={slotHeading}>
+            {(byDate.get(selected)?.slots ?? []).map((slot) => {
+              const usable = slotUsable(slot);
+              const active = selectedSlot === slot.slot;
+              const label =
+                slotLabels?.[slot.slot as "morning" | "afternoon"] ?? slot.slot;
+              return (
+                <button
+                  key={slot.slot}
+                  type="button"
+                  disabled={!usable}
+                  aria-pressed={active}
+                  onClick={() =>
+                    chooseSlot(active ? null : (slot.slot as "morning" | "afternoon"))
+                  }
+                  className={cn(
+                    "flex min-h-11 touch-manipulation flex-col items-start justify-center rounded-lg border px-4 text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                    active
+                      ? "border-primary bg-primary font-semibold text-primary-foreground"
+                      : usable
+                        ? "border-primary/40 hover:bg-primary/10"
+                        : "cursor-not-allowed border-border text-muted-foreground/50",
+                  )}
+                >
+                  <span>{label}</span>
+                  {usable && mode === "public" && slot.seatsLeft <= 4 ? (
+                    <span className="text-[0.625rem] leading-tight font-normal opacity-80">
+                      {slot.seatsLeft} {seatsWord(slot.seatsLeft)}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {error ? (
         <p className="text-sm text-destructive" role="alert">
@@ -243,7 +333,7 @@ export function BookingDatePicker({
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => setSelected(null)}
+            onClick={() => chooseDay(null)}
           >
             {t(c.clear, l)}
           </Button>
@@ -263,7 +353,7 @@ export function BookingDatePicker({
           variant="ghost"
           className="self-start"
           onClick={() => {
-            setSelected(null);
+            chooseDay(null);
             setFlexible(true);
           }}
         >

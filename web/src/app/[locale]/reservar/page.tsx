@@ -14,10 +14,11 @@ import {
   todayKey,
   PUBLIC_CALENDAR_MONTHS,
   readPublicCalendar,
-  type DateKey,
+  type OccupancyMap,
   type PublicMonth,
 } from "@/lib/availability";
-import { countBookedSeats, isSellable } from "@/lib/bookings";
+import { countSlotOccupancy } from "@/lib/bookings";
+import { isPriced } from "@/lib/pricing";
 import { isStripeConfigured, isTestMode } from "@/lib/stripe";
 import { JsonLd } from "@/components/json-ld";
 import { organizationJsonLd } from "@/lib/jsonld";
@@ -48,19 +49,20 @@ export async function generateMetadata({
 }
 
 /**
- * Seats already sold across the window the picker shows.
+ * Occupancy already sold across the window the picker shows, per tour.
  *
  * Wrapped in a catch for the same reason `readPublicCalendar` is: this page is
  * built with no database in CI. An unreadable count is an *empty* map rather
  * than a failure, which means the grid falls back to showing raw capacity —
- * safe, because the server re-checks the day against live bookings before
- * anything is sold on it.
+ * safe, because the server re-checks the departure against live bookings
+ * before anything is sold on it.
  */
-async function bookedSeats(): Promise<Map<DateKey, number>> {
+async function occupancyFor(experienceSlug: string): Promise<OccupancyMap> {
   const today = todayKey();
   const first = monthOf(today);
   try {
-    return await countBookedSeats({
+    return await countSlotOccupancy({
+      experienceSlug,
       from: monthBounds(first).first,
       to: monthBounds(addMonths(first, PUBLIC_CALENDAR_MONTHS - 1)).last,
     });
@@ -98,18 +100,36 @@ export default async function BookingPage({
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
 
-  const [experiences, availability]: [Awaited<ReturnType<typeof listExperiences>>, PublicMonth[]] =
-    await Promise.all([
-      listExperiences(),
-      readPublicCalendar({ locale: l, bookedByDate: await bookedSeats() }),
-    ]);
+  const experiences = await listExperiences();
+  const tours = experiences.filter(
+    (entry) => entry.kind === "signature" && isPriced(entry.pricing),
+  );
 
-  const signature = experiences.find((entry) => entry.kind === "signature");
-  const sellable = experiences.filter(isSellable);
-  const canCheckout =
-    isStripeConfigured() &&
-    isSellable(signature) &&
-    availability.some((month) => month.hasOpenings);
+  // One calendar per bookable tour, each with its own sold seats folded in.
+  const availabilityBySlug: Record<string, PublicMonth[]> = Object.fromEntries(
+    await Promise.all(
+      tours.map(async (tour): Promise<[string, PublicMonth[]]> => [
+        tour.slug,
+        await readPublicCalendar({
+          experienceSlug: tour.slug,
+          locale: l,
+          occupancy: await occupancyFor(tour.slug),
+        }),
+      ]),
+    ),
+  );
+
+  const anyOpenings = Object.values(availabilityBySlug).some((months) =>
+    months.some((month) => month.hasOpenings),
+  );
+  const canCheckout = isStripeConfigured() && tours.length > 0 && anyOpenings;
+
+  // The enquiry fallback shows the countryside calendar — its preference field
+  // is loose, and a preference does not need a departure.
+  const enquiryAvailability =
+    availabilityBySlug[tours[0]?.slug ?? ""] ??
+    Object.values(availabilityBySlug)[0] ??
+    [];
 
   const c = canCheckout ? bookingContent : tourRequestContent;
 
@@ -131,10 +151,8 @@ export default async function BookingPage({
           {canCheckout ? (
             <BookingCheckoutForm
               locale={l}
-              // Only priced entries: an add-on with no price would render as a
-              // free extra and then fail at the till.
-              experiences={sellable}
-              availability={availability}
+              experiences={experiences}
+              availabilityBySlug={availabilityBySlug}
               testMode={isTestMode()}
             />
           ) : (
@@ -142,7 +160,7 @@ export default async function BookingPage({
               <TourRequestForm
                 locale={l}
                 experiences={experiences}
-                availability={availability}
+                availability={enquiryAvailability}
               />
             </div>
           )}

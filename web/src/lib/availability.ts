@@ -6,9 +6,20 @@
  * the rows it is arithmetic *about*:
  *
  * - the **pure** half — date keys, month grids, and the rule that decides
- *   whether a given day can be sold — which is unit-tested directly;
+ *   whether a given departure can be sold — which is unit-tested directly;
  * - the **reads and writes** against the `availability` table, which are typed
  *   and covered by the build, like every other database access in this repo.
+ *
+ * **The calendar is per tour, per day, per departure.** Diogo & Rita run two
+ * departures a day (10:00 and 14:00) on two different tours, and opening a
+ * Saturday morning for Rural Saloia says nothing about Óbidos or about the
+ * afternoon. Every read and write names its `experienceSlug`, and a row is one
+ * (tour, day, slot).
+ *
+ * **A private booking owns its slot.** Occupancy is therefore two numbers, not
+ * one: seats sold, and whether a live exclusive hold exists — see
+ * `SlotOccupancy` in `lib/bookings.ts`, which this module consumes but never
+ * computes.
  *
  * **Dates are `YYYY-MM-DD` strings, everywhere.** A tour on the 15th of August
  * happens on the 15th of August in Sintra, and the moment that becomes a
@@ -16,7 +27,7 @@
  * conversion happens at the two edges — {@link dateKey} coming in, the SQL
  * `date` column going out — and nothing in between holds an instant.
  *
- * **Absence is a no.** A day with no row is not bookable. See the note on the
+ * **Absence is a no.** A slot with no row is not bookable. See the note on the
  * table in `db/schema.ts` for why the default has to be that way round.
  *
  * Server-only: it imports `@/db`. The pure functions are importable in tests
@@ -33,23 +44,45 @@ import {
   type AvailabilitySlot,
   type AvailabilityStatus,
 } from "@/db";
+import type { SlotOccupancy } from "@/lib/bookings";
 
 /**
- * The one slot the business runs at launch. Written out here rather than
- * inlined as `"full_day"` at a dozen call sites, so the day the second
- * departure appears there is a list of places to look.
+ * The two departures the business actually runs — 10:00 and 14:00, from Diogo
+ * & Rita's capacity answers. `full_day` still exists in the enum (Postgres
+ * cannot drop a value) but nothing offers or writes it since the 0012
+ * migration moved its rows to `morning`.
  */
-export const DEFAULT_SLOT: AvailabilitySlot = "full_day";
+export const TOUR_SLOTS = ["morning", "afternoon"] as const;
 
-/** Seats in one car. The default a newly-opened day gets. */
-export const DEFAULT_CAPACITY = 3;
+export function isTourSlot(value: unknown): value is (typeof TOUR_SLOTS)[number] {
+  return value === "morning" || value === "afternoon";
+}
+
+/**
+ * Seats a newly-opened slot gets, per tour.
+ *
+ * Real fleet numbers, not guesses: the countryside tour can combine the cars
+ * for 14 guests (their stated maximum); Óbidos is capped at the 12 its price
+ * table goes to. Rita can lower either from the calendar, day by day.
+ */
+const DEFAULT_CAPACITIES: Record<string, number> = {
+  "rural-saloia": 14,
+  "obidos-medieval-villages": 12,
+};
+
+/** The fallback for a tour the map does not name. */
+export const DEFAULT_CAPACITY = 12;
+
+export function defaultCapacityFor(experienceSlug: string): number {
+  return DEFAULT_CAPACITIES[experienceSlug] ?? DEFAULT_CAPACITY;
+}
 
 /**
  * The most seats a single slot can be given.
  *
  * A stop, not a policy: the stepper's buttons are the real limit, and this is
  * what keeps a hand-crafted form from opening a day for four hundred guests.
- * Two cars of three plus generous room to grow.
+ * The full fleet plus generous room to grow.
  */
 export const MAX_CAPACITY = 24;
 
@@ -260,170 +293,203 @@ export function isMonthInWindow(month: MonthKey, today: DateKey = todayKey()): b
 }
 
 // ---------------------------------------------------------------------------
-// What a day is, once supply and demand are put together
+// What a departure is, once supply and demand are put together
 // ---------------------------------------------------------------------------
 
+/** Occupancy keyed by {@link occupancySlotKey} — how `lib/bookings.ts` reports demand. */
+export type OccupancyMap = Map<string, SlotOccupancy>;
+
+/** The key one (day, slot) wears in an {@link OccupancyMap}. */
+export function occupancySlotKey(date: DateKey, slot: AvailabilitySlot): string {
+  return `${date}#${slot}`;
+}
+
 /**
- * One day of the calendar, as both the admin editor and the public picker see
- * it. The admin renders every field; the public picker is only ever told
- * `bookable` and `seatsLeft`, never `note` — why the car is off the road is
- * not the guest's business.
+ * One departure of one day, as both the admin editor and the public picker see
+ * it. The admin renders every field; the public picker is only ever told what
+ * {@link toPublicDay} keeps — never `note`, because why the car is off the
+ * road is not the guest's business.
  */
 export type AvailabilityDay = {
   date: DateKey;
-  /** The stored row's id, when the day has been opened or closed. */
+  /** The stored row's id, when the departure has been opened or closed. */
   id: string | null;
   slot: AvailabilitySlot;
-  /** `null` when no row exists — the day has never been touched. */
+  /** `null` when no row exists — the departure has never been touched. */
   status: AvailabilityStatus | null;
   capacity: number;
   /** Seats already sold into this slot: confirmed bookings plus live holds. */
   booked: number;
   /** Never negative, even if capacity was lowered under a sold seat. */
   seatsLeft: number;
+  /** A live private booking owns this slot outright. */
+  exclusiveHold: boolean;
   /** In the past, relative to the business's today. */
   past: boolean;
   /** Saturday or Sunday — the admin's "open the weekends" sweep selects on it. */
   weekend: boolean;
-  /** Whether a guest can buy this day right now. */
+  /** Whether a guest can buy seats on this departure right now. */
   bookable: boolean;
+  /** Whether a guest can take this departure privately — nothing sold yet. */
+  privateBookable: boolean;
   note: string | null;
 };
 
 /**
- * Turn one day's supply and demand into the shape both calendars render.
+ * Turn one departure's supply and demand into the shape both calendars render.
  *
- * The whole bookability rule lives in this function, and it is four clauses:
- * the day is not in the past, a row exists for it, that row says `open`, and
- * the seats sold have not caught up with capacity. Anything that wants to know
- * whether a day can be sold asks this — the public page, the checkout action
- * that re-checks it server-side, and the admin, which is how the three cannot
- * quietly disagree.
+ * The whole bookability rule lives in this function: the day is not in the
+ * past, a row exists and says `open`, no private booking owns the slot, and —
+ * for seats — the ones sold have not caught up with capacity, or — for taking
+ * it privately — nothing has been sold at all. Anything that wants to know
+ * whether a departure can be sold asks this — the public page, the checkout
+ * action that re-checks it server-side, and the admin, which is how the three
+ * cannot quietly disagree.
  */
 export function describeDay(options: {
   date: DateKey;
+  slot: AvailabilitySlot;
   row?: Pick<AvailabilityRow, "id" | "slot" | "status" | "capacity" | "note"> | null;
-  booked?: number;
+  occupancy?: SlotOccupancy;
   today?: DateKey;
 }): AvailabilityDay {
-  const { date, row, booked = 0, today = todayKey() } = options;
+  const { date, slot, row, today = todayKey() } = options;
+  const occupancy = options.occupancy ?? { seats: 0, exclusive: false };
 
   const capacity = row?.capacity ?? 0;
   // `max(0, …)`: capacity can be lowered below what is already sold, and a
   // negative "seats left" would render as an offer to un-sell one.
-  const seatsLeft = Math.max(0, capacity - booked);
+  const seatsLeft = Math.max(0, capacity - occupancy.seats);
   const past = date < today;
+  const open = !past && row?.status === "open" && !occupancy.exclusive;
 
   return {
     date,
     id: row?.id ?? null,
-    slot: row?.slot ?? DEFAULT_SLOT,
+    slot,
     status: row?.status ?? null,
     capacity,
-    booked,
+    booked: occupancy.seats,
     seatsLeft,
+    exclusiveHold: occupancy.exclusive,
     past,
     weekend: isWeekend(date),
-    bookable: !past && row?.status === "open" && seatsLeft > 0,
+    bookable: open && seatsLeft > 0,
+    privateBookable: open && occupancy.seats === 0 && capacity > 0,
     note: row?.note ?? null,
   };
 }
 
 /**
- * Whether a party of `partySize` fits into a day.
+ * Whether a party of `seats` fits into a departure, the way it wants to come.
  *
  * Separate from `bookable` because they answer different questions: the
- * calendar greys out days nobody can book, and this refuses the specific
- * booking in front of it. A day with one seat left is bookable and is still a
- * "no" to a family of four, and the message a guest should see for the two
- * cases is not the same.
+ * calendar greys out departures nobody can book, and this refuses the specific
+ * booking in front of it. A slot with one seat left is bookable and is still a
+ * "no" to a family of four; a slot with two seats sold is bookable and still a
+ * "no" to a group that wants it privately.
  */
-export function fitsParty(day: AvailabilityDay, partySize: number): boolean {
-  return day.bookable && partySize > 0 && partySize <= day.seatsLeft;
+export function fitsParty(
+  day: AvailabilityDay,
+  seats: number,
+  mode: "public" | "private" = "public",
+): boolean {
+  if (seats < 1) return false;
+  if (mode === "private") return day.privateBookable && seats <= day.capacity;
+  return day.bookable && seats <= day.seatsLeft;
 }
 
+/** One day of the grid: every departure of that day, in {@link TOUR_SLOTS} order. */
+export type DaySlots = {
+  date: DateKey;
+  slots: AvailabilityDay[];
+};
+
 /**
- * A month of {@link AvailabilityDay}s — every day of the month, whether or not
- * it has a row. The grid needs a cell for the 3rd even when nobody has ever
- * opened the 3rd.
+ * A month of {@link DaySlots} — every day of the month, whether or not it has
+ * rows. The grid needs a cell for the 3rd even when nobody has ever opened
+ * the 3rd, and each cell carries both departures.
  */
 export function describeMonth(options: {
   month: MonthKey;
   rows: AvailabilityRow[];
-  bookedByDate?: Map<DateKey, number>;
+  occupancy?: OccupancyMap;
   today?: DateKey;
-}): AvailabilityDay[] {
-  const { month, rows, bookedByDate, today = todayKey() } = options;
-  const byDate = new Map(rows.map((row) => [row.date, row]));
+}): DaySlots[] {
+  const { month, rows, occupancy, today = todayKey() } = options;
+  const byKey = new Map(rows.map((row) => [occupancySlotKey(row.date, row.slot), row]));
 
-  return monthDays(month).map((date) =>
-    describeDay({
-      date,
-      row: byDate.get(date) ?? null,
-      booked: bookedByDate?.get(date) ?? 0,
-      today,
-    }),
-  );
-}
-
-/** Just the days a guest can pick, as keys — what the public picker needs. */
-export function bookableDates(days: AvailabilityDay[]): DateKey[] {
-  return days.filter((day) => day.bookable).map((day) => day.date);
+  return monthDays(month).map((date) => ({
+    date,
+    slots: TOUR_SLOTS.map((slot) =>
+      describeDay({
+        date,
+        slot,
+        row: byKey.get(occupancySlotKey(date, slot)) ?? null,
+        occupancy: occupancy?.get(occupancySlotKey(date, slot)),
+        today,
+      }),
+    ),
+  }));
 }
 
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
 
-/** The stored rows between two day keys, inclusive, in date order. */
+/** The stored rows for one tour between two day keys, inclusive, in date order. */
 export async function listAvailabilityRows(
+  experienceSlug: string,
   from: DateKey,
   to: DateKey,
-  slot: AvailabilitySlot = DEFAULT_SLOT,
 ): Promise<AvailabilityRow[]> {
   return db
     .select()
     .from(availability)
-    .where(and(between(availability.date, from, to), eq(availability.slot, slot)))
-    .orderBy(asc(availability.date));
+    .where(
+      and(
+        eq(availability.experienceSlug, experienceSlug),
+        between(availability.date, from, to),
+      ),
+    )
+    .orderBy(asc(availability.date), asc(availability.slot));
 }
 
-/**
- * One month of the calendar, ready to render.
- *
- * `bookedByDate` is supplied by the caller rather than counted here: bookings
- * are the other half of the engine and this module deliberately does not
- * import them, so that availability stays readable (and testable) on its own.
- * Until checkout ships every caller passes nothing, and every day's `booked`
- * is 0.
- */
+/** One month of one tour's calendar, ready to render. */
 export async function readMonth(options: {
+  experienceSlug: string;
   month: MonthKey;
-  slot?: AvailabilitySlot;
-  bookedByDate?: Map<DateKey, number>;
+  occupancy?: OccupancyMap;
   today?: DateKey;
-}): Promise<AvailabilityDay[]> {
-  const { month, slot = DEFAULT_SLOT, bookedByDate, today } = options;
+}): Promise<DaySlots[]> {
+  const { experienceSlug, month, occupancy, today } = options;
   const { first, last } = monthBounds(month);
-  const rows = await listAvailabilityRows(first, last, slot);
-  return describeMonth({ month, rows, bookedByDate, today });
+  const rows = await listAvailabilityRows(experienceSlug, first, last);
+  return describeMonth({ month, rows, occupancy, today });
 }
 
 /**
- * The stored row for one day, or `undefined`.
+ * The stored row for one departure, or `undefined`.
  *
  * Used by the checkout path, which must not trust a date that arrived in a
  * form: the browser was shown a calendar, but what it posts back is whatever
  * the person posting it wants.
  */
 export async function readDay(
+  experienceSlug: string,
   date: DateKey,
-  slot: AvailabilitySlot = DEFAULT_SLOT,
+  slot: AvailabilitySlot,
 ): Promise<AvailabilityRow | undefined> {
   const [row] = await db
     .select()
     .from(availability)
-    .where(and(eq(availability.date, date), eq(availability.slot, slot)))
+    .where(
+      and(
+        eq(availability.experienceSlug, experienceSlug),
+        eq(availability.date, date),
+        eq(availability.slot, slot),
+      ),
+    )
     .limit(1);
   return row;
 }
@@ -442,20 +508,33 @@ export async function readDay(
  */
 export const PUBLIC_CALENDAR_MONTHS = 6;
 
-/**
- * One day, as a guest is allowed to see it.
- *
- * Deliberately three fields. The stored row also carries `note` — "Diogo em
- * casamento", "carro na revisão" — and `status`, which together say rather more
- * about the family's diary than a booking page should. A guest is told a day is
- * unavailable; they are never told why, and the way to guarantee that is for
- * the reason not to be in the payload at all.
- */
-export type PublicDay = {
-  date: DateKey;
+/** One departure, as a guest is allowed to see it. */
+export type PublicSlot = {
+  slot: AvailabilitySlot;
+  /** Seats can be bought on it. */
   bookable: boolean;
   /** Only meaningful when `bookable`; 0 otherwise. */
   seatsLeft: number;
+  /** It can be taken privately — nothing sold into it yet. */
+  privateBookable: boolean;
+  /** The most guests a private group could bring to it. */
+  capacity: number;
+};
+
+/**
+ * One day, as a guest is allowed to see it.
+ *
+ * Deliberately small. The stored rows also carry `note` — "Diogo em
+ * casamento", "carro na revisão" — and `status`, which together say rather
+ * more about the family's diary than a booking page should. A guest is told a
+ * departure is unavailable; they are never told why, and the way to guarantee
+ * that is for the reason not to be in the payload at all.
+ */
+export type PublicDay = {
+  date: DateKey;
+  /** Any departure of this day is bookable in any way. */
+  bookable: boolean;
+  slots: PublicSlot[];
 };
 
 /** One month of the public picker, ready to render without a round trip. */
@@ -471,16 +550,23 @@ export type PublicMonth = {
 };
 
 /** Strip a day down to what a guest may know about it. */
-export function toPublicDay(day: AvailabilityDay): PublicDay {
+export function toPublicDay(day: DaySlots): PublicDay {
+  const slots = day.slots.map((slot) => ({
+    slot: slot.slot,
+    bookable: slot.bookable,
+    seatsLeft: slot.bookable ? slot.seatsLeft : 0,
+    privateBookable: slot.privateBookable,
+    capacity: slot.privateBookable ? slot.capacity : 0,
+  }));
   return {
     date: day.date,
-    bookable: day.bookable,
-    seatsLeft: day.bookable ? day.seatsLeft : 0,
+    bookable: slots.some((slot) => slot.bookable || slot.privateBookable),
+    slots,
   };
 }
 
 /**
- * The months the public picker shows, from this one forward.
+ * The months the public picker shows for one tour, from this one forward.
  *
  * **Never throws.** `/reservar` is statically rendered, and CI builds it with
  * no `DATABASE_URL` at all — so an unreachable database returns no months and
@@ -493,17 +579,17 @@ export function toPublicDay(day: AvailabilityDay): PublicDay {
  * reason and with the same warn-once discipline.
  */
 export async function readPublicCalendar(options: {
+  experienceSlug: string;
   locale: "pt" | "en";
   months?: number;
-  slot?: AvailabilitySlot;
-  bookedByDate?: Map<DateKey, number>;
+  occupancy?: OccupancyMap;
   today?: DateKey;
 }): Promise<PublicMonth[]> {
   const {
+    experienceSlug,
     locale,
     months = PUBLIC_CALENDAR_MONTHS,
-    slot = DEFAULT_SLOT,
-    bookedByDate,
+    occupancy,
     today = todayKey(),
   } = options;
 
@@ -513,9 +599,9 @@ export async function readPublicCalendar(options: {
   let rows: AvailabilityRow[];
   try {
     rows = await listAvailabilityRows(
+      experienceSlug,
       monthBounds(monthKeys[0]).first,
       monthBounds(monthKeys[monthKeys.length - 1]).last,
-      slot,
     );
   } catch (err) {
     console.warn(
@@ -537,7 +623,7 @@ export async function readPublicCalendar(options: {
     const days = describeMonth({
       month,
       rows: byMonth.get(month) ?? [],
-      bookedByDate,
+      occupancy,
       today,
     }).map(toPublicDay);
 
@@ -552,41 +638,46 @@ export async function readPublicCalendar(options: {
 }
 
 /**
- * Re-check one day, server-side, at the moment of a submission.
+ * Re-check one departure, server-side, at the moment of a submission.
  *
  * The browser was shown a calendar; what it posts back is whatever the person
- * posting it wants, and by the time it arrives the day may have sold out or
- * been closed anyway. Everything that accepts a date from a guest goes through
- * here — today the enquiry form, tomorrow the checkout session.
+ * posting it wants, and by the time it arrives the slot may have sold out,
+ * been taken privately, or been closed anyway. Everything that accepts a date
+ * from a guest goes through here.
  *
  * A database failure is a "no". A booking engine that cannot read availability
  * must not fall back to accepting the date; the guest is told to try again,
  * which is true, rather than being sold a day nobody can confirm.
  */
-export async function checkDayAvailable(options: {
+export async function checkSlotAvailable(options: {
+  experienceSlug: string;
   date: string;
-  partySize?: number | null;
-  slot?: AvailabilitySlot;
-  booked?: number;
+  slot: AvailabilitySlot;
+  seats: number;
+  mode: "public" | "private";
+  occupancy?: SlotOccupancy;
   today?: DateKey;
 }): Promise<
-  { ok: true; day: AvailabilityDay } | { ok: false; reason: "invalid" | "unavailable" | "too-many" | "unreadable" }
+  | { ok: true; day: AvailabilityDay }
+  | { ok: false; reason: "invalid" | "unavailable" | "too-many" | "unreadable" }
 > {
-  const { date, partySize, slot = DEFAULT_SLOT, booked = 0, today } = options;
+  const { experienceSlug, date, slot, seats, mode, occupancy, today } = options;
 
-  if (!isDateKey(date)) return { ok: false, reason: "invalid" };
+  if (!isDateKey(date) || !isTourSlot(slot)) return { ok: false, reason: "invalid" };
 
   let row: AvailabilityRow | undefined;
   try {
-    row = await readDay(date, slot);
+    row = await readDay(experienceSlug, date, slot);
   } catch (err) {
     console.error("[availability] could not re-check a submitted date", err);
     return { ok: false, reason: "unreadable" };
   }
 
-  const day = describeDay({ date, row, booked, today });
-  if (!day.bookable) return { ok: false, reason: "unavailable" };
-  if (partySize && !fitsParty(day, partySize)) return { ok: false, reason: "too-many" };
+  const day = describeDay({ date, slot, row, occupancy, today });
+  if (!(mode === "private" ? day.privateBookable : day.bookable)) {
+    return { ok: false, reason: "unavailable" };
+  }
+  if (!fitsParty(day, seats, mode)) return { ok: false, reason: "too-many" };
 
   return { ok: true, day };
 }
@@ -595,63 +686,71 @@ export async function checkDayAvailable(options: {
 // Writes
 // ---------------------------------------------------------------------------
 
-/** What one write to the calendar changes. */
-export type AvailabilityPatch = {
-  status?: AvailabilityStatus;
-  capacity?: number;
-  note?: string | null;
-};
-
 /**
- * Open, close or adjust a set of days, in one statement.
+ * Open, close or adjust a set of departures, in one statement.
  *
  * An upsert rather than a read-then-write: the admin's "open the whole month"
- * button touches 31 days at once, most of which have no row, and doing that as
- * 31 round trips from a phone on rural 4G is the difference between a tap and
- * a wait. `onConflictDoUpdate` resolves onto `availability_date_slot_key`,
- * which is the index that makes one-row-per-day-per-slot true.
+ * button touches sixty departures at once, most of which have no row, and
+ * doing that as sixty round trips from a phone on rural 4G is the difference
+ * between a tap and a wait. `onConflictDoUpdate` resolves onto
+ * `availability_experience_date_slot_key`, which is the index that makes
+ * one-row-per-tour-per-day-per-slot true.
  *
  * Returns the rows as they now stand, so the caller can audit what actually
  * changed rather than what it asked for.
  */
 export async function upsertDays(options: {
+  experienceSlug: string;
   dates: DateKey[];
-  slot?: AvailabilitySlot;
+  slots: AvailabilitySlot[];
   status: AvailabilityStatus;
   capacity?: number;
   note?: string | null;
 }): Promise<AvailabilityRow[]> {
-  const { dates, slot = DEFAULT_SLOT, status, capacity = DEFAULT_CAPACITY, note = null } = options;
-  if (dates.length === 0) return [];
+  const { experienceSlug, dates, slots, status, note = null } = options;
+  const capacity = options.capacity ?? defaultCapacityFor(experienceSlug);
+  if (dates.length === 0 || slots.length === 0) return [];
 
   const now = new Date();
 
   return db
     .insert(availability)
-    .values(dates.map((date) => ({ date, slot, status, capacity, note })))
+    .values(
+      dates.flatMap((date) =>
+        slots.map((slot) => ({ experienceSlug, date, slot, status, capacity, note })),
+      ),
+    )
     .onConflictDoUpdate({
-      target: [availability.date, availability.slot],
+      target: [availability.experienceSlug, availability.date, availability.slot],
       set: { status, capacity, note, updatedAt: now },
     })
     .returning();
 }
 
 /**
- * Remove the rows for `dates` — "I never meant to touch these days".
+ * Remove the rows for `dates` — "I never meant to touch these departures".
  *
- * Distinct from closing them: a closed day is a decision the calendar records
- * (and can show a note for), an absent day is one nobody has made. Deleting is
- * safe for supply, but it is *not* safe for demand, so the caller checks for
- * bookings first — this function only does what it is told.
+ * Distinct from closing them: a closed departure is a decision the calendar
+ * records (and can show a note for), an absent one is a decision nobody has
+ * made. Deleting is safe for supply, but it is *not* safe for demand, so the
+ * caller checks for bookings first — this function only does what it is told.
  */
-export async function clearDays(
-  dates: DateKey[],
-  slot: AvailabilitySlot = DEFAULT_SLOT,
-): Promise<number> {
-  if (dates.length === 0) return 0;
+export async function clearDays(options: {
+  experienceSlug: string;
+  dates: DateKey[];
+  slots: AvailabilitySlot[];
+}): Promise<number> {
+  const { experienceSlug, dates, slots } = options;
+  if (dates.length === 0 || slots.length === 0) return 0;
   const removed = await db
     .delete(availability)
-    .where(and(inArray(availability.date, dates), eq(availability.slot, slot)))
+    .where(
+      and(
+        eq(availability.experienceSlug, experienceSlug),
+        inArray(availability.date, dates),
+        inArray(availability.slot, slots),
+      ),
+    )
     .returning({ id: availability.id });
   return removed.length;
 }

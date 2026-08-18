@@ -5,11 +5,20 @@ import Link from "next/link";
 import { useFormStatus } from "react-dom";
 import { Check, Lock, Minus, Plus, ShieldCheck } from "lucide-react";
 
-import { t, type Locale } from "@/i18n/config";
+import { t, type Locale, type Localized } from "@/i18n/config";
 import { bookingContent } from "@/content/booking";
 import { privacyContent } from "@/content/privacy";
+import { departureLabel } from "@/content/logistics";
 import type { Experience } from "@/content/experiences";
 import type { PublicMonth } from "@/lib/availability";
+import {
+  isPriced,
+  maxAdultsOf,
+  priceBooking,
+  weekdayOf,
+  type BookingMode,
+  type PricedLine,
+} from "@/lib/pricing";
 import { formatPrice } from "@/lib/money";
 import { href } from "@/lib/routes";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
@@ -26,24 +35,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 /**
- * The real booking flow: pick a day, pick a group, pay.
+ * The real booking flow: pick a tour, pick how to go, pick a departure, pay.
  *
- * It replaces `BookingFlow`, the interactive design preview that shipped with
- * invented prices, an invented August 2026 calendar and a locked pay button.
- * The shape of the preview survives — steps down the page, a summary card that
- * sticks on desktop — because that is the flow Diogo & Rita signed off on; what
- * changed is that every number in it is real.
+ * It carries the whole of Diogo & Rita's actual offer (AGORA-002): two tours,
+ * each sellable as a shared departure (per person, tiered by adults) or a
+ * private one (a group figure), children and infants in their own bands, and
+ * the add-on stops that only exist on a private countryside tour. The form's
+ * job is to make the combinations that cannot be bought impossible to submit —
+ * greyed with the reason — rather than let the server say no afterwards.
  *
- * **The prices here are for reading, not for charging.** The catalogue entries
- * arrive as props so the guest can watch a total move as they add a person or a
- * tasting; the server prices the basket again from the same rows before it
- * creates a Stripe session. Nothing this component computes is ever trusted —
- * see `startCheckout`, which does not so much as look at a total in the form.
- *
- * The deposit/full choice from the preview is gone: the launch decision is full
- * payment at booking, and an option nobody can pick is a question that wastes a
- * tap.
+ * **The prices here are for reading, not for charging.** The same
+ * `priceBooking` the server runs is imported here (it is pure), so the total
+ * moves as the guest adds a person or a tasting — but the server prices the
+ * basket again from the catalogue before it creates a Stripe session. Nothing
+ * this component computes is ever trusted — see `startCheckout`, which does
+ * not so much as look at a total in the form.
  */
+
+/** Physical ceiling on one departure — the combined fleet. Server re-checks. */
+const MAX_SEATS = 14;
 
 function PayButton({ locale }: { locale: Locale }) {
   const { pending } = useFormStatus();
@@ -56,16 +66,74 @@ function PayButton({ locale }: { locale: Locale }) {
   );
 }
 
+function Stepper({
+  id,
+  label,
+  hint,
+  value,
+  min,
+  max,
+  onChange,
+  locale,
+}: {
+  id: string;
+  label: string;
+  hint: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (next: number) => void;
+  locale: Locale;
+}) {
+  const c = bookingContent.labels;
+  return (
+    <div className="flex items-center justify-between gap-3 py-2">
+      <div>
+        <p className="font-medium" id={id}>
+          {label}
+        </p>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <div className="flex items-center gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={() => onChange(Math.max(min, value - 1))}
+          aria-label={`${label}: ${t(c.fewer, locale)}`}
+          disabled={value <= min}
+        >
+          <Minus className="size-4" />
+        </Button>
+        <output aria-labelledby={id} aria-live="polite" className="min-w-8 text-center font-heading text-2xl font-semibold">
+          {value}
+        </output>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={() => onChange(Math.min(max, value + 1))}
+          aria-label={`${label}: ${t(c.more, locale)}`}
+          disabled={value >= max}
+        >
+          <Plus className="size-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function BookingCheckoutForm({
   locale,
   experiences,
-  availability,
+  availabilityBySlug,
   testMode,
 }: {
   locale: Locale;
-  /** The live catalogue. Only priced entries reach this component. */
+  /** The live catalogue — tours and add-ons, with their price lists. */
   experiences: Experience[];
-  availability: PublicMonth[];
+  /** Each tour's public calendar, keyed by slug. */
+  availabilityBySlug: Record<string, PublicMonth[]>;
   /** Running against Stripe test keys — say so, loudly. */
   testMode: boolean;
 }) {
@@ -80,26 +148,100 @@ export function BookingCheckoutForm({
    */
   const price = (cents: number) => formatPrice(cents, l);
 
+  const tours = experiences.filter(
+    (entry) => entry.kind === "signature" && isPriced(entry.pricing),
+  );
+  const complements = experiences.filter(
+    (entry) => entry.kind === "complement" && entry.pricing?.type === "addon",
+  );
+
+  const [tourSlug, setTourSlug] = useState(tours[0]?.slug ?? "");
+  const [mode, setMode] = useState<BookingMode>("public");
+  const [adults, setAdults] = useState(2);
+  const [children, setChildren] = useState(0);
+  const [infants, setInfants] = useState(0);
+  const [addOns, setAddOns] = useState<Set<string>>(new Set());
+  const [date, setDate] = useState<string | null>(null);
+
+  const tour = tours.find((entry) => entry.slug === tourSlug) ?? tours[0];
+  const pricing = tour?.pricing?.type === "tour" ? tour.pricing : null;
+  const allowsAddOns = Boolean(pricing?.private?.allowsAddOns);
+  const addOnsOffered = allowsAddOns && complements.length > 0;
+  const maxAdults = Math.max(1, maxAdultsOf(tour?.pricing) || 12);
+  const seats = adults + children + infants;
+
+  /** Why one add-on cannot join this basket right now, or null when it can. */
+  const addOnBlocked = (entry: Experience): string | null => {
+    if (entry.pricing?.type !== "addon") return null;
+    const p = entry.pricing;
+    const fillIn = (template: Localized, min: number) =>
+      t(template, l).replace("{min}", String(min));
+    if (p.minAdults && adults < p.minAdults) {
+      return fillIn(c.labels.addOnMinAdults, p.minAdults);
+    }
+    if (p.minGuests && adults + children < p.minGuests) {
+      return fillIn(c.labels.addOnMinGuests, p.minGuests);
+    }
+    if (date && p.closedWeekdays?.length) {
+      const weekday = weekdayOf(date);
+      if (weekday !== null && p.closedWeekdays.includes(weekday)) {
+        return t(c.labels.addOnClosedMonday, l);
+      }
+    }
+    return null;
+  };
+
+  const chosenAddOns = complements.filter(
+    (entry) => addOns.has(entry.slug) && mode === "private" && !addOnBlocked(entry),
+  );
+
+  /**
+   * The live quote — the same arithmetic the server will run, cheap enough to
+   * run on every render. A failure here is a combination the controls should
+   * have prevented (or a group beyond the price list, which gets the "talk to
+   * us" line under the total).
+   */
+  const quote = tour
+    ? priceBooking({
+        tour: { slug: tour.slug, pricing: tour.pricing },
+        addOns: chosenAddOns.map((entry) => ({ slug: entry.slug, pricing: entry.pricing })),
+        mode,
+        party: { adults, children, infants },
+        date: date ?? undefined,
+      })
+    : null;
+
+  const bySlug = new Map(experiences.map((entry) => [entry.slug, entry]));
+
+  const lineLabel = (line: PricedLine): string => {
+    const title = t(bySlug.get(line.slug)?.title ?? { pt: line.slug, en: line.slug }, l);
+    if (line.unit === "group") return `${title} — ${t(c.labels.privateGroup, l)}`;
+    if (line.unit === "child") return `${title} — ${t(c.labels.childrenLine, l)}`;
+    return title;
+  };
+
   // Whatever stopped the submission, in one place — the field errors render
   // next to their fields too, but those are off-screen from the pay button.
   const problem =
     state.error ??
     state.fieldErrors?.date ??
-    state.fieldErrors?.partySize ??
+    state.fieldErrors?.party ??
+    state.fieldErrors?.addOns ??
     state.fieldErrors?.name ??
     state.fieldErrors?.email;
 
-  const signature = experiences.find((entry) => entry.kind === "signature")!;
-  const complements = experiences.filter((entry) => entry.kind === "complement");
-
-  const [party, setParty] = useState(2);
-  const [addOns, setAddOns] = useState<Set<string>>(new Set());
-
-  const chosenAddOns = complements.filter((entry) => addOns.has(entry.slug));
-  const perPerson =
-    (signature.priceCents ?? 0) +
-    chosenAddOns.reduce((sum, entry) => sum + (entry.priceCents ?? 0), 0);
-  const total = perPerson * party;
+  /** The quote's own objection, shown under the total as it happens. */
+  const quoteProblem = (() => {
+    if (!quote || quote.ok) return null;
+    switch (quote.reason) {
+      case "party-too-large":
+        return t(c.errors.groupTooLarge, l);
+      case "min-adults":
+        return t(c.errors.minAdults, l);
+      default:
+        return null;
+    }
+  })();
 
   function toggleAddOn(slug: string) {
     setAddOns((previous) => {
@@ -110,13 +252,23 @@ export function BookingCheckoutForm({
     });
   }
 
+  if (!tour) return null;
+
+  const slotLabels = {
+    morning: t(departureLabel(tour.slug, "morning"), l),
+    afternoon: t(departureLabel(tour.slug, "afternoon"), l),
+  };
+
   return (
     <form action={formAction} className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-start">
       <input type="hidden" name="locale" value={locale} />
-      <input type="hidden" name="experience" value={signature.slug} />
-      <input type="hidden" name="partySize" value={party} />
-      {[...addOns].map((slug) => (
-        <input key={slug} type="hidden" name="addOns" value={slug} />
+      <input type="hidden" name="experience" value={tour.slug} />
+      <input type="hidden" name="mode" value={mode} />
+      <input type="hidden" name="adults" value={adults} />
+      <input type="hidden" name="children" value={children} />
+      <input type="hidden" name="infants" value={infants} />
+      {chosenAddOns.map((entry) => (
+        <input key={entry.slug} type="hidden" name="addOns" value={entry.slug} />
       ))}
 
       {/* Honeypot — same rig as the enquiry form: off-screen rather than
@@ -137,82 +289,176 @@ export function BookingCheckoutForm({
       </div>
 
       <div className="flex flex-col gap-10">
-        <BookingDatePicker
-          locale={l}
-          // The checkout's field, not the enquiry's. A card cannot be charged
-          // for "late August", so the free-text escape becomes a link out.
-          name="date"
-          allowFlexible={false}
-          contactHref={href(l, "contactos")}
-          months={availability}
-          defaultValue={state.values?.date}
-          error={state.fieldErrors?.date}
-        />
+        {/* Which tour. Two cards; the choice resets day and departure. */}
+        <section aria-labelledby="bk-tour">
+          <h2 id="bk-tour" className="text-xl font-semibold sm:text-2xl">
+            {t(c.labels.experience, l)}
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">{t(c.labels.experienceHint, l)}</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {tours.map((entry) => {
+              const active = entry.slug === tour.slug;
+              return (
+                <button
+                  key={entry.slug}
+                  type="button"
+                  onClick={() => {
+                    setTourSlug(entry.slug);
+                    setDate(null);
+                    setAddOns(new Set());
+                  }}
+                  aria-pressed={active}
+                  className={cn(
+                    "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all",
+                    active
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                      : "border-border hover:border-primary/50",
+                  )}
+                >
+                  <span className="font-medium">{t(entry.title, l)}</span>
+                  <span className="text-sm text-muted-foreground">{t(entry.tagline, l)}</span>
+                  <span className="text-sm text-muted-foreground">{t(entry.duration, l)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
+        {/* Shared or private. */}
+        <section aria-labelledby="bk-mode">
+          <h2 id="bk-mode" className="text-xl font-semibold sm:text-2xl">
+            {t(c.labels.mode, l)}
+          </h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {(["public", "private"] as const).map((option) => {
+              const offered = Boolean(pricing?.[option]);
+              const active = mode === option;
+              const label = option === "public" ? c.labels.modePublic : c.labels.modePrivate;
+              const hint =
+                option === "public" ? c.labels.modePublicHint : c.labels.modePrivateHint;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  disabled={!offered}
+                  aria-pressed={active}
+                  onClick={() => setMode(option)}
+                  className={cn(
+                    "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all",
+                    active
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                      : offered
+                        ? "border-border hover:border-primary/50"
+                        : "cursor-not-allowed border-border opacity-50",
+                  )}
+                >
+                  <span className="font-medium">{t(label, l)}</span>
+                  <span className="text-sm text-muted-foreground">{t(hint, l)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Who's coming. */}
         <section aria-labelledby="bk-party">
           <h2 id="bk-party" className="text-xl font-semibold sm:text-2xl">
             {t(c.labels.partySize, l)}
           </h2>
-          <Card className="mt-4 p-4">
-            <div className="flex items-center justify-center gap-6 py-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => setParty((n) => Math.max(1, n - 1))}
-                aria-label={t(c.labels.fewer, l)}
-                disabled={party <= 1}
-              >
-                <Minus className="size-4" />
-              </Button>
-              <output
-                aria-live="polite"
-                className="min-w-10 text-center font-heading text-3xl font-semibold"
-              >
-                {party}
-              </output>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => setParty((n) => Math.min(12, n + 1))}
-                aria-label={t(c.labels.more, l)}
-                disabled={party >= 12}
-              >
-                <Plus className="size-4" />
-              </Button>
-            </div>
-            <p className="mt-2 text-center text-sm text-muted-foreground">
+          <Card className="mt-4 divide-y p-4">
+            <Stepper
+              id="bk-adults"
+              label={t(c.labels.adults, l)}
+              hint={t(c.labels.adultsHint, l)}
+              value={adults}
+              min={1}
+              max={Math.min(maxAdults, MAX_SEATS - children - infants)}
+              onChange={setAdults}
+              locale={l}
+            />
+            <Stepper
+              id="bk-children"
+              label={t(c.labels.children, l)}
+              hint={t(c.labels.childrenHint, l)}
+              value={children}
+              min={0}
+              max={MAX_SEATS - adults - infants}
+              onChange={setChildren}
+              locale={l}
+            />
+            <Stepper
+              id="bk-infants"
+              label={t(c.labels.infants, l)}
+              hint={t(c.labels.infantsHint, l)}
+              value={infants}
+              min={0}
+              max={MAX_SEATS - adults - children}
+              onChange={setInfants}
+              locale={l}
+            />
+            <p className="pt-3 text-center text-sm text-muted-foreground">
               {t(c.labels.partyHint, l)}
             </p>
-            {state.fieldErrors?.partySize ? (
-              <p className="mt-2 text-center text-sm text-destructive" role="alert">
-                {state.fieldErrors.partySize}
+            {state.fieldErrors?.party ? (
+              <p className="pt-2 text-center text-sm text-destructive" role="alert">
+                {state.fieldErrors.party}
               </p>
             ) : null}
           </Card>
         </section>
 
-        {complements.length > 0 ? (
+        {/* The calendar — per tour, per mode; changing either starts over. */}
+        <BookingDatePicker
+          key={`${tour.slug}-${mode}`}
+          locale={l}
+          // The checkout's field, not the enquiry's. A card cannot be charged
+          // for "late August", so the free-text escape becomes a link out.
+          name="date"
+          slotName="slot"
+          slotHeading={t(c.labels.slot, l)}
+          slotLabels={slotLabels}
+          mode={mode}
+          allowFlexible={false}
+          contactHref={href(l, "contactos")}
+          months={availabilityBySlug[tour.slug] ?? []}
+          defaultValue={state.values?.date}
+          error={state.fieldErrors?.date}
+          onDateChange={setDate}
+        />
+
+        {/* Add-ons — a private countryside privilege, and the form says so. */}
+        {addOnsOffered ? (
           <section aria-labelledby="bk-extras">
             <h2 id="bk-extras" className="text-xl font-semibold sm:text-2xl">
               {t(c.labels.addOns, l)}
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">{t(c.labels.addOnsHint, l)}</p>
+            {mode === "public" ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {t(c.labels.addOnsPublicNote, l)}
+              </p>
+            ) : null}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {complements.map((entry) => {
-                const active = addOns.has(entry.slug);
+                const blocked = mode !== "private" ? "" : addOnBlocked(entry);
+                const usable = mode === "private" && !blocked;
+                const active = usable && addOns.has(entry.slug);
+                const perAdult =
+                  entry.pricing?.type === "addon" ? entry.pricing.perAdultCents : 0;
                 return (
                   <button
                     key={entry.slug}
                     type="button"
+                    disabled={!usable}
                     onClick={() => toggleAddOn(entry.slug)}
                     aria-pressed={active}
                     className={cn(
                       "flex items-start justify-between gap-3 rounded-xl border p-4 text-left transition-all",
                       active
                         ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                        : "border-border hover:border-primary/50",
+                        : usable
+                          ? "border-border hover:border-primary/50"
+                          : "cursor-not-allowed border-border opacity-60",
                     )}
                   >
                     <span>
@@ -221,11 +467,16 @@ export function BookingCheckoutForm({
                         {t(entry.tagline, l)}
                       </span>
                       <span className="mt-1 block text-sm font-medium">
-                        +{price(entry.priceCents ?? 0)}{" "}
+                        +{price(perAdult)}{" "}
                         <span className="font-normal text-muted-foreground">
-                          {t(c.labels.perPerson, l)}
+                          {t(c.labels.perAdult, l)}
                         </span>
                       </span>
+                      {blocked ? (
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {blocked}
+                        </span>
+                      ) : null}
                     </span>
                     <span
                       className={cn(
@@ -241,6 +492,11 @@ export function BookingCheckoutForm({
                 );
               })}
             </div>
+            {state.fieldErrors?.addOns ? (
+              <p className="mt-2 text-sm text-destructive" role="alert">
+                {state.fieldErrors.addOns}
+              </p>
+            ) : null}
           </section>
         ) : null}
 
@@ -346,23 +602,27 @@ export function BookingCheckoutForm({
           <p className="font-heading text-lg font-semibold">{t(c.labels.summary, l)}</p>
 
           <dl className="space-y-2 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt className="text-muted-foreground">{t(signature.title, l)}</dt>
-              <dd className="font-medium">
-                {price(signature.priceCents ?? 0)} × {party}
-              </dd>
-            </div>
-            {chosenAddOns.map((entry) => (
-              <div key={entry.slug} className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">{t(entry.title, l)}</dt>
-                <dd className="font-medium">
-                  {price(entry.priceCents ?? 0)} × {party}
-                </dd>
+            {quote?.ok
+              ? quote.lines.map((line, i) => (
+                  <div key={`${line.slug}-${line.unit}-${i}`} className="flex justify-between gap-3">
+                    <dt className="text-muted-foreground">{lineLabel(line)}</dt>
+                    <dd className="font-medium">
+                      {line.unit === "group"
+                        ? price(line.unitCents)
+                        : `${price(line.unitCents)} × ${line.quantity}`}
+                    </dd>
+                  </div>
+                ))
+              : null}
+            {infants > 0 ? (
+              <div className="flex justify-between gap-3">
+                <dt className="text-muted-foreground">{t(c.labels.infantsLine, l)}</dt>
+                <dd className="font-medium">× {infants}</dd>
               </div>
-            ))}
+            ) : null}
             <div className="flex justify-between gap-3 border-t pt-2 text-muted-foreground">
               <dt>
-                {party} {party === 1 ? t(c.labels.person, l) : t(c.labels.people, l)}
+                {seats} {seats === 1 ? t(c.labels.person, l) : t(c.labels.people, l)}
               </dt>
               <dd />
             </div>
@@ -370,8 +630,14 @@ export function BookingCheckoutForm({
 
           <div className="flex justify-between rounded-lg bg-muted/60 p-3 font-medium">
             <span>{t(c.labels.total, l)}</span>
-            <span>{price(total)}</span>
+            <span>{quote?.ok ? price(quote.totalCents) : "—"}</span>
           </div>
+
+          {quoteProblem ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              {quoteProblem}
+            </p>
+          ) : null}
 
           {/*
             The pay button is the last thing on the page on a phone, and the
@@ -396,6 +662,10 @@ export function BookingCheckoutForm({
 
           <p className="text-center text-xs text-muted-foreground">
             {t(c.labels.holdNote, l)}
+          </p>
+
+          <p className="text-center text-xs text-muted-foreground">
+            {t(c.labels.freeCancellation, l)}
           </p>
 
           <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
