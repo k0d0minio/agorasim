@@ -2,13 +2,21 @@
 
 | | |
 |---|---|
-| Status | blocked |
+| Status | in-progress |
 | Type | feature |
 | Priority | P0 |
 | Size | M |
 | Depends on | AGORA-001 (info request sent) |
-| Blocked by | Diogo & Rita's Section 1 answers (`.icm/docs/information-request-diogo-rita.md`) |
+| Blocked by | — (Section 1 answers arrived 18 Aug: `.icm/docs/agorasim-info.pdf` + `prices.pdf`, local only) |
 | Sources | [.icm/docs/launch-plan.md](../docs/launch-plan.md) Phase 1 |
+
+> **Done 2026-08-18**, with one carve-out: RNAAT / insurance / invoicing were left
+> blank in the answers, so the privacy draft banner stays and those TODO(legal)
+> markers moved to [AGORA-007](../AGORA-007-remaining-legal-blanks.md). Everything
+> else landed — and the answers changed the product: real pricing is public/private
+> tiered with child/infant bands, there is a second tour (Óbidos & Medieval
+> Villages, now fully bookable), two departures a day (10:00/14:00), Olaria MZ is
+> retired, and Rural Saloia is 4h30 with a fixed Sintra meeting point.
 
 ## Problem
 

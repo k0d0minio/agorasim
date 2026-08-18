@@ -30,15 +30,19 @@ import {
   bookings,
   db,
   tourRequests,
+  type AvailabilitySlot,
   type Booking,
-  type BookingLineItem,
 } from "@/db";
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
+import { bookingContent } from "@/content/booking";
+import { bookingEmails } from "@/content/emails";
+import { departureLabel, meetingPoints } from "@/content/logistics";
 import { t, type Locale } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
 import { formatDay, type DateKey } from "@/lib/availability";
 import { bookingRef, holdExpiryFrom } from "@/lib/bookings";
 import { BOOKING_CURRENCY, formatPrice } from "@/lib/money";
+import type { BookingMode, PartyCount, PricedLine } from "@/lib/pricing";
 import { guestConfirmationEmail, teamNotificationEmail } from "@/lib/booking-emails";
 import { isEmailConfigured, sendEmail, teamRecipients } from "@/lib/email";
 import { recordAuditOrWarn } from "@/lib/audit";
@@ -61,15 +65,18 @@ export async function startBookingCheckout(options: {
   };
   locale: Locale;
   date: DateKey;
+  slot: AvailabilitySlot;
+  mode: BookingMode;
+  party: PartyCount;
   experience: Experience;
   addOns: Experience[];
-  partySize: number;
-  items: BookingLineItem[];
+  lines: PricedLine[];
   totalCents: number;
 }): Promise<{ url: string; bookingId: string }> {
-  const { guest, locale, date, experience, addOns, partySize, items, totalCents } =
+  const { guest, locale, date, slot, mode, party, experience, addOns, lines, totalCents } =
     options;
 
+  const partySize = party.adults + party.children + party.infants;
   const now = new Date();
   const holdExpiresAt = holdExpiryFrom(now);
 
@@ -102,12 +109,20 @@ export async function startBookingCheckout(options: {
     .values({
       tourRequestId: lead.id,
       date,
+      slot,
+      mode,
+      adults: party.adults,
+      children: party.children,
+      infants: party.infants,
+      // A private departure owns whatever was left of the slot — see the
+      // occupancy rule in lib/bookings.ts.
+      exclusive: mode === "private",
       experienceSlug: experience.slug,
       addOns: addOns.map((entry) => entry.slug),
       partySize,
       amountCents: totalCents,
       currency: BOOKING_CURRENCY,
-      priceBreakdown: items,
+      priceBreakdown: lines,
       locale,
       holdExpiresAt,
     })
@@ -118,20 +133,35 @@ export async function startBookingCheckout(options: {
     [experience, ...addOns].map((entry) => [entry.slug, entry]),
   );
 
+  /**
+   * What one priced line is called on Stripe's payment page. The slug names
+   * the experience; `unit` says which band of the price list the line is —
+   * and the guest sees exactly the split the summary card showed them.
+   */
+  const lineName = (line: PricedLine): string => {
+    const title = t(byslug.get(line.slug)!.title, locale);
+    if (line.unit === "group") return `${title} — ${t(bookingContent.labels.privateGroup, locale)}`;
+    if (line.unit === "child") return `${title} — ${t(bookingContent.labels.childrenLine, locale)}`;
+    return title;
+  };
+
   try {
     const session = await stripe().checkout.sessions.create({
       mode: "payment",
       // Payment methods come from the Stripe dashboard rather than being listed
       // here, so enabling MB WAY or Multibanco — which Portuguese guests will
       // expect — is a switch the team can flip without a deploy.
-      line_items: items.map((item) => ({
-        quantity: item.quantity,
+      line_items: lines.map((line) => ({
+        quantity: line.quantity,
         price_data: {
           currency: BOOKING_CURRENCY,
-          unit_amount: item.unitCents,
+          unit_amount: line.unitCents,
           product_data: {
-            name: t(byslug.get(item.slug)!.title, locale),
-            description: t(byslug.get(item.slug)!.tagline, locale) || undefined,
+            name: lineName(line),
+            description:
+              line.unit === "child"
+                ? undefined
+                : t(byslug.get(line.slug)!.tagline, locale) || undefined,
           },
         },
       })),
@@ -140,7 +170,13 @@ export async function startBookingCheckout(options: {
       // On the session and on the payment intent: the first is what the webhook
       // reads, the second is what a refund in the Stripe dashboard shows the
       // person issuing it.
-      metadata: { bookingId: booking.id, date, partySize: String(partySize) },
+      metadata: {
+        bookingId: booking.id,
+        date,
+        slot,
+        mode,
+        partySize: String(partySize),
+      },
       payment_intent_data: {
         metadata: { bookingId: booking.id, date, ref: bookingRef(booking.id) },
       },
@@ -319,6 +355,17 @@ async function sendConfirmationEmails(
     return entry ? t(entry.title, locale) : slug;
   };
 
+  // "2 adultos · 1 criança (4–12)" — zero-count bands are simply not said.
+  const w = bookingEmails.guest.partyWords;
+  const partyLabel = [
+    [booking.adults, w.adult, w.adults] as const,
+    [booking.children, w.child, w.children] as const,
+    [booking.infants, w.infant, w.infants] as const,
+  ]
+    .filter(([count]) => count > 0)
+    .map(([count, one, many]) => `${count} ${t(count === 1 ? one : many, locale)}`)
+    .join(" · ");
+
   const facts = {
     ref: bookingRef(booking.id),
     guestName: lead.name,
@@ -326,9 +373,12 @@ async function sendConfirmationEmails(
     guestPhone: lead.phone,
     locale,
     date: formatDay(booking.date, locale),
-    experience: name(booking.experienceSlug),
+    experience: `${name(booking.experienceSlug)} — ${t(bookingEmails.guest.modeWords[booking.mode], locale)}`,
+    departure: t(departureLabel(booking.experienceSlug, booking.slot), locale),
+    meetingPoint: meetingPoints[booking.experienceSlug] ?? null,
     addOns: booking.addOns.map(name),
     partySize: booking.partySize,
+    partyLabel: partyLabel || String(booking.partySize),
     total: formatPrice(booking.amountCents, locale, booking.currency),
     adminUrl: `${siteUrl()}/admin/sales/${lead.id}`,
   };

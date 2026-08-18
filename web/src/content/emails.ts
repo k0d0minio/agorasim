@@ -56,18 +56,39 @@ export const bookingEmails = {
       reference: { pt: "Referência", en: "Reference" } as Localized,
       experience: { pt: "Experiência", en: "Experience" } as Localized,
       date: { pt: "Data", en: "Date" } as Localized,
+      departure: { pt: "Partida", en: "Departure" } as Localized,
+      /** Linked to the maps pin when the tour has one. */
+      meetingPoint: { pt: "Ponto de encontro", en: "Meeting point" } as Localized,
       party: { pt: "Pessoas", en: "Guests" } as Localized,
       /** Omitted entirely when there are none — see `lib/booking-emails.ts`. */
       addOns: { pt: "Extras", en: "Add-ons" } as Localized,
       total: { pt: "Total pago", en: "Total paid" } as Localized,
     },
+    /** "2 adultos · 1 criança" — the party row, in the guest's language. */
+    partyWords: {
+      adult: { pt: "adulto", en: "adult" } as Localized,
+      adults: { pt: "adultos", en: "adults" } as Localized,
+      child: { pt: "criança (4–12)", en: "child (4–12)" } as Localized,
+      children: { pt: "crianças (4–12)", en: "children (4–12)" } as Localized,
+      infant: { pt: "bebé", en: "infant" } as Localized,
+      infants: { pt: "bebés", en: "infants" } as Localized,
+    },
+    /** How the departure was sold, appended to the experience row. */
+    modeWords: {
+      public: { pt: "partida partilhada", en: "shared departure" } as Localized,
+      private: { pt: "experiência privada", en: "private experience" } as Localized,
+    },
     next: {
       title: { pt: "O que acontece a seguir", en: "What happens next" } as Localized,
       body: {
-        pt: "Entramos em contacto consigo antes do dia para combinar a hora e o local de encontro.",
-        en: "We will be in touch before the day to agree a time and a meeting point.",
+        pt: "Está tudo marcado: encontramo-nos no ponto de encontro indicado acima, à hora da sua partida. Se precisar de alguma coisa antes do dia, responda a este email.",
+        en: "Everything is set: we meet at the meeting point above, at your departure time. If you need anything before the day, just reply to this email.",
       } as Localized,
     },
+    cancellationNote: {
+      pt: "Cancelamento gratuito até 48 horas antes da experiência. Com mau tempo, tentamos sempre reagendar — e reembolsamos em condições extremas.",
+      en: "Free cancellation up to 48 hours before the experience. In bad weather we always try to reschedule — and refund in extreme conditions.",
+    } as Localized,
     changeNote: {
       pt: "Se precisar de alterar alguma coisa, responda a este email ou ligue-nos:",
       en: "If anything needs to change, reply to this email or call us:",
@@ -93,6 +114,7 @@ export const bookingEmails = {
     labels: {
       reference: "Referência",
       date: "Data",
+      departure: "Partida",
       experience: "Experiência",
       addOns: "Extras",
       party: "Pessoas",

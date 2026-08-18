@@ -30,17 +30,19 @@ export const MARKETING_CONSENT_VERSION = "2026-07-31";
  * Who the controller is. Kept next to the copy because the policy has to state
  * it, and a policy whose controller details drift out of date is worse than none.
  *
- * TODO(legal): confirm the registered trading name, the NIF/company number and
- * the postal address, and add them here. "Agorasim" is the brand; the policy
- * must name the legal person behind it.
+ * These are Diogo's own answers (agorasim-info PDF, Aug 2026): the business
+ * trades as "Agorasim Vintage" under his personal NIF as a *trabalhador
+ * independente* — there is no company, so the NIF is the registration number.
+ *
+ * TODO(legal): RNAAT registration number and liability insurance details are
+ * still unanswered — chase before the draft banner comes off.
  */
 export const controller = {
-  tradingName: "Agorasim",
+  tradingName: "Agorasim Vintage",
   email: "info@agorasim.pt",
-  /** TODO(legal): registered address of the controller. */
-  address: null as string | null,
-  /** TODO(legal): NIF / company registration number. */
-  registrationNumber: null as string | null,
+  address: "Rua dos Lavadouros 33, Ramilo, 2640-372 Mafra, Portugal",
+  /** Diogo Santos Trajano's NIF — sole trader, no separate company number. */
+  registrationNumber: "NIF 234840919",
   /** Portugal's supervisory authority. */
   supervisoryAuthority: {
     name: "Comissão Nacional de Proteção de Dados (CNPD)",
@@ -76,8 +78,8 @@ export const privacyContent = {
         heading: "Quem somos (responsável pelo tratamento)",
         body: [
           "A Agorasim organiza passeios guiados em carros clássicos pela região Saloia (Sintra, Mafra e Ericeira), em Portugal. Somos o responsável pelo tratamento dos dados pessoais descritos nesta política.",
+          "O responsável pelo tratamento é Agorasim Vintage — Diogo Santos Trajano (trabalhador independente), NIF 234840919, com morada na Rua dos Lavadouros 33, Ramilo, 2640-372 Mafra, Portugal.",
           "Para qualquer questão sobre privacidade, contacte-nos por email para info@agorasim.pt.",
-          "TODO(legal): indicar aqui a denominação social completa, o NIF e a morada da entidade responsável.",
         ],
       },
       {
@@ -140,8 +142,8 @@ export const privacyContent = {
         heading: "Who we are (the data controller)",
         body: [
           "Agorasim runs guided classic-car tours through the Saloia region (Sintra, Mafra and Ericeira) in Portugal. We are the controller for the personal data described in this policy.",
+          "The controller is Agorasim Vintage — Diogo Santos Trajano (sole trader), Portuguese tax number (NIF) 234840919, of Rua dos Lavadouros 33, Ramilo, 2640-372 Mafra, Portugal.",
           "For any privacy question, email us at info@agorasim.pt.",
-          "TODO(legal): state the full registered name, tax number and address of the controlling entity here.",
         ],
       },
       {

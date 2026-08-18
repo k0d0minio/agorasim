@@ -5,7 +5,7 @@ import { db, experienceCatalogue } from "@/db";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import { experienceKindMeta } from "@/lib/admin-format";
-import { formatPrice } from "@/lib/money";
+import { describePricing } from "@/lib/pricing";
 import { experienceIcon } from "@/lib/experience-icons";
 import { listCatalogue } from "@/lib/experience-catalogue";
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -118,15 +118,15 @@ export default async function AdminExperiencesPage() {
                   /{entry.slug} · {t(entry.duration, "en")}
                 </p>
                 <p className="mt-1 text-xs">
-                  {entry.priceCents ? (
+                  {describePricing(entry.pricing) ? (
                     <span className="text-muted-foreground">
-                      {formatPrice(entry.priceCents, "en")} per person
+                      {describePricing(entry.pricing)}
                     </span>
                   ) : (
                     /* Not a nag — an unpriced entry genuinely cannot be sold,
                        and the list is where that is discovered. */
                     <span className="text-destructive">
-                      No price — can&apos;t be booked online
+                      No price list — can&apos;t be booked online
                     </span>
                   )}
                 </p>
