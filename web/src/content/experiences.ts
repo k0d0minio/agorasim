@@ -12,6 +12,7 @@
  */
 import type { Localized } from "@/i18n/config";
 import type { ExperienceIconKey } from "@/lib/experience-icons";
+import type { ExperiencePricing } from "@/lib/pricing";
 
 export type Faq = { question: Localized; answer: Localized };
 
@@ -33,13 +34,21 @@ export type Experience = {
   /**
    * Price per person in euro cents, or `null`/absent when none is set.
    *
-   * Optional here on purpose. This array is the *shipped* catalogue — the seed
-   * and the offline fallback — and the real prices are Diogo & Rita's to give
-   * (AGORA-002). Putting a number in this file would be inventing one, and an
-   * invented price is a price somebody can be charged. Entries without one
-   * cannot be sold; the site offers the enquiry form for them instead.
+   * Superseded by {@link pricing} (AGORA-002): the real offer is tiered and
+   * moded in ways one number cannot say. Kept because the column still exists
+   * and old admin screens read it; nothing prices a sale from it any more.
    */
   priceCents?: number | null;
+  /**
+   * The real price list (AGORA-002) — public/private tiers, child rates,
+   * partner minimums. See `lib/pricing.ts` for the shape and the arithmetic.
+   *
+   * These are Diogo & Rita's actual figures (prices PDF, Aug 2026), so the
+   * shipped fallback can sell: a database outage costs the site its newest
+   * price list, not the ability to price at all. `null` still means
+   * unsellable, and the enquiry form takes over.
+   */
+  pricing?: ExperiencePricing | null;
 };
 
 export const experiences: Experience[] = [
@@ -53,8 +62,8 @@ export const experiences: Experience[] = [
       en: "A classic day through the Saloia countryside, from Sintra to Ericeira",
     },
     summary: {
-      pt: "Rural Saloia é uma experiência guiada de um dia num carro clássico pela região Saloia, entre Sintra e Mafra até à Ericeira. Visita monumentos naturais, vinhas, aldeias, o Palácio Nacional de Mafra e a costa atlântica, com paragens gastronómicas pelo caminho.",
-      en: "Rural Saloia is a guided full-day experience in a classic car through the Saloia region, from Sintra and Mafra to Ericeira. You visit natural monuments, vineyards, villages, the National Palace of Mafra and the Atlantic coast, with gastronomic stops along the way.",
+      pt: "Rural Saloia é uma experiência guiada de 4h30 num carro clássico pela região Saloia, entre Sintra e Mafra até à Ericeira. Visita monumentos naturais, vinhas, aldeias, o Palácio Nacional de Mafra e a costa atlântica, com paragens gastronómicas pelo caminho.",
+      en: "Rural Saloia is a guided 4.5-hour experience in a classic car through the Saloia region, from Sintra and Mafra to Ericeira. You visit natural monuments, vineyards, villages, the National Palace of Mafra and the Atlantic coast, with gastronomic stops along the way.",
     },
     description: {
       pt: [
@@ -68,7 +77,7 @@ export const experiences: Experience[] = [
         "Every departure is hosted by a local guide who shares Saloia stories, traditions and flavours — a cultural and sensory immersion designed for small groups.",
       ],
     },
-    duration: { pt: "Dia completo (aprox. 6–7h)", en: "Full day (approx. 6–7h)" },
+    duration: { pt: "Aprox. 4h30", en: "Approx. 4.5h" },
     highlights: {
       pt: [
         "Passeio em carro clássico (2CV, R4, Fiat 600 ou T3)",
@@ -93,12 +102,32 @@ export const experiences: Experience[] = [
     faqs: [
       {
         question: {
-          pt: "Onde começa e termina a experiência Rural Saloia?",
-          en: "Where does the Rural Saloia experience start and end?",
+          pt: "Onde começa a experiência Rural Saloia?",
+          en: "Where does the Rural Saloia experience start?",
         },
         answer: {
-          pt: "O passeio decorre na região Saloia, entre Sintra, Mafra e a Ericeira. O ponto de encontro é combinado no momento da reserva; podemos incluir recolha em pontos próximos.",
-          en: "The tour takes place in the Saloia region, between Sintra, Mafra and Ericeira. The meeting point is arranged at booking; pickup at nearby points can be included.",
+          pt: "O ponto de encontro é na Av. Mário Firmino Miguel, em Sintra (Portela de Sintra). Há duas partidas por dia, às 10h00 e às 14h00 — escolhe a sua ao reservar, e a confirmação inclui o mapa exato.",
+          en: "The meeting point is Av. Mário Firmino Miguel in Sintra (Portela de Sintra). There are two departures a day, at 10:00 and 14:00 — you pick yours when booking, and your confirmation includes the exact map link.",
+        },
+      },
+      {
+        question: {
+          pt: "Qual é a política de cancelamento?",
+          en: "What is the cancellation policy?",
+        },
+        answer: {
+          pt: "Cancelamento gratuito até 48 horas antes da experiência, com reembolso total. Em caso de mau tempo tentamos sempre reagendar por email; em condições extremas, reembolsamos.",
+          en: "Free cancellation up to 48 hours before the experience, with a full refund. In bad weather we always try to reschedule by email; in extreme conditions, we refund.",
+        },
+      },
+      {
+        question: {
+          pt: "As crianças pagam?",
+          en: "Do children pay?",
+        },
+        answer: {
+          pt: "Crianças dos 4 aos 12 anos têm preço reduzido; bebés com menos de 4 anos não pagam. Todos contam para os lugares do carro — indique o grupo completo ao reservar.",
+          en: "Children aged 4–12 pay a reduced rate; infants under 4 go free. Everyone counts towards the seats in the car, so tell us your full group when booking.",
         },
       },
       {
@@ -122,6 +151,131 @@ export const experiences: Experience[] = [
         },
       },
     ],
+    pricing: {
+      type: "tour",
+      public: {
+        // Per adult, cheaper once the group fills a second car.
+        tiers: [
+          { minAdults: 1, maxAdults: 3, perAdultCents: 6200 },
+          { minAdults: 4, maxAdults: 12, perAdultCents: 5800 },
+        ],
+        childCents: 3500,
+      },
+      private: {
+        // The whole departure, priced by adult count.
+        tiers: [
+          { minAdults: 1, maxAdults: 3, groupCents: 22000 },
+          { minAdults: 4, maxAdults: 4, groupCents: 29000 },
+          { minAdults: 5, maxAdults: 5, groupCents: 35000 },
+          { minAdults: 6, maxAdults: 6, groupCents: 40000 },
+          { minAdults: 7, maxAdults: 7, groupCents: 45000 },
+          { minAdults: 8, maxAdults: 8, groupCents: 50000 },
+          { minAdults: 9, maxAdults: 9, groupCents: 55000 },
+          { minAdults: 10, maxAdults: 10, groupCents: 60000 },
+          { minAdults: 11, maxAdults: 11, groupCents: 65000 },
+          { minAdults: 12, maxAdults: 12, groupCents: 70000 },
+        ],
+        childCents: 3000,
+        allowsAddOns: true,
+      },
+    },
+  },
+  {
+    slug: "obidos-medieval-villages",
+    kind: "signature",
+    icon: "heritage",
+    title: {
+      pt: "Óbidos e Aldeias Medievais",
+      en: "Óbidos & Medieval Villages",
+    },
+    tagline: {
+      pt: "Uma rota gastronómica por Óbidos e aldeias com séculos de história",
+      en: "A food tour through Óbidos and villages with centuries of history",
+    },
+    summary: {
+      pt: "Óbidos e Aldeias Medievais é uma rota guiada de cerca de 5 horas com partida de Lisboa, por Óbidos e aldeias medievais menos conhecidas, com uma pausa de comida e vinho tradicionais pelo caminho.",
+      en: "Óbidos & Medieval Villages is a guided tour of about 5 hours departing from Lisbon, through Óbidos and lesser-known medieval villages, with a traditional food and wine break along the way.",
+    },
+    description: {
+      pt: [
+        "Uma viagem alternativa a lugares menos conhecidos: a vila amuralhada de Óbidos e aldeias medievais que guardam a história como poucas, longe das multidões.",
+        "Pelo caminho há uma pausa de sabores tradicionais — comida e vinho da região — e histórias contadas por quem cresceu por perto.",
+        "A partida é no centro de Lisboa. Ao contrário das experiências Saloias, esta rota não é feita nos carros clássicos.",
+      ],
+      en: [
+        "An alternative road trip to lesser-known places: the walled town of Óbidos and medieval villages that hold their history like few others, away from the crowds.",
+        "Along the way there is a stop for traditional flavours — regional food and wine — and stories told by hosts who grew up nearby.",
+        "Departure is from central Lisbon. Unlike the Saloia experiences, this route is not driven in the classic cars.",
+      ],
+    },
+    duration: { pt: "Aprox. 5h", en: "Approx. 5h" },
+    highlights: {
+      pt: [
+        "Vila medieval de Óbidos",
+        "Aldeias históricas fora das rotas habituais",
+        "Pausa de comida e vinho tradicionais",
+        "Partida do centro de Lisboa",
+      ],
+      en: [
+        "The medieval town of Óbidos",
+        "Historic villages off the usual routes",
+        "Traditional food and wine break",
+        "Departs from central Lisbon",
+      ],
+    },
+    image: "/images/hero.webp",
+    imageAlt: {
+      pt: "Paisagem rural a caminho de Óbidos e das aldeias medievais",
+      en: "Countryside landscape on the way to Óbidos and the medieval villages",
+    },
+    faqs: [
+      {
+        question: {
+          pt: "Onde começa a experiência Óbidos e Aldeias Medievais?",
+          en: "Where does the Óbidos & Medieval Villages experience start?",
+        },
+        answer: {
+          pt: "O ponto de encontro é na Alameda Cardeal Cerejeira, em Lisboa. A confirmação da reserva inclui o mapa exato do ponto de encontro.",
+          en: "The meeting point is Alameda Cardeal Cerejeira in Lisbon. Your booking confirmation includes the exact map link for the meeting point.",
+        },
+      },
+      {
+        question: {
+          pt: "Esta experiência é feita em carros clássicos?",
+          en: "Is this experience in the classic cars?",
+        },
+        answer: {
+          pt: "Não — os carros clássicos ficam reservados para as experiências na região Saloia. Esta rota é feita em viatura confortável, pensada para a distância até Óbidos.",
+          en: "No — the classic cars are reserved for the Saloia-region experiences. This route uses a comfortable vehicle suited to the distance to Óbidos.",
+        },
+      },
+      {
+        question: {
+          pt: "Qual é a política de cancelamento?",
+          en: "What is the cancellation policy?",
+        },
+        answer: {
+          pt: "Cancelamento gratuito até 48 horas antes da experiência, com reembolso total. Em caso de mau tempo tentamos sempre reagendar por email; em condições extremas, reembolsamos.",
+          en: "Free cancellation up to 48 hours before the experience, with a full refund. In bad weather we always try to reschedule by email; in extreme conditions, we refund.",
+        },
+      },
+    ],
+    pricing: {
+      type: "tour",
+      public: {
+        // Public departures need at least two adults.
+        tiers: [{ minAdults: 2, maxAdults: 12, perAdultCents: 10000 }],
+        childCents: 4000,
+        minAdults: 2,
+      },
+      private: {
+        tiers: [
+          { minAdults: 1, maxAdults: 3, groupCents: 36000 },
+          { minAdults: 4, maxAdults: 12, perAdultCents: 11000 },
+        ],
+        childCents: 4000,
+      },
+    },
   },
   {
     slug: "tasco-galapito",
@@ -168,6 +322,13 @@ export const experiences: Experience[] = [
         },
       },
     ],
+    // Only with a private countryside tour; the table seats two or more.
+    pricing: {
+      type: "addon",
+      perAdultCents: 6000,
+      childCents: 2500,
+      minGuests: 2,
+    },
   },
   {
     slug: "manzwine",
@@ -200,7 +361,26 @@ export const experiences: Experience[] = [
       pt: "Copos de vinho numa prova na região de Mafra",
       en: "Wine glasses at a tasting in the Mafra region",
     },
-    faqs: [],
+    faqs: [
+      {
+        question: {
+          pt: "A prova Manzwine está disponível todos os dias?",
+          en: "Is the Manzwine tasting available every day?",
+        },
+        answer: {
+          pt: "A Manzwine encerra à segunda-feira. Nos restantes dias, a prova junta-se à experiência privada Rural Saloia com um mínimo de 2 adultos.",
+          en: "Manzwine closes on Mondays. On other days, the tasting joins the private Rural Saloia experience with a minimum of 2 adults.",
+        },
+      },
+    ],
+    // Only with a private countryside tour; per adult, minimum two; shut Mondays.
+    pricing: {
+      type: "addon",
+      perAdultCents: 3500,
+      childCents: null,
+      minAdults: 2,
+      closedWeekdays: [0],
+    },
   },
   {
     slug: "ramilo-wines",
@@ -233,45 +413,32 @@ export const experiences: Experience[] = [
       pt: "Vinhas biológicas perto da costa atlântica",
       en: "Organic vineyards near the Atlantic coast",
     },
-    faqs: [],
-  },
-  {
-    slug: "olaria-mz",
-    kind: "complement",
-    icon: "pottery",
-    title: { pt: "Olaria MZ", en: "Olaria MZ" },
-    tagline: {
-      pt: "Uma tarde às mãos com o barro",
-      en: "An afternoon working with clay",
+    faqs: [
+      {
+        question: {
+          pt: "Qual é o mínimo de pessoas para a visita Ramilo Wines?",
+          en: "What is the minimum group for the Ramilo Wines visit?",
+        },
+        answer: {
+          pt: "A visita realiza-se com um mínimo de 3 adultos, como complemento da experiência privada Rural Saloia.",
+          en: "The visit runs with a minimum of 3 adults, as an add-on to the private Rural Saloia experience.",
+        },
+      },
+    ],
+    // Only with a private countryside tour; per adult, minimum three.
+    pricing: {
+      type: "addon",
+      perAdultCents: 4500,
+      childCents: null,
+      minAdults: 3,
     },
-    summary: {
-      pt: "Olaria MZ é um workshop de cerâmica de cerca de 1,5 horas, onde trabalha o barro com um artesão local e leva a sua própria peça. Uma experiência criativa e sensorial da tradição Saloia.",
-      en: "Olaria MZ is a ceramics workshop of about 1.5 hours where you work the clay with a local artisan and take home your own piece. A creative, hands-on experience of Saloia tradition.",
-    },
-    description: {
-      pt: [
-        "Uma introdução prática à olaria tradicional, guiada por um artesão local. Molde a sua peça e descubra um ofício com raízes profundas na região.",
-      ],
-      en: [
-        "A hands-on introduction to traditional pottery, guided by a local artisan. Shape your own piece and discover a craft with deep roots in the region.",
-      ],
-    },
-    duration: { pt: "Aprox. 1h30", en: "Approx. 1.5h" },
-    highlights: {
-      pt: ["Workshop de cerâmica", "Artesão local", "Leva a sua peça"],
-      en: ["Ceramics workshop", "Local artisan", "Take your piece home"],
-    },
-    image: "/images/back-of-car.webp",
-    imageAlt: {
-      pt: "Mãos a moldar barro num workshop de cerâmica",
-      en: "Hands shaping clay at a ceramics workshop",
-    },
-    faqs: [],
   },
 ];
 
 export const signatureExperience = experiences.find((e) => e.kind === "signature")!;
 export const complementExperiences = experiences.filter((e) => e.kind === "complement");
+/** The bookable tours — there are two now, so "the signature" is no longer "the offer". */
+export const tourExperiences = experiences.filter((e) => e.kind === "signature");
 
 export function getExperience(slug: string): Experience | undefined {
   return experiences.find((e) => e.slug === slug);

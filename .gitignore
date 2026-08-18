@@ -1,1 +1,5 @@
 node_modules
+
+# Diogo & Rita reference PDFs — agorasim-info.pdf holds credentials/IBAN, never commit
+.icm/docs/agorasim-info.pdf
+.icm/docs/prices.pdf
