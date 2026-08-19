@@ -17,13 +17,14 @@ import { Label } from "@/components/ui/label";
  * The image control of the catalogue editor.
  *
  * This replaces a plain text input that expected an operator to type
- * `/images/car.jpg` — which only ever worked for files a developer had
- * committed to `web/public/`. Now the photo goes straight from the operator's
- * phone to blob storage (`upload()` from `@vercel/blob/client`; the token is
- * minted by `/api/admin/experiences/upload`), and what the form submits is
- * unchanged: a hidden input named `image` carrying either the new blob URL or
- * whatever the row already had. `saveExperience` and its schema never know the
- * control changed.
+ * `/images/fleet/citroen-2cv-agorasim-door-detail.jpg` — which only ever
+ * worked for files a developer had committed to `web/public/`. Now the photo
+ * goes straight from the operator's phone to blob storage (`upload()` from
+ * `@vercel/blob/client`; the token is minted by
+ * `/api/admin/experiences/upload`), and what the form submits is unchanged: a
+ * hidden input named `image` carrying either the new blob URL or whatever the
+ * row already had. `saveExperience` and its schema never know the control
+ * changed.
  *
  * The upload is client-side because it has to be — a server action on Vercel
  * caps the body at 4.5 MB, less than one phone photo.

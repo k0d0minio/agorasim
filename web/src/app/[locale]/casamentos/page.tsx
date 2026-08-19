@@ -74,7 +74,7 @@ export default async function WeddingsPage({
           </div>
           <div className="relative aspect-4/3 overflow-hidden rounded-2xl">
             <Image
-              src="/images/front-of-car.webp"
+              src="/images/weddings/2cv-front-at-quinta-square.webp"
               alt={
                 l === "pt"
                   ? "Citroën 2CV decorado com flores a chegar a um casamento"

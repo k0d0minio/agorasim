@@ -3,7 +3,8 @@
  *
  * The `experiences.image` column holds one of exactly two shapes:
  *
- * - a **legacy site-relative path** (`/images/car.jpg`) — a file a developer
+ * - a **legacy site-relative path**
+ *   (`/images/fleet/citroen-2cv-agorasim-door-detail.jpg`) — a file a developer
  *   committed to `web/public/` before the editor could upload anything, and
  * - a **Vercel Blob URL** (`https://<store>.public.blob.vercel-storage.com/
  *   experiences/…`) — what the upload field in `/admin/experiences` writes.

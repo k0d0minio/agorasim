@@ -94,7 +94,7 @@ export const experiences: Experience[] = [
         "Vineyards, villages and regional sweets",
       ],
     },
-    image: "/images/car.jpg",
+    image: "/images/fleet/citroen-2cv-agorasim-door-detail.jpg",
     imageAlt: {
       pt: "Citroën 2CV da Agorasim numa quinta da região Saloia",
       en: "Agorasim Citroën 2CV at a countryside estate in the Saloia region",
@@ -223,10 +223,10 @@ export const experiences: Experience[] = [
         "Departs from central Lisbon",
       ],
     },
-    image: "/images/hero.webp",
+    image: "/images/obidos-medieval-villages/town-gate-arch-2cv.jpg",
     imageAlt: {
-      pt: "Paisagem rural a caminho de Óbidos e das aldeias medievais",
-      en: "Countryside landscape on the way to Óbidos and the medieval villages",
+      pt: "Carro clássico Agorasim visto através de uma porta medieval de Óbidos",
+      en: "Agorasim classic car seen through a medieval town gate in Óbidos",
     },
     faqs: [
       {
@@ -305,10 +305,10 @@ export const experiences: Experience[] = [
       pt: ["Refeição privada de família", "Cozinha Saloia tradicional", "Produtos locais"],
       en: ["Private family meal", "Traditional Saloia cuisine", "Local produce"],
     },
-    image: "/images/picnic.jpeg",
+    image: "/images/tasco-galapito/cover-leitao-long-table.jpg",
     imageAlt: {
-      pt: "Mesa posta com pratos tradicionais Saloios",
-      en: "Table set with traditional Saloia dishes",
+      pt: "Leitão assado servido na mesa comprida do Tasco Galapito",
+      en: "Roast suckling pig served on the long table at Tasco Galapito",
     },
     faqs: [
       {
@@ -356,7 +356,7 @@ export const experiences: Experience[] = [
       pt: ["Prova guiada", "Castas locais", "Contexto histórico"],
       en: ["Guided tasting", "Local grape varieties", "Historical context"],
     },
-    image: "/images/picnic-2.jpeg",
+    image: "/images/manzwine/tasting-table-cheese-board.jpg",
     imageAlt: {
       pt: "Copos de vinho numa prova na região de Mafra",
       en: "Wine glasses at a tasting in the Mafra region",
@@ -408,10 +408,10 @@ export const experiences: Experience[] = [
       pt: ["Vinhas biológicas", "Prova de vinhos", "Influência atlântica"],
       en: ["Organic vineyards", "Wine tasting", "Atlantic influence"],
     },
-    image: "/images/front-of-car.webp",
+    image: "/images/ramilo-wines/colares-glass-in-the-vineyard.jpg",
     imageAlt: {
-      pt: "Vinhas biológicas perto da costa atlântica",
-      en: "Organic vineyards near the Atlantic coast",
+      pt: "Copo de vinho de Colares nas vinhas da Ramilo, junto ao Atlântico",
+      en: "A glass of Colares wine in Ramilo's vineyards near the Atlantic",
     },
     faqs: [
       {

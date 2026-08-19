@@ -479,7 +479,7 @@ describe("the experience catalogue", () => {
       slug: "nova-prova",
       kind: "complement",
       icon: "wine",
-      image: "/images/picnic.jpeg",
+      image: "/images/rural-saloia/picnic-hamper-and-table.jpg",
       active: "on",
       sortOrder: "5",
       titlePt: "Nova Prova",

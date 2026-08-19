@@ -69,7 +69,7 @@ export const weddingsContent = {
     cars: [
       {
         name: "Citroën 2CV",
-        image: "/images/back-of-car.webp",
+        image: "/images/weddings/2cv-rear-floral-garland-square.webp",
         note: {
           pt: "O charme francês, perfeito para fotografias no campo.",
           en: "French charm, perfect for countryside photographs.",
@@ -77,7 +77,7 @@ export const weddingsContent = {
       },
       {
         name: "Fiat 600",
-        image: "/images/red-car.webp",
+        image: "/images/weddings/fiat-600-front-with-bride-square.webp",
         note: {
           pt: "Pequeno, vermelho e irresistível — a estrela das entradas.",
           en: "Small, red and irresistible — the star of every entrance.",
@@ -85,7 +85,7 @@ export const weddingsContent = {
       },
       {
         name: "Renault 4L",
-        image: null,
+        image: "/images/weddings/renault-4-mafra-palace.jpg",
         note: {
           pt: "Descontraído e elegante, como os casamentos ao fim da tarde.",
           en: "Relaxed and elegant, like a late-afternoon wedding.",
