@@ -52,7 +52,7 @@ export const EMPTY_EXPERIENCE: ExperienceFormValues = {
   slug: "",
   kind: "complement",
   icon: "sparkles",
-  image: "/images/car.jpg",
+  image: "/images/fleet/citroen-2cv-agorasim-door-detail.jpg",
   price: "",
   active: true,
   sortOrder: 0,

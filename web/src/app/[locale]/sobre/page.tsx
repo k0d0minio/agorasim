@@ -38,7 +38,7 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
             <p className="mt-6 text-lg text-muted-foreground">{t(about.lead, l)}</p>
           </div>
           <Media
-            src="/images/hero.webp"
+            src="/images/rural-saloia/guests-under-olive-tree-hero.webp"
             label={l === "pt" ? "Grupo a descobrir a região Saloia ao pôr do sol" : "Group discovering the Saloia region at sunset"}
             className="aspect-4/3 w-full"
           />

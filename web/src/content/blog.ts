@@ -97,7 +97,7 @@ export const sampleBlogPosts: BlogPostPreview[] = [
     tag: { pt: "Roteiros", en: "Itineraries" },
     date: "2026-07-14",
     readingMinutes: 6,
-    image: "/images/hero.webp",
+    image: "/images/rural-saloia/guests-under-olive-tree-hero.webp",
     imageAlt: {
       pt: "Fim de tarde sobre a costa da Ericeira",
       en: "Late afternoon over the Ericeira coastline",
@@ -130,7 +130,7 @@ export const sampleBlogPosts: BlogPostPreview[] = [
     tag: { pt: "Região", en: "The region" },
     date: "2026-06-30",
     readingMinutes: 5,
-    image: "/images/car.jpg",
+    image: "/images/fleet/citroen-2cv-agorasim-door-detail.jpg",
     imageAlt: {
       pt: "Carro clássico numa estrada rural Saloia",
       en: "Classic car on a rural Saloia road",
@@ -163,7 +163,7 @@ export const sampleBlogPosts: BlogPostPreview[] = [
     tag: { pt: "Gastronomia", en: "Food & wine" },
     date: "2026-06-12",
     readingMinutes: 7,
-    image: "/images/picnic.jpeg",
+    image: "/images/rural-saloia/picnic-hamper-and-table.jpg",
     imageAlt: {
       pt: "Piquenique com produtos regionais Saloios",
       en: "Picnic with regional Saloia produce",
