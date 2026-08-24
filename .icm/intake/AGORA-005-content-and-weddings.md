@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| Status | blocked |
+| Status | ready |
 | Type | feature |
 | Priority | P1 |
 | Size | M |
-| Blocked by | Diogo & Rita's Section 2 answers (photos, car details, weddings offer, testimonials) |
+| Blocked by | — unblocked 24 Aug: the Section 2 answers are in the info PDF (car stories §2.2, weddings offer §2.3, testimonials §2.5). Only photos remain missing → AGORA-008/019 |
 | Sources | [.icm/docs/launch-plan.md](../docs/launch-plan.md) Phase 4 |
 
 ## Problem
@@ -17,11 +17,18 @@ includes weddings (`/casamentos`) going live.
 
 ## Acceptance
 
-- [ ] Real photos ingested and optimized (partners, Renault 4L + VW T3, tour-in-action).
-- [ ] Car details and stories in `site.ts` / experience content.
-- [ ] Real weddings offer + pricing in `weddings.ts`; enquiry form enabled; `/casamentos`
-      flipped to live in `routes.ts`.
-- [ ] Testimonials section from their 3–5 quotes.
+- [ ] ~~Real photos ingested~~ — moved to AGORA-008 (WeTransfer links expired). Land
+      everything photo-ready: tiles render "photos coming" until an image path is set.
+- [ ] Car details and stories in `site.ts` / experience content — info PDF §2.2 has all
+      four (Josefina 2CV '86, Catrel 4L '89, Cerejinha Fiat 600 '70, Caravela T3 '88).
+- [ ] Real weddings offer in `weddings.ts` — §2.3: transport of the couple, photo
+      sessions, flower decoration, personalised wooden boards; coverage unlimited; book
+      3–4 months ahead. **Pricing is quote-per-event — no fixed price list**; the page
+      copy sells the enquiry (the quote itself is AGORA-015's flow). Enquiry form
+      enabled; `/casamentos` flipped to live in `routes.ts`.
+- [ ] Testimonials section from the three §2.5 quotes (Jacob & Danita CA, Madeline &
+      Elliot AU, Brian & Elizabeth US) — trim with care, publish without faces until the
+      photo link is re-sent.
 - [ ] PT/EN parity on all new content (`Localized<T>` everywhere).
 - [ ] CI green.
 

@@ -6,7 +6,7 @@
 | Type | feature |
 | Priority | P2 |
 | Size | M |
-| Depends on | AGORA-002 (the pricing model this edits) |
+| Depends on | AGORA-002 (the pricing model this edits) · AGORA-012 + the AGORA-019 seat-sharing answer — public/private tier semantics may shift; don't build the editor against a shape about to change |
 
 ## Problem
 
