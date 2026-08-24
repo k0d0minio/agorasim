@@ -6,7 +6,7 @@
 | Type | config |
 | Priority | P1 |
 | Size | S |
-| Depends on | AGORA-001–005 |
+| Depends on | AGORA-001–005 · AGORA-012–014 (correct availability model, commission, Vercel go-live first) |
 | Sources | [.icm/docs/launch-plan.md](../docs/launch-plan.md) Phase 5 · **runbook: [.icm/docs/launch-runbook.md](../docs/launch-runbook.md)** |
 
 ## Problem
