@@ -12,7 +12,14 @@ Use these facts verbatim. Do not invent prices, dates or claims not listed here.
 - Instagram / Facebook: @agorasim.pt
 
 ## Classic cars
-Citroën 2CV, Renault 4L, Fiat 600, Volkswagen T3.
+Citroën 2CV, Renault 4L, Fiat 600 (3 guests each), Volkswagen T3 (8 guests). The Óbidos route
+departs from Lisbon in a non-classic touring vehicle — the classics stay on the Saloia routes.
+
+## Capacity
+Two drivers across the fleet, so **at most two tours leave at once**, business-wide, in two
+daily slots (10:00 and 14:00). A booking takes one driver and one car; groups above 8 need a
+third car and therefore a third driver, which is an open question with Diogo & Rita — those
+groups are arranged by conversation, not online.
 
 ## Experiences
 - **Rural Saloia** (signature, full day ~6–7h): natural monuments between Sintra and Mafra,
@@ -21,7 +28,6 @@ Citroën 2CV, Renault 4L, Fiat 600, Volkswagen T3.
 - **Tasco Galapito** (~2h): private family-style meal, traditional Saloia cuisine.
 - **Manzwine** (~1.5h): wine tasting with historical context, Mafra region.
 - **Ramilo Wines** (~1.5h): organic vineyard visit with tasting.
-- **Olaria MZ** (~1.5h): traditional ceramics workshop with a local artisan.
 
 ## Positioning
 Slow, authentic, crowd-free rural tourism that supports local producers and artisans.

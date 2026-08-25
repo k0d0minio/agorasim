@@ -11,6 +11,7 @@ import { privacyContent } from "@/content/privacy";
 import { departureLabel } from "@/content/logistics";
 import type { Experience } from "@/content/experiences";
 import type { PublicMonth } from "@/lib/availability";
+import { MAX_PARTY_ONLINE } from "@/lib/fleet";
 import {
   isPriced,
   maxAdultsOf,
@@ -52,8 +53,16 @@ import { cn } from "@/lib/utils";
  * not so much as look at a total in the form.
  */
 
-/** Physical ceiling on one departure — the combined fleet. Server re-checks. */
-const MAX_SEATS = 14;
+/**
+ * The most guests the site sells online — the VW T3's seats.
+ *
+ * Not a ceiling on the *business*: the team take bigger groups by combining
+ * cars, which needs a third driver nobody has yet named (AGORA-019). Until
+ * they do, a ninth guest is a conversation rather than a checkout, and the
+ * steppers stop here with the "talk to us" line under the total. The server
+ * refuses the same number, from the same constant.
+ */
+const MAX_SEATS = MAX_PARTY_ONLINE;
 
 function PayButton({ locale }: { locale: Locale }) {
   const { pending } = useFormStatus();
@@ -126,14 +135,20 @@ function Stepper({
 export function BookingCheckoutForm({
   locale,
   experiences,
-  availabilityBySlug,
+  availability,
   testMode,
 }: {
   locale: Locale;
   /** The live catalogue — tours and add-ons, with their price lists. */
   experiences: Experience[];
-  /** Each tour's public calendar, keyed by slug. */
-  availabilityBySlug: Record<string, PublicMonth[]>;
+  /**
+   * The public calendar — one for the whole business, not one per tour.
+   *
+   * Drivers and cars are shared (AGORA-012), so there is nothing per-tour left
+   * to key on: what differs between routes is which class of car they draw,
+   * and the picker works that out from the counts in here.
+   */
+  availability: PublicMonth[];
   /** Running against Stripe test keys — say so, loudly. */
   testMode: boolean;
 }) {
@@ -167,7 +182,10 @@ export function BookingCheckoutForm({
   const pricing = tour?.pricing?.type === "tour" ? tour.pricing : null;
   const allowsAddOns = Boolean(pricing?.private?.allowsAddOns);
   const addOnsOffered = allowsAddOns && complements.length > 0;
-  const maxAdults = Math.max(1, maxAdultsOf(tour?.pricing) || 12);
+  // The price list goes higher than the fleet can carry without a third
+  // driver, so the smaller of the two wins: a tier nobody can be driven to is
+  // not an offer.
+  const maxAdults = Math.max(1, Math.min(maxAdultsOf(tour?.pricing) || MAX_SEATS, MAX_SEATS));
   const seats = adults + children + infants;
 
   /** Why one add-on cannot join this basket right now, or null when it can. */
@@ -399,6 +417,19 @@ export function BookingCheckoutForm({
             <p className="pt-3 text-center text-sm text-muted-foreground">
               {t(c.labels.partyHint, l)}
             </p>
+            {/*
+              The steppers stop at eight because that is the biggest car. A
+              control that simply refuses to move is a control that reads as
+              broken, so the reason and the way forward sit right under it —
+              a group of ten is real business, it is just a phone call until
+              AGORA-019 says who drives the third car.
+            */}
+            <p className="pt-2 text-center text-xs text-muted-foreground">
+              {t(c.labels.bigGroupNote, l).replace("{max}", String(MAX_SEATS))}{" "}
+              <Link href={href(l, "contactos")} className="underline hover:text-primary">
+                {t(c.labels.bigGroupLink, l)}
+              </Link>
+            </p>
             {state.fieldErrors?.party ? (
               <p className="pt-2 text-center text-sm text-destructive" role="alert">
                 {state.fieldErrors.party}
@@ -407,9 +438,16 @@ export function BookingCheckoutForm({
           </Card>
         </section>
 
-        {/* The calendar — per tour, per mode; changing either starts over. */}
+        {/*
+          The calendar. One calendar for the whole business (AGORA-012) — what
+          changes with the tour and the party is not *which* days exist but
+          which of them have the right car free, which is why both are passed
+          down rather than a pre-filtered month list. The `key` restarts the
+          picker when either changes: a day that fitted a couple in a 2CV may
+          not fit the five people they have just become.
+        */}
         <BookingDatePicker
-          key={`${tour.slug}-${mode}`}
+          key={`${tour.slug}-${seats}`}
           locale={l}
           // The checkout's field, not the enquiry's. A card cannot be charged
           // for "late August", so the free-text escape becomes a link out.
@@ -417,10 +455,11 @@ export function BookingCheckoutForm({
           slotName="slot"
           slotHeading={t(c.labels.slot, l)}
           slotLabels={slotLabels}
-          mode={mode}
+          experienceSlug={tour.slug}
+          partySize={seats}
           allowFlexible={false}
           contactHref={href(l, "contactos")}
-          months={availabilityBySlug[tour.slug] ?? []}
+          months={availability}
           defaultValue={state.values?.date}
           error={state.fieldErrors?.date}
           onDateChange={setDate}

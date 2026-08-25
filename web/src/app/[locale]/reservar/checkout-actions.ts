@@ -110,7 +110,8 @@ function pricingFailureState(
  *
  * The action's job is to be suspicious. Everything the browser sends is a
  * suggestion: the departure is re-checked against the live calendar and the
- * seats actually left, and **the price is not read from the form at all** — it
+ * drivers and cars actually free, and **the price is not read from the form at
+ * all** — it
  * is computed here by the same engine the browser used for display
  * (`lib/pricing.ts`), from the catalogue rows. A hidden `total` input would be
  * the obvious way to build this and the obvious way to get robbed.
@@ -222,19 +223,33 @@ export async function startCheckout(
       : { error: state.message, values: entered };
   }
 
+  /*
+   * The capacity re-check, against the shared pools (AGORA-012).
+   *
+   * Not "are there seats left on this tour's calendar" any more — that question
+   * could be answered yes twice over for the same 10:00. This asks whether a
+   * driver is free and whether the class of car *this* party needs on *this*
+   * route is free, counting bookings on every route, and it hands back which
+   * car was assigned so the booking row can record it.
+   */
   const check = await checkSlotAvailable({
     experienceSlug: experience.slug,
     date: booking.date,
     slot: booking.slot,
-    seats: priced.seats,
-    mode: booking.mode,
-    occupancy: await slotOccupancyOn(experience.slug, booking.date, booking.slot),
+    partySize: priced.seats,
+    occupancy: await slotOccupancyOn(booking.date, booking.slot),
   });
 
   if (!check.ok) {
+    // Three different noes, three different sentences. "The car for a group
+    // your size is taken" points at another day; "groups above eight" points
+    // at a phone call; everything else is the day simply being gone.
+    if (check.reason === "party-too-large") {
+      return { fieldErrors: { party: t(c.groupTooLarge, locale) }, values: entered };
+    }
     return {
       fieldErrors: {
-        date: t(check.reason === "too-many" ? c.partyTooLarge : c.dayGone, locale),
+        date: t(check.reason === "no-vehicle" ? c.carGone : c.dayGone, locale),
       },
       values: entered,
     };
@@ -255,6 +270,7 @@ export async function startCheckout(
       slot: booking.slot,
       mode: booking.mode,
       party,
+      vehicleClass: check.vehicleClass,
       experience,
       addOns: knownAddOns,
       lines: priced.lines,

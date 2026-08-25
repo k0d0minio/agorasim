@@ -63,18 +63,19 @@ export const tourRequestContent = {
   calendar: {
     label: { pt: "Escolha o dia", en: "Pick a day" } as Localized,
     hint: {
-      pt: "Mostramos apenas os dias com lugares disponíveis.",
-      en: "We only show days with seats still available.",
+      pt: "Mostramos apenas os dias com carro e motorista disponíveis.",
+      en: "We only show days with a car and a driver still free.",
     } as Localized,
     chosen: { pt: "Dia escolhido", en: "Chosen day" } as Localized,
     clear: { pt: "Limpar", en: "Clear" } as Localized,
-    seatsLeft: {
-      pt: "lugares",
-      en: "seats",
-    } as Localized,
-    seatLeft: {
-      pt: "lugar",
-      en: "seat",
+    /**
+     * Shown under a departure when the car this party needs is the last one
+     * free. Never a count of what else is out — that is somebody else's
+     * booking, and none of this guest's business.
+     */
+    lastCar: {
+      pt: "último carro disponível",
+      en: "last car available",
     } as Localized,
     previousMonth: { pt: "Mês anterior", en: "Previous month" } as Localized,
     nextMonth: { pt: "Mês seguinte", en: "Next month" } as Localized,
