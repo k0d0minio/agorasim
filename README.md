@@ -27,9 +27,9 @@ pnpm lint
   (+ `[slug]` per experience), `eventos`, `contactos`.
 - **Content** lives in `web/src/content/` as `Localized<T>` objects (keep PT/EN in sync). Reviewed
   pipeline output lands in `web/src/content/generated/`.
-- **Booking** goes through the site's own form (`/[locale]/reservar`), which stores the
-  enquiry in the database for the admin Sales board to triage. No third-party booking
-  provider is involved.
+- **Booking** goes through `/[locale]/reservar`: calendar availability + Stripe Checkout
+  (sandbox keys until the agorasim.pt switch), landing on the admin Sales board. The
+  enquiry form remains the fallback path.
 - **GEO**: per-page JSON-LD (`web/src/lib/jsonld.ts`), canonical + hreflang (`web/src/lib/seo.ts`),
   `sitemap.ts`, `robots.ts` (allows AI crawlers), and `public/llms.txt`.
 
@@ -42,5 +42,5 @@ ICM workspaces — plain folders of markdown that drive human-reviewed content p
 
 - Real photos & hero video are wired from `web/public/images/`; experience photos added
   from the admin upload to Vercel Blob.
-- Later: more pipelines (blog/social/email) and instant booking with payments on top of
-  the native booking form.
+- Instant booking with Stripe payments shipped (Jul 2026); commission engine and the
+  live-key flip ride the agorasim.pt switchover. Later: more pipelines (blog/social/email).
