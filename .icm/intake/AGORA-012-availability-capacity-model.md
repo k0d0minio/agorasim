@@ -32,7 +32,7 @@ starting from scratch; landing it may be the whole ticket.** The Óbidos/Medieva
       consumes a driver plus vehicle(s) sized to the party, across all tours.
 - [ ] Party→vehicle assignment: ≤3 → one small classic; 4–8 → VW T3; 9+ → blocked at
       checkout until the open-questions pack settles the big-group rule (do not guess).
-- [ ] Bookings are private-per-vehicle (no strangers sharing) until AGORA-019 answers the
+- [ ] Bookings are private-per-vehicle (no strangers sharing) until the icm-board question pack (not yet sent) answers the
       public-tier question — the pricing tiers stay, only the sharing semantics wait.
 - [ ] Óbidos consumes a driver + non-classic vehicle; it never depletes the classic fleet.
 - [ ] Checkout re-checks pool capacity server-side; seat-hold/expiry logic updated to match.
