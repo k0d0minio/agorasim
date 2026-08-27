@@ -1,25 +1,32 @@
 # Agorasim — Launch Runbook (AGORA-006)
 
-**Target: ≈ 24 August 2026.** This is the exact sequence for cutover day and the
-days around it. Prepared 18 Aug; the checkboxes are Jamie's to tick, never a
+**Target: superseded — no promised date** (DEAL.md, 2026-08-27): the objective is
+a sandbox-payments testable version at **agorasim.jamienisbet.com** first; cutover
+happens when Diogo & Rita recover the domain **and** create their Stripe account,
+with the Connect commission engine (AGORA-013) live before real money moves. This
+remains the exact sequence for cutover day and the days around it. Prepared
+18 Aug, stale facts corrected 28 Aug; the checkboxes are Jamie's to tick, never a
 session's. DNS and live-payment steps are human actions by design.
 
 ## State going in (18 Aug)
 
-- PR #29 (AGORA-002: pricing engine, two tours, two departures, real facts) and
-  PR #30 (AGORA-005: weddings live, cars, testimonials) opened today — merge
-  #29 first, then #30 (stacked).
+- PR #29 (AGORA-002: pricing engine, two tours, two departures, real facts)
+  merged. **PR #30 (AGORA-005: weddings live, cars, testimonials) never reached
+  `main`** — it merged into an already-merged branch; AGORA-005 is the rescue
+  ticket, and it must land before the regression pass below.
 - Migration `0012` runs on merge to main via the DB-migrate workflow: seeds real
   prices + Óbidos, archives Olaria, moves `full_day` slots to `morning`, and
   **deletes the mock seed data from production**.
 - Still open: AGORA-007 (RNAAT/insurance/invoicing → privacy draft banner),
   AGORA-008 (photos). Neither is launch-blocking by the plan's risk table, but
   chase both daily.
-- Stripe: account details submitted from Diogo's answers (owner Diogo Santos
-  Trajano, NIF 234840919, IBAN on file, ID via WhatsApp). **Activation status is
-  the #1 external risk — check it every morning.** Fallback (decide by day 10 ≈
-  20 Aug): deploy without `STRIPE_SECRET_KEY` and the site takes enquiries with
-  the date picker instead of payment.
+- Stripe: **per DEAL.md (27 Aug) their account has not been created** — the
+  18 Aug application notes are void; development runs against a sandbox in Jamie's
+  account, and their account + the Connect commission wiring (AGORA-013) are
+  needed before real money moves. **Account creation is the #1 external risk —
+  chase it as go-live approaches.** Fallback stands: deploy without
+  `STRIPE_SECRET_KEY` and the site takes enquiries with the date picker instead
+  of payment.
 
 ## Pre-flight (before DNS) — 19–23 Aug
 
