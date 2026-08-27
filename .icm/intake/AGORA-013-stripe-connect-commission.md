@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | today |
+| Status | ready |
 | Type | feature |
 | Priority | P0 |
 | Size | M |
@@ -11,16 +11,20 @@
 
 ## Problem
 
-The signed commission agreement specifies **Stripe Connect application fees** on
+The commission agreement (drafted, **unsigned — signing deferred, still the intended
+instrument**; Jamie, 27 Aug) specifies **Stripe Connect application fees** on
 Agorasim's **own** account (they remain merchant of record): tours **4% of the booking
 total, floor €10, cap €50**; car hire & events **6%**, taken proportionally on each
 payment; application fees refunded proportionally on refunds. The codebase has **zero
 Connect code** — `stripe()` uses a plain secret key, and no commission is computed or
-recorded anywhere. Jamie has decided this must be live **before the first real booking**,
-so it sits in the launch critical path alongside their (in-progress) account activation.
+recorded anywhere. This must be live **before the first real booking**.
 
-Note: `.icm/docs/2026-07-collaboration-proposal.md` still describes a no-commission
-model — it predates the signed agreement and must be reconciled so nobody quotes it.
+Reality as of 27 Aug: **Diogo & Rita have not created their Stripe account yet, and
+development runs in sandbox within Jamie's account.** Build and prove everything in
+test mode against a sandbox connected account; the flow must work with their real
+account connecting later (that connection + activation gates AGORA-006's live flip,
+not this ticket). The dead July proposal has been deleted — the deal of record is in
+icm-board `workspaces/deals/diogo-rita/DEAL.md`.
 
 ## Acceptance
 

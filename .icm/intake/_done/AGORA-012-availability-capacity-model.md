@@ -19,8 +19,11 @@ current model lets both sell the same capacity and double-book a day.
 
 Vehicle facts: Citroën 2CV / Renault 4L / Fiat 600 carry **3 guests** each, the VW T3
 carries **8**; bigger groups combine vehicles (their stated max is 14 — the arithmetic
-needs a third driver, open question in AGORA-019). The Óbidos/Medieval tour runs in a
-**non-classic** vehicle (§2.6) but still consumes a driver.
+needs a third driver, open question in the pack at icm-board
+`workspaces/deals/diogo-rita/open-questions.md`; still unanswered 27 Aug). The model below
+is confirmed as current reality by Jamie (27 Aug), subject to change when Diogo & Rita
+answer. The Óbidos/Medieval tour runs in a **non-classic** vehicle (§2.6) but still
+consumes a driver.
 
 ## Acceptance
 
@@ -29,10 +32,10 @@ needs a third driver, open question in AGORA-019). The Óbidos/Medieval tour run
       (`availability` lost `experience_slug`/`capacity` and gained `drivers`;
       `lib/fleet.ts` owns the fleet, `lib/availability.ts` the arithmetic.)
 - [x] Party→vehicle assignment: ≤3 → one small classic; 4–8 → VW T3; 9+ → blocked at
-      checkout until AGORA-019 settles the big-group rule (do not guess).
+      checkout until the open-questions pack settles the big-group rule (do not guess).
       (`assignVehicle`; the steppers stop at 8 and point at the contact page.)
-- [x] Bookings are private-per-vehicle (no strangers sharing) until AGORA-019 answers the
-      public-tier question — the pricing tiers stay, only the sharing semantics wait.
+- [x] Bookings are private-per-vehicle (no strangers sharing) until the open-questions pack
+      answers the public-tier question — the pricing tiers stay, only the sharing semantics wait.
       (`bookings.exclusive` dropped; `mode` is a price tier and nothing else. The
       "Shared — you join other travellers" copy is gone, since it had stopped being true.)
 - [x] Óbidos consumes a driver + non-classic vehicle; it never depletes the classic fleet.
@@ -51,9 +54,10 @@ needs a third driver, open question in AGORA-019). The Óbidos/Medieval tour run
       backfills every booking's `vehicle_class` by the same rule new ones use.)
 - [x] CI green.
 
-## Still waiting on AGORA-019
+## Still waiting on the open-questions pack
 
-Two answers are deliberately *not* guessed here, and both are one constant away when they
+Two answers are deliberately *not* guessed here (the pack now lives on icm-board at
+`workspaces/deals/diogo-rita/open-questions.md`), and both are one constant away when they
 arrive:
 
 - **Big groups.** `MAX_PARTY_ONLINE` in `web/src/lib/fleet.ts` is 8 — the T3's seats. Their

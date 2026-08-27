@@ -12,10 +12,12 @@
 ## Problem
 
 Proposal feature #6 — the paid car-hire/weddings flow — exists only as copy and mock
-data. The agreed flow: **30% deposit** via a custom payment link to hold the date
-(non-refundable inside a window that was never defined — AGORA-019), **balance
-auto-collected 14 days before** the event, confirmations and reminders automatic, **6%
-commission on each payment**. Weddings are quoted per event (§2.3), so someone has to
+data. The agreed flow: **30% deposit** via a custom payment link to hold the date,
+**balance auto-collected 14 days before** the event, confirmations and reminders
+automatic, **6% commission on each payment**. The non-refundable window was never
+defined — **use a sensible default (non-refundable inside 30 days of the event, free
+date-change before that) until Diogo & Rita confirm** (Jamie, 27 Aug; the question
+lives in icm-board `workspaces/deals/diogo-rita/open-questions.md`). Weddings are quoted per event (§2.3), so someone has to
 compose each quote: decision is an **admin quote builder** Diogo & Rita (or Jamie) use.
 
 ## Acceptance

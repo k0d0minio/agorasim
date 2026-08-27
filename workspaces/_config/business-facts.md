@@ -7,7 +7,9 @@ Use these facts verbatim. Do not invent prices, dates or claims not listed here.
 - What: guided rural experiences in classic cars in the Saloia region of Portugal.
 - Region served: Saloia — the countryside between Sintra, Mafra and Ericeira.
 - Languages: Portuguese (default) and English.
-- Booking: the website's own request form (agorasim.pt/reservar). Enquiries by phone/email.
+- Booking: the website's booking flow with calendar + card payment (`/reservar`). Enquiries by
+  phone/email. Target domain agorasim.pt (being recovered); the site currently serves at
+  agorasim.jamienisbet.com.
 - Contacts: Diogo +351 926 210 707 · Rita +351 919 272 077 · info@agorasim.pt
 - Instagram / Facebook: @agorasim.pt
 
@@ -22,12 +24,16 @@ third car and therefore a third driver, which is an open question with Diogo & R
 groups are arranged by conversation, not online.
 
 ## Experiences
-- **Rural Saloia** (signature, full day ~6–7h): natural monuments between Sintra and Mafra,
+- **Rural Saloia** (signature, **~4h30**): natural monuments between Sintra and Mafra,
   National Palace of Mafra, vineyards, villages, Ericeira (UNESCO World Surfing Reserve), Atlantic
-  coast, regional sweets. Small-group and private.
+  coast, gastronomic stops. Small-group and private. Two daily departures (10:00 / 14:00).
+- **Óbidos & Medieval Villages** (~5h, departs from Lisbon): Óbidos and lesser-known medieval
+  villages, with a traditional food and wine break along the way.
 - **Tasco Galapito** (~2h): private family-style meal, traditional Saloia cuisine.
 - **Manzwine** (~1.5h): wine tasting with historical context, Mafra region.
 - **Ramilo Wines** (~1.5h): organic vineyard visit with tasting.
+
+Retired: Olaria MZ (ceramics workshop) — no longer offered; never mention it in new content.
 
 ## Positioning
 Slow, authentic, crowd-free rural tourism that supports local producers and artisans.
