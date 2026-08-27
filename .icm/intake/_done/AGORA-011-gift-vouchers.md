@@ -1,5 +1,7 @@
 # AGORA-011 · Gift vouchers
 
+> Dropped: gift vouchers are out of scope — removed by Jamie, 2026-08-27. Not in the accepted €2,000 package; the July proposal that priced them is dead. Reopen only if Diogo & Rita ask and it gets priced.
+
 | | |
 |---|---|
 | Status | ready |

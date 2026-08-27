@@ -7,7 +7,7 @@
 | Priority | P1 |
 | Size | S |
 | Depends on | AGORA-002 (landed the answered facts) |
-| Blocked by | Diogo & Rita — three Section 1.1 answers still blank in the info PDF |
+| Blocked by | Diogo & Rita — three Section 1.1 answers still blank (27 Aug); the ask now rides the pack in icm-board `workspaces/deals/diogo-rita/open-questions.md` |
 | Sources | .icm/docs/agorasim-info.pdf (local only, gitignored) · [.icm/docs/data-protection.md](../docs/data-protection.md) |
 
 ## Problem

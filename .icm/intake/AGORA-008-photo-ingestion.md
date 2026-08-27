@@ -2,27 +2,30 @@
 
 | | |
 |---|---|
-| Status | blocked |
+| Status | ready |
 | Type | task |
 | Priority | P1 |
 | Size | S |
-| Depends on | AGORA-005 (content landed photo-ready) |
-| Blocked by | The photo files — the WeTransfer links in Diogo & Rita's answers expired before ingestion; re-request or recover from Jamie's downloads |
-| Sources | .icm/docs/agorasim-info.pdf §2.1 (local only, gitignored) |
+| Depends on | AGORA-005 (the rescued content this feeds) |
+| Sources | .icm/docs/agorasim-info.pdf §2.1 (local only, gitignored) · `web/public/images/` |
 
 ## Problem
 
-AGORA-005 landed all launch content photo-ready, but the photos themselves never made
-it into the repo: the seven WeTransfer bundles in the info PDF (Rural Saloia, Óbidos,
-Ramilo, Manzwine, Galapito, weddings, classics) plus the testimonial photos link had
-expired. Today the partners reuse generic car shots, the weddings page shows two
-"photographs on their way" tiles (Renault 4L, VW T3), Óbidos borrows the hero image,
-and the testimonials render without faces.
+**Unblocked 27 Aug: the photos are in the repo** — `web/public/images/` now holds
+~162MB of real imagery, organised by subject (`fleet/`, `rural-saloia/`,
+`obidos-medieval-villages/`, `manzwine/`, `ramilo-wines/`, `testimonials/`,
+`weddings/`, `wedding-awards/`, plus `logo.png` and `video.mp4`), landed in the
+19 Aug "images" commit. The remaining work is **verification and wiring**: check
+what the content files actually reference, fill every gap (partner pages reusing
+generic car shots, the weddings "photographs on their way" tiles, Óbidos borrowing
+the hero, faceless testimonials), and optimise. Note: no `tasco-galapito/` folder
+exists — that bundle may genuinely still be missing; report rather than guess.
 
 ## Acceptance
 
-- [ ] Photo bundles obtained (re-request via WhatsApp or recover local downloads).
-- [ ] Optimized (webp, sensible sizes) into `web/public/images/` with honest alts.
+- [ ] Audit: every image reference in `web/src/content/` resolved against
+      `web/public/images/`; gaps listed in the PR.
+- [ ] Oversized originals optimized (webp, sensible sizes) with honest alts.
 - [ ] Partner experiences each get their own imagery (Galapito, Manzwine, Ramilo).
 - [ ] Óbidos gets real route imagery.
 - [ ] Weddings fleet: Renault 4L + VW T3 tiles filled; wedding shots where permitted.

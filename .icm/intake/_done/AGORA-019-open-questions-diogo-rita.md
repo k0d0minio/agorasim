@@ -1,5 +1,7 @@
 # AGORA-019 · Send the open-questions pack to Diogo & Rita, record the answers
 
+> Dropped: 2026-08-27 — the open-questions pack is client-relationship material, not an implementation ticket. It now lives (updated) in icm-board workspaces/deals/diogo-rita/open-questions.md; Jamie sends it from there. Answers still get recorded into this repo when they land.
+
 | | |
 |---|---|
 | Status | ready |
