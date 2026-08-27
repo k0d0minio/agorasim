@@ -42,8 +42,7 @@ icm-board `workspaces/deals/diogo-rita/DEAL.md`.
       the 24-month review.
 - [ ] Test-mode end-to-end with a test connected account; webhook signature verification
       unchanged.
-- [ ] `2026-07-collaboration-proposal.md` annotated as superseded by the commission
-      agreement.
+- *(Struck 2026-08-27 audit: the July proposal file was deleted in 48bfe53 — nothing left to annotate.)*
 - [ ] CI green.
 
 ## Prompt

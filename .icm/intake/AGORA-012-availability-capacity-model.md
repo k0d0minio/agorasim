@@ -40,6 +40,7 @@ starting from scratch; landing it may be the whole ticket.** The Óbidos/Medieva
       window, §1.5) from her phone.
 - [ ] **Olaria MZ removed from the sellable offer** everywhere (catalogue, add-ons, repo
       CLAUDE.md facts) — no longer a partner (§2.4).
+      *(Already true — 2026-08-27 audit: zero Olaria references in web/src; migration 0012 archived it.)*
 - [ ] Existing bookings survive the migration; tests updated to the suite's standard.
 - [ ] CI green.
 

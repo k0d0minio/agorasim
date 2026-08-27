@@ -6,7 +6,7 @@
 | Type | feature |
 | Priority | P1 |
 | Size | L |
-| Depends on | Meta app review (external, weeks — **start registration immediately**) · account access via AGORA-019 |
+| Depends on | Meta app review (external, weeks — **start registration immediately**) · account access via the icm-board question pack (item 4, not yet sent) |
 | Sources | AgorasimProposal feature #4 · .icm/docs/social-media-automation.md (spike) · Jamie's decisions, 24 Aug 2026: direct Meta API, IG+FB only, client approves |
 
 ## Problem
@@ -25,7 +25,7 @@ Registration starts now, in parallel with everything else.
 
 - [ ] **Immediately:** Meta developer app registered; business verification + App Review
       for `instagram_content_publish` / `pages_manage_posts` underway. Needs their FB
-      Page + IG Business account admin access (asked in AGORA-019). Log dates — this is
+      Page + IG Business account admin access (item 4 of the icm-board question pack — not yet sent). Log dates — this is
       the long pole.
 - [ ] A social workspace generates on-brand PT/EN post drafts (tours, seasons,
       testimonials, blog cross-posts) into `socialPostDrafts`, following the ICM

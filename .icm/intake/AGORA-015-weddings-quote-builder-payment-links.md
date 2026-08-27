@@ -30,7 +30,7 @@ compose each quote: decision is an **admin quote builder** Diogo & Rita (or Jami
       AGORA-012 calendar).
 - [ ] Balance link generated and sent automatically at T−14 days (extend the existing
       cron), idempotent, with a reminder if unpaid; both payments visible per event.
-- [ ] Deposit terms (non-refundable window — value from AGORA-019) shown on the pay page
+- [ ] Deposit terms (non-refundable window — item 3 of the icm-board client question pack, not yet sent; clearly-marked default until answered) shown on the pay page
       before payment; never silently enforced.
 - [ ] Sales board shows event bookings with deposit/balance status.
 - [ ] Email confirmations for deposit and balance in the guest's locale (SMS later,
@@ -42,5 +42,5 @@ compose each quote: decision is an **admin quote builder** Diogo & Rita (or Jami
 Build the agorasim weddings/car-hire quote and payment flow. Read
 .icm/intake/AGORA-015-weddings-quote-builder-payment-links.md; reuse the AGORA-013 fee
 engine, the existing cron route pattern, and lib/booking-emails.ts conventions. Do not
-invent the non-refundable window — read it from the AGORA-019 answers. Open a PR on a
+invent the non-refundable window — it is item 3 of the client question pack (icm-board deal folder, not yet sent); use a clearly-marked default until answered. Open a PR on a
 claude/ branch; no local checks — CI is the source of truth.

@@ -7,19 +7,24 @@
 | Priority | P1 |
 | Size | S |
 | Depends on | AGORA-005 (the rescued content this feeds) |
-| Sources | .icm/docs/agorasim-info.pdf §2.1 (local only, gitignored) · `web/public/images/` |
+| Sources | .icm/docs/agorasim-info.pdf §2.1 · `web/public/images/` |
 
 ## Problem
 
 **Unblocked 27 Aug: the photos are in the repo** — `web/public/images/` now holds
 ~162MB of real imagery, organised by subject (`fleet/`, `rural-saloia/`,
-`obidos-medieval-villages/`, `manzwine/`, `ramilo-wines/`, `testimonials/`,
+`obidos-medieval-villages/`, `manzwine/`, `ramilo-wines/`, `tasco-galapito/`,
+`testimonials/`,
 `weddings/`, `wedding-awards/`, plus `logo.png` and `video.mp4`), landed in the
 19 Aug "images" commit. The remaining work is **verification and wiring**: check
 what the content files actually reference, fill every gap (partner pages reusing
 generic car shots, the weddings "photographs on their way" tiles, Óbidos borrowing
-the hero, faceless testimonials), and optimise. Note: no `tasco-galapito/` folder
-exists — that bundle may genuinely still be missing; report rather than guess.
+the hero, faceless testimonials), and optimise — the worst offenders are stills
+served straight from `public/` (23MB `fleet/vw-t3-van-dog-at-window.jpg`, 21MB
+`rural-saloia/guests-at-vw-van-dusk.jpg`, several at 3–5MB). Corrections from the
+2026-08-27 audit: `tasco-galapito/` **did** land (12+ photos, referenced from
+`experiences.ts`), and `video.mp4` is already 3.1MB — the 40MB question from
+AGORA-004 is resolved.
 
 ## Acceptance
 
@@ -30,7 +35,6 @@ exists — that bundle may genuinely still be missing; report rather than guess.
 - [ ] Óbidos gets real route imagery.
 - [ ] Weddings fleet: Renault 4L + VW T3 tiles filled; wedding shots where permitted.
 - [ ] Testimonial photos added (permission was given).
-- [ ] The 40 MB `public/video.mp4` question from AGORA-004 rechecked while in here.
 - [ ] CI green.
 
 ## Prompt
