@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | today |
+| Status | ready |
 | Type | fix |
 | Priority | P0 |
 | Size | M |
@@ -19,7 +19,11 @@ current model lets both sell the same capacity and double-book a day.
 
 Vehicle facts: Citroën 2CV / Renault 4L / Fiat 600 carry **3 guests** each, the VW T3
 carries **8**; bigger groups combine vehicles (their stated max is 14 — the arithmetic
-needs a third driver, open question in AGORA-019). The Óbidos/Medieval tour runs in a
+needs a third driver, open question in the pack at icm-board
+`workspaces/deals/diogo-rita/open-questions.md`; still unanswered 27 Aug). The model
+below is confirmed as current reality by Jamie (27 Aug), subject to change when Diogo
+& Rita answer. **PR #31 already implements this and is green — check it before
+starting from scratch; landing it may be the whole ticket.** The Óbidos/Medieval tour runs in a
 **non-classic** vehicle (§2.6) but still consumes a driver.
 
 ## Acceptance
@@ -27,7 +31,7 @@ needs a third driver, open question in AGORA-019). The Óbidos/Medieval tour run
 - [ ] Availability is shared pools per date+slot: **drivers (2)** and vehicles; a booking
       consumes a driver plus vehicle(s) sized to the party, across all tours.
 - [ ] Party→vehicle assignment: ≤3 → one small classic; 4–8 → VW T3; 9+ → blocked at
-      checkout until AGORA-019 settles the big-group rule (do not guess).
+      checkout until the open-questions pack settles the big-group rule (do not guess).
 - [ ] Bookings are private-per-vehicle (no strangers sharing) until AGORA-019 answers the
       public-tier question — the pricing tiers stay, only the sharing semantics wait.
 - [ ] Óbidos consumes a driver + non-classic vehicle; it never depletes the classic fleet.
