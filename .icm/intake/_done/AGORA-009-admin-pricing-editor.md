@@ -1,3 +1,5 @@
+> Dropped: no current driver — prices are migration-seeded and stable, and the ticket gates on AGORA-012 plus an unsent client question; re-cut when those inputs exist. 2026-08-27 estate ticket audit.
+
 # AGORA-009 · Admin pricing editor for the tiered price list
 
 | | |
