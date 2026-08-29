@@ -36,8 +36,16 @@ export const systemContent = {
 } as const;
 
 /**
- * Admin-side equivalents. The admin area is deliberately monolingual (English),
- * and its failure mode is almost always the database, so it says so.
+ * Admin-side equivalents. The admin area is deliberately monolingual — and the
+ * language is **Portuguese**: it is Diogo & Rita's console, not a bilingual
+ * surface, so there is no `Localized<T>` here and no locale toggle (D4). The
+ * strings below are still English while the `admin-portugues` epic works
+ * through the console; they are translated by its `translate-admin-rest` stub.
+ * The vocabulary, register and per-string renderings live in
+ * `.icm/docs/admin-pt-inventory.md` — take the words from there rather than
+ * translating afresh, so the admin keeps one name per concept.
+ *
+ * Its failure mode is almost always the database, so it says so.
  */
 export const adminSystemContent = {
   error: {
