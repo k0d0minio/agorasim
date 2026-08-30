@@ -11,7 +11,7 @@
  * **Public site — `'unsafe-inline'` scripts, and why.** Nonce-based CSP requires
  * dynamic rendering: Next injects the nonce during SSR by reading it off the
  * request's own CSP header, and a page prerendered at build time has no request
- * to read. The public site is deliberately, entirely static (see `CLAUDE.md`),
+ * to read. The public site is deliberately, entirely static (see `AGENTS.md`),
  * so a nonce there would mean making every marketing page dynamic to harden a
  * surface that renders no user input at all. That is the wrong trade, so the
  * public policy keeps `'unsafe-inline'` for scripts and earns its keep through

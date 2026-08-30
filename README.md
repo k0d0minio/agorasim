@@ -10,7 +10,7 @@ Two halves in one repo:
 | [`web/`](web/) | The website — Next.js (App Router) + Tailwind + shadcn/ui, bilingual PT/EN, GEO-optimized. The funnel destination. |
 | [`workspaces/`](workspaces/) | The operations engine — ICM content pipelines that generate GEO/marketing content and publish it into the site. |
 
-See [CLAUDE.md](CLAUDE.md) for how the two fit together.
+See [AGENTS.md](AGENTS.md) for how the two fit together.
 
 ## Getting started
 
