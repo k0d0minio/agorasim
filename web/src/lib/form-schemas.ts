@@ -29,7 +29,8 @@ import {
   requestStatusEnum,
 } from "@/db/schema";
 import { DELETE_CONFIRMATION } from "@/lib/admin-format";
-import { DEFAULT_CAPACITY, isDateKey, MAX_CAPACITY } from "@/lib/availability";
+import { DEFAULT_DRIVERS, isDateKey, MAX_DRIVERS } from "@/lib/availability";
+import { MAX_PARTY_ONLINE } from "@/lib/fleet";
 import { parsePriceInput } from "@/lib/money";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
 import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
@@ -381,33 +382,52 @@ const tourSlots = repeated.transform((values) =>
   ),
 );
 
+/**
+ * A seasonal window, as two day keys.
+ *
+ * "We are closed until April" is one gesture and must not arrive as three
+ * hundred hidden inputs. Both ends are optional — a form that posts `dates`
+ * instead simply leaves them out — and a value that is not a real day becomes
+ * `undefined` rather than rejecting the whole submission, which keeps a
+ * half-filled range from losing the day the operator also tapped.
+ */
+const optionalDateKey = z
+  .string()
+  .trim()
+  .catch("")
+  .transform((value) => (isDateKey(value) ? value : undefined));
+
 export const setAvailabilitySchema = z.object({
-  /** Which tour's calendar this writes. Checked against the catalogue in the action. */
-  experience: text.regex(SLUG_RE),
   dates: dateKeys,
+  /** Inclusive range, expanded server-side. Combined with `dates`, not instead. */
+  from: optionalDateKey,
+  to: optionalDateKey,
   slots: tourSlots,
   status: availabilityStatusSchema,
   /**
-   * Seats on offer. Clamped rather than refused: this arrives from a stepper
-   * whose buttons already stop at the bounds, so an out-of-range value is a
-   * crafted request, and the useful answer to one is the nearest legal number.
+   * Drivers rostered on each departure. Clamped rather than refused: this
+   * arrives from a stepper whose buttons already stop at the bounds, so an
+   * out-of-range value is a crafted request, and the useful answer to one is
+   * the nearest legal number. The ceiling is the real roster — a third driver
+   * is AGORA-019's question, not this form's.
    */
-  capacity: z
+  drivers: z
     .string()
     .trim()
     .catch("")
     .transform((value) => {
       const n = Number.parseInt(value, 10);
-      if (!Number.isFinite(n)) return DEFAULT_CAPACITY;
-      return Math.min(MAX_CAPACITY, Math.max(1, n));
+      if (!Number.isFinite(n)) return DEFAULT_DRIVERS;
+      return Math.min(MAX_DRIVERS, Math.max(1, n));
     }),
   note: optionalText,
 });
 
 /** Remove rows outright — "nobody has decided about these departures". */
 export const clearAvailabilitySchema = z.object({
-  experience: text.regex(SLUG_RE),
   dates: dateKeys,
+  from: optionalDateKey,
+  to: optionalDateKey,
   slots: tourSlots,
 });
 
@@ -558,9 +578,9 @@ export const bookingCheckoutSchema = z.object({
    * The party in the price list's bands. Bounds are sanity only — the pricing
    * engine and the availability re-check are the real referees.
    */
-  adults: partyCount(1, MAX_CAPACITY),
-  children: partyCount(0, MAX_CAPACITY).catch(0),
-  infants: partyCount(0, MAX_CAPACITY).catch(0),
+  adults: partyCount(1, MAX_PARTY_ONLINE),
+  children: partyCount(0, MAX_PARTY_ONLINE).catch(0),
+  infants: partyCount(0, MAX_PARTY_ONLINE).catch(0),
 
   marketingConsent: z
     .preprocess((value) => value === "on" || value === "true", z.boolean())

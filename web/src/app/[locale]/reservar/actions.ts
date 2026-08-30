@@ -6,8 +6,8 @@ import { isLocale, t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { listExperiences } from "@/lib/experience-catalogue";
-import { checkSlotAvailable, isDateKey, TOUR_SLOTS } from "@/lib/availability";
-import { slotOccupancyOn } from "@/lib/bookings";
+import { checkDayBookable, isDateKey } from "@/lib/availability";
+import { countSlotOccupancy } from "@/lib/bookings";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
@@ -85,35 +85,32 @@ export async function submitTourRequest(
    * The page that rendered the calendar is statically generated and revalidated
    * hourly, so the grid a guest is looking at can be an hour stale — and even a
    * fresh one is only a suggestion, because what a browser posts is whatever
-   * the person posting it wants. `checkDayAvailable` is the check that counts.
+   * the person posting it wants. `checkDayBookable` is the check that counts.
    *
    * Only date-shaped values are checked. "late August, flexible" is still a
    * perfectly good answer to when someone wants to come, and always was.
    */
   if (isDateKey(parsed.data.preferredDate ?? "")) {
     const chosen = parsed.data.preferredDate!;
-    // An enquiry names a tour loosely (or not at all), so the check is loose
-    // too: the day passes if *any* departure of the relevant tour could take
-    // the party — publicly or privately. The countryside tour answers for an
-    // enquiry that named no tour, or named an add-on.
-    const tourSlug =
-      parsed.data.experience === "obidos-medieval-villages"
-        ? "obidos-medieval-villages"
-        : "rural-saloia";
-    const seats = parsed.data.partySize ?? 1;
+    /*
+     * Deliberately the *loose* check.
+     *
+     * An enquiry names a tour vaguely or not at all, and may be for fourteen
+     * people — which is exactly the lead the team wants and precisely what the
+     * checkout refuses (see `lib/fleet.ts`). So all this asks is whether the
+     * day is on the calendar with a driver and a car still free; which car,
+     * and for whom, is the conversation the enquiry starts.
+     */
+    let occupancy;
+    try {
+      occupancy = await countSlotOccupancy({ from: chosen, to: chosen });
+    } catch {
+      // Nothing is being sold here. An unreadable count must not cost a lead.
+      occupancy = undefined;
+    }
+    const open = await checkDayBookable({ date: chosen, occupancy });
 
-    const checks = await Promise.all(
-      TOUR_SLOTS.map(async (slot) => {
-        const occupancy = await slotOccupancyOn(tourSlug, chosen, slot);
-        const [publicCheck, privateCheck] = await Promise.all([
-          checkSlotAvailable({ experienceSlug: tourSlug, date: chosen, slot, seats, mode: "public", occupancy }),
-          checkSlotAvailable({ experienceSlug: tourSlug, date: chosen, slot, seats, mode: "private", occupancy }),
-        ]);
-        return publicCheck.ok || privateCheck.ok;
-      }),
-    );
-
-    if (!checks.some(Boolean)) {
+    if (!open) {
       return {
         fieldErrors: { preferredDate: t(c.errors.unavailableDate, locale) },
         values: { preferredDate: chosenDate },

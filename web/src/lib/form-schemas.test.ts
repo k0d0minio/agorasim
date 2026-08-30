@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { bookingCheckoutSchema } from "@/lib/form-schemas";
+import { bookingCheckoutSchema, setAvailabilitySchema } from "@/lib/form-schemas";
+import { DEFAULT_DRIVERS, MAX_DRIVERS } from "@/lib/availability";
 
 /**
  * The checkout schema's field names, pinned.
@@ -109,5 +110,75 @@ describe("bookingCheckoutSchema", () => {
     );
     expect(parsed.success).toBe(true);
     expect(parsed.data).toMatchObject({ addOns: [], phone: null, message: null });
+  });
+});
+
+/**
+ * The calendar's write schema.
+ *
+ * Same class of bug as the one above, in the other direction: these fields
+ * only meet the form at runtime, and the season card posts a shape the day
+ * sheet never does. A range that silently parsed to nothing would read on
+ * screen as "closed the winter" and change not one row.
+ */
+describe("setAvailabilitySchema", () => {
+  const write = (overrides: Record<string, unknown> = {}) => ({
+    slots: ["morning", "afternoon"],
+    status: "closed",
+    drivers: String(DEFAULT_DRIVERS),
+    ...overrides,
+  });
+
+  it("takes the day sheet's shape — a list of days, no range", () => {
+    const parsed = setAvailabilitySchema.safeParse(
+      write({ dates: "2026-08-15", status: "open" }),
+    );
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toMatchObject({ dates: ["2026-08-15"], status: "open" });
+    // No range posted at all, so there is no range to expand.
+    expect(parsed.data?.from).toBeUndefined();
+    expect(parsed.data?.to).toBeUndefined();
+  });
+
+  it("takes the season card's shape — a range, no list", () => {
+    const parsed = setAvailabilitySchema.safeParse(
+      write({ from: "2026-11-03", to: "2027-03-20" }),
+    );
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toMatchObject({
+      dates: [],
+      from: "2026-11-03",
+      to: "2027-03-20",
+    });
+  });
+
+  it("drops a range end that is not a day rather than refusing the write", () => {
+    const parsed = setAvailabilitySchema.safeParse(
+      write({ dates: ["2026-08-15"], from: "whenever", to: "2026-02-31" }),
+    );
+    expect(parsed.success).toBe(true);
+    // The day that *was* named survives; the nonsense range simply is not one.
+    expect(parsed.data).toMatchObject({ dates: ["2026-08-15"] });
+    expect(parsed.data?.from).toBeUndefined();
+    expect(parsed.data?.to).toBeUndefined();
+  });
+
+  it("clamps the roster to the drivers that exist", () => {
+    // A third driver is AGORA-019's question, not this form's — a crafted
+    // request gets the nearest legal number, not a person who does not exist.
+    expect(setAvailabilitySchema.parse(write({ dates: "2026-08-15", drivers: "9" })).drivers).toBe(
+      MAX_DRIVERS,
+    );
+    expect(setAvailabilitySchema.parse(write({ dates: "2026-08-15", drivers: "0" })).drivers).toBe(1);
+    expect(
+      setAvailabilitySchema.parse(write({ dates: "2026-08-15", drivers: "" })).drivers,
+    ).toBe(DEFAULT_DRIVERS);
+  });
+
+  it("keeps `full_day` out, whatever a form posts", () => {
+    const parsed = setAvailabilitySchema.safeParse(
+      write({ dates: "2026-08-15", slots: ["full_day", "morning"] }),
+    );
+    expect(parsed.data?.slots).toEqual(["morning"]);
   });
 });

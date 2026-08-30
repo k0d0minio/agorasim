@@ -12,11 +12,12 @@
  *    themselves, so the offer can change without a deploy. Leads reference it by
  *    slug.
  *
- * 1c. **Availability and bookings** — `availability` is which days are on sale
- *    (supply); `bookings` is what has been sold against them (demand, and the
- *    money). The public calendar reads both, the admin calendar writes the
- *    first, and no availability row means no tour. Guest identity stays on
- *    `tourRequests` — `bookings` deliberately holds none.
+ * 1c. **Availability and bookings** — `availability` is which *departures* are
+ *    on sale and how many drivers they have (supply, shared by every tour);
+ *    `bookings` is what has been sold against them (demand, and the money). The
+ *    public calendar reads both, the admin calendar writes the first, and no
+ *    availability row means no tour. Guest identity stays on `tourRequests` —
+ *    `bookings` deliberately holds none.
  *
  * 2. **Generated content drafts** — one table per output type produced by the
  *    `workspaces/` ICM pipelines. Each row is a reviewable draft that the admin
@@ -47,6 +48,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { DRIVERS_PER_SLOT, VEHICLE_CLASSES } from "@/lib/fleet";
 import type { ExperiencePricing } from "@/lib/pricing";
 
 // ---------------------------------------------------------------------------
@@ -94,23 +96,42 @@ export const availabilitySlotEnum = pgEnum("availability_slot", [
 ]);
 
 /**
- * Whether a slot is on sale.
+ * Whether a departure is on sale.
  *
- * Note what is *not* here: "booked". A slot being sold out is arithmetic
- * (`capacity` minus the bookings against it), not a state an operator sets, and
- * a status column that has to be kept in step with a count is a status column
- * that will disagree with it. `closed` means a human closed it — a wedding, a
- * service, a day off.
+ * Note what is *not* here: "booked". A departure being full is arithmetic — the
+ * drivers and vehicles it has, minus the bookings against them, across every
+ * tour — not a state an operator sets, and a status column that has to be kept
+ * in step with a count is a status column that will disagree with it. `closed`
+ * means a human closed it — a wedding, a service, a day off, a season that has
+ * not opened yet.
  */
 export const availabilityStatusEnum = pgEnum("availability_status", ["open", "closed"]);
 
 /**
- * How a departure was sold. A `public` booking shares the slot with strangers
- * up to its capacity; a `private` one takes whatever is left of the slot
- * exclusively (see `bookings.exclusive`), which is what "the cars are yours"
- * means in the price list.
+ * Which half of the price list a booking was sold from: `public` is priced per
+ * person and tiered by adults, `private` is a group figure and the only mode
+ * add-ons attach to.
+ *
+ * **It no longer decides who shares a car.** Since AGORA-012 every booking is
+ * private to its vehicle — nobody is put in a car with strangers — because
+ * whether two parties may share a departure is an open question with the
+ * client (AGORA-019). The pricing tiers stay exactly as they were; only the
+ * sharing semantics wait. So a `public` booking today is a per-person price
+ * for a car of your own.
  */
 export const bookingModeEnum = pgEnum("booking_mode", ["public", "private"]);
+
+/**
+ * Which class of vehicle a booking took out of the pool.
+ *
+ * Stored rather than derived, for the same reason `date` and `price_breakdown`
+ * are: it is what was actually committed. `lib/fleet.ts` decides the class from
+ * the route and the party at the moment of sale, and that rule can change —
+ * the tour that was sold a small classic in August must keep saying so in
+ * September. It is also what makes occupancy one `group by` instead of a
+ * catalogue lookup per row.
+ */
+export const vehicleClassEnum = pgEnum("vehicle_class", VEHICLE_CLASSES);
 
 /**
  * Where a booking is in its life.
@@ -477,19 +498,28 @@ export type ExperienceRow = typeof experienceCatalogue.$inferSelect;
 export type NewExperienceRow = typeof experienceCatalogue.$inferInsert;
 
 // ---------------------------------------------------------------------------
-// Availability — which days are actually on sale
+// Availability — the shared capacity of a departure
 // ---------------------------------------------------------------------------
 
 /**
- * The bookable calendar: one row per day (per slot) that Diogo & Rita have
- * opened for sale.
+ * The bookable calendar: one row per **departure** — a day and one of the two
+ * daily slots — that Diogo & Rita have opened for sale.
+ *
+ * **Not per tour.** It used to be, and that was the bug AGORA-012 fixes: two
+ * tours had two calendars and could sell the same morning twice over. The
+ * constraint is two drivers across four cars for the whole business (info PDF
+ * §1.5), so the row is the whole business's 10:00, and every tour draws on it.
+ * What a route needs out of that pool — which class of vehicle, and always one
+ * driver — is `lib/fleet.ts`; what has already been drawn is the `bookings`
+ * table; what is left is `lib/availability.ts`.
  *
  * **No row means not bookable.** This is the load-bearing decision in the table
  * and it is deliberate: a calendar that defaults to "open" sells every day of
  * every year the moment the table exists, including the ones the car is at the
  * garage and the ones nobody has thought about yet. Availability is something a
  * human asserts, so the absence of an assertion is a no. The admin calendar
- * exists to make asserting it cheap — a month at a time, from a phone.
+ * exists to make asserting it cheap — a day, a month or a whole season at a
+ * time, from a phone.
  *
  * `date` is a plain SQL `date`, not a timestamp. A tour on the 15th of August is
  * on the 15th of August in Sintra whatever timezone the browser asking about it
@@ -498,21 +528,12 @@ export type NewExperienceRow = typeof experienceCatalogue.$inferInsert;
  * `lib/availability.ts`, which owns the conversion at the edges.
  *
  * The row is *supply*. Demand — the bookings placed against it — lives in its
- * own table and is counted, never subtracted from `capacity` in place: an
- * operator lowering capacity to 2 must not be able to un-sell a seat that has
+ * own table and is counted, never subtracted from the roster in place: an
+ * operator dropping to one driver must not be able to un-sell a tour that has
  * been paid for.
  */
 export const availability = pgTable("availability", {
   id: uuid("id").primaryKey().defaultRandom(),
-
-  /**
-   * Which tour this calendar belongs to. Two tours share the drivers but not
-   * a calendar: opening a Saturday for Rural Saloia says nothing about
-   * Óbidos, and the team decides — day by day — which routes they can staff.
-   * A slug, not a foreign key, matching how `bookings` and `tour_requests`
-   * reference the catalogue.
-   */
-  experienceSlug: text("experience_slug").notNull().default("rural-saloia"),
 
   /** The calendar day, in Europe/Lisbon terms. `YYYY-MM-DD`. */
   date: date("date").notNull(),
@@ -520,13 +541,19 @@ export const availability = pgTable("availability", {
   slot: availabilitySlotEnum("slot").notNull().default("morning"),
 
   /**
-   * How many guests can be sold into this slot. One car, three seats, at
-   * launch — but the number is per-slot rather than global because "we can take
-   * six on the 20th, we're running both cars" is a sentence Rita will say.
+   * How many drivers are on this departure — how many tours can leave at once,
+   * across every route in the catalogue.
+   *
+   * Two is the roster (`DRIVERS_PER_SLOT`). Rita lowers it for a departure
+   * somebody is missing; she cannot raise it, because a third driver is the
+   * open question in AGORA-019 and a column that accepted 3 would be answering
+   * it. Vehicles are the other half of the pool and are not a column at all —
+   * the fleet is four cars and a touring vehicle, which is a fact about the
+   * business rather than something to re-enter for every Tuesday.
    */
-  capacity: integer("capacity").notNull().default(3),
+  drivers: integer("drivers").notNull().default(DRIVERS_PER_SLOT),
 
-  /** `closed` keeps the row (and its note) while taking the day off sale. */
+  /** `closed` keeps the row (and its note) while taking the departure off sale. */
   status: availabilityStatusEnum("status").notNull().default("open"),
 
   /**
@@ -539,15 +566,11 @@ export const availability = pgTable("availability", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
-  // One row per tour per day per slot — the whole model depends on this being
-  // true, and the upsert the admin calendar writes with resolves onto it.
-  uniqueIndex("availability_experience_date_slot_key").on(
-    table.experienceSlug,
-    table.date,
-    table.slot,
-  ),
-  // Every read is "the open days for this tour between these two dates".
-  index("availability_experience_date_idx").on(table.experienceSlug, table.date),
+  // One row per day per departure — the whole model depends on this being true,
+  // and the upsert the admin calendar writes with resolves onto it.
+  uniqueIndex("availability_date_slot_key").on(table.date, table.slot),
+  // Every read is "the departures between these two dates".
+  index("availability_date_idx").on(table.date),
 ]);
 
 export type AvailabilityRow = typeof availability.$inferSelect;
@@ -578,7 +601,7 @@ export type NewAvailabilityRow = typeof availability.$inferInsert;
  *
  * **`date`/`slot` are copied, not referenced.** They are what was actually
  * sold. An availability row can be edited, closed or deleted afterwards and the
- * booking must still say "the 15th of August, full day".
+ * booking must still say "the 15th of August, the 10:00 departure".
  */
 export const bookings = pgTable("bookings", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -616,11 +639,16 @@ export const bookings = pgTable("bookings", {
   infants: integer("infants").notNull().default(0),
 
   /**
-   * A private departure owns the slot: while a live booking has this set, the
-   * slot answers "sold out" regardless of arithmetic, and a slot with any
-   * seat sold refuses an exclusive hold. See `lib/bookings.ts`.
+   * The class of vehicle this booking took out of the pool, decided from the
+   * route and the party by `lib/fleet.ts` at the moment of sale.
+   *
+   * This replaced the old `exclusive` flag, which said "this private booking
+   * owns the whole slot" — a sentence that stopped being true when the slot
+   * stopped belonging to one tour. Every booking now takes one driver and one
+   * vehicle of this class, and the departure it left from can still take
+   * another party in another car.
    */
-  exclusive: boolean("exclusive").notNull().default(false),
+  vehicleClass: vehicleClassEnum("vehicle_class").notNull().default("classic-small"),
 
   /** Everyone aboard — infants included — and therefore seats consumed. */
   partySize: integer("party_size").notNull(),
@@ -662,7 +690,7 @@ export const bookings = pgTable("bookings", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
-  // "How many seats are gone on these days" — the query behind every calendar.
+  // "What is committed on these departures" — the query behind every calendar.
   index("bookings_date_slot_idx").on(table.date, table.slot, table.status),
   index("bookings_status_idx").on(table.status),
   index("bookings_tour_request_idx").on(table.tourRequestId),

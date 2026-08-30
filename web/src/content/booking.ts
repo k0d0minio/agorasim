@@ -37,22 +37,45 @@ export const bookingContent = {
       en: "Two routes, two starting points — pick yours.",
     } as Localized,
 
+    /**
+     * The two halves of the price list — and no longer a promise about who
+     * else is in the car.
+     *
+     * These used to read "Shared: you join other travellers". Since AGORA-012
+     * nobody is put in a car with strangers: whether two parties may share a
+     * departure is an open question with the team (AGORA-019), and until it is
+     * answered every booking has its own vehicle. The tiers are untouched — one
+     * is priced per person, the other per group — so what changed is the
+     * sentence, which had stopped being true.
+     */
     mode: { pt: "Como querem ir?", en: "How would you like to go?" } as Localized,
-    modePublic: { pt: "Partilhada", en: "Shared" } as Localized,
+    modePublic: { pt: "Preço por pessoa", en: "Per person" } as Localized,
     modePublicHint: {
-      pt: "Junta-se a outros viajantes. Preço por pessoa.",
-      en: "You join other travellers. Priced per person.",
+      pt: "Paga-se por pessoa. O carro é sempre só do vosso grupo.",
+      en: "Priced per person. The car is still yours alone.",
     } as Localized,
-    modePrivate: { pt: "Privada", en: "Private" } as Localized,
+    modePrivate: { pt: "Preço por grupo", en: "Per group" } as Localized,
     modePrivateHint: {
-      pt: "A partida é só vossa. Preço por grupo — e é aqui que os complementos entram.",
-      en: "The departure is yours alone. Priced per group — and where the add-ons come in.",
+      pt: "Um valor único para o grupo — e é aqui que os complementos entram.",
+      en: "One figure for the whole group — and where the add-ons come in.",
     } as Localized,
 
     partySize: { pt: "Quem vem?", en: "Who's coming?" } as Localized,
     partyHint: {
-      pt: "Todos contam para os lugares — os bebés também. Os lugares livres de cada partida estão no calendário.",
-      en: "Everyone counts towards the seats — infants too. Seats left for each departure are on the calendar.",
+      pt: "Todos contam para os lugares do carro — os bebés também. O calendário mostra os dias com carro disponível para o vosso grupo.",
+      en: "Everyone counts towards the seats in the car — infants too. The calendar shows the days with a car free for your group.",
+    } as Localized,
+    /**
+     * Under the steppers, where they stop. `{max}` is filled in from the fleet
+     * so the sentence cannot drift from the ceiling it explains.
+     */
+    bigGroupNote: {
+      pt: "Grupos até {max} pessoas reservam online.",
+      en: "Groups of up to {max} book online.",
+    } as Localized,
+    bigGroupLink: {
+      pt: "Somos mais? Fale connosco.",
+      en: "More of you? Get in touch.",
     } as Localized,
     adults: { pt: "Adultos", en: "Adults" } as Localized,
     adultsHint: { pt: "13 anos ou mais", en: "Aged 13 or over" } as Localized,
@@ -69,10 +92,6 @@ export const bookingContent = {
       en: "Each day has up to two departures. Pick the day, then the time.",
     } as Localized,
     slotSoldOut: { pt: "Esgotada", en: "Sold out" } as Localized,
-    slotPrivateTaken: {
-      pt: "Indisponível para privada",
-      en: "Not available privately",
-    } as Localized,
 
     addOns: { pt: "Complete o seu dia", en: "Complete your day" } as Localized,
     addOnsHint: {
@@ -126,10 +145,10 @@ export const bookingContent = {
       pt: "Modo de teste — nenhum pagamento real será cobrado.",
       en: "Test mode — no real payment will be taken.",
     } as Localized,
-    /** How long the seat is held while they are on Stripe's page. */
+    /** How long the car is held while they are on Stripe's page. */
     holdNote: {
-      pt: "Guardamos os seus lugares durante 30 minutos enquanto conclui o pagamento.",
-      en: "We hold your seats for 30 minutes while you complete the payment.",
+      pt: "Guardamos o vosso carro durante 30 minutos enquanto conclui o pagamento.",
+      en: "We hold your car for 30 minutes while you complete the payment.",
     } as Localized,
   },
 
@@ -151,13 +170,24 @@ export const bookingContent = {
       pt: "Essa partida deixou de estar disponível. Escolha outra, por favor.",
       en: "That departure is no longer available. Please choose another one.",
     } as Localized,
-    partyTooLarge: {
-      pt: "Não há lugares suficientes nessa partida para o seu grupo. Escolha outra, por favor.",
-      en: "There aren't enough seats left on that departure for your group. Please pick another.",
+    /**
+     * The car this group needs is already out on that departure — on either
+     * tour, since the fleet is shared. A different day or a different
+     * departure may well have one, so the message says to pick one rather
+     * than sending them away.
+     */
+    carGone: {
+      pt: "O carro para um grupo deste tamanho já está reservado nessa partida. Escolha outro dia ou outra hora, por favor.",
+      en: "The car for a group your size is already booked on that departure. Please pick another day or time.",
     } as Localized,
+    /**
+     * Above the biggest car. Not a refusal — a redirection: bigger groups are
+     * real business that needs a third driver (AGORA-019), so they are worth a
+     * conversation rather than an error.
+     */
     groupTooLarge: {
-      pt: "Para grupos com mais de 12 adultos, fale connosco — organizamos tudo à medida.",
-      en: "For groups of more than 12 adults, get in touch — we'll arrange it for you.",
+      pt: "Grupos com mais de 8 pessoas juntam vários carros — fale connosco e organizamos tudo à medida.",
+      en: "Groups of more than 8 need several cars — get in touch and we'll arrange it for you.",
     } as Localized,
     minAdults: {
       pt: "Esta opção precisa de mais adultos do que os indicados — veja os mínimos junto de cada escolha.",

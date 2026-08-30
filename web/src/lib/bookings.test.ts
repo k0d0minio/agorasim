@@ -3,20 +3,21 @@ import { describe, expect, it } from "vitest";
 import {
   BOOKING_HOLD_MINUTES,
   bookingRef,
+  emptyOccupancy,
   holdExpiryFrom,
-  occupiesSeat,
+  holdsCapacity,
 } from "@/lib/bookings";
 import type { Booking } from "@/db";
 
 /**
- * The seats.
+ * The demand side.
  *
  * The money moved to `lib/pricing.ts` (and `pricing.test.ts` exercises the
- * real price list). What stays here is the demand-side arithmetic that costs
- * somebody something real when it is wrong: an abandoned checkout sitting on
- * the last seat of a Saturday in August, or releasing a seat somebody paid
- * for. Formatting and parsing money live in `money.test.ts`; the queries
- * themselves are typed and covered by the build, per `sales.test.ts`.
+ * real price list). What stays here is the arithmetic that costs somebody
+ * something real when it is wrong: an abandoned checkout sitting on the last
+ * driver of a Saturday in August, or releasing a car somebody paid for.
+ * Formatting and parsing money live in `money.test.ts`; the queries themselves
+ * are typed and covered by the build, per `sales.test.ts`.
  */
 
 describe("bookingRef", () => {
@@ -36,7 +37,20 @@ describe("holdExpiryFrom", () => {
   });
 });
 
-describe("occupiesSeat", () => {
+describe("emptyOccupancy", () => {
+  it("starts every class at zero, and hands back a fresh tally each time", () => {
+    const first = emptyOccupancy();
+    first.drivers += 1;
+    first.vehicles["classic-small"] += 1;
+    // A shared object here would leak one departure's bookings into the next.
+    expect(emptyOccupancy()).toEqual({
+      drivers: 0,
+      vehicles: { "classic-small": 0, "classic-van": 0, touring: 0 },
+    });
+  });
+});
+
+describe("holdsCapacity", () => {
   const now = new Date("2026-08-15T10:00:00Z");
 
   const booking = (overrides: Partial<Pick<Booking, "status" | "holdExpiresAt">>) =>
@@ -47,10 +61,10 @@ describe("occupiesSeat", () => {
     }) as Pick<Booking, "status" | "holdExpiresAt">;
 
   it("counts a confirmed booking forever", () => {
-    expect(occupiesSeat(booking({ status: "confirmed" }), now)).toBe(true);
-    // Even long after any hold time — the seat is sold, not held.
+    expect(holdsCapacity(booking({ status: "confirmed" }), now)).toBe(true);
+    // Even long after any hold time — the car is sold, not held.
     expect(
-      occupiesSeat(
+      holdsCapacity(
         booking({ status: "confirmed", holdExpiresAt: new Date("2026-08-01T00:00:00Z") }),
         now,
       ),
@@ -58,18 +72,18 @@ describe("occupiesSeat", () => {
   });
 
   it("counts a pending booking only while its hold is live", () => {
-    expect(occupiesSeat(booking({}), now)).toBe(true);
-    // The moment the hold lapses the seat frees itself — no sweeper involved,
+    expect(holdsCapacity(booking({}), now)).toBe(true);
+    // The moment the hold lapses the car frees itself — no sweeper involved,
     // which is the design: a sweeper that fails silently would leave August
     // looking sold out.
     expect(
-      occupiesSeat(booking({ holdExpiresAt: new Date("2026-08-15T09:59:59Z") }), now),
+      holdsCapacity(booking({ holdExpiresAt: new Date("2026-08-15T09:59:59Z") }), now),
     ).toBe(false);
   });
 
   it("never counts a closed booking", () => {
     for (const status of ["cancelled", "expired", "refunded"] as const) {
-      expect(occupiesSeat(booking({ status }), now)).toBe(false);
+      expect(holdsCapacity(booking({ status }), now)).toBe(false);
     }
   });
 });
