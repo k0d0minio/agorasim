@@ -15,7 +15,7 @@ every boundary.
   FAQ) ready to publish into the website. Template for future pipelines (blog/, social/, email/).
 
 ## How to run a workspace
-1. Open the workspace's `CLAUDE.md`, then `CONTEXT.md`.
+1. Open the workspace's `AGENTS.md`, then `CONTEXT.md`.
 2. Fill `setup/questionnaire.md` if present.
 3. Work the stages in order (`01_…` → `02_…` → `03_…`). Each stage's `CONTEXT.md` declares its
    Inputs, Process and Outputs. Read the previous stage's `output/`, write to your own `output/`.
