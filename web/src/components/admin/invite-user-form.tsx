@@ -14,7 +14,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending}>
-      {pending ? "Creating…" : "Create account"}
+      {pending ? "A criar…" : "Criar conta"}
     </Button>
   );
 }
@@ -33,16 +33,16 @@ export function InviteUserForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Add someone to the team</CardTitle>
+        <CardTitle>Adicionar alguém à equipa</CardTitle>
         <CardDescription>
-          Set a temporary password and pass it on directly. They change it from their own
-          account screen the first time they sign in.
+          Defina uma palavra-passe temporária e entregue-a em mão. A pessoa muda-a no ecrã
+          da própria conta quando entrar pela primeira vez.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form action={formAction} className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="invite-name">Name</Label>
+            <Label htmlFor="invite-name">Nome</Label>
             {/* The owner is entering a *colleague's* details — their own
                 autofill would only ever be wrong here. */}
             <Input id="invite-name" name="name" autoComplete="off" enterKeyHint="next" required />
@@ -71,7 +71,7 @@ export function InviteUserForm() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="invite-password">Temporary password</Label>
+            <Label htmlFor="invite-password">Palavra-passe temporária</Label>
             <Input
               id="invite-password"
               name="password"
@@ -88,7 +88,7 @@ export function InviteUserForm() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="invite-role">Role</Label>
+            <Label htmlFor="invite-role">Função</Label>
             <Select id="invite-role" name="role" defaultValue="collaborator">
               {ADMIN_ROLES.map((role) => (
                 <option key={role} value={role}>

@@ -11,7 +11,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" size="lg" className="w-full" disabled={pending}>
-      {pending ? "Signing in…" : "Sign in"}
+      {pending ? "A entrar…" : "Entrar"}
     </Button>
   );
 }
@@ -46,7 +46,7 @@ export function LoginForm({ next }: { next?: string }) {
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="password">Password</Label>
+        <Label htmlFor="password">Palavra-passe</Label>
         <Input
           id="password"
           name="password"

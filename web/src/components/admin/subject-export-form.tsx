@@ -14,7 +14,7 @@ function SubmitButton() {
   return (
     <Button type="submit" disabled={pending}>
       <Download className="size-4" />
-      {pending ? "Building…" : "Export"}
+      {pending ? "A preparar…" : "Exportar"}
     </Button>
   );
 }
@@ -54,16 +54,17 @@ export function SubjectExportForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Export someone&apos;s data</CardTitle>
+        <CardTitle>Exportar os dados de uma pessoa</CardTitle>
         <CardDescription>
-          Answers a subject-access request: every record we hold against one email address,
-          across every table, as a JSON file. The export itself is recorded in the audit log.
+          Responde a um pedido de acesso a dados: tudo o que temos guardado sobre um email,
+          em todas as tabelas, num ficheiro JSON. A própria exportação fica registada no
+          registo de atividade.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form action={formAction} className="flex flex-wrap items-end gap-3">
           <div className="flex min-w-64 flex-col gap-1.5">
-            <Label htmlFor="export-email">Email address</Label>
+            <Label htmlFor="export-email">Endereço de email</Label>
             {/* The guest's address, not the owner's — keep autofill out. */}
             <Input
               id="export-email"
@@ -82,7 +83,7 @@ export function SubjectExportForm() {
           ) : null}
           {state.filename ? (
             <p className="text-sm text-muted-foreground" role="status">
-              Downloaded {state.filename}
+              Transferido {state.filename}
             </p>
           ) : null}
         </form>

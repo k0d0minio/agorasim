@@ -50,7 +50,7 @@ export function UserRowActions({
       <form action={formAction} className="flex flex-col items-start gap-1">
         <input type="hidden" name="id" value={id} />
         <Button type="submit" variant="outline">
-          Re-enable
+          Reativar
         </Button>
         {state.error ? (
           <p className="text-xs text-destructive" role="alert">
@@ -64,7 +64,7 @@ export function UserRowActions({
   return (
     <div className="flex flex-col items-start gap-1">
       <Button type="button" variant="ghost" onClick={() => setOpen(true)}>
-        Disable
+        Desativar
       </Button>
       {state.error ? (
         <p className="text-xs text-destructive" role="alert">
@@ -75,19 +75,20 @@ export function UserRowActions({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Disable {name}?</DialogTitle>
+            <DialogTitle>Desativar {name}?</DialogTitle>
             <DialogDescription>
-              They cannot sign in and every session they have ends now. The account itself is
-              kept, so the audit log still shows what they did. You can re-enable it later.
+              A pessoa deixa de poder entrar e todas as sessões terminam já. A conta é
+              mantida, para o registo de atividade continuar a mostrar o que fez. Pode
+              reativá-la mais tarde.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
+              Cancelar
             </Button>
             <form action={formAction} onSubmit={() => setOpen(false)}>
               <input type="hidden" name="id" value={id} />
-              <ConfirmButton label="Disable account" pendingLabel="Disabling…" />
+              <ConfirmButton label="Desativar conta" pendingLabel="A desativar…" />
             </form>
           </DialogFooter>
         </DialogContent>

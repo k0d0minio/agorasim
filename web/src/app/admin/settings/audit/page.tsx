@@ -47,8 +47,8 @@ export default async function AdminAuditPage({
       <AdminShell>
         <PlaceholderPanel
           icon={ScrollText}
-          title="Nothing recorded yet"
-          description="Every change made in this admin — status updates, erasures, account changes — is recorded here with who made it and when."
+          title="Ainda não há registos"
+          description="Todas as alterações feitas no painel — mudanças de estado, eliminações, alterações de contas — ficam aqui registadas, com quem as fez e quando."
         />
       </AdminShell>
     );
@@ -59,7 +59,7 @@ export default async function AdminAuditPage({
       <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
         <ScrollText className="size-4" />
         <span>
-          {entries} {entries === 1 ? "entry" : "entries"}
+          {entries} {entries === 1 ? "registo" : "registos"}
         </span>
       </div>
 
@@ -69,7 +69,7 @@ export default async function AdminAuditPage({
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
               <span className="font-medium">
                 {/* A null actor means the retention cron, not an unknown person. */}
-                {row.actorName ?? "Scheduled job"}
+                {row.actorName ?? "Tarefa automática"}
               </span>
               <span className="text-muted-foreground">{auditActionLabel(row.action)}</span>
               <span className="ml-auto whitespace-nowrap text-xs text-muted-foreground">
@@ -89,7 +89,7 @@ export default async function AdminAuditPage({
                  can scroll it too. 12px is the floor, not 11 (spec §3 F2). */
               <pre
                 tabIndex={0}
-                aria-label="Recorded change, as JSON"
+                aria-label="Alteração registada, em JSON"
                 className="mt-1 overflow-x-auto rounded-lg bg-muted/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
               >
                 {JSON.stringify({ before: row.before, after: row.after }, null, 2)}
@@ -102,7 +102,7 @@ export default async function AdminAuditPage({
       <AdminPagination
         page={page}
         total={entries}
-        label="Audit log pages"
+        label="Páginas do registo"
         hrefFor={(n) => `/admin/settings/audit?page=${n}`}
       />
     </AdminShell>
