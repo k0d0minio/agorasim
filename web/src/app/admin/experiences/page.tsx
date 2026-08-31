@@ -84,6 +84,9 @@ export default async function AdminExperiencesPage() {
           const name = t(entry.title, "en");
           const Icon = experienceIcon(entry.icon).icon;
           const kind = experienceKindMeta[entry.kind];
+          // What the row says about money — the whole price list in a sentence,
+          // or nothing, which is itself the thing to say (see below).
+          const pricingSummary = describePricing(entry.pricing);
 
           return (
             <div
@@ -118,10 +121,8 @@ export default async function AdminExperiencesPage() {
                   /{entry.slug} · {t(entry.duration, "en")}
                 </p>
                 <p className="mt-1 text-xs">
-                  {describePricing(entry.pricing) ? (
-                    <span className="text-muted-foreground">
-                      {describePricing(entry.pricing)}
-                    </span>
+                  {pricingSummary ? (
+                    <span className="text-muted-foreground">{pricingSummary}</span>
                   ) : (
                     /* Not a nag — an unpriced entry genuinely cannot be sold,
                        and the list is where that is discovered. */
