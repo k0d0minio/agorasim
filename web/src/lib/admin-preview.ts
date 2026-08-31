@@ -1,5 +1,5 @@
 /**
- * Example data for the admin design-preview pages: blog studio, social studio,
+ * Example data for the admin design-preview pages: social studio and
  * notifications. Each renders its final layout with this data until the feature
  * behind it is wired up, and every one of them carries an `AdminInDevBanner`
  * saying so.
@@ -9,26 +9,9 @@
  * The CRM pipeline's example leads used to live here, and so did four example
  * bookings the Sales screen merged in beside real enquiries. Neither does now:
  * Sales is fed by `tour_requests` and `bookings`, so what it shows is what
- * happened.
+ * happened. The Blog studio's four example drafts have gone the same way — it
+ * reads `blog_post_drafts`, so what it lists is what the pipeline wrote.
  */
-
-// ---------------------------------------------------------------------------
-// Blog studio (Feature 2)
-// ---------------------------------------------------------------------------
-
-export type PreviewBlogDraft = {
-  title: string;
-  status: "Draft" | "In review" | "Approved" | "Published";
-  note: string;
-  scheduled: string;
-};
-
-export const previewBlogDrafts: PreviewBlogDraft[] = [
-  { title: "A perfect day in Ericeira, away from the crowds", status: "Published", note: "PT + EN · Itineraries", scheduled: "Went live 14 Jul" },
-  { title: "Why the Saloia countryside is Portugal's best-kept secret", status: "Published", note: "PT + EN · The region", scheduled: "Went live 30 Jun" },
-  { title: "From the Colares vineyards to Mafra: a tasting guide", status: "In review", note: "PT + EN · Food & wine", scheduled: "Planned 8 Aug" },
-  { title: "Five village festivals worth planning a trip around", status: "Draft", note: "AI draft ready for your read", scheduled: "Planned 22 Aug" },
-];
 
 // ---------------------------------------------------------------------------
 // Social studio (Feature 5)
