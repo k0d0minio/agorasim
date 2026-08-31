@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  guestCancellationEmail,
   guestConfirmationEmail,
+  partyLabel,
   teamNotificationEmail,
+  type BookingCancellationFacts,
   type BookingEmailFacts,
 } from "@/lib/booking-emails";
 import { emailPalette } from "@/lib/email-layout";
@@ -256,5 +259,104 @@ describe("teamNotificationEmail", () => {
     expect(message.subject).not.toMatch(/\{/);
     expect(message.text).not.toMatch(/\{/);
     expect(message.html).not.toMatch(/\{(name|ref|experience|date|party|total|adminUrl)\}/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The cancellation notice
+// ---------------------------------------------------------------------------
+
+function cancelled(
+  overrides: Partial<BookingCancellationFacts> = {},
+): BookingCancellationFacts {
+  return {
+    ref: "BK-A1B2C3",
+    guestName: "Sofia Almeida",
+    guestEmail: "sofia@example.com",
+    locale: "pt",
+    date: "sábado, 15 de agosto de 2026",
+    experience: "Rural Saloia — experiência privada",
+    partyLabel: "2 adultos",
+    total: "€340",
+    refund: "€340",
+    partialRefund: false,
+    ...overrides,
+  };
+}
+
+describe("guestCancellationEmail", () => {
+  it("substitutes every placeholder — no stray braces reach a guest", () => {
+    const message = guestCancellationEmail(cancelled());
+    expect(message.subject).not.toMatch(/\{/);
+    expect(message.text).not.toMatch(/\{/);
+    expect(message.html).not.toMatch(/\{(name|ref|experience|date|total|refund|site)\}/);
+  });
+
+  it("says the tour is off, and how much is coming back", () => {
+    const message = guestCancellationEmail(cancelled());
+    expect(message.to).toEqual(["sofia@example.com"]);
+    expect(message.subject).toContain("Reserva cancelada");
+    for (const part of [message.text, message.html!]) {
+      expect(part).toContain("BK-A1B2C3");
+      expect(part).toContain("sábado, 15 de agosto de 2026");
+      expect(part).toContain("€340");
+    }
+  });
+
+  it("never wears the confirmation's banner", () => {
+    // A cancellation read as a confirmation is the worst failure this email
+    // has: the guest sees the green strip, stops reading, and turns up.
+    const message = guestCancellationEmail(cancelled());
+    expect(message.html).not.toContain("Reserva confirmada");
+    expect(message.html).toContain("Reserva cancelada");
+    // The strip itself is the muted grey, not the confirmation's green.
+    expect(message.html).toContain(`bgcolor="${emailPalette.textMuted}"`);
+  });
+
+  it("names both amounts when only part of the money goes back", () => {
+    const message = guestCancellationEmail(
+      cancelled({ total: "€340", refund: "€170", partialRefund: true }),
+    );
+    for (const part of [message.text, message.html!]) {
+      expect(part).toContain("€170");
+      expect(part).toContain("€340");
+    }
+  });
+
+  it("says plainly when nothing is refunded, rather than leaving a blank", () => {
+    const message = guestCancellationEmail(cancelled({ refund: null }));
+    for (const part of [message.text, message.html!]) {
+      expect(part).toContain("Não foi devolvido nenhum valor");
+    }
+    // No refund row, and no empty one either.
+    expect(message.html).not.toContain("Reembolso");
+  });
+
+  it("writes in the language they booked in", () => {
+    const en = guestCancellationEmail(cancelled({ locale: "en" }));
+    expect(en.subject).toContain("Booking cancelled");
+    expect(en.html).toContain('lang="en"');
+    expect(en.text).toContain("has been cancelled");
+  });
+
+  it("replies to a person, not to the sending domain", () => {
+    expect(guestCancellationEmail(cancelled()).replyTo).toBe(site.email);
+  });
+});
+
+describe("partyLabel", () => {
+  it("says only the bands with somebody in them", () => {
+    expect(
+      partyLabel({ adults: 2, children: 1, infants: 0, partySize: 3 }, "pt"),
+    ).toBe("2 adultos · 1 criança (4–12)");
+    expect(partyLabel({ adults: 1, children: 0, infants: 0, partySize: 1 }, "en")).toBe(
+      "1 adult",
+    );
+  });
+
+  it("falls back to the head count for a row priced before the bands", () => {
+    expect(partyLabel({ adults: 0, children: 0, infants: 0, partySize: 4 }, "pt")).toBe(
+      "4",
+    );
   });
 });

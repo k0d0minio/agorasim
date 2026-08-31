@@ -728,6 +728,34 @@ export const bookings = pgTable("bookings", {
    */
   cancellationTokenHash: text("cancellation_token_hash"),
 
+  /**
+   * How much of {@link bookings.amountCents} has gone back to the guest, in the
+   * same unit it was charged in.
+   *
+   * **An amount, not a flag**, because a refund is not a boolean: the team
+   * refunds in full for weather, and part of a total when a party shrinks or
+   * goodwill meets a late cancellation. A `refunded` status alone would say
+   * "money went back" and leave "how much?" — the first question a guest asks —
+   * answerable only from the Stripe dashboard.
+   *
+   * Cumulative, so a second partial refund adds to it rather than replacing it,
+   * and `0` is the honest default for every row that has never been refunded.
+   * `status = 'refunded'` and a non-zero value here always travel together; a
+   * cancellation that returned nothing stays `cancelled`.
+   */
+  refundedAmountCents: integer("refunded_amount_cents").notNull().default(0),
+  /**
+   * Stripe's handle for the most recent refund — `re_…`.
+   *
+   * The join between this row and the money, for the conversation that starts
+   * "the bank says nothing arrived". Only the latest is kept: the full history
+   * of refunds against a payment lives in Stripe, and duplicating it here would
+   * be a second ledger to keep honest.
+   */
+  stripeRefundId: text("stripe_refund_id"),
+  /** When money last went back. Null until any does. */
+  refundedAt: timestamp("refunded_at", { withTimezone: true }),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [

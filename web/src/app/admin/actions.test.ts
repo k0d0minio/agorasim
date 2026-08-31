@@ -89,6 +89,9 @@ vi.mock("@/db", async () => {
 const cookieJar = new Map<string, string>();
 
 vi.mock("next/headers", () => ({
+  // `requireAdmin` reads these to remember where a lapsed session was when it
+  // sends the operator to the login screen.
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) => {
       const value = cookieJar.get(name);
@@ -118,6 +121,33 @@ vi.mock("@/lib/request-ip", () => ({ clientIp: async () => "203.0.113.9" }));
 const revalidatePath = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
 
+// Stripe, for the refund. The action's job is to ask for the right refund and
+// to write down what came back; whether Stripe's own API works is not this
+// suite's question.
+const refundsCreate = vi.fn();
+const paymentIntentsRetrieve = vi.fn();
+
+vi.mock("@/lib/stripe", () => ({
+  isStripeConfigured: () => true,
+  isWebhookConfigured: () => true,
+  isTestMode: () => true,
+  stripe: () => ({
+    paymentIntents: {
+      retrieve: (...args: unknown[]) => paymentIntentsRetrieve(...args),
+    },
+    refunds: { create: (...args: unknown[]) => refundsCreate(...args) },
+  }),
+}));
+
+// Unconfigured, as in CI: the guest's cancellation mail is best-effort and the
+// paths that matter here are the money and the audit row.
+vi.mock("@/lib/email", () => ({
+  isEmailConfigured: () => false,
+  sendEmail: vi.fn(),
+  teamRecipients: () => [],
+  senderAddress: () => null,
+}));
+
 const findAdminUserById = vi.fn<(id: string) => Promise<AdminUserSummary | null>>();
 
 vi.mock("@/lib/admin-users", () => ({
@@ -145,10 +175,12 @@ const {
   updateTourRequestStatus,
 } = await import("./actions");
 const { deleteExperience, saveExperience } = await import("./experiences/actions");
+const { cancelBooking } = await import("./sales/actions");
 
 const OWNER_ID = "11111111-1111-4111-8111-111111111111";
 const COLLABORATOR_ID = "22222222-2222-4222-8222-222222222222";
 const REQUEST_ID = "33333333-3333-4333-8333-333333333333";
+const BOOKING_ID = "44444444-4444-4444-8444-444444444444";
 
 function account(role: "owner" | "collaborator"): AdminUserSummary {
   return {
@@ -176,6 +208,13 @@ function insertedValues(): Record<string, unknown>[] {
     .map((call) => call.args[0] as Record<string, unknown>);
 }
 
+/** The `set()` payloads handed to `db.update(...)`, in order. */
+function updatedValues(): Record<string, unknown>[] {
+  return calls
+    .filter((call) => call.method === "set")
+    .map((call) => call.args[0] as Record<string, unknown>);
+}
+
 function called(method: string): boolean {
   return calls.some((call) => call.method === method);
 }
@@ -199,6 +238,42 @@ function form(values: Record<string, string | string[]>): FormData {
   return data;
 }
 
+/** One paid booking, as the lookup before a refund would return it. */
+function bookingRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: BOOKING_ID,
+    tourRequestId: REQUEST_ID,
+    date: "2026-08-15",
+    slot: "morning",
+    experienceSlug: "rural-saloia",
+    addOns: [],
+    mode: "public",
+    adults: 2,
+    children: 0,
+    infants: 0,
+    vehicleClass: "classic-small",
+    partySize: 2,
+    amountCents: 34000,
+    currency: "eur",
+    priceBreakdown: [],
+    status: "confirmed",
+    locale: "pt",
+    stripeSessionId: "cs_test_1",
+    stripePaymentIntentId: "pi_test_1",
+    holdExpiresAt: new Date("2026-06-01T09:30:00Z"),
+    confirmedAt: new Date("2026-06-01T09:10:00Z"),
+    cancelledAt: null,
+    cancelledVia: null,
+    cancellationTokenHash: null,
+    refundedAmountCents: 0,
+    stripeRefundId: null,
+    refundedAt: null,
+    createdAt: new Date("2026-06-01T09:00:00Z"),
+    updatedAt: new Date("2026-06-01T09:10:00Z"),
+    ...overrides,
+  };
+}
+
 /** One enquiry row, as the pre-delete lookup would return it. */
 const subjectRow = {
   id: REQUEST_ID,
@@ -214,6 +289,9 @@ beforeEach(() => {
   cookieJar.clear();
   findAdminUserById.mockReset();
   revalidatePath.mockReset();
+  refundsCreate.mockReset();
+  paymentIntentsRetrieve.mockReset();
+  paymentIntentsRetrieve.mockResolvedValue({ latest_charge: null });
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -594,5 +672,186 @@ describe("the experience catalogue", () => {
 
     expect(called("delete")).toBe(false);
     expect(called("select")).toBe(false);
+  });
+});
+
+/**
+ * Cancelling a paid booking from the Sales board.
+ *
+ * Four things have to happen together or the action is worse than useless: the
+ * money goes back, the car stops being counted against the departure, the guest
+ * is told, and the audit log names whoever decided it. The email is the one
+ * best-effort part (it is unconfigured here, as in CI); the other three are
+ * asserted below, through the real action and the real audit writer.
+ */
+describe("cancelling and refunding a booking", () => {
+  const fullRefund = () =>
+    form({ bookingId: BOOKING_ID, refundAmount: "340", confirm: "REEMBOLSAR" });
+
+  it("refunds through Stripe, frees the car and records who did it", async () => {
+    await signInAs("collaborator");
+    queueResult([bookingRow()]); // the lookup
+    queueResult([bookingRow({ status: "cancelled" })]); // the claim
+    refundsCreate.mockResolvedValue({ id: "re_test_1" });
+    queueResult([bookingRow({ status: "refunded", refundedAmountCents: 34000 })]);
+    queueResult(undefined); // the audit insert
+
+    const result = await cancelBooking({}, fullRefund());
+
+    expect(result.ok).toBe(true);
+    expect(refundsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ payment_intent: "pi_test_1", amount: 34000 }),
+      // Keyed, so a double-submitted form cannot refund the same money twice.
+      expect.objectContaining({ idempotencyKey: expect.stringContaining(BOOKING_ID) }),
+    );
+
+    // The claim leaves the booking out of the capacity-holding statuses, which
+    // *is* the seat release — `lib/bookings.ts` counts nothing else.
+    expect(updatedValues()[0]).toMatchObject({
+      status: "cancelled",
+      cancelledVia: "admin",
+    });
+    expect(updatedValues()[1]).toMatchObject({
+      status: "refunded",
+      refundedAmountCents: 34000,
+      stripeRefundId: "re_test_1",
+    });
+
+    const entry = insertedValues()[0]!;
+    expect(entry).toMatchObject({
+      actorUserId: COLLABORATOR_ID,
+      action: "booking.refunded",
+      entityType: "booking",
+      entityId: BOOKING_ID,
+    });
+    const after = entry.after as Record<string, unknown>;
+    expect(after.amountCents).toBe(34000);
+    expect(after.refundedAmountCents).toBe(34000);
+    expect(after.stripeRefundId).toBe("re_test_1");
+
+    // The public calendar renders occupancy and is cached.
+    expect(revalidatePath).toHaveBeenCalled();
+  });
+
+  it("does not return an application fee that was never taken", async () => {
+    await signInAs("owner");
+    queueResult([bookingRow()]);
+    queueResult([bookingRow({ status: "cancelled" })]);
+    refundsCreate.mockResolvedValue({ id: "re_test_1" });
+    queueResult([bookingRow({ status: "refunded", refundedAmountCents: 34000 })]);
+    queueResult(undefined);
+
+    await cancelBooking({}, fullRefund());
+
+    // Nothing takes an application fee yet (Connect is unbuilt), and asking
+    // Stripe to refund one that does not exist is an error, not a no-op.
+    expect(refundsCreate.mock.calls[0][0]).not.toHaveProperty("refund_application_fee");
+  });
+
+  it("returns the fee in proportion when the charge carried one", async () => {
+    await signInAs("owner");
+    paymentIntentsRetrieve.mockResolvedValue({
+      latest_charge: { application_fee_amount: 1360 },
+    });
+    queueResult([bookingRow()]);
+    queueResult([bookingRow({ status: "cancelled" })]);
+    refundsCreate.mockResolvedValue({ id: "re_test_1" });
+    queueResult([bookingRow({ status: "refunded", refundedAmountCents: 17000 })]);
+    queueResult(undefined);
+
+    await cancelBooking(
+      {},
+      form({ bookingId: BOOKING_ID, refundAmount: "170", confirm: "REEMBOLSAR" }),
+    );
+
+    // Stripe does the proportional arithmetic the commission agreement asks
+    // for; the flag is what asks it to.
+    expect(refundsCreate.mock.calls[0][0]).toMatchObject({
+      amount: 17000,
+      refund_application_fee: true,
+    });
+  });
+
+  it("cancels without touching Stripe when nothing is being returned", async () => {
+    await signInAs("collaborator");
+    queueResult([bookingRow()]);
+    queueResult([bookingRow({ status: "cancelled" })]);
+    queueResult([bookingRow({ status: "cancelled" })]);
+    queueResult(undefined);
+
+    const result = await cancelBooking(
+      {},
+      form({ bookingId: BOOKING_ID, refundAmount: "0", confirm: "REEMBOLSAR" }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(refundsCreate).not.toHaveBeenCalled();
+    // `refunded` would be a refund that never happened, in the books.
+    expect(updatedValues()[1]).toMatchObject({ status: "cancelled" });
+    expect(insertedValues()[0]).toMatchObject({ action: "booking.cancelled" });
+  });
+
+  it("refuses more than is left to refund, before anything is written", async () => {
+    await signInAs("owner");
+    queueResult([bookingRow({ refundedAmountCents: 20000 })]);
+
+    const result = await cancelBooking({}, fullRefund());
+
+    expect(result.error).toContain("140");
+    expect(refundsCreate).not.toHaveBeenCalled();
+    expect(called("update")).toBe(false);
+  });
+
+  it("refuses a booking that is not a paid one", async () => {
+    await signInAs("owner");
+    queueResult([bookingRow({ status: "refunded", refundedAmountCents: 34000 })]);
+
+    const result = await cancelBooking({}, fullRefund());
+
+    expect(result.error).toBeTruthy();
+    expect(refundsCreate).not.toHaveBeenCalled();
+    expect(called("update")).toBe(false);
+  });
+
+  it("leaves the booking cancelled and says so when Stripe refuses", async () => {
+    await signInAs("owner");
+    queueResult([bookingRow()]);
+    queueResult([bookingRow({ status: "cancelled" })]);
+    refundsCreate.mockRejectedValue(new Error("card_declined"));
+    queueResult(undefined); // the audit insert for the failed refund
+
+    const result = await cancelBooking({}, fullRefund());
+
+    // The row is claimed before the money moves precisely so this state is
+    // visible rather than a refund with no booking behind it.
+    expect(result.ok).toBeUndefined();
+    expect(result.error).toContain("Stripe");
+    const failed = insertedValues()[0]!.after as Record<string, unknown>;
+    expect(failed.refundFailed).toBe(true);
+    expect(failed.refundRequestedCents).toBe(34000);
+  });
+
+  it("will not act without the typed confirmation", async () => {
+    await signInAs("owner");
+
+    const result = await cancelBooking(
+      {},
+      form({ bookingId: BOOKING_ID, refundAmount: "340", confirm: "sim" }),
+    );
+
+    expect(result.error).toBeTruthy();
+    expect(called("select")).toBe(false);
+    expect(refundsCreate).not.toHaveBeenCalled();
+  });
+
+  it("sends a signed-out caller to the login screen, refunding nothing", async () => {
+    // `proxy.ts` does not gate action POSTs — `requireAdmin()` in the action is
+    // the only thing between a signed-out POST and a refund.
+    expect(await redirectedTo(() => cancelBooking({}, fullRefund()))).toBe(
+      "/admin/login",
+    );
+
+    expect(called("select")).toBe(false);
+    expect(refundsCreate).not.toHaveBeenCalled();
   });
 });
