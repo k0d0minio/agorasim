@@ -37,7 +37,11 @@ import {
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { bookingContent } from "@/content/booking";
 import { bookingEmails } from "@/content/emails";
-import { departureLabel, meetingPoints } from "@/content/logistics";
+import {
+  departureLabel,
+  departureTimeFollowsByEmail,
+  meetingPoints,
+} from "@/content/logistics";
 import { t, type Locale } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
 import { formatDay, type DateKey } from "@/lib/availability";
@@ -403,6 +407,7 @@ async function sendConfirmationEmails(
     date: formatDay(booking.date, locale),
     experience: `${name(booking.experienceSlug)} — ${t(bookingEmails.guest.modeWords[booking.mode], locale)}`,
     departure: t(departureLabel(booking.experienceSlug, booking.slot), locale),
+    departureTimeFollows: departureTimeFollowsByEmail(booking.experienceSlug),
     meetingPoint: meetingPoints[booking.experienceSlug] ?? null,
     addOns: booking.addOns.map(name),
     partySize: booking.partySize,

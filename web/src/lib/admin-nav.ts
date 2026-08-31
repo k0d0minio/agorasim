@@ -23,7 +23,6 @@ import {
   Share2,
   ShieldCheck,
   UserCog,
-  Users,
 } from "lucide-react";
 import type { AdminRole } from "@/db/schema";
 
@@ -151,16 +150,6 @@ export const ADMIN_NAV: AdminNavItem[] = [
     group: "Marketing",
     description:
       "Um calendário de publicações gerado para o Instagram e o Facebook — aprove e sai sozinho.",
-    dev: true,
-    primary: false,
-  },
-  {
-    href: "/admin/referrals",
-    label: "Referrals",
-    icon: Users,
-    group: "Marketing",
-    description:
-      "Personal links for happy guests, tracked bookings, and the rewards you owe your fans.",
     dev: true,
     primary: false,
   },

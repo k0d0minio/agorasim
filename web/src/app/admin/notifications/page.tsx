@@ -98,8 +98,8 @@ export default async function AdminNotificationsPage() {
       </Card>
 
       <p className="mt-4 text-xs text-muted-foreground">
-        Reminders cut no-shows; a well-timed thank-you drives reviews and referrals. All messages go
-        out in the guest&apos;s language.
+        Reminders cut no-shows; a well-timed thank-you drives reviews. All messages go out in
+        the guest&apos;s language.
       </p>
     </AdminShell>
   );

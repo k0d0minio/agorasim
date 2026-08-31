@@ -73,7 +73,7 @@ import { exportSubjectData, subjectExportFilename } from "@/lib/subject-data";
 export type LoginState = { error?: string };
 
 /** Shown for every failure mode alike — see `login`. */
-const LOGIN_ERROR = "Incorrect email or password.";
+const LOGIN_ERROR = "Email ou palavra-passe incorretos.";
 
 /**
  * Handle the admin login form. On success, set the session cookie and redirect
@@ -193,7 +193,7 @@ export async function updateTourRequestStatus(
   const parsed = updateTourRequestStatusSchema.safeParse({ id, status });
   if (!parsed.success) {
     console.warn("[admin] rejected tour-request status update", z.flattenError(parsed.error));
-    return { error: "Couldn't update that status." };
+    return { error: "Não foi possível mudar o estado." };
   }
 
   try {
@@ -205,10 +205,10 @@ export async function updateTourRequestStatus(
       .where(eq(tourRequests.id, parsed.data.id))
       .returning({ id: tourRequests.id, status: tourRequests.status });
 
-    if (!updated) return { error: "That submission no longer exists." };
+    if (!updated) return { error: "Esse pedido já não existe." };
   } catch (err) {
     console.error("[admin] failed to update tour request status", err);
-    return { error: "Couldn't save — the change was not stored." };
+    return { error: "Não foi possível guardar — a alteração não ficou registada." };
   }
 
   await recordAuditOrWarn({
@@ -268,7 +268,7 @@ export async function updateTourRequest(
     .where(eq(tourRequests.id, id))
     .limit(1);
 
-  if (!before) return { error: "That lead no longer exists." };
+  if (!before) return { error: "Esse pedido já não existe." };
 
   const changed = (Object.keys(edits) as (keyof typeof edits)[]).filter((field) => {
     const next = edits[field];
@@ -278,7 +278,7 @@ export async function updateTourRequest(
       : next !== current;
   });
 
-  if (changed.length === 0) return { ok: true, message: "Nothing to save." };
+  if (changed.length === 0) return { ok: true, message: "Não havia nada para guardar." };
 
   try {
     await db
@@ -287,7 +287,7 @@ export async function updateTourRequest(
       .where(eq(tourRequests.id, id));
   } catch (err) {
     console.error("[admin] failed to update tour request", err);
-    return { error: "Couldn't save — the change was not stored." };
+    return { error: "Não foi possível guardar — a alteração não ficou registada." };
   }
 
   await recordAuditOrWarn({
@@ -298,7 +298,7 @@ export async function updateTourRequest(
     after: { fields: changed },
   });
 
-  return { ok: true, message: "Saved." };
+  return { ok: true, message: "Guardado." };
 }
 
 /**
@@ -317,7 +317,7 @@ export async function logContactAttempt(
   const actor = await requireAdmin();
 
   const parsed = tourRequestIdSchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: "Couldn't find that lead." };
+  if (!parsed.success) return { error: "Não foi possível encontrar esse pedido." };
 
   const now = new Date();
 
@@ -327,7 +327,7 @@ export async function logContactAttempt(
     .where(eq(tourRequests.id, parsed.data.id))
     .limit(1);
 
-  if (!lead) return { error: "That lead no longer exists." };
+  if (!lead) return { error: "Esse pedido já não existe." };
 
   try {
     await db
@@ -342,7 +342,7 @@ export async function logContactAttempt(
       .where(eq(tourRequests.id, parsed.data.id));
   } catch (err) {
     console.error("[admin] failed to log a contact attempt", err);
-    return { error: "Couldn't save — the change was not stored." };
+    return { error: "Não foi possível guardar — a alteração não ficou registada." };
   }
 
   await recordAuditOrWarn({
@@ -370,7 +370,7 @@ export async function updateFeatureRequestStatus(
   const parsed = updateFeatureRequestStatusSchema.safeParse({ id, status });
   if (!parsed.success) {
     console.warn("[admin] rejected feature-request status update", z.flattenError(parsed.error));
-    return { error: "Couldn't update that status." };
+    return { error: "Não foi possível mudar o estado." };
   }
 
   try {
@@ -380,7 +380,7 @@ export async function updateFeatureRequestStatus(
       .where(eq(featureRequests.id, parsed.data.id));
   } catch (err) {
     console.error("[admin] failed to update feature request status", err);
-    return { error: "Couldn't save — the change was not stored." };
+    return { error: "Não foi possível guardar — a alteração não ficou registada." };
   }
 
   await recordAuditOrWarn({
@@ -440,7 +440,7 @@ export async function submitFeatureRequest(
     createdId = created?.id;
   } catch (err) {
     console.error("[admin] failed to store feature request", err);
-    return { error: "Something went wrong saving the request. Please try again." };
+    return { error: "Não foi possível guardar a sugestão. Tente novamente." };
   }
 
   await recordAuditOrWarn({
@@ -480,7 +480,7 @@ export async function deleteTourRequest(
 
   const parsed = deleteTourRequestSchema.safeParse(formValues(formData));
   if (!parsed.success) {
-    return { error: "Type DELETE to confirm the erasure." };
+    return { error: "Escreva DELETE para confirmar a eliminação." };
   }
 
   const [subject] = await db
@@ -495,7 +495,7 @@ export async function deleteTourRequest(
     .where(eq(tourRequests.id, parsed.data.id))
     .limit(1);
 
-  if (!subject) return { error: "That submission no longer exists." };
+  if (!subject) return { error: "Esse pedido já não existe." };
 
   try {
     await recordAudit({
@@ -511,17 +511,20 @@ export async function deleteTourRequest(
     });
   } catch (err) {
     console.error("[admin] refused to delete — could not write the audit entry", err);
-    return { error: "Couldn't record the erasure, so nothing was deleted. Try again." };
+    return {
+      error:
+        "Não foi possível registar a eliminação, por isso nada foi apagado. Tente novamente.",
+    };
   }
 
   try {
     await db.delete(tourRequests).where(eq(tourRequests.id, subject.id));
   } catch (err) {
     console.error("[admin] failed to delete tour request", err);
-    return { error: "Couldn't delete that submission." };
+    return { error: "Não foi possível apagar esse pedido." };
   }
 
-  return { ok: true, message: "Submission erased." };
+  return { ok: true, message: "Pedido eliminado." };
 }
 
 export type SubjectExportState = {
@@ -547,7 +550,7 @@ export async function exportSubject(
 
   const parsed = exportSubjectSchema.safeParse(formValues(formData));
   if (!parsed.success) {
-    return { error: "Enter the email address to export." };
+    return { error: "Indique o email a exportar." };
   }
 
   try {
@@ -566,7 +569,7 @@ export async function exportSubject(
     };
   } catch (err) {
     console.error("[admin] failed to export subject data", err);
-    return { error: "Couldn't build that export." };
+    return { error: "Não foi possível preparar a exportação." };
   }
 }
 
@@ -611,8 +614,8 @@ export async function inviteUser(
   const created = await createAdminUser(parsed.data);
   if (!created.ok) {
     return created.reason === "duplicate-email"
-      ? { fieldErrors: { email: "That address already has an account." } }
-      : { fieldErrors: { password: "That password is too short." } };
+      ? { fieldErrors: { email: "Esse email já tem conta." } }
+      : { fieldErrors: { password: "Essa palavra-passe é demasiado curta." } };
   }
 
   await recordAuditOrWarn({
@@ -625,7 +628,7 @@ export async function inviteUser(
     after: { email: created.user.email, name: created.user.name, role: created.user.role },
   });
 
-  return { ok: true, message: `${created.user.name} can now sign in.` };
+  return { ok: true, message: `${created.user.name} já pode entrar.` };
 }
 
 export type UserAdminState = { ok?: boolean; error?: string; message?: string };
@@ -645,25 +648,25 @@ export async function disableUser(
   const actor = await requireOwner();
 
   const parsed = adminUserIdSchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: "Couldn't find that account." };
+  if (!parsed.success) return { error: "Não foi possível encontrar essa conta." };
 
   if (parsed.data.id === actor.id) {
-    return { error: "You can't disable your own account." };
+    return { error: "Não pode desativar a sua própria conta." };
   }
 
   const target = await findAdminUserById(parsed.data.id);
-  if (!target) return { error: "Couldn't find that account." };
-  if (target.disabledAt) return { ok: true, message: "That account is already disabled." };
+  if (!target) return { error: "Não foi possível encontrar essa conta." };
+  if (target.disabledAt) return { ok: true, message: "Essa conta já está desativada." };
 
   if (target.role === "owner" && (await countActiveOwners()) <= 1) {
-    return { error: "That's the last active owner — promote someone else first." };
+    return { error: "É o último responsável ativo — promova outra pessoa primeiro." };
   }
 
   try {
     await disableAdminUser(target.id);
   } catch (err) {
     console.error("[admin] failed to disable user", err);
-    return { error: "Couldn't disable that account." };
+    return { error: "Não foi possível desativar essa conta." };
   }
 
   await recordAuditOrWarn({
@@ -675,7 +678,7 @@ export async function disableUser(
     after: { email: target.email, disabled: true },
   });
 
-  return { ok: true, message: `${target.name} can no longer sign in.` };
+  return { ok: true, message: `${target.name} já não pode entrar.` };
 }
 
 /** Re-enable a disabled account. The password is untouched. */
@@ -686,16 +689,16 @@ export async function enableUser(
   const actor = await requireOwner();
 
   const parsed = adminUserIdSchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: "Couldn't find that account." };
+  if (!parsed.success) return { error: "Não foi possível encontrar essa conta." };
 
   const target = await findAdminUserById(parsed.data.id);
-  if (!target) return { error: "Couldn't find that account." };
+  if (!target) return { error: "Não foi possível encontrar essa conta." };
 
   try {
     await enableAdminUser(target.id);
   } catch (err) {
     console.error("[admin] failed to enable user", err);
-    return { error: "Couldn't re-enable that account." };
+    return { error: "Não foi possível reativar essa conta." };
   }
 
   await recordAuditOrWarn({
@@ -706,7 +709,7 @@ export async function enableUser(
     after: { email: target.email, disabled: false },
   });
 
-  return { ok: true, message: `${target.name} can sign in again.` };
+  return { ok: true, message: `${target.name} já pode voltar a entrar.` };
 }
 
 export type ChangePasswordState = {
@@ -746,12 +749,12 @@ export async function changeOwnPassword(
 
   const check = await verifyCredentials(actor.email, parsed.data.currentPassword);
   if (!check.ok) {
-    return { fieldErrors: { currentPassword: "That isn't your current password." } };
+    return { fieldErrors: { currentPassword: "Essa não é a sua palavra-passe atual." } };
   }
 
   const changed = await setAdminUserPassword(actor.id, parsed.data.newPassword);
   if (!changed.ok) {
-    return { fieldErrors: { newPassword: "That password is too short." } };
+    return { fieldErrors: { newPassword: "Essa palavra-passe é demasiado curta." } };
   }
 
   await recordAuditOrWarn({

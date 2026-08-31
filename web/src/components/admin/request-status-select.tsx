@@ -31,7 +31,7 @@ export function RequestStatusSelect({
       value={status}
       options={OPTIONS}
       update={(next) => updateTourRequestStatus(id, next)}
-      triggerLabel={`Status for ${name} — currently ${requestStatusMeta[status].label}`}
+      triggerLabel={`Estado de ${name} — atualmente ${requestStatusMeta[status].label}`}
       className={className}
     />
   );

@@ -64,7 +64,9 @@ export function SalesBoard({
           <div className="flex flex-col gap-2 p-3">
             {column.records.length === 0 ? (
               <p className="px-1 pb-2 text-sm text-muted-foreground">
-                Nothing in {meta.label.toLowerCase()} right now.
+                {/* The stage name keeps its capital: `Novo`, `Orçamentado` and the
+                    rest are the column's name here, not adjectives in a sentence. */}
+                Nada em {meta.label} de momento.
               </p>
             ) : null}
 
@@ -82,6 +84,16 @@ export function SalesBoard({
                   {record.name}
                 </Link>
 
+                {/*
+                  The reference the guest is holding. Theirs comes from the
+                  booking, the team's from the lead, and they are different
+                  uuids — so a card that never showed this one could not be
+                  found by somebody quoting it down the phone.
+                */}
+                {record.bookingRef ? (
+                  <p className="font-mono text-xs text-muted-foreground">{record.bookingRef}</p>
+                ) : null}
+
                 <RecordIcons record={record} catalogue={catalogue} className="mt-1" />
 
                 <ExperienceNames
@@ -97,7 +109,7 @@ export function SalesBoard({
                   ) : null}
                   {record.partySize ? (
                     <span className="text-muted-foreground">
-                      {record.partySize} {record.partySize === 1 ? "person" : "people"}
+                      {record.partySize} {record.partySize === 1 ? "pessoa" : "pessoas"}
                     </span>
                   ) : null}
                   {record.when ? (
@@ -118,7 +130,7 @@ export function SalesBoard({
 
                 {lastChanged.get(record.id) ? (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {lastChanged.get(record.id)?.actorName ?? "Scheduled job"} ·{" "}
+                    {lastChanged.get(record.id)?.actorName ?? "Tarefa automática"} ·{" "}
                     {formatRelativeTime(lastChanged.get(record.id)!.createdAt, now)}
                   </p>
                 ) : null}

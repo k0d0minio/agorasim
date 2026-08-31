@@ -8,7 +8,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
   // Only live routes are listed — in-development preview pages (blog,
-  // casamentos, recomendar) stay noindexed until their feature ships.
+  // casamentos) stay noindexed until their feature ships.
   const staticKeys: RouteKey[] = liveKeys;
 
   function alternates(path: (locale: (typeof locales)[number]) => string) {

@@ -4,11 +4,11 @@ import { isLocale, t, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
 import { home } from "@/content/pages";
 import { classicCars } from "@/content/site";
-import { testimonials, testimonialsHeading } from "@/content/testimonials";
 import { listExperiences, signatureOf } from "@/lib/experience-catalogue";
 import { Hero } from "@/components/hero";
 import { Section, SectionHeading } from "@/components/section";
 import { ExperienceCard } from "@/components/experience-card";
+import { Testimonials } from "@/components/testimonials";
 import { FaqList } from "@/components/faq";
 import { BookingButton } from "@/components/booking-button";
 import { JsonLd } from "@/components/json-ld";
@@ -109,30 +109,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </div>
       </Section>
 
-      {/* Testimonials — real guests, in their own words (the photos land with
-          `content-truth/testimonials-section`). */}
-      <Section>
-        <SectionHeading
-          eyebrow={t(testimonialsHeading.eyebrow, l)}
-          title={t(testimonialsHeading.title, l)}
-        />
-        <div className="mt-10 grid gap-6 lg:grid-cols-3">
-          {testimonials.map((entry) => (
-            <figure
-              key={entry.names}
-              className="flex flex-col justify-between rounded-2xl border border-border bg-card p-6"
-            >
-              <blockquote className="text-muted-foreground">“{t(entry.quote, l)}”</blockquote>
-              <figcaption className="mt-6 text-sm font-medium">
-                {entry.names}
-                <span className="ml-1.5 font-normal text-muted-foreground">
-                  · {t(entry.origin, l)}
-                </span>
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-      </Section>
+      {/* Testimonials — real guests, their own words and their own photos.
+          Copy only: no review/rating structured data (see the component). */}
+      <Testimonials locale={l} />
 
       {signatureExperience ? (
         <>

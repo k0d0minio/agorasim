@@ -10,12 +10,14 @@ import {
   listExperiences,
   signatureOf,
 } from "@/lib/experience-catalogue";
+import { testimonialsFor } from "@/content/testimonials";
 import { site } from "@/content/site";
 import { Section, Container } from "@/components/section";
 import { Media } from "@/components/media";
 import { Badge } from "@/components/ui/badge";
 import { FaqList } from "@/components/faq";
 import { ExperiencePrices } from "@/components/experience-pricing";
+import { Testimonials } from "@/components/testimonials";
 import { BookingButton } from "@/components/booking-button";
 import { JsonLd } from "@/components/json-ld";
 import { experienceJsonLd, faqJsonLd, breadcrumbJsonLd } from "@/lib/jsonld";
@@ -163,6 +165,13 @@ export default async function ExperienceDetailPage({
           </div>
         )}
       </Section>
+
+      {/*
+        Only the guests who were actually on this experience speak for it, so
+        most pages render nothing here — the component returns null on an empty
+        list. Copy only: no review/rating structured data joins the JSON-LD above.
+      */}
+      <Testimonials locale={l} items={testimonialsFor(exp.slug)} muted />
     </>
   );
 }

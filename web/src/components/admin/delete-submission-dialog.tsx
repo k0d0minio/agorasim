@@ -22,7 +22,7 @@ function ConfirmButton({ armed }: { armed: boolean }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" variant="destructive" disabled={pending || !armed}>
-      {pending ? "Erasing…" : "Erase permanently"}
+      {pending ? "A eliminar…" : "Eliminar definitivamente"}
     </Button>
   );
 }
@@ -72,11 +72,11 @@ export function DeleteSubmissionDialog({
         type="button"
         variant="ghost"
         onClick={() => setOpen(true)}
-        aria-label={`Erase the record for ${name}`}
+        aria-label={`Eliminar o registo de ${name}`}
        
       >
         <Trash2 className="size-4" />
-        Erase
+        Eliminar
       </Button>
 
       {state.error ? (
@@ -90,17 +90,17 @@ export function DeleteSubmissionDialog({
           <form action={formAction} className="flex flex-col gap-4">
             <input type="hidden" name="id" value={id} />
             <DialogHeader>
-              <DialogTitle>Erase this person&apos;s enquiry?</DialogTitle>
+              <DialogTitle>Eliminar o pedido desta pessoa?</DialogTitle>
               <DialogDescription>
-                The whole record for {name} is deleted from the database — name, email,
-                phone and message. This cannot be undone. The audit log keeps a note that an
-                erasure happened, with no identifying details in it.
+                Todo o registo de {name} é apagado da base de dados — nome, email, telefone
+                e mensagem. Não há como voltar atrás. O registo de atividade guarda apenas
+                a nota de que houve uma eliminação, sem dados que identifiquem alguém.
               </DialogDescription>
             </DialogHeader>
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor={`confirm-${id}`}>
-                Type {DELETE_CONFIRMATION} to confirm
+                Escreva {DELETE_CONFIRMATION} para confirmar
               </Label>
               <Input
                 id={`confirm-${id}`}
@@ -113,7 +113,7 @@ export function DeleteSubmissionDialog({
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
+                Cancelar
               </Button>
               <ConfirmButton armed={typed === DELETE_CONFIRMATION} />
             </DialogFooter>
