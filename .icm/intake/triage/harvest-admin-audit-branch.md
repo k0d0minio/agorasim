@@ -27,8 +27,14 @@ D14 purge) and the other long-merged `claude/*` remote branches in the same pass
   card layouts, the a11y fixes and CI. Five findings survived and were cut:
   `sales-board-search.md`, `admin-dashboard-what-needs-me.md`,
   `admin-offline-and-manifest.md`, `admin-money-view.md`,
-  `lead-source-attribution.md`. What remains of this stub is the branch cleanup —
-  awaiting Jamie's go-ahead on the list.
+  `lead-source-attribution.md`.
+- 2026-08-31 — Jamie approved deleting all 36 `claude/*` remotes (34 whose PR
+  merged, the audited `admin-audit-product-review-pe92tb` now that its document is
+  harvested, and `agorasim-availability-capacity-k0iild`). PR #31 was commented and
+  closed — its work landed via #38. The deletion itself is all that is left: this
+  session's permission classifier refused the delete-refspec push, so it needs a run
+  with push rights — `git fetch origin --prune`, then a delete push of every
+  `origin/claude/*` ref. Then this stub moves to `_done/`.
 
 ## Prompt
 
