@@ -17,6 +17,12 @@
  * and the car by the clock (see `lib/bookings.ts`) rather than by a job that
  * has to run.
  *
+ * **Every booking is born with a credential.** The row carries a hashed
+ * cancellation token from the insert (`lib/cancellation-token.ts`), because the
+ * table holds no guest identity to authenticate against — the token in the
+ * emailed link is the only thing that will prove a booking is somebody's. There
+ * is no route reading it yet.
+ *
  * **The guest is a lead from the first click.** The `tour_requests` row is
  * written up front, not on payment: an abandoned checkout is a person who
  * wanted this tour on this day and got as far as their card, which is the best
@@ -46,6 +52,10 @@ import { t, type Locale } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
 import { formatDay, type DateKey } from "@/lib/availability";
 import { bookingRef, holdExpiryFrom } from "@/lib/bookings";
+import {
+  isCancellationTokenConfigured,
+  issueCancellationToken,
+} from "@/lib/cancellation-token";
 import { CANCEL_RETURN_PARAM, CANCEL_RETURN_VALUE } from "@/lib/checkout-draft";
 import { BOOKING_CURRENCY, formatPrice } from "@/lib/money";
 import type { VehicleClass } from "@/lib/fleet";
@@ -106,6 +116,31 @@ export async function startBookingCheckout(options: {
   const now = new Date();
   const holdExpiresAt = holdExpiryFrom(now);
 
+  /**
+   * The booking's own credential, hashed onto the row from the moment it
+   * exists — so no booking is ever tokenless and the cancel route has exactly
+   * one question to ask of a link.
+   *
+   * The plaintext is deliberately dropped here rather than returned: the guest
+   * is about to be sent to Stripe, and the confirmation email that will
+   * eventually carry the link is composed in another request entirely (see
+   * {@link confirmPaidBooking}), which cannot recover a plaintext from a hash.
+   * Issuing the link the guest actually receives therefore belongs to that
+   * path, and re-issuing there replaces this digest.
+   *
+   * A missing `BOOKING_TOKEN_SECRET` must not cost a sale. It is logged and the
+   * column is left null, which every reader treats as "no self-serve
+   * cancellation, talk to the team" — the safe direction to fail in.
+   */
+  let cancellationTokenHash: string | null = null;
+  if (isCancellationTokenConfigured()) {
+    cancellationTokenHash = (await issueCancellationToken()).digest;
+  } else {
+    console.error(
+      "[booking] BOOKING_TOKEN_SECRET is not set — this booking gets no cancel link",
+    );
+  }
+
   const [lead] = await db
     .insert(tourRequests)
     .values({
@@ -151,6 +186,7 @@ export async function startBookingCheckout(options: {
       priceBreakdown: lines,
       locale,
       holdExpiresAt,
+      cancellationTokenHash,
     })
     .returning({ id: bookings.id });
 
@@ -236,7 +272,13 @@ export async function startBookingCheckout(options: {
     // checkout that never started is a car nobody can book for no reason.
     await db
       .update(bookings)
-      .set({ status: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
+      .set({
+        status: "cancelled",
+        cancelledAt: new Date(),
+        // Nobody called this off — Stripe did, by not giving us a session.
+        cancelledVia: "system",
+        updatedAt: new Date(),
+      })
       .where(eq(bookings.id, booking.id))
       .catch(() => undefined);
     throw err;
@@ -453,6 +495,9 @@ export async function closeUnpaidBooking(options: {
     .set({
       status: options.status,
       cancelledAt: options.status === "cancelled" ? now : null,
+      // A failed payment, not a person: neither the guest nor the team decided
+      // this. `expired` is not a cancellation at all, so it records no path.
+      cancelledVia: options.status === "cancelled" ? "system" : null,
       updatedAt: now,
     })
     .where(

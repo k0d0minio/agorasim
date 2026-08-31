@@ -1,9 +1,17 @@
-# Stub: GEO is the marketing thesis and nothing measures it
+# Stub: The enquiry records where it came from — GEO gets a number
 
-- lane: tweak
-- found-by: admin-audit harvest (PR #6 `docs/admin-audit-2026-07.md` §6) · 2026-08-31
+- feature-slug: lead-source-attribution
+- epic: admin-answers
 - priority: P2
 - size: M
+- depends-on: admin-dashboard-what-needs-me
+- sequence: 3 of 5
+- blocked: scope — feature-shaped, outside the six contracted features; needs Jamie's
+  call before any code
+- sources: admin audit §6, harvested 2026-08-31; `web/src/db/schema.ts:377` (`source`
+  exists) against `web/src/app/[locale]/reservar/actions.ts:138` (every row written
+  `"website"`); the ICM workspaces' `targetQuery` values, `llms.txt` and the JSON-LD
+  the site ships for exactly this audience
 
 ## Problem
 
@@ -36,7 +44,7 @@ call before it is built.
 ## Prompt
 
 In the agorasim repo (`web/`), add lead-source attribution per
-`.icm/intake/triage/lead-source-attribution.md` — confirm with Jamie that it is in
+`.icm/intake/admin-answers/lead-source-attribution.md` — confirm with Jamie that it is in
 scope before building. Migration adding `source_context` (jsonb) to `tour_requests`;
 `/reservar` carries referrer, landing path and any `utm_*` params through to
 `submitTourRequest` (`web/src/app/[locale]/reservar/actions.ts`), which derives

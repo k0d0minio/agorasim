@@ -1,6 +1,6 @@
 {
-  "id": "3f6a1c58-24d7-4b1e-9a03-6d5b7c2e91af",
-  "prevId": "f7393057-1aa9-56d2-b0e9-287fcea49910",
+  "id": "47095513-892c-4ec6-981a-d54818fcdd13",
+  "prevId": "3f6a1c58-24d7-4b1e-9a03-6d5b7c2e91af",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -380,6 +380,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "hero_image_alt": {
+          "name": "hero_image_alt",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "content_status",
@@ -387,6 +393,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'draft'"
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "date_modified": {
           "name": "date_modified",
@@ -430,6 +442,21 @@
           "columns": [
             {
               "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "blog_post_drafts_published_at_idx": {
+          "name": "blog_post_drafts_published_at_idx",
+          "columns": [
+            {
+              "expression": "published_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

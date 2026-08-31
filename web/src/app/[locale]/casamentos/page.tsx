@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { CarFront, Check, Heart } from "lucide-react";
+import { Check, Heart } from "lucide-react";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { weddingsContent } from "@/content/weddings";
 import { classicCars } from "@/content/site";
@@ -157,22 +157,15 @@ export default async function WeddingsPage({
                 key={tile.id}
                 className="group overflow-hidden rounded-2xl border border-border bg-card"
               >
-                {tile.image ? (
-                  <div className="relative aspect-4/3">
-                    <Image
-                      src={tile.image}
-                      alt={`${car.name} — ${car.model}`}
-                      fill
-                      sizes="(max-width: 640px) 100vw, 480px"
-                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex aspect-4/3 flex-col items-center justify-center gap-2 bg-secondary/50 text-muted-foreground">
-                    <CarFront className="size-8" strokeWidth={1.5} />
-                    <p className="text-xs">{t(c.fleet.photosSoon, l)}</p>
-                  </div>
-                )}
+                <div className="relative aspect-4/3">
+                  <Image
+                    src={tile.image}
+                    alt={`${car.name} — ${car.model}`}
+                    fill
+                    sizes="(max-width: 640px) 100vw, 480px"
+                    className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                  />
+                </div>
                 <div className="p-5">
                   <p className="font-heading text-lg font-semibold">{car.name}</p>
                   <p className="text-sm text-muted-foreground">

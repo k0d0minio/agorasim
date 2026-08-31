@@ -3,6 +3,11 @@
 - lane: tweak
 - found-by: /project code map · 2026-08-29
 - priority: P2
+- size: M
+- sources: `web/src/app/admin/experiences/actions.ts:106` (`saveExperience` never
+  writes `pricing`; still writes the superseded `priceCents` at `:178`);
+  `web/src/components/admin/experience-form.tsx` (`describePricing` as read-only
+  text); blocks `triage/dead-code-sweep.md`'s `price_cents` drop
 
 ## Problem
 

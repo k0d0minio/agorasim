@@ -1,9 +1,18 @@
-# Stub: An installed app with no offline story — and a manifest still in English
+# Stub: An offline read floor for the installed admin — and a Portuguese manifest
 
-- lane: tweak
-- found-by: admin-audit harvest (PR #6 `docs/admin-audit-2026-07.md` §4.4) · 2026-08-31
+- feature-slug: admin-offline-and-manifest
+- epic: admin-answers
 - priority: P2
 - size: M
+- depends-on: admin-dashboard-what-needs-me
+- sequence: 5 of 5
+- blocked: scope — the service-worker half is a gift, not one of the six contracted
+  features, and needs Jamie's call. The manifest half is a D4 correction and is not
+  gated — see the note in this stub
+- sources: admin audit §4.4, harvested 2026-08-31;
+  `web/public/admin-manifest.webmanifest` (`"lang": "en"`, English `name`,
+  `"orientation": "portrait"`); no service worker anywhere in the repo against every
+  `/admin` route being `force-dynamic`; D4
 
 ## Problem
 
@@ -30,13 +39,17 @@ mutation is a different, much larger ticket. Manifest fixed in the same pass:
 Portuguese `name`/`short_name`/`description`, `"lang": "pt"`, and the orientation
 lock dropped unless Jamie wants it kept.
 
-Worth Jamie's call on scope first — this is a gift, not one of the six contracted
-features.
+Worth Jamie's call on scope first — the service worker is a gift, not one of the six
+contracted features. **The manifest half is not gated**: an English `name` and
+`"lang": "en"` on a Portuguese-only console is a D4 defect, and the `portrait` lock
+is dead weight since the `xl:` card/table split. If the scope call goes against the
+service worker, ship the manifest fix on its own and move this stub to `_done/` with
+the service worker recorded as dropped.
 
 ## Prompt
 
 In the agorasim repo (`web/`), give the admin PWA an offline floor per
-`.icm/intake/triage/admin-offline-and-manifest.md`: a service worker registered only
+`.icm/intake/admin-answers/admin-offline-and-manifest.md`: a service worker registered only
 under `/admin` that precaches the shell and serves an offline fallback, plus a
 stale-while-revalidate read cache for the Sales board and the calendar with a
 visible "dados em cache" marker on stale content. No offline writes. In the same PR,

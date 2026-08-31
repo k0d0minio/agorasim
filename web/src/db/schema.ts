@@ -154,6 +154,22 @@ export const bookingStatusEnum = pgEnum("booking_status", [
   "refunded",
 ]);
 
+/**
+ * Which path ended a booking — the "who" next to `cancelled_at`'s "when".
+ *
+ * `guest` is the self-serve cancel link; `admin` is somebody on the Sales board
+ * acting on a phone call or a WhatsApp message. `system` is neither: a Stripe
+ * session that failed outright, or a checkout that never got one.
+ * Without it those rows would have to leave the column null, which is the same
+ * shape as "cancelled before this column existed" and would make the two
+ * indistinguishable forever.
+ *
+ * Null therefore means exactly one thing: a row cancelled before this column
+ * shipped. It is deliberately not backfilled — the answer is not recoverable,
+ * and guessing it would put a lie in the audit trail.
+ */
+export const cancelledViaEnum = pgEnum("cancelled_via", ["guest", "admin", "system"]);
+
 /** Review lifecycle shared by every generated-content draft table. */
 export const contentStatusEnum = pgEnum("content_status", [
   "draft",
@@ -208,6 +224,7 @@ export type ExperienceKind = (typeof experienceKindEnum.enumValues)[number];
 export type AvailabilitySlot = (typeof availabilitySlotEnum.enumValues)[number];
 export type AvailabilityStatus = (typeof availabilityStatusEnum.enumValues)[number];
 export type BookingStatus = (typeof bookingStatusEnum.enumValues)[number];
+export type CancelledVia = (typeof cancelledViaEnum.enumValues)[number];
 export type ContentStatus = (typeof contentStatusEnum.enumValues)[number];
 export type SocialPlatform = (typeof socialPlatformEnum.enumValues)[number];
 export type FeatureRequestStatus = (typeof featureRequestStatusEnum.enumValues)[number];
@@ -686,6 +703,30 @@ export const bookings = pgTable("bookings", {
   holdExpiresAt: timestamp("hold_expires_at", { withTimezone: true }).notNull(),
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  /** Which path called it off. See {@link cancelledViaEnum}. */
+  cancelledVia: cancelledViaEnum("cancelled_via"),
+
+  /**
+   * The guest's credential for this booking, hashed — the only thing that
+   * authenticates a self-serve cancellation.
+   *
+   * This table holds no guest identity, so there is nobody to log in as: the
+   * token in the emailed link *is* the authentication. What is stored is an
+   * HMAC of it (`lib/cancellation-token.ts`), never the token, so a dump of
+   * this table is not a stack of working cancel links.
+   *
+   * **Not personal data — a credential.** It stays out of the Art. 15 export
+   * for the same reason a password hash would; `lib/subject-data.ts` exports
+   * `tour_requests` only, so this is excluded by construction rather than by a
+   * filter somebody has to remember.
+   *
+   * Nullable, and null is meaningful three ways: a row that predates this
+   * column, a booking minted while `BOOKING_TOKEN_SECRET` was unset, or a token
+   * that has been spent or revoked. All three mean the same thing to the cancel
+   * route — no self-serve cancellation, talk to the team — which is why one
+   * column carries all three rather than a separate revoked-at.
+   */
+  cancellationTokenHash: text("cancellation_token_hash"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -694,6 +735,12 @@ export const bookings = pgTable("bookings", {
   index("bookings_date_slot_idx").on(table.date, table.slot, table.status),
   index("bookings_status_idx").on(table.status),
   index("bookings_tour_request_idx").on(table.tourRequestId),
+  // The cancel link carries the token and nothing else, so "which booking is
+  // this?" is a lookup by digest. Unique because two bookings sharing a token
+  // would be a bug that hands one guest another's booking — Postgres allows
+  // any number of nulls under a unique index, which is what makes the
+  // untokenised rows above legal.
+  uniqueIndex("bookings_cancellation_token_key").on(table.cancellationTokenHash),
 ]);
 
 /**

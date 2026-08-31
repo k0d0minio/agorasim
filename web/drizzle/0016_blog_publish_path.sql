@@ -16,6 +16,9 @@
 --
 -- Both are nullable and neither is backfilled: the table is empty everywhere
 -- today, and the loader script fills them for the rows it brings in.
+--
+-- Numbered 0016 rather than 0015: the cancellation token landed on main first,
+-- and two migrations may not share an index.
 -- ---------------------------------------------------------------------------
 ALTER TABLE "blog_post_drafts" ADD COLUMN "hero_image_alt" jsonb;--> statement-breakpoint
 ALTER TABLE "blog_post_drafts" ADD COLUMN "published_at" timestamp with time zone;--> statement-breakpoint

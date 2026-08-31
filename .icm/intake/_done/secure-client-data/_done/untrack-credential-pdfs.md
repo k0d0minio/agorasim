@@ -44,7 +44,7 @@ if done, coordinate the force-push with Jamie because every clone breaks.
 ## Prompt
 
 In the agorasim repo: `.icm/docs/agorasim-info.pdf` is git-tracked but contains a
-registrar password (rotated — see `.icm/intake/secure-client-data/_done/` or git log)
+registrar password (rotated — see `.icm/intake/_done/secure-client-data/_done/` or git log)
 and the client's IBAN; `.gitignore` lines 3–5 already declare it must never be
 committed. Produce a redacted PDF (or a markdown transcription of the operational
 content only) at `.icm/docs/agorasim-info-redacted.md`, remove the original from

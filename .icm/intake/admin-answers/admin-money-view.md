@@ -1,9 +1,17 @@
-# Stub: The money is in the database and nowhere on a screen
+# Stub: The takings on a screen — month, upcoming, refunds, fee
 
-- lane: tweak
-- found-by: admin-audit harvest (PR #6 `docs/admin-audit-2026-07.md` §6) · 2026-08-31
+- feature-slug: admin-money-view
+- epic: admin-answers
 - priority: P2
 - size: M
+- depends-on: admin-dashboard-what-needs-me
+- sequence: 4 of 5
+- blocked: scope — feature-shaped, outside the six contracted features; needs Jamie's
+  call before any code
+- sources: admin audit §6, harvested 2026-08-31; `web/src/db/schema.ts:606`
+  (`amountCents`, `currency`, `priceBreakdown`, `confirmedAt`, `cancelledAt` — written
+  by every paid checkout, summed nowhere); `web/src/lib/sales.ts:266` (one card's
+  total, the only money the admin prints); `commission-engine/` for the fee row
 
 ## Problem
 
@@ -36,7 +44,7 @@ built once.
 ## Prompt
 
 In the agorasim repo (`web/`), add the admin money view per
-`.icm/intake/triage/admin-money-view.md` — confirm with Jamie that it is in scope
+`.icm/intake/admin-answers/admin-money-view.md` — confirm with Jamie that it is in scope
 before building. Derive everything from `bookings` (`web/src/db/schema.ts`):
 confirmed takings for the current and next month, upcoming departures by count and
 value, refunds in the period; render as a section of the admin dashboard or a
