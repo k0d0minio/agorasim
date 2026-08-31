@@ -15,7 +15,6 @@ import {
   PUBLIC_CALENDAR_MONTHS,
   readPublicCalendar,
   type OccupancyMap,
-  type PublicMonth,
 } from "@/lib/availability";
 import { countSlotOccupancy } from "@/lib/bookings";
 import { isPriced } from "@/lib/pricing";
@@ -49,20 +48,23 @@ export async function generateMetadata({
 }
 
 /**
- * Occupancy already sold across the window the picker shows, per tour.
+ * What is already committed across the window the picker shows.
+ *
+ * One count for the whole business, not one per tour: drivers and cars are
+ * shared (AGORA-012), so a booking on either route is a booking against the
+ * same pools.
  *
  * Wrapped in a catch for the same reason `readPublicCalendar` is: this page is
  * built with no database in CI. An unreadable count is an *empty* map rather
- * than a failure, which means the grid falls back to showing raw capacity —
+ * than a failure, which means the grid falls back to showing the full fleet —
  * safe, because the server re-checks the departure against live bookings
  * before anything is sold on it.
  */
-async function occupancyFor(experienceSlug: string): Promise<OccupancyMap> {
+async function committedCapacity(): Promise<OccupancyMap> {
   const today = todayKey();
   const first = monthOf(today);
   try {
     return await countSlotOccupancy({
-      experienceSlug,
       from: monthBounds(first).first,
       to: monthBounds(addMonths(first, PUBLIC_CALENDAR_MONTHS - 1)).last,
     });
@@ -105,31 +107,14 @@ export default async function BookingPage({
     (entry) => entry.kind === "signature" && isPriced(entry.pricing),
   );
 
-  // One calendar per bookable tour, each with its own sold seats folded in.
-  const availabilityBySlug: Record<string, PublicMonth[]> = Object.fromEntries(
-    await Promise.all(
-      tours.map(async (tour): Promise<[string, PublicMonth[]]> => [
-        tour.slug,
-        await readPublicCalendar({
-          experienceSlug: tour.slug,
-          locale: l,
-          occupancy: await occupancyFor(tour.slug),
-        }),
-      ]),
-    ),
-  );
+  // One calendar for every tour, with what is already committed folded in.
+  const availability = await readPublicCalendar({
+    locale: l,
+    occupancy: await committedCapacity(),
+  });
 
-  const anyOpenings = Object.values(availabilityBySlug).some((months) =>
-    months.some((month) => month.hasOpenings),
-  );
+  const anyOpenings = availability.some((month) => month.hasOpenings);
   const canCheckout = isStripeConfigured() && tours.length > 0 && anyOpenings;
-
-  // The enquiry fallback shows the countryside calendar — its preference field
-  // is loose, and a preference does not need a departure.
-  const enquiryAvailability =
-    availabilityBySlug[tours[0]?.slug ?? ""] ??
-    Object.values(availabilityBySlug)[0] ??
-    [];
 
   const c = canCheckout ? bookingContent : tourRequestContent;
 
@@ -152,7 +137,7 @@ export default async function BookingPage({
             <BookingCheckoutForm
               locale={l}
               experiences={experiences}
-              availabilityBySlug={availabilityBySlug}
+              availability={availability}
               testMode={isTestMode()}
             />
           ) : (
@@ -160,7 +145,7 @@ export default async function BookingPage({
               <TourRequestForm
                 locale={l}
                 experiences={experiences}
-                availability={enquiryAvailability}
+                availability={availability}
               />
             </div>
           )}

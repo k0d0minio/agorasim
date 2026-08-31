@@ -1,5 +1,5 @@
 /**
- * The paid-booking loop: hold a seat, send the guest to Stripe, and confirm
+ * The paid-booking loop: hold a car, send the guest to Stripe, and confirm
  * when the money actually arrives.
  *
  * **Confirmation is idempotent, and that is the whole design.** Two things race
@@ -11,10 +11,11 @@
  * net for a webhook that is late, misconfigured, or being demonstrated on a
  * phone.
  *
- * **The seat is held before the guest leaves.** A `pending` booking row is
+ * **The car is held before the guest leaves.** A `pending` booking row is
  * written first, then the Stripe session; the hold and the session are given
- * the same 30-minute deadline, so a guest who wanders off releases the seat by
- * the clock (see `lib/bookings.ts`) rather than by a job that has to run.
+ * the same 30-minute deadline, so a guest who wanders off releases the driver
+ * and the car by the clock (see `lib/bookings.ts`) rather than by a job that
+ * has to run.
  *
  * **The guest is a lead from the first click.** The `tour_requests` row is
  * written up front, not on payment: an abandoned checkout is a person who
@@ -42,6 +43,7 @@ import type { Experience } from "@/content/experiences";
 import { formatDay, type DateKey } from "@/lib/availability";
 import { bookingRef, holdExpiryFrom } from "@/lib/bookings";
 import { BOOKING_CURRENCY, formatPrice } from "@/lib/money";
+import type { VehicleClass } from "@/lib/fleet";
 import type { BookingMode, PartyCount, PricedLine } from "@/lib/pricing";
 import { guestConfirmationEmail, teamNotificationEmail } from "@/lib/booking-emails";
 import { isEmailConfigured, sendEmail, teamRecipients } from "@/lib/email";
@@ -68,13 +70,31 @@ export async function startBookingCheckout(options: {
   slot: AvailabilitySlot;
   mode: BookingMode;
   party: PartyCount;
+  /**
+   * Which class of car this booking takes out of the pool, as decided by the
+   * availability re-check that just ran. Passed in rather than recomputed here:
+   * the car that was checked as free is the car that must be committed, and a
+   * second call to the rule is a second chance for the two to disagree.
+   */
+  vehicleClass: VehicleClass;
   experience: Experience;
   addOns: Experience[];
   lines: PricedLine[];
   totalCents: number;
 }): Promise<{ url: string; bookingId: string }> {
-  const { guest, locale, date, slot, mode, party, experience, addOns, lines, totalCents } =
-    options;
+  const {
+    guest,
+    locale,
+    date,
+    slot,
+    mode,
+    party,
+    vehicleClass,
+    experience,
+    addOns,
+    lines,
+    totalCents,
+  } = options;
 
   const partySize = party.adults + party.children + party.infants;
   const now = new Date();
@@ -114,9 +134,9 @@ export async function startBookingCheckout(options: {
       adults: party.adults,
       children: party.children,
       infants: party.infants,
-      // A private departure owns whatever was left of the slot — see the
-      // occupancy rule in lib/bookings.ts.
-      exclusive: mode === "private",
+      // One driver and one car of this class, out of the departure's shared
+      // pool — see the occupancy rule in lib/bookings.ts.
+      vehicleClass,
       experienceSlug: experience.slug,
       addOns: addOns.map((entry) => entry.slug),
       partySize,
@@ -176,11 +196,12 @@ export async function startBookingCheckout(options: {
         slot,
         mode,
         partySize: String(partySize),
+        vehicleClass,
       },
       payment_intent_data: {
         metadata: { bookingId: booking.id, date, ref: bookingRef(booking.id) },
       },
-      // The same instant the seat hold lapses, so the two cannot disagree about
+      // The same instant the hold lapses, so the two cannot disagree about
       // whether paying is still possible.
       expires_at: Math.floor(holdExpiresAt.getTime() / 1000),
       locale: locale === "pt" ? "pt" : "en",
@@ -199,8 +220,8 @@ export async function startBookingCheckout(options: {
 
     return { url: session.url, bookingId: booking.id };
   } catch (err) {
-    // The hold would lapse on its own in half an hour, but a seat held for a
-    // checkout that never started is a seat nobody can buy for no reason.
+    // The hold would lapse on its own in half an hour, but a car held for a
+    // checkout that never started is a car nobody can book for no reason.
     await db
       .update(bookings)
       .set({ status: "cancelled", cancelledAt: new Date(), updatedAt: new Date() })
@@ -264,8 +285,8 @@ export async function confirmPaidBooking(options: {
   }
   if (existing.status !== "pending") {
     // Expired or cancelled and then paid anyway — possible with a delayed
-    // payment method. Left alone deliberately: the seat may have been resold,
-    // and quietly confirming it could double-book a car. It surfaces as a
+    // payment method. Left alone deliberately: the car may have been resold,
+    // and quietly confirming it could double-book it. It surfaces as a
     // payment with no confirmed booking, which is a phone call, not a silent
     // overbooking.
     console.error(
@@ -404,7 +425,7 @@ async function sendConfirmationEmails(
  * Close a booking that will never be paid — the Stripe session expired, or the
  * payment failed outright.
  *
- * The seat is already free (the hold lapsed with the session), so this is about
+ * The car is already free (the hold lapsed with the session), so this is about
  * the record saying what happened. The lead is left exactly where it is, in
  * "New": somebody who got as far as a payment page and did not finish is worth
  * a phone call, and archiving them automatically would throw that away.

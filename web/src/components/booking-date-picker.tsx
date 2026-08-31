@@ -6,7 +6,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
-import type { PublicMonth } from "@/lib/availability";
+import type { PublicMonth, PublicSlot } from "@/lib/availability";
+import { slotFitsParty, type VehicleCounts } from "@/lib/fleet";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -37,7 +38,15 @@ import { Label } from "@/components/ui/label";
  *   keeps it that way; the admin's calendar pages through the URL because it is
  *   dynamic and its months are unbounded.
  *
- * The server checks the day again on submit (`checkDayAvailable`) — this is a
+ * **It asks the same question the server will.** Since AGORA-012 a departure is
+ * not "N seats left"; it is a driver and a class of car, shared by every tour.
+ * The payload carries those counts and this component runs `slotFitsParty` from
+ * `lib/fleet.ts` over them — the very function the checkout action decides
+ * with — so a day the browser offers is a day the server would accept. When no
+ * party is named (the enquiry form), a day is offered if it could take anyone
+ * at all.
+ *
+ * The server checks the day again on submit (`checkSlotAvailable`) — this is a
  * convenience, never the guard.
  */
 /**
@@ -72,7 +81,8 @@ export function BookingDatePicker({
   slotName,
   slotHeading,
   slotLabels,
-  mode = "public",
+  experienceSlug,
+  partySize,
   onSlotChange,
   onDateChange,
 }: {
@@ -112,10 +122,17 @@ export function BookingDatePicker({
   /** What each departure is called for the tour being booked. */
   slotLabels?: Record<"morning" | "afternoon", string>;
   /**
-   * How the party wants the departure: `public` enables days with seats left,
-   * `private` enables days with an untouched slot to own.
+   * The route being booked, when one is known.
+   *
+   * With {@link partySize} it decides which class of car the party needs, and
+   * therefore which departures can actually take them: Óbidos draws the touring
+   * vehicle, a couple on the countryside route take a small classic, five take
+   * the T3. Left unset by the enquiry form, which has no route to speak of yet
+   * — there a day is usable if any car at all is free.
    */
-  mode?: "public" | "private";
+  experienceSlug?: string;
+  /** Everyone coming, infants included. Paired with {@link experienceSlug}. */
+  partySize?: number;
   /** Tells the form which slot is chosen, for its live summary. */
   onSlotChange?: (slot: "morning" | "afternoon" | null) => void;
   /** Tells the form which day is chosen — the add-on rules read the weekday. */
@@ -124,9 +141,21 @@ export function BookingDatePicker({
   const c = tourRequestContent.calendar;
   const l = locale;
 
-  /** Whether one departure works for the way the party wants to come. */
-  const slotUsable = (slot: { bookable: boolean; privateBookable: boolean }) =>
-    mode === "private" ? slot.privateBookable : slot.bookable;
+  /**
+   * Whether one departure could take this party.
+   *
+   * Two questions, and which one is asked depends on what the caller knows. A
+   * checkout names the route and the party, so the answer is exact — the same
+   * `slotFitsParty` the server will run. An enquiry names neither, so the
+   * answer is the loose one: is anything at all still free on it.
+   */
+  const slotUsable = (slot: { driversLeft: number; vehiclesLeft: VehicleCounts }) => {
+    if (slot.driversLeft < 1) return false;
+    if (!experienceSlug || !partySize) {
+      return Object.values(slot.vehiclesLeft).some((free) => free > 0);
+    }
+    return slotFitsParty(slot, experienceSlug, partySize);
+  };
 
   // Open on the first month that has something to offer, not blankly on this
   // one: in November, a calendar that opens on an empty November reads as
@@ -169,7 +198,20 @@ export function BookingDatePicker({
   );
 
   const month = months[monthIndex];
-  const seatsWord = (n: number) => (n === 1 ? t(c.seatLeft, l) : t(c.seatsLeft, l));
+
+  /**
+   * The scarcity line under a departure chip.
+   *
+   * Only when the party's car is the last of its class free — which is the one
+   * fact that is both true and useful to a guest deciding whether to finish the
+   * form. It never says how many *other* cars are out: that is a sentence about
+   * somebody else's booking, and none of the guest's business.
+   */
+  const lastCar = (slot: PublicSlot): boolean => {
+    if (!experienceSlug || !partySize) return false;
+    const free = Object.values(slot.vehiclesLeft).reduce((sum, n) => sum + n, 0);
+    return free === 1 && slotFitsParty(slot, experienceSlug, partySize);
+  };
 
   if (flexible) {
     return (
@@ -276,7 +318,7 @@ export function BookingDatePicker({
 
       {/*
         The departures of the chosen day, when this picker is selling one. Two
-        chips at most; a chip the party's mode cannot use is shown disabled with
+        chips at most; a chip this party cannot be sold is shown disabled with
         the reason, because a missing option reads as a bug and a greyed one
         reads as a fact.
       */}
@@ -308,9 +350,9 @@ export function BookingDatePicker({
                   )}
                 >
                   <span>{label}</span>
-                  {usable && mode === "public" && slot.seatsLeft <= 4 ? (
+                  {usable && lastCar(slot) ? (
                     <span className="text-[0.625rem] leading-tight font-normal opacity-80">
-                      {slot.seatsLeft} {seatsWord(slot.seatsLeft)}
+                      {t(c.lastCar, l)}
                     </span>
                   ) : null}
                 </button>

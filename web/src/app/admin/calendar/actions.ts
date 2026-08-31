@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 
 import { requireAdmin } from "@/lib/admin-auth";
-import { clearDays, upsertDays, type DateKey } from "@/lib/availability";
+import {
+  clearDays,
+  expandDateRange,
+  upsertDays,
+  type DateKey,
+} from "@/lib/availability";
 import { datesWithBookings } from "@/lib/bookings";
 import { recordAuditOrWarn } from "@/lib/audit";
 import {
@@ -25,10 +30,16 @@ import {
  * actions do: `/reservar` renders this data and is cached, so a day opened here
  * and nowhere else would be a day Rita can see and a guest cannot buy.
  *
- * **One day and thirty days are the same action.** The calendar's tap-a-day
- * sheet and its "open the rest of the month" button post the same form with a
- * different number of `dates` fields. Two actions would mean two schemas, two
- * audit shapes and two places for the upsert to drift.
+ * **One departure, one day and a whole season are the same action.** The
+ * calendar's tap-a-day sheet, its "open the rest of the month" button and its
+ * seasonal window all post the same form; what differs is how many `dates`
+ * fields there are, or whether a `from`/`to` pair replaces them. Three actions
+ * would mean three schemas, three audit shapes and three places for the upsert
+ * to drift.
+ *
+ * **The calendar is not per tour any more.** A row is one departure of the
+ * whole business — see `lib/availability.ts` — so these actions take no
+ * experience slug and closing the 20th closes it for everything.
  */
 
 /** The public pages read availability; they are cached, so bust them. */
@@ -40,7 +51,7 @@ export type AvailabilityActionState = {
   ok?: boolean;
   error?: string;
   message?: string;
-  /** How many days the write actually touched, for the confirmation line. */
+  /** How many departures the write actually touched, for the confirmation line. */
   changed?: number;
 };
 
@@ -50,12 +61,32 @@ function days(n: number): string {
 }
 
 /**
- * Open or close days, and set their seats.
+ * The days one submission addresses: the ones it listed, plus the ones its
+ * range covers.
  *
- * `capacity` and `note` are written on a close as well as an open: closing the
+ * Both, not either. The day sheet posts `dates`, the season card posts
+ * `from`/`to`, and nothing stops a future control from posting both — the
+ * union is what every one of those means. `expandDateRange` caps the range, so
+ * a crafted `to` in 2999 costs one bounded loop rather than a third of a
+ * million rows.
+ */
+function addressedDays(input: {
+  dates: DateKey[];
+  from?: DateKey;
+  to?: DateKey;
+}): DateKey[] {
+  const ranged =
+    input.from && input.to ? expandDateRange(input.from, input.to) : [];
+  return Array.from(new Set([...input.dates, ...ranged])).sort();
+}
+
+/**
+ * Open or close departures, and set how many drivers they have.
+ *
+ * `drivers` and `note` are written on a close as well as an open: closing the
  * 20th because there is a wedding, then reopening it, should not silently
- * reset the seats to the default — and the note is *why*, which is the part
- * the team will want next month.
+ * reset the roster — and the note is *why*, which is the part the team will
+ * want next month.
  */
 export async function setAvailability(
   _prevState: AvailabilityActionState,
@@ -66,20 +97,14 @@ export async function setAvailability(
   const parsed = setAvailabilitySchema.safeParse(formValues(formData));
   if (!parsed.success) return { error: "Couldn't read which days to change." };
 
-  const { experience, dates, slots, status, capacity, note } = parsed.data;
+  const { slots, status, drivers, note } = parsed.data;
+  const dates = addressedDays(parsed.data);
   if (dates.length === 0) return { error: "No days were selected." };
   if (slots.length === 0) return { error: "Pick at least one departure." };
 
   let written: DateKey[];
   try {
-    const rows = await upsertDays({
-      experienceSlug: experience,
-      dates,
-      slots,
-      status,
-      capacity,
-      note,
-    });
+    const rows = await upsertDays({ dates, slots, status, drivers, note });
     written = Array.from(new Set(rows.map((row) => row.date)));
   } catch (err) {
     console.error("[admin] failed to write availability", err);
@@ -93,7 +118,18 @@ export async function setAvailability(
     // A day, not a row id: bulk writes touch many rows, and "which days" is the
     // question anyone reading this log back is actually asking.
     entityId: written.length === 1 ? written[0] : null,
-    after: { experience, dates: written, slots, status, capacity, hasNote: Boolean(note) },
+    after: {
+      dates: written,
+      slots,
+      status,
+      drivers,
+      hasNote: Boolean(note),
+      // A season closed in one gesture reads back as one, rather than as three
+      // hundred loose days somebody has to reconstruct.
+      ...(parsed.data.from && parsed.data.to
+        ? { range: { from: parsed.data.from, to: parsed.data.to } }
+        : {}),
+    },
   });
 
   revalidatePublicSite();
@@ -104,7 +140,7 @@ export async function setAvailability(
     changed: departures,
     message:
       status === "open"
-        ? `${days(written.length)} on sale (${departures} departures), ${capacity} ${capacity === 1 ? "seat" : "seats"} each.`
+        ? `${days(written.length)} on sale (${departures} departures), ${drivers} ${drivers === 1 ? "driver" : "drivers"} each.`
         : `${days(written.length)} closed.`,
   };
 }
@@ -133,13 +169,14 @@ export async function clearAvailability(
   const parsed = clearAvailabilitySchema.safeParse(formValues(formData));
   if (!parsed.success) return { error: "Couldn't read which days to clear." };
 
-  const { experience, dates, slots } = parsed.data;
+  const { slots } = parsed.data;
+  const dates = addressedDays(parsed.data);
   if (dates.length === 0) return { error: "No days were selected." };
   if (slots.length === 0) return { error: "Pick at least one departure." };
 
   let sold: Set<string>;
   try {
-    sold = await datesWithBookings({ experienceSlug: experience, dates, slots });
+    sold = await datesWithBookings({ dates, slots });
   } catch (err) {
     // Refuse rather than proceed: the check exists to protect a sold day, and
     // a check that fails open is not a check.
@@ -158,7 +195,7 @@ export async function clearAvailability(
 
   let removed: number;
   try {
-    removed = await clearDays({ experienceSlug: experience, dates, slots });
+    removed = await clearDays({ dates, slots });
   } catch (err) {
     console.error("[admin] failed to clear availability", err);
     return { error: "Couldn't save — the calendar was not changed." };
@@ -169,7 +206,7 @@ export async function clearAvailability(
     action: "availability.cleared",
     entityType: "availability",
     entityId: dates.length === 1 ? dates[0] : null,
-    before: { experience, dates, slots },
+    before: { dates, slots },
   });
 
   revalidatePublicSite();

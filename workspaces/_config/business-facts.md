@@ -14,7 +14,14 @@ Use these facts verbatim. Do not invent prices, dates or claims not listed here.
 - Instagram / Facebook: @agorasim.pt
 
 ## Classic cars
-Citroën 2CV, Renault 4L, Fiat 600, Volkswagen T3.
+Citroën 2CV, Renault 4L, Fiat 600 (3 guests each), Volkswagen T3 (8 guests). The Óbidos route
+departs from Lisbon in a non-classic touring vehicle — the classics stay on the Saloia routes.
+
+## Capacity
+Two drivers across the fleet, so **at most two tours leave at once**, business-wide, in two
+daily slots (10:00 and 14:00). A booking takes one driver and one car; groups above 8 need a
+third car and therefore a third driver, which is an open question with Diogo & Rita — those
+groups are arranged by conversation, not online.
 
 ## Experiences
 - **Rural Saloia** (signature, **~4h30**): natural monuments between Sintra and Mafra,
