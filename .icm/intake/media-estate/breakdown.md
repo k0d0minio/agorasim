@@ -34,13 +34,14 @@ a photograph stub 1 is about to point a row at.
 2. wedding-awards-badges — publish the badges, or drop the claim — depends-on: none *(blocked: client)*
 3. image-audit — curate, compress, relocate — depends-on: seeded-media-dead-paths, wedding-awards-badges
 
-## Cross-epic gate on stub 3
+## Cross-epic gate on stub 3 — lifted 2026-08-31
 
-`content-truth/wedding-fleet-photos` is still open and still client-blocked, and it
-wires a photograph that is unreferenced today. Stub 3 must not run until that stub
-settles either — check `.icm/intake/content-truth/` before building the delete list.
-Stub 3 is the only destructive work in this repo's backlog; it is gated on purpose and
-its stub carries "propose the split to Jamie before deleting anything".
+`content-truth/wedding-fleet-photos` was the third gate: open, client-blocked, and
+wiring a photograph unreferenced at the time. It closed on 2026-08-31 and its epic
+archived to `.icm/intake/_done/content-truth/`, so that photograph is referenced now
+and only the two in-epic predecessors still gate stub 3. Stub 3 remains the only
+destructive work in this repo's backlog; it stays gated on purpose and its stub
+carries "propose the split to Jamie before deleting anything".
 
 ## Out of scope (whole epic)
 

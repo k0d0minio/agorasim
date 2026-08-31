@@ -6,8 +6,6 @@
 - size: M
 - depends-on: seeded-media-dead-paths, wedding-awards-badges
 - sequence: 3 of 3
-- blocked: also gated cross-epic on `content-truth/wedding-fleet-photos`, which is
-  client-blocked and wires a currently-unreferenced photograph
 - sources: tech lens 2026-08-29 (`web/public/images` ≈162 MB of a ≈224 MB repo;
   2–4.5 MB referenced covers; a 23 MB and a 21 MB unreferenced original)
 
@@ -27,20 +25,26 @@ leftovers): compress referenced sources to sensible web originals (≤500 KB), m
 keep-worthy unreferenced originals out of git (Vercel Blob or local archive), delete
 the rest. Update `web/public/images/README.md` to match.
 
-The referenced-vs-unreferenced list is only true once its three predecessors have
-settled, which is why this is last: `seeded-media-dead-paths` is about to point
-catalogue rows at photographs that read as unreferenced today, `wedding-awards-badges`
-decides whether five badges are published or deleted, and `content-truth/wedding-fleet-photos`
-(client-blocked) wires another. Build the list after them, not before — a grep of
-`web/src` alone will not see the rows.
+The referenced-vs-unreferenced list is only true once its predecessors have settled,
+which is why this is last: `seeded-media-dead-paths` is about to point catalogue rows
+at photographs that read as unreferenced today, and `wedding-awards-badges` decides
+whether five badges are published or deleted. Build the list after them, not before —
+a grep of `web/src` alone will not see the rows.
+
+The third gate is gone: `content-truth/wedding-fleet-photos` closed 2026-08-31 and its
+epic archived, so the photo it wires is referenced now. One thing it leaves for this
+stub: `weddings/vw-t3-van-front-square.webp` is a committed derivative of
+`fleet/vw-t3-van-front.jpg`, so the source can be compressed or relocated on its own
+merits — the page does not read it.
 
 ## Prompt
 
 In the agorasim repo (`web/`), run the image audit per
 `.icm/intake/media-estate/image-audit.md`. Verify first that its two in-epic
-predecessors have landed (`seeded-media-dead-paths`, `wedding-awards-badges`) and that
-`.icm/intake/content-truth/` has settled — all three wire currently-unreferenced
-photos, and this is the only destructive stub in the backlog. Build the
+predecessors have landed (`seeded-media-dead-paths`, `wedding-awards-badges`) — both
+wire currently-unreferenced photos, and this is the only destructive stub in the
+backlog. The content-truth epic has already settled (archived 2026-08-31 to
+`.icm/intake/_done/content-truth/`), so its photos are wired. Build the
 referenced-vs-unreferenced list from `web/src` greps **and the live catalogue rows**,
 propose the keep/compress/delete split to Jamie before deleting anything (his photos,
 his call), compress referenced sources, and update `web/public/images/README.md`. PR
