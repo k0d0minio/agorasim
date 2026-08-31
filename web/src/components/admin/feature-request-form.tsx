@@ -17,7 +17,7 @@ function SubmitButton() {
   return (
     <Button type="submit" size="lg" disabled={pending}>
       <Plus />
-      {pending ? "Saving…" : "Add request"}
+      {pending ? "A guardar…" : "Adicionar sugestão"}
     </Button>
   );
 }
@@ -42,20 +42,21 @@ export function FeatureRequestForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>New feature request</CardTitle>
+        <CardTitle>Nova sugestão</CardTitle>
         <CardDescription>
-          Capture an idea or ask for the toolkit. Only a title and description are required.
+          Escreva uma ideia ou um pedido de melhoria. Só o título e a descrição são
+          obrigatórios.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form ref={formRef} action={formAction} className="flex flex-col gap-5" noValidate>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="title">Title</Label>
+            <Label htmlFor="title">Título</Label>
             <Input
               id="title"
               name="title"
               required
-              placeholder="e.g. Export submissions to CSV"
+              placeholder="ex.: exportar os pedidos para CSV"
             />
             {state.fieldErrors?.title ? (
               <p className="text-sm text-destructive" role="alert">
@@ -65,13 +66,13 @@ export function FeatureRequestForm() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description">Descrição</Label>
             <Textarea
               id="description"
               name="description"
               rows={5}
               required
-              placeholder="Describe the feature, the problem it solves, and anything that would help us build it."
+              placeholder="Descreva a melhoria, o problema que resolve e tudo o que ajude a construí-la."
             />
             {state.fieldErrors?.description ? (
               <p className="text-sm text-destructive" role="alert">
@@ -88,17 +89,17 @@ export function FeatureRequestForm() {
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="category">
-                Category <span className="text-muted-foreground">(optional)</span>
+                Categoria <span className="text-muted-foreground">(opcional)</span>
               </Label>
               <Input
                 id="category"
                 name="category"
-                placeholder="e.g. Website, Booking"
+                placeholder="ex.: Site, Reservas"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="priority">Priority</Label>
+              <Label htmlFor="priority">Prioridade</Label>
               <Select id="priority" name="priority" defaultValue="medium">
                 {FEATURE_REQUEST_PRIORITIES.map((value) => (
                   <option key={value} value={value}>
@@ -116,7 +117,7 @@ export function FeatureRequestForm() {
           ) : null}
           {state.ok ? (
             <p className="text-sm text-primary" role="status">
-              Request added.
+              Sugestão adicionada.
             </p>
           ) : null}
 

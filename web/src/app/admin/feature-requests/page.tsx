@@ -86,13 +86,13 @@ export default async function AdminFeatureRequestsPage({
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Lightbulb className="size-4" />
             <span>
-              {requests} {requests === 1 ? "request" : "requests"}
+              {requests} {requests === 1 ? "sugestão" : "sugestões"}
             </span>
           </div>
 
           {requests === 0 ? (
             <Card className="px-4 py-10 text-center text-sm text-muted-foreground">
-              No feature requests yet. Add the first one above.
+              Ainda não há sugestões. Escreva a primeira aqui em cima.
             </Card>
           ) : (
             <Card className="divide-y p-0">
@@ -124,7 +124,8 @@ export default async function AdminFeatureRequestsPage({
                       </p>
                       {audit ? (
                         <p className="text-xs text-muted-foreground">
-                          {audit.actorName ?? "Scheduled job"} {auditActionLabel(audit.action)},{" "}
+                          {audit.actorName ?? "Tarefa automática"}{" "}
+                          {auditActionLabel(audit.action)},{" "}
                           <time
                             dateTime={audit.createdAt.toISOString()}
                             title={formatDateTime(audit.createdAt)}
@@ -151,7 +152,7 @@ export default async function AdminFeatureRequestsPage({
           <AdminPagination
             page={page}
             total={requests}
-            label="Feature request pages"
+            label="Páginas de sugestões"
             hrefFor={(n) => `/admin/feature-requests?page=${n}`}
           />
         </section>

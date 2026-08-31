@@ -12,7 +12,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending}>
-      {pending ? "Saving…" : "Change password"}
+      {pending ? "A guardar…" : "Mudar palavra-passe"}
     </Button>
   );
 }
@@ -34,7 +34,7 @@ export function ChangePasswordForm() {
   return (
     <form action={formAction} className="flex max-w-sm flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="currentPassword">Current password</Label>
+        <Label htmlFor="currentPassword">Palavra-passe atual</Label>
         <Input
           id="currentPassword"
           name="currentPassword"
@@ -50,7 +50,7 @@ export function ChangePasswordForm() {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="newPassword">New password</Label>
+        <Label htmlFor="newPassword">Nova palavra-passe</Label>
         <Input
           id="newPassword"
           name="newPassword"
@@ -67,7 +67,7 @@ export function ChangePasswordForm() {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="confirmPassword">Repeat new password</Label>
+        <Label htmlFor="confirmPassword">Repetir a nova palavra-passe</Label>
         <Input
           id="confirmPassword"
           name="confirmPassword"
@@ -89,7 +89,7 @@ export function ChangePasswordForm() {
       ) : null}
 
       <p className="text-xs text-muted-foreground">
-        Changing your password signs you out on every device, including this one.
+        Mudar a palavra-passe termina a sessão em todos os dispositivos, incluindo este.
       </p>
 
       <div>

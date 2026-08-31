@@ -30,7 +30,7 @@ export function FeatureRequestStatusSelect({
       value={status}
       options={OPTIONS}
       update={(next) => updateFeatureRequestStatus(id, next)}
-      triggerLabel={`Status for “${title}” — currently ${featureRequestStatusMeta[status].label}`}
+      triggerLabel={`Estado de “${title}” — atualmente ${featureRequestStatusMeta[status].label}`}
       className={className}
     />
   );

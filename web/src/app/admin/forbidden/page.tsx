@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 import { requireAdmin } from "@/lib/admin-auth";
+import { adminRoleMeta } from "@/lib/admin-format";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
@@ -20,6 +21,7 @@ export default async function AdminForbiddenPage() {
   // Still requires a session: an anonymous visitor gets the login screen, so
   // this page never becomes a way to probe which admin routes exist.
   const viewer = await requireAdmin();
+  const role = adminRoleMeta[viewer.role];
 
   return (
     <AdminShell>
@@ -29,15 +31,17 @@ export default async function AdminForbiddenPage() {
             <ShieldAlert className="size-5" />
           </div>
           <div className="space-y-2">
-            <p className="font-heading text-lg font-medium">Owner access required</p>
+            <p className="font-heading text-lg font-medium">É preciso ser responsável</p>
+            {/* The role's label, never the raw enum: the record is Portuguese, and
+                this screen is where an operator reads what their account is. */}
             <p className="text-sm text-muted-foreground">
-              You are signed in as {viewer.name} ({viewer.role}). That area is limited to
-              owner accounts — managing team accounts, reading the audit log and exporting or
-              erasing guest data. Ask Diogo or Rita if you need it.
+              Entrou como {viewer.name} ({role.label}). Essa área é só para responsáveis —
+              gerir as contas da equipa, ler o registo de atividade e exportar ou eliminar
+              dados de clientes. Fale com o Diogo ou a Rita se precisar.
             </p>
           </div>
           <Link href="/admin" className={cn(buttonVariants({ variant: "outline" }))}>
-            Back to the dashboard
+            Voltar ao início
           </Link>
         </CardContent>
       </Card>
