@@ -1,3 +1,10 @@
+> Dropped: superseded by the 2026-08-31 recut, which splits this stub four ways.
+> Its nav/dashboard/shared-vocabulary half became `translate-shell-and-nav`, its
+> Sales half became `translate-sales`, and its calendar half became
+> `translate-calendar` — which now waits on PR #31 (`booking-live/land-availability-pools`)
+> rather than translating a component that PR rewrites by ~390 lines. No work was
+> done against this slug.
+
 # Stub: Traduzir o núcleo — nav, dashboard, vendas, calendário
 
 - feature-slug: translate-admin-core
