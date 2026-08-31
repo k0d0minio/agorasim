@@ -79,10 +79,10 @@ export default async function EditExperiencePage({
       {viewer.role === "owner" ? (
         <div className="mt-8 border-t pt-6">
           <p className="mb-2 text-sm text-muted-foreground">
-            Removing this entry for good leaves enquiries that chose it pointing at a name
-            nothing explains. Hiding it from the website is reversible; this is not.
+            Apagar esta entrada de vez deixa os pedidos que a escolheram a apontar para um
+            nome que já nada explica. Ocultá-la do site tem volta; isto não tem.
           </p>
-          <DeleteExperienceDialog id={row.id} name={t(row.title, "en")} />
+          <DeleteExperienceDialog id={row.id} name={t(row.title, "pt")} />
         </div>
       ) : null}
     </AdminShell>

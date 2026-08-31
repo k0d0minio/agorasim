@@ -486,22 +486,21 @@ export function maxAdultsOf(pricing: ExperiencePricing | null | undefined): numb
 
 /**
  * The whole price list in one admin-readable sentence — what the catalogue
- * editor shows instead of an input, until the pricing editor exists. English
- * only, like the rest of the admin.
+ * editor shows instead of an input, until the pricing editor exists.
  */
 export function describePricing(pricing: ExperiencePricing | null | undefined): string | null {
   if (!pricing) return null;
   const euros = (cents: number) => `€${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 
   if (pricing.type === "addon") {
-    const parts = [`${euros(pricing.perAdultCents)}/adult`];
+    const parts = [`${euros(pricing.perAdultCents)}/adulto`];
     if (typeof pricing.childCents === "number") {
-      parts.push(`child ${euros(pricing.childCents)}`);
+      parts.push(`criança ${euros(pricing.childCents)}`);
     }
-    if (pricing.minAdults) parts.push(`min ${pricing.minAdults} adults`);
-    if (pricing.minGuests) parts.push(`min ${pricing.minGuests} guests`);
-    if (pricing.closedWeekdays?.length) parts.push("closed Mondays");
-    return `Add-on (private countryside only): ${parts.join(" · ")}`;
+    if (pricing.minAdults) parts.push(`mín. ${pricing.minAdults} adultos`);
+    if (pricing.minGuests) parts.push(`mín. ${pricing.minGuests} pessoas`);
+    if (pricing.closedWeekdays?.length) parts.push("fechado à segunda-feira");
+    return `Extra (só no rural privado): ${parts.join(" · ")}`;
   }
 
   const modeLine = (label: string, mode: TourModePricing | undefined): string | null => {
@@ -516,21 +515,23 @@ export function describePricing(pricing: ExperiencePricing | null | undefined): 
     if (perAdult.length > 0) {
       const min = Math.min(...perAdult);
       const max = Math.max(...perAdult);
-      parts.push(min === max ? `${euros(min)}/adult` : `${euros(max)}–${euros(min)}/adult`);
+      parts.push(min === max ? `${euros(min)}/adulto` : `${euros(max)}–${euros(min)}/adulto`);
     }
     if (group.length > 0) {
       const min = Math.min(...group);
       const max = Math.max(...group);
       parts.push(
-        min === max ? `${euros(min)}/group` : `${euros(min)}–${euros(max)}/group by adults`,
+        min === max
+          ? `${euros(min)}/grupo`
+          : `${euros(min)}–${euros(max)}/grupo consoante os adultos`,
       );
     }
-    parts.push(`child ${euros(mode.childCents)}`);
-    if (mode.minAdults) parts.push(`min ${mode.minAdults} adults`);
+    parts.push(`criança ${euros(mode.childCents)}`);
+    if (mode.minAdults) parts.push(`mín. ${mode.minAdults} adultos`);
     return `${label}: ${parts.join(", ")}`;
   };
 
-  return [modeLine("Shared", pricing.public), modeLine("Private", pricing.private)]
+  return [modeLine("Partilhado", pricing.public), modeLine("Privado", pricing.private)]
     .filter(Boolean)
     .join(" · ");
 }
