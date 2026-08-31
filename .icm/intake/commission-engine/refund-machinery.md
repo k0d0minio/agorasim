@@ -28,7 +28,7 @@ substrate the cancellation-selfserve epic triggers.
 
 The admin cancel-and-refund action needed part of this substrate to be honest, so
 it shipped with it: `bookings` gained `refunded_amount_cents`, `stripe_refund_id`
-and `refunded_at` (migration `0016_refund_amounts`), `lib/booking-refund.ts` writes
+and `refunded_at` (migration `0017_refund_amounts`), `lib/booking-refund.ts` writes
 `refunded`/`cancelled` with the amount and asks Stripe to return an application fee
 proportionally when the charge carries one, and the admin booking detail shows
 refund state. Seats needed nothing: `holdsCapacitySql` already counts only
