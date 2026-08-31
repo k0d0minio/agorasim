@@ -7,6 +7,7 @@ import { asc, eq, ne, and } from "drizzle-orm";
 
 import { db, experienceCatalogue } from "@/db";
 import { requireAdmin, requireOwner } from "@/lib/admin-auth";
+import { DELETE_CONFIRMATION } from "@/lib/admin-format";
 import { recordAudit, recordAuditOrWarn } from "@/lib/audit";
 import { isExperienceBlobUrl } from "@/lib/experience-images";
 import {
@@ -337,7 +338,7 @@ export async function deleteExperience(
   const actor = await requireOwner();
 
   const parsed = deleteExperienceSchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: "Escreva DELETE para confirmar." };
+  if (!parsed.success) return { error: `Escreva ${DELETE_CONFIRMATION} para confirmar.` };
 
   const [entry] = await db
     .select({

@@ -142,7 +142,7 @@ zooming, without a mistap.
   affordances above are each a single tap, which passes the same test.
 - **S4.** Bottom sheets pad `env(safe-area-inset-bottom)` and round only their top corners; content
   above the home indicator, always.
-- **S5.** Typed-confirmation deletes (type DELETE) stay exactly as they are: 2.5.8's "essential"
+- **S5.** Typed-confirmation deletes (escreva APAGAR) stay exactly as they are: 2.5.8's "essential"
   reasoning applies — friction is the feature. The sheet placement (S1) still applies.
 - **S6.** The **status menu stays an anchored menu**, not a sheet: it is the highest-frequency
   control in the app, it opens adjacent to the thumb that pressed it, every item is ≥ 44px, there

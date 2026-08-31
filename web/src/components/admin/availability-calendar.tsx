@@ -489,7 +489,7 @@ function stillAsking<T>(
  * is the default and sits nearest the thumb (T5: the footer paints in reverse
  * on a phone, so Cancel is first in the DOM and last on screen).
  *
- * It stops short of that dialog's "type DELETE". Erasing an enquiry has no
+ * It stops short of that dialog's "escreva APAGAR". Erasing an enquiry has no
  * undo; a range closed by mistake is reopened with the same control a moment
  * later, and a keyboard between Rita and "open August" is how a calendar stops
  * being kept up to date. What this insists on is that the range be *named*,

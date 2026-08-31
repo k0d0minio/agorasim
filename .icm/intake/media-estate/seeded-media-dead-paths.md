@@ -1,8 +1,15 @@
-# Stub: The seeded catalogue points at image files that no longer exist
+# Stub: Repoint the seeded catalogue at photographs that exist
 
-- lane: bug
-- found-by: content-truth/obidos-truth · 2026-08-31
+- feature-slug: seeded-media-dead-paths
+- epic: media-estate
 - priority: P1
+- size: M
+- depends-on: none
+- sequence: 1 of 3
+- sources: found by `content-truth/obidos-truth`, 2026-08-31;
+  `web/drizzle/0001_seed_mock_content.sql`, `0008_seed_experience_catalogue.sql`,
+  `0012_real_prices_two_tours.sql` (every seeded path); `0006_repoint_seed_media.sql`
+  and `0014_obidos_truth.sql` (the guarded-repoint idiom to copy)
 
 ## Problem
 
@@ -35,12 +42,12 @@ an operator has already fixed is untouched. Keep the shipped array in
 ## Prompt
 
 In the agorasim repo (`web/`), fix the dead seeded image paths per
-`.icm/intake/triage/seeded-media-dead-paths.md`. First establish which rows are
+`.icm/intake/media-estate/seeded-media-dead-paths.md`. First establish which rows are
 actually affected on the live database (the admin catalogue editor may have
 replaced some already), then add a guarded data migration in the style of
 `web/drizzle/0014_obidos_truth.sql` repointing each dead path at a file that
 exists in `web/public/images/`, and bring `web/src/content/experiences.ts` into
 line so the no-database fallback renders the same photographs. Do not delete or
-compress any image — that is `triage/image-audit.md`, and it must not run before
+compress any image — that is `media-estate/image-audit.md`, and it must not run before
 this one settles. PR on a `claude/` branch; no local checks — CI is the source of
 truth.
