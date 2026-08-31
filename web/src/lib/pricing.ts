@@ -15,7 +15,10 @@
  *
  * This module is that whole offer as one data shape ({@link ExperiencePricing},
  * stored per experience in the catalogue) and one function
- * ({@link priceBooking}) that refuses everything it cannot price exactly.
+ * ({@link priceBooking}) that refuses everything it cannot price exactly. The
+ * shape is stored as JSON, so it also owns the door back in:
+ * {@link parseExperiencePricing} validates what the database hands over, and
+ * anything it cannot vouch for reads as unpriced rather than as a total.
  *
  * **Deliberately pure.** No `server-only`, no imports: the checkout action
  * prices the basket server-side before Stripe sees a cent, and the booking form
@@ -265,6 +268,142 @@ export function priceBooking(options: {
     totalCents: lines.reduce((sum, line) => sum + line.unitCents * line.quantity, 0),
     seats: adults + children + infants,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Reading a price list back out of storage
+// ---------------------------------------------------------------------------
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Absent, in JSON, is either missing or explicitly null. */
+const isAbsent = (value: unknown): boolean => value === undefined || value === null;
+
+/** Money, as the rest of the engine holds it: whole euro cents, never negative. */
+const isCents = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0;
+
+/** A count of people. Zero adults is not a group, so tiers start at one. */
+const isHeadcount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 1;
+
+/** Monday-first weekday, as {@link weekdayOf} returns. */
+const isWeekday = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 6;
+
+/**
+ * A price list is stored as JSON (`experiences.pricing`), and JSON is a shape
+ * nothing enforces: the column is typed in Drizzle, but Postgres will hold
+ * whatever a migration or a future pricing editor wrote there, and TypeScript
+ * believes the annotation without ever looking.
+ *
+ * So everything that reads that column reads it through here. A value that
+ * does not answer every question {@link priceBooking} will ask comes back as
+ * `null` — **unpriced**, which the site already handles: the tour still
+ * renders, the checkout stands down and the enquiry form takes the lead. That
+ * is the safe direction. Half-parsing a price list would mean charging a guest
+ * a number nobody wrote.
+ */
+export function parseExperiencePricing(value: unknown): ExperiencePricing | null {
+  if (!isRecord(value)) return null;
+  if (value.type === "tour") return parseTourPricing(value);
+  if (value.type === "addon") return parseAddOnPricing(value);
+  return null;
+}
+
+function parseAdultTier(value: unknown): AdultTier | null {
+  if (!isRecord(value)) return null;
+  const { minAdults, maxAdults, perAdultCents, groupCents } = value;
+
+  if (!isHeadcount(minAdults) || !isHeadcount(maxAdults)) return null;
+  // A band that ends before it starts matches nobody — and a price list with a
+  // hole in it is one a guest falls through.
+  if (minAdults > maxAdults) return null;
+
+  if (!isAbsent(perAdultCents) && !isCents(perAdultCents)) return null;
+  if (!isAbsent(groupCents) && !isCents(groupCents)) return null;
+
+  const tier: AdultTier = { minAdults, maxAdults };
+  if (isCents(perAdultCents)) tier.perAdultCents = perAdultCents;
+  if (isCents(groupCents)) tier.groupCents = groupCents;
+
+  // A tier that prices neither the head nor the group is a broken row, not a
+  // free tour — `priceBooking` refuses it, so refuse it here where it is cheap.
+  if (tier.perAdultCents === undefined && tier.groupCents === undefined) return null;
+  return tier;
+}
+
+function parseTourMode(value: unknown): TourModePricing | null {
+  if (!isRecord(value)) return null;
+  const { tiers, childCents, minAdults } = value;
+
+  if (!Array.isArray(tiers) || tiers.length === 0) return null;
+  const parsed: AdultTier[] = [];
+  for (const raw of tiers) {
+    const tier = parseAdultTier(raw);
+    if (!tier) return null;
+    parsed.push(tier);
+  }
+
+  if (!isCents(childCents)) return null;
+  if (!isAbsent(minAdults) && !isHeadcount(minAdults)) return null;
+
+  const mode: TourModePricing = { tiers: parsed, childCents };
+  if (isHeadcount(minAdults)) mode.minAdults = minAdults;
+  return mode;
+}
+
+function parseTourPricing(value: Record<string, unknown>): TourPricing | null {
+  const pricing: TourPricing = { type: "tour" };
+
+  if (!isAbsent(value.public)) {
+    const mode = parseTourMode(value.public);
+    if (!mode) return null;
+    pricing.public = mode;
+  }
+
+  if (!isAbsent(value.private)) {
+    const mode = parseTourMode(value.private);
+    if (!mode) return null;
+    // Add-ons are opt-in per tour: only the countryside route passes any of the
+    // partners, so anything short of an explicit `true` means no.
+    pricing.private =
+      isRecord(value.private) && value.private.allowsAddOns === true
+        ? { ...mode, allowsAddOns: true }
+        : mode;
+  }
+
+  // Neither mode is not "free": it is a tour with no way to buy it.
+  if (!pricing.public && !pricing.private) return null;
+  return pricing;
+}
+
+function parseAddOnPricing(value: Record<string, unknown>): AddOnPricing | null {
+  const { perAdultCents, childCents, minAdults, minGuests, closedWeekdays } = value;
+
+  if (!isCents(perAdultCents)) return null;
+  if (!isAbsent(childCents) && !isCents(childCents)) return null;
+  if (!isAbsent(minAdults) && !isHeadcount(minAdults)) return null;
+  if (!isAbsent(minGuests) && !isHeadcount(minGuests)) return null;
+  if (
+    !isAbsent(closedWeekdays) &&
+    !(Array.isArray(closedWeekdays) && closedWeekdays.every(isWeekday))
+  ) {
+    return null;
+  }
+
+  const addOn: AddOnPricing = {
+    type: "addon",
+    perAdultCents,
+    // A stop that is simply not sold for children reads the same as one that
+    // never said: children ride along, and nothing charges for them.
+    childCents: isCents(childCents) ? childCents : null,
+  };
+  if (isHeadcount(minAdults)) addOn.minAdults = minAdults;
+  if (isHeadcount(minGuests)) addOn.minGuests = minGuests;
+  if (Array.isArray(closedWeekdays)) addOn.closedWeekdays = [...closedWeekdays];
+  return addOn;
 }
 
 // ---------------------------------------------------------------------------
