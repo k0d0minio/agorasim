@@ -1,76 +1,138 @@
-import { CalendarClock, Eye, PenLine, Sparkles } from "lucide-react";
-import { AdminShell } from "@/components/admin/admin-shell";
+import Link from "next/link";
+import { desc, sql } from "drizzle-orm";
+import { FileText } from "lucide-react";
+
+import { db, blogPostDrafts } from "@/db";
+import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
-import { AdminInDevBanner } from "@/components/admin/in-dev-banner";
-import { previewBlogDrafts } from "@/lib/admin-preview";
+import { blogStatusMeta, formatDate, formatRelativeTime } from "@/lib/admin-format";
+import { readingMinutes } from "@/lib/blog-format";
+import { AdminShell } from "@/components/admin/admin-shell";
+import { PublishBlogPostButton } from "@/components/admin/blog-row-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 
-const statusVariant = {
-  Draft: "outline",
-  "In review": "secondary",
-  Approved: "default",
-  Published: "default",
-} as const;
+// Reads live data — never prerender at build time.
+export const dynamic = "force-dynamic";
 
 /**
- * Blog studio (proposal Feature 2) — design preview. The pipeline drafts
- * articles in your brand voice; each one waits here for a one-click review
- * before it publishes to the public blog.
+ * The Blog studio — where an article written by the pipeline becomes a page on
+ * the website, or does not.
+ *
+ * The whole feature is one decision, made here: Jamie runs the content pipeline
+ * and loads the reviewed markdown (`pnpm blog:load`), and every article then
+ * waits on this screen until Diogo or Rita taps **Publicar**. Nothing publishes
+ * itself, and nothing the pipeline does can put words on the website that
+ * neither of them has seen.
+ *
+ * Published first, deliberately: the list is read far more often to check what
+ * the site currently says than to work through a queue, and "what is live" is
+ * the question an owner opens this page with.
  */
 export default async function AdminBlogPage() {
-  // Authorized here, not by `proxy.ts` — see the note at the top of
-  // `lib/admin-auth.ts`. The page renders example data today, so this guards
-  // the shape of the area rather than the rows; it is the call that has to
-  // already be here on the day the preview is wired to real data.
   await requireAdmin();
+
+  const rows = await db
+    .select()
+    .from(blogPostDrafts)
+    .orderBy(
+      // Live articles first, then the queue — newest work at the top of each.
+      sql`case when ${blogPostDrafts.status} = 'published' then 0 else 1 end`,
+      desc(sql`coalesce(${blogPostDrafts.publishedAt}, ${blogPostDrafts.updatedAt})`),
+    )
+    // An unreachable database is a broken screen, not an empty blog: say so
+    // rather than implying the pipeline has produced nothing.
+    .catch(() => null);
+
+  if (rows === null) {
+    return (
+      <AdminShell>
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
+          <p className="font-semibold text-destructive">Não foi possível ler os artigos</p>
+          <p className="text-muted-foreground">
+            A base de dados não respondeu. O site continua a mostrar o que já lá está —
+            volte a abrir esta página daqui a pouco, e avise o Jamie se continuar assim.
+          </p>
+        </div>
+      </AdminShell>
+    );
+  }
+
+  const live = rows.filter((row) => row.status === "published").length;
 
   return (
     <AdminShell>
-      <AdminInDevBanner note="The AI pipeline will draft articles in your voice on a schedule (2–4 a month) — each waits here for your one-click approval before going live, in both languages." />
+      <p className="mb-1 text-sm text-muted-foreground">
+        {rows.length} {rows.length === 1 ? "artigo" : "artigos"} ·{" "}
+        {live === 1 ? "1 publicado no site" : `${live} publicados no site`}
+      </p>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Os artigos são escritos no seu tom e revistos antes de chegarem aqui. Leia,
+        corrija o título se quiser, e publique quando estiver à vontade — sai em
+        português e em inglês ao mesmo tempo, e pode retirá-lo a qualquer momento.
+      </p>
 
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <CalendarClock className="size-4" />
-          <span>Publishing rhythm: 2 posts / month · next slot 8 Aug</span>
-        </div>
-        <Button disabled>
-          <Sparkles className="size-4" />
-          Draft a new article
-        </Button>
-      </div>
+      {rows.length === 0 ? (
+        <Card className="flex flex-col items-center gap-2 p-10 text-center">
+          <FileText className="size-8 text-muted-foreground" />
+          <p className="font-heading text-base font-semibold">Ainda não há artigos</p>
+          <p className="max-w-md text-sm text-muted-foreground">
+            Assim que a primeira leva de artigos for escrita e revista, aparece aqui à
+            espera da sua aprovação. Nada vai para o site sem passar por este ecrã.
+          </p>
+        </Card>
+      ) : (
+        <Card className="divide-y p-0">
+          {rows.map((row) => {
+            const status = blogStatusMeta[row.status];
+            const published = row.status === "published";
+            const minutes = readingMinutes(row.body.pt);
 
-      <div className="flex flex-col gap-3">
-        {previewBlogDrafts.map((draft) => (
-          <Card key={draft.title}>
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={statusVariant[draft.status]}>{draft.status}</Badge>
-                  <span className="text-xs text-muted-foreground">{draft.note}</span>
+            return (
+              <div
+                key={row.id}
+                className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:gap-4"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/admin/blog/${row.id}`}
+                      // Full-height touch target, not a text-sized sliver
+                      // (spec §2 T1) — same as the catalogue's rows.
+                      className="inline-flex min-h-11 items-center font-medium hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                    >
+                      {t(row.title, "pt")}
+                    </Link>
+                    <Badge variant={status.variant}>{status.label}</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{t(row.excerpt, "pt")}</p>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">
+                    /{row.slug} · {minutes} min de leitura
+                    {row.tags.length > 0 ? ` · ${row.tags.join(" · ")}` : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {published && row.publishedAt
+                      ? `No site desde ${formatDate(row.publishedAt)}`
+                      : `${status.hint} · atualizado ${formatRelativeTime(row.updatedAt)}`}
+                  </p>
                 </div>
-                <p className="mt-1.5 truncate font-heading text-base font-semibold">{draft.title}</p>
-                <p className="text-xs text-muted-foreground">{draft.scheduled}</p>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <Button variant="outline" disabled>
-                  <Eye className="size-4" />
-                  Preview
-                </Button>
-                <Button disabled>
-                  <PenLine className="size-4" />
-                  {draft.status === "Published" ? "Edit" : "Review & publish"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
-      <p className="mt-4 text-xs text-muted-foreground">
-        Every post ships GEO-ready: structured data, PT + EN in sync, and internal links pointing
-        readers at your tours.
+                <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-start">
+                  <Button asChild variant="outline">
+                    <Link href={`/admin/blog/${row.id}`}>Ler</Link>
+                  </Button>
+                  <PublishBlogPostButton id={row.id} published={published} />
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+
+      <p className="mt-3 text-xs text-muted-foreground">
+        Publicar coloca o artigo no site de imediato, com a data de hoje. Retirar tira-o do
+        site e devolve-o a esta lista — o texto não se perde.
       </p>
     </AdminShell>
   );
