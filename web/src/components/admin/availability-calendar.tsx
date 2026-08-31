@@ -80,22 +80,32 @@ export type CalendarVehicle = { name: string; seats: number };
 
 const SLOT_SHORT: Record<string, string> = { morning: "10h", afternoon: "14h" };
 
-/** "2 classic, 1 T3" — the cars a departure still has free, in words. */
-const CLASS_WORDS: Record<VehicleClass, string> = {
-  "classic-small": "classic",
-  "classic-van": "T3",
-  touring: "touring",
+/**
+ * "2 clássicos, 1 T3" — the cars a departure still has free, in words.
+ *
+ * Both forms per class, because Portuguese agrees in number and "2 clássico"
+ * is not a sentence. `T3` is the van's name rather than a word, so it does not
+ * inflect; `turismo` is the class of the non-classic touring vehicle (§2.6).
+ */
+const CLASS_WORDS: Record<VehicleClass, { one: string; many: string }> = {
+  "classic-small": { one: "clássico", many: "clássicos" },
+  "classic-van": { one: "T3", many: "T3" },
+  touring: { one: "turismo", many: "turismos" },
 };
 
 function carsLeft(slot: SlotAvailability): string {
   const parts = VEHICLE_CLASSES.filter((entry) => slot.vehiclesLeft[entry] > 0).map(
-    (entry) => `${slot.vehiclesLeft[entry]} ${CLASS_WORDS[entry]}`,
+    (entry) => {
+      const left = slot.vehiclesLeft[entry];
+      const words = CLASS_WORDS[entry];
+      return `${left} ${left === 1 ? words.one : words.many}`;
+    },
   );
-  return parts.length > 0 ? parts.join(", ") : "no cars";
+  return parts.length > 0 ? parts.join(", ") : "sem veículos";
 }
 
 /**
- * "3 Nov 2026" — a date the operator can check against the one they meant.
+ * "3 de nov. de 2026" — a date the operator can check against the one they meant.
  *
  * The rest of this screen takes its date labels from the server (`longLabel`),
  * because `lib/availability.ts` is `server-only` and because a date rendered
@@ -105,7 +115,7 @@ function carsLeft(slot: SlotAvailability): string {
  * the keys are: a day key is a day, not an instant, and a browser in Auckland
  * must not read `2026-11-03` back as the 4th.
  */
-const dayFormatter = new Intl.DateTimeFormat("en-GB", {
+const dayFormatter = new Intl.DateTimeFormat("pt-PT", {
   timeZone: "UTC",
   day: "numeric",
   month: "short",
@@ -116,17 +126,17 @@ function readableDay(date: string): string {
   return dayFormatter.format(new Date(`${date}T00:00:00Z`));
 }
 
-/** "23 days" / "1 day" — a confirmation counts what it is about to write. */
+/** "23 dias" / "1 dia" — a confirmation counts what it is about to write. */
 function dayCount(n: number): string {
-  return `${n} ${n === 1 ? "day" : "days"}`;
+  return `${n} ${n === 1 ? "dia" : "dias"}`;
 }
 
 /** Both ends of what a sweep addresses, named so a mis-tap is visible. */
 function rangeWords(list: CalendarDay[]): string {
-  if (list.length === 0) return "no days";
+  if (list.length === 0) return "nenhum dia";
   const first = readableDay(list[0].date);
   if (list.length === 1) return first;
-  return `${first} to ${readableDay(list[list.length - 1].date)}`;
+  return `${first} a ${readableDay(list[list.length - 1].date)}`;
 }
 
 /** How one departure reads inside a day cell, at arm's length. */
@@ -148,11 +158,14 @@ function slotTone(slot: SlotAvailability): { className: string; text: string } {
 /** One departure, spoken for a screen reader and for the day sheet's summary. */
 function slotSentence(slot: SlotAvailability): string {
   const short = SLOT_SHORT[slot.slot] ?? slot.slot;
-  if (slot.status === null) return `${short} not on sale`;
-  if (slot.status === "closed") return `${short} closed`;
-  if (slot.driversLeft === 0) return `${short} both drivers out`;
-  if (!slot.bookable) return `${short} no cars left`;
-  return `${short} ${slot.driversLeft} of ${slot.drivers} drivers free, ${carsLeft(slot)}`;
+  if (slot.status === null) return `${short} não está à venda`;
+  if (slot.status === "closed") return `${short} fechada`;
+  // "Sem condutores livres" rather than the English's "both drivers out": the
+  // roster can be one, and a sentence that says "both" on a one-driver
+  // departure is telling the operator something that is not true.
+  if (slot.driversLeft === 0) return `${short} sem condutores livres`;
+  if (!slot.bookable) return `${short} sem veículos livres`;
+  return `${short} ${slot.driversLeft} de ${slot.drivers} condutores livres, ${carsLeft(slot)}`;
 }
 
 /** The whole cell: border from the "best" state, captions from both slots. */
@@ -167,7 +180,7 @@ function cellAppearance(day: CalendarDay): {
     return {
       className: "border-transparent text-muted-foreground/40",
       disabled: true,
-      label: `${dayNumber} — past`,
+      label: `${dayNumber} — já passou`,
     };
   }
 
@@ -313,7 +326,7 @@ function DayEditor({
 
         <div
           role="group"
-          aria-label="Which departures"
+          aria-label="Que partidas"
           className="flex flex-wrap gap-2"
         >
           {editable.map((slot) => {
@@ -331,7 +344,7 @@ function DayEditor({
                     : "border-border text-muted-foreground",
                 )}
               >
-                {slot.slot === "morning" ? "Morning · 10:00" : "Afternoon · 14:00"}
+                {slot.slot === "morning" ? "Manhã · 10:00" : "Tarde · 14:00"}
               </button>
             );
           })}
@@ -348,14 +361,14 @@ function DayEditor({
             className="flex flex-col gap-1.5"
           >
             <span id={`${fieldId}-drivers-label`} className="text-sm font-medium">
-              Drivers on each departure
+              Condutores em cada partida
             </span>
             <div className="flex items-center gap-4">
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                aria-label="One driver fewer"
+                aria-label="Menos um condutor"
                 disabled={drivers <= 1}
                 onClick={() => setDrivers((n) => Math.max(1, n - 1))}
               >
@@ -371,7 +384,7 @@ function DayEditor({
                 type="button"
                 variant="outline"
                 size="icon"
-                aria-label="One driver more"
+                aria-label="Mais um condutor"
                 disabled={drivers >= maxDrivers}
                 onClick={() => setDrivers((n) => Math.min(maxDrivers, n + 1))}
               >
@@ -379,18 +392,18 @@ function DayEditor({
               </Button>
               {outInSelection > 0 ? (
                 <span className="text-xs text-muted-foreground">
-                  {outInSelection} already out
+                  {outInSelection} já ocupado{outInSelection === 1 ? "" : "s"}
                 </span>
               ) : null}
             </div>
             <p className="text-xs text-muted-foreground">
-              How many tours can leave at once — across every route. Two is the
-              roster; drop it to one when somebody is away.
+              Quantos passeios podem sair ao mesmo tempo — em todas as rotas. A
+              escala normal é de dois; baixe para um quando alguém falta.
             </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${fieldId}-note`}>Note (only you see this)</Label>
+            <Label htmlFor={`${fieldId}-note`}>Nota (só a equipa vê)</Label>
             <Input
               id={`${fieldId}-note`}
               value={note}
@@ -406,18 +419,18 @@ function DayEditor({
                 reverse on a phone, so Cancel is first in the DOM and last on
                 screen. */}
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              Cancelar
             </Button>
             <SubmitButton
               variant="outline"
               name="status"
               value="closed"
-              pendingLabel="Closing…"
+              pendingLabel="A fechar…"
             >
-              Close
+              Fechar
             </SubmitButton>
-            <SubmitButton name="status" value="open" pendingLabel="Saving…">
-              Put on sale
+            <SubmitButton name="status" value="open" pendingLabel="A guardar…">
+              Pôr à venda
             </SubmitButton>
           </DialogFooter>
         </form>
@@ -425,12 +438,11 @@ function DayEditor({
         {anyDecided ? (
           <form action={clearAction} className="border-t pt-3">
             <WriteFields dates={[day.date]} slots={chosenSlots} />
-            <SubmitButton variant="ghost" pendingLabel="Clearing…">
-              Clear these departures
+            <SubmitButton variant="ghost" pendingLabel="A limpar…">
+              Limpar estas partidas
             </SubmitButton>
             <p className="mt-1 text-xs text-muted-foreground">
-              Removes the decision entirely — they go back to not being on the calendar
-              at all.
+              Apaga a decisão por completo — voltam a não existir no calendário.
             </p>
           </form>
         ) : null}
@@ -523,7 +535,7 @@ function SweepConfirmation({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              Cancelar
             </Button>
             <SubmitButton
               variant={destructive ? "destructive" : undefined}
@@ -605,51 +617,53 @@ function BulkActions({
   if (remaining.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        This month is behind you — page forward to plan the next one.
+        Este mês já passou — avance para planear o próximo.
       </p>
     );
   }
 
   const kept =
-    "Notes and driver rosters already on those days are left exactly as they are.";
+    "As notas e as escalas de condutores já lançadas nesses dias ficam exatamente " +
+    "como estão.";
 
   const sweeps: Sweep[] = [
     {
       id: "open-all",
-      label: `Open all ${remaining.length}`,
+      label: `Abrir tudo (${remaining.length})`,
       days: remaining,
       status: "open",
-      title: `Put ${dayCount(remaining.length)} on sale?`,
+      title: `Pôr ${dayCount(remaining.length)} à venda?`,
       description:
-        `Both departures of every day from ${rangeWords(remaining)} go on sale — ` +
-        `${remaining.length * 2} departures in ${monthLabel}. ${kept}`,
-      confirmLabel: "Put them on sale",
-      pendingLabel: "Opening…",
+        `As duas partidas de todos os dias de ${rangeWords(remaining)} ficam à ` +
+        `venda — ${remaining.length * 2} partidas em ${monthLabel}. ${kept}`,
+      confirmLabel: "Pôr à venda",
+      pendingLabel: "A abrir…",
     },
     {
       id: "open-weekends",
-      label: `Open weekends (${weekends.length})`,
+      label: `Abrir fins de semana (${weekends.length})`,
       days: weekends,
       status: "open",
-      title: `Put ${weekends.length} weekend ${weekends.length === 1 ? "day" : "days"} on sale?`,
+      title: `Pôr ${weekends.length} ${weekends.length === 1 ? "dia" : "dias"} de fim de semana à venda?`,
       description:
-        `Both departures of every Saturday and Sunday from ${rangeWords(weekends)} ` +
-        `go on sale — ${weekends.length * 2} departures. Weekdays are not touched. ${kept}`,
-      confirmLabel: "Put them on sale",
-      pendingLabel: "Opening…",
+        `As duas partidas de todos os sábados e domingos de ${rangeWords(weekends)} ` +
+        `ficam à venda — ${weekends.length * 2} partidas. Os dias de semana não são ` +
+        `tocados. ${kept}`,
+      confirmLabel: "Pôr à venda",
+      pendingLabel: "A abrir…",
     },
     {
       id: "close-all",
-      label: "Close all",
+      label: "Fechar tudo",
       days: remaining,
       status: "closed",
-      title: `Close ${dayCount(remaining.length)}?`,
+      title: `Fechar ${dayCount(remaining.length)}?`,
       description:
-        `Both departures of every day from ${rangeWords(remaining)} come off sale — ` +
-        `${remaining.length * 2} departures in ${monthLabel}. Bookings already taken ` +
-        `are not cancelled. ${kept}`,
-      confirmLabel: "Close them",
-      pendingLabel: "Closing…",
+        `As duas partidas de todos os dias de ${rangeWords(remaining)} saem de ` +
+        `venda — ${remaining.length * 2} partidas em ${monthLabel}. As reservas já ` +
+        `feitas não são canceladas. ${kept}`,
+      confirmLabel: "Fechar",
+      pendingLabel: "A fechar…",
       destructive: true,
     },
   ];
@@ -659,7 +673,7 @@ function BulkActions({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm font-medium">Set the whole month</p>
+      <p className="text-sm font-medium">Definir o mês inteiro</p>
       <div className="flex flex-wrap gap-2">
         {sweeps.map((sweep) => (
           <Button
@@ -688,9 +702,9 @@ function BulkActions({
         </p>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        Sweeps touch both departures of every day from today onwards, and each
-        one asks before it writes. Days already on the calendar keep their notes
-        and their rosters; days new to it start with {defaultDrivers} drivers.
+        Estas ações abrangem as duas partidas de todos os dias a partir de hoje e
+        perguntam antes de escrever. Os dias que já estão no calendário mantêm as
+        notas e as escalas; os dias novos começam com {defaultDrivers} condutores.
       </p>
 
       {active ? (
@@ -795,38 +809,39 @@ function SeasonWindow({ today, defaultDrivers, maxRangeDays, onDone }: {
         status: asked,
         title:
           asked === "closed"
-            ? `Close ${dayCount(writing)}?`
-            : `Put ${dayCount(writing)} on sale?`,
+            ? `Fechar ${dayCount(writing)}?`
+            : `Pôr ${dayCount(writing)} à venda?`,
         description:
           (asked === "closed"
-            ? `Both departures of every day from ${readableDay(from)} to ` +
-              `${readableDay(lastWritten)} come off sale — ${writing * 2} departures. ` +
-              "Bookings already taken are not cancelled. "
-            : `Both departures of every day from ${readableDay(from)} to ` +
-              `${readableDay(lastWritten)} go on sale — ${writing * 2} departures. `) +
-          "Notes and driver rosters already on those days are left exactly as they are." +
+            ? `As duas partidas de todos os dias de ${readableDay(from)} a ` +
+              `${readableDay(lastWritten)} saem de venda — ${writing * 2} partidas. ` +
+              "As reservas já feitas não são canceladas. "
+            : `As duas partidas de todos os dias de ${readableDay(from)} a ` +
+              `${readableDay(lastWritten)} ficam à venda — ${writing * 2} partidas. `) +
+          "As notas e as escalas de condutores já lançadas nesses dias ficam " +
+          "exatamente como estão." +
           (capped
-            ? ` One gesture writes at most ${maxRangeDays} days, so this one stops at ` +
-              `${readableDay(lastWritten)} — run it again from there for the rest.`
+            ? ` Cada gesto escreve no máximo ${maxRangeDays} dias, por isso este ` +
+              `acaba em ${readableDay(lastWritten)} — repita a partir daí para o resto.`
             : ""),
-        confirmLabel: asked === "closed" ? "Close them" : "Put them on sale",
-        pendingLabel: asked === "closed" ? "Closing…" : "Opening…",
+        confirmLabel: asked === "closed" ? "Fechar" : "Pôr à venda",
+        pendingLabel: asked === "closed" ? "A fechar…" : "A abrir…",
       }
     : null;
 
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <p className="text-sm font-medium">A whole stretch of dates</p>
+        <p className="text-sm font-medium">Um período de datas</p>
         <p className="text-xs text-muted-foreground">
-          The season, a holiday, a fortnight the cars are away — both departures of
-          every day between these two, inclusive.
+          A época, um feriado, uma quinzena com os veículos parados — as duas
+          partidas de todos os dias entre estas duas, inclusive.
         </p>
       </div>
 
       <div className="flex flex-wrap gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="season-from">From</Label>
+          <Label htmlFor="season-from">De</Label>
           <Input
             id="season-from"
             type="date"
@@ -836,7 +851,7 @@ function SeasonWindow({ today, defaultDrivers, maxRangeDays, onDone }: {
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="season-to">To</Label>
+          <Label htmlFor="season-to">Até</Label>
           <Input
             id="season-to"
             type="date"
@@ -854,14 +869,14 @@ function SeasonWindow({ today, defaultDrivers, maxRangeDays, onDone }: {
           disabled={!usable}
           onClick={() => setConfirming({ what: "closed", after: state })}
         >
-          Close this range
+          Fechar este período
         </Button>
         <Button
           type="button"
           disabled={!usable}
           onClick={() => setConfirming({ what: "open", after: state })}
         >
-          Open this range
+          Abrir este período
         </Button>
       </div>
 
@@ -876,10 +891,10 @@ function SeasonWindow({ today, defaultDrivers, maxRangeDays, onDone }: {
         </p>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        Up to a year at a time, and it asks before it writes. Days already sold
-        keep their bookings — closing a day stops new ones, it never cancels an
-        old one. Days new to the calendar start with {defaultDrivers} drivers;
-        days that already carry a note or an adjusted roster keep both.
+        Até um ano de cada vez, e pergunta antes de escrever. Os dias já vendidos
+        mantêm as reservas — fechar um dia trava as novas, nunca cancela as
+        antigas. Os dias novos no calendário começam com {defaultDrivers}
+        condutores; os dias que já têm nota ou escala alterada mantêm as duas.
       </p>
 
       {confirmation ? (
@@ -978,7 +993,7 @@ export function AvailabilityCalendar({
             variant="ghost"
             size="icon"
             disabled={previousMonth === null}
-            aria-label="Previous month"
+            aria-label="Mês anterior"
           >
             {previousMonth ? (
               <Link href={calendarHref(previousMonth)}>
@@ -996,7 +1011,7 @@ export function AvailabilityCalendar({
             variant="ghost"
             size="icon"
             disabled={nextMonth === null}
-            aria-label="Next month"
+            aria-label="Mês seguinte"
           >
             {nextMonth ? (
               <Link href={calendarHref(nextMonth)}>
@@ -1066,8 +1081,9 @@ export function AvailabilityCalendar({
       </Card>
 
       <p className="text-sm text-muted-foreground">
-        {openSlots.length} {openSlots.length === 1 ? "departure" : "departures"} on sale
-        this month · {toursLeft} {toursLeft === 1 ? "tour" : "tours"} could still be sold
+        {openSlots.length} {openSlots.length === 1 ? "partida" : "partidas"} à venda
+        este mês · ainda é possível vender {toursLeft}{" "}
+        {toursLeft === 1 ? "passeio" : "passeios"}
       </p>
 
       <Card className="p-4">
@@ -1091,25 +1107,25 @@ export function AvailabilityCalendar({
       <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
           <span className="font-semibold text-primary">10h·2</span>
-          <span>on sale, drivers still free</span>
+          <span>à venda, com condutores livres</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="font-semibold text-foreground">10h✓</span>
-          <span>fully committed</span>
+          <span>esgotada</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-destructive">10h×</span>
-          <span>closed by you</span>
+          <span>fechada por si</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground/50">10h</span>
-          <span>not on sale</span>
+          <span>não está à venda</span>
         </div>
       </dl>
 
       <p className="text-xs text-muted-foreground">
-        A departure can be full with a driver still free — the group needs a car
-        somebody else already has. The fleet:{" "}
+        Uma partida pode estar esgotada com um condutor livre — o grupo precisa de
+        um veículo que outro grupo já tem. A frota:{" "}
         {fleet.map((vehicle) => `${vehicle.name} (${vehicle.seats})`).join(" · ")}.
       </p>
 

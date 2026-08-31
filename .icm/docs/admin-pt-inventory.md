@@ -125,6 +125,11 @@ feminine, so every status and priority label agreeing with it changes gender —
 | Scheduled/automatic job | Scheduled job, retention job | **tarefa automática** | |
 | Example/preview data | example data, placeholder | **dados de exemplo** / **Exemplo** | |
 | In development | In development | **em construção** | |
+| Driver | driver | **condutor** / **condutores** | AGORA-012's shared pool. `content/weddings.ts` already says *condutor*; `content/tour-request.ts:66` says *motorista* — see §9.10 |
+| The drivers on one departure | roster | **escala** | *escala de condutores*, as any rota is called. Not *lista*, not *turno* |
+| Vehicle (the booking engine's unit) | vehicle, car | **veículo** / **veículos** | The pool a booking draws one from. The guest site says *carro* of the classics and keeps it — see §9.10 |
+| The cars, collectively | the fleet | **a frota** | |
+| A stretch of dates | range, stretch, season window | **período** | *De* / *Até*, never *Desde* / *Para* |
 
 ### 3.2 Pipeline stages — `requestStatusMeta`, `lib/admin-format.ts:41`
 
@@ -207,9 +212,40 @@ Event → **Evento**. (D10 already words the two doors *casamentos* + *eventos*.
 `experienceKindMeta` (`:159`): Signature → **Principal** (matching
 `tour-request.ts:30` *Experiência principal*), Add-on → **Extra**.
 
-Availability slot states (`availability-calendar.tsx`): open → **à venda**,
-closed → **fechada**, full → **esgotada**, exclusive hold → **reserva privada**,
-`null` → **não está à venda**, past → **já passou**.
+Availability slot states (`availability-calendar.tsx`) — **rewritten for the
+pools model (#38)**, which replaced seats-per-tour with a driver pool and a
+vehicle pool and retired the exclusive hold. The subject is always *a partida*,
+so every one of these agrees feminine:
+
+| State | Test in the code | **PT** |
+|---|---|---|
+| Open | `status === "open"` | **à venda** |
+| Closed by the team | `status === "closed"` | **fechada** |
+| Not on the calendar | `status === null` | **não está à venda** |
+| No driver free | `driversLeft === 0` | **sem condutores livres** |
+| No vehicle free, a driver still on | `!bookable` | **sem veículos livres** |
+| Either of those two, said in one word (the `✓` cell and its legend) | `!bookable` | **esgotada** |
+| Past | `slot.past` | **já passou** |
+| ~~Exclusive hold~~ | *retired by #38 — no longer a state* | ~~reserva privada~~ |
+
+`sem condutores livres` is deliberately not the English's "both drivers out":
+the roster can be one, and a console that says *both* on a one-driver departure
+is stating something untrue. Same reading, one fewer wrong claim.
+
+Vehicle classes — `VEHICLE_CLASSES` in `lib/fleet.ts`, rendered as counts
+("2 clássicos, 1 T3"), so each carries both numbers:
+
+| Key | English | **PT singular** | **PT plural** |
+|---|---|---|---|
+| `classic-small` | classic | **clássico** | **clássicos** |
+| `classic-van` | T3 | **T3** | **T3** *(a name; does not inflect)* |
+| `touring` | touring | **turismo** | **turismos** |
+
+The fleet entry `Touring vehicle` (`lib/fleet.ts:86`) is the same vehicle spelt
+out: **Viatura de turismo**. It renders only in the calendar's legend, beside
+four proper nouns that read the same in either language. *Viatura* matches
+`content/experiences.ts:263`, which already calls the Óbidos car *viatura
+confortável* to the guest.
 
 ### 3.6 Verbs and buttons
 
@@ -233,7 +269,9 @@ One verb per action, everywhere:
 | Publish | **Publicar** | — |
 | Export | **Exportar** | A preparar… |
 | Upload / Replace / Remove (photo) | **Enviar** / **Substituir** / **Remover** | A enviar… |
-| Put on sale / Close (a departure) | **Pôr à venda** / **Fechar** | A guardar… / A fechar… |
+| Put on sale (a departure) | **Pôr à venda** | A guardar… |
+| Open (a month, a range) | **Abrir** | A abrir… |
+| Close (a departure, a month, a range) | **Fechar** | A fechar… |
 | Clear (a departure) | **Limpar** | A limpar… |
 | Log contact | **Registar contacto** | A guardar… |
 | Back | **Voltar** | — |
@@ -241,6 +279,13 @@ One verb per action, everywhere:
 | Try again | **Tentar novamente** | — |
 
 `Saved.` → **`Guardado.`** — one confirmation word, used by every action.
+
+**Two words for opening, and only two.** *Abrir* is the act ("Abrir tudo",
+"Abrir este período"); *pôr à venda* is the same act named by its result, and is
+what the day sheet's primary button and every confirmation say, because there
+the result is the point. That is the pair the English component already keeps
+("Open all" beside "Put on sale"), mapped one-to-one. Never a third verb —
+not *ativar*, not *disponibilizar*, not *publicar*, which is the blog's.
 
 ### 3.7 Register rules for stubs 2–3
 
@@ -350,8 +395,11 @@ to know — but that area was removed on 2026-08-31, so the question is moot.)
 
 Every user-facing string under `web/src/app/admin/` and
 `web/src/components/admin/`, by file, in source order. Line numbers are against
-`main` at `d8b5a58`. `—` in the PT column means the string is a proper noun, a
-code identifier, an already-Portuguese string, or interpolated data.
+`main` at `d8b5a58`, **except the three calendar tables** — `calendar/page.tsx`,
+`calendar/actions.ts` and `availability-calendar.tsx` — which #38 rewrote after
+this document was written and which are re-inventoried against `b0677d8`. `—` in
+the PT column means the string is a proper noun, a code identifier, an
+already-Portuguese string, or interpolated data.
 
 Server-action result messages are included: they surface verbatim in
 `role="alert"` / `role="status"` paragraphs, so they are UI copy.
@@ -427,14 +475,18 @@ Preview rows behind it live in `lib/admin-preview.ts` — see §5.3.
 | 280 | Scheduled job | Tarefa automática |
 | 67, 84 | `t(…, "en")` — experience names resolved in **English** | **`"pt"`** — a PT console showing EN experience names is the drift this epic exists to end |
 
-#### `calendar/page.tsx` (2)
+#### `calendar/page.tsx` (1) — **re-inventoried against `b0677d8`**
+
+#38 made the calendar one shared board rather than one per tour, so the tour tab
+strip, `?experience=` and the empty-catalogue notice this table used to list are
+all gone. What is left is the intro paragraph and the three locale arguments.
 
 | Line | English | **Portuguese** |
 |---|---|---|
-| 64 | No bookable tours in the catalogue yet — add one under Experiences first. | Ainda não há passeios reserváveis no catálogo — crie um em Catálogo primeiro. |
-| 107–109 | Two departures a day — 10:00 and 14:00 — per tour. Tap a day to put its departures on sale, close them, or set how many seats they have. Departures that aren't on the calendar can't be booked at all. | Duas partidas por dia — 10:00 e 14:00 — em cada passeio. Toque num dia para pôr as partidas à venda, fechá-las ou definir quantos lugares têm. Partidas que não estão no calendário não podem ser reservadas. |
-| 97, 116, 118 | `formatDay(…, "en")`, `formatMonth(…, "en")`, `WEEKDAY_INITIALS.en` | **`"pt"` / `.pt`** — already exist in `lib/availability.ts` |
-| 102 | `entry.title.en \|\| entry.title.pt` (tour tab names) | **`.pt \|\| .en`** |
+| 86–88 | Two departures a day — 10:00 and 14:00 — shared by every tour. Tap a day to put its departures on sale, close them, or say how many drivers are on. Departures that aren't on the calendar can't be booked at all. | Duas partidas por dia — 10:00 e 14:00 — partilhadas por todos os passeios. Toque num dia para pôr as partidas à venda, fechá-las ou dizer quantos condutores estão ao serviço. As partidas que não estão no calendário não podem ser reservadas. |
+| 80, 92, 93 | `formatDay(…, "en")`, `formatMonth(…, "en")`, `WEEKDAY_INITIALS.en` | **`"pt"` / `.pt`** — already exist in `lib/availability.ts`; no new day or month names |
+| ~~64~~ | ~~No bookable tours in the catalogue yet…~~ | *string removed by #38* |
+| ~~102~~ | ~~`entry.title.en \|\| entry.title.pt` (tour tab names)~~ | *tab strip removed by #38* |
 
 #### `blog/page.tsx` (10)
 
@@ -622,22 +674,28 @@ The rest of both screens comes from `content/system.ts` → §5.3.
 | 708 | {name} can sign in again. | {name} já pode voltar a entrar. |
 | 748 | That isn't your current password. | Essa não é a sua palavra-passe atual. |
 
-#### `calendar/actions.ts` (11)
+#### `calendar/actions.ts` (11) — **re-inventoried against `b0677d8`**
+
+The shape survived #38; one string changed meaning, because the confirmation now
+reads back a **roster** rather than a seat count.
 
 | Line | English | **Portuguese** |
 |---|---|---|
-| 67 | Couldn't read which days to change. | Não foi possível perceber que dias mudar. |
-| 70, 137 | No days were selected. | Não foi selecionado nenhum dia. |
-| 71, 138 | Pick at least one departure. | Escolha pelo menos uma partida. |
-| 86, 164 | Couldn't save — the calendar was not changed. | Não foi possível guardar — o calendário não mudou. |
-| 105 | {days} on sale ({n} departures), {c} seat(s) each. | {days} à venda ({n} partidas), {c} lugar cada / {c} lugares cada. |
-| 106 | {days} closed. | {days} fechados. |
-| 134 | Couldn't read which days to clear. | Não foi possível perceber que dias limpar. |
-| 147 | Couldn't check for bookings, so nothing was cleared. Try again. | Não foi possível verificar se havia reservas, por isso nada foi limpo. Tente novamente. |
-| 153–155 | {days} has/have bookings on it/them, so nothing was cleared. Close the day instead — the bookings stay visible. | {days} tem reservas / têm reservas, por isso nada foi limpo. Feche o dia em vez disso — as reservas continuam visíveis. |
-| 180 | {n} departure(s) cleared — back to "not decided". | {n} partida limpa / {n} partidas limpas — voltam a não estar decididas. |
+| 60 | `days()` — "3 days" / "1 day" | 3 dias / 1 dia |
+| 106 | Couldn't read which days to change. | Não foi possível perceber que dias mudar. |
+| 110, 192 | No days were selected. | Não foi selecionado nenhum dia. |
+| 111, 193 | Pick at least one departure. | Escolha pelo menos uma partida. |
+| 119, 219 | Couldn't save — the calendar was not changed. | Não foi possível guardar — o calendário não mudou. |
+| 155 | `, {n} driver(s) each` *(#38: was seats)* | , {n} condutor cada / , {n} condutores cada |
+| 161 | {days} on sale ({n} departures){roster}. | {dias} à venda ({n} partidas){escala}. |
+| 162 | {days} closed. | {dias} fechados. |
+| 188 | Couldn't read which days to clear. | Não foi possível perceber que dias limpar. |
+| 202 | Couldn't check for bookings, so nothing was cleared. Try again. | Não foi possível verificar se havia reservas, por isso nada foi limpo. Tente novamente. |
+| 209–210 | {days} has/have bookings on it/them, so nothing was cleared. Close the day instead — the bookings stay visible. | {dias} tem reservas / têm reservas, por isso nada foi limpo. Feche o dia em vez disso — as reservas continuam visíveis. |
+| 235 | {n} departure(s) cleared — back to "not decided". | 1 partida limpa — volta a não estar decidida. / {n} partidas limpas — voltam a não estar decididas. |
 
-The `days()` helper feeding these must be checked for its own EN wording.
+`days()` is the helper the messages interpolate; it is listed above rather than
+left to be discovered, and its plural is a PT plural.
 
 #### `experiences/actions.ts` (13)
 
@@ -674,53 +732,100 @@ Group titles (`:180`, `:250`) and item labels come from `admin-nav.ts` → §3.3
 `ViewerFooter:59` renders the **raw role enum** under the name — use
 `adminRoleMeta[role].label`.
 
-#### `availability-calendar.tsx` (33)
+#### `availability-calendar.tsx` — **re-inventoried against `b0677d8`** (68 sites)
+
+**The old table (33 strings) described a component that no longer exists.** #38
+rewrote this file from a per-tour, per-seat calendar into one shared board over a
+**driver pool** and a **vehicle pool** (700 lines → 786, 238 of them new), and
+the confirmations and season card added since took it to 1130. The strings below
+are what it renders now; the vocabulary they introduce —
+*condutor*, *escala*, *veículo*, the three vehicle classes and the
+open/close/clear verb set — is registered in §3.1, §3.5 and §3.6 so that
+`booking-live`'s remaining stubs and the guest booking form say the same words.
+
+Counting plural branches, ternaries and the confirmations each sweep composes,
+the 68 sites below render roughly 180 distinct strings.
 
 | Line | English | **Portuguese** |
 |---|---|---|
-| 67 | `SLOT_SHORT` `10h` / `14h` | — |
-| 99 | {n} — past | {n} — já passou |
-| 108 | {short} not on sale | {short} não está à venda |
-| 109 | {short} closed | {short} fechada |
-| 110 | {short} private booking | {short} reserva privada |
-| 111 | {short} full | {short} esgotada |
-| 112 | {short} {n} of {c} seats left | {short} {n} de {c} lugares livres |
-| 247 | {short}: not on sale | {short}: não está à venda |
-| 248 | {short}: closed | {short}: fechada |
-| 249 | {short}: private booking | {short}: reserva privada |
-| 250 | {short}: {n} of {c} sold | {short}: {n} de {c} vendidos |
-| 264 | Which departures *(group aria-label)* | Que partidas |
-| 282 | Morning · 10:00 / Afternoon · 14:00 | Manhã · 10:00 / Tarde · 14:00 |
-| 299 | Seats per departure | Lugares por partida |
-| 306 | One seat fewer | Menos um lugar |
-| 322 | One seat more | Mais um lugar |
-| 330 | {n} already sold | {n} já vendidos |
-| 337 | Note (only you see this) | Nota (só a equipa vê) |
-| 342 | `placeholder="Casamento, revisão do carro…"` | — *(already PT)* |
-| 353 | Cancel | Cancelar |
-| 359, 362 | Closing… / Close | A fechar… / Fechar |
-| 363–364 | Saving… / Put on sale | A guardar… / Pôr à venda |
-| 372–373 | Clearing… / Clear these departures | A limpar… / Limpar estas partidas |
-| 376 | Removes the decision entirely — they go back to not being on the calendar at all. | Apaga a decisão por completo — voltam a não existir no calendário. |
-| 427 | This month is behind you — page forward to plan the next one. | Este mês já passou — avance para planear o próximo. |
-| 435 | Set the whole month | Definir o mês inteiro |
-| 445, 458, 471 | Opening… / Closing… | A abrir… / A fechar… |
-| 446 | Open all {n} | Abrir os {n} dias |
-| 459 | Open weekends ({n}) | Abrir fins de semana ({n}) |
-| 472 | Close all | Fechar tudo |
-| 488–490 | Sweeps touch both departures of every day from today onwards… Seats default to {n} per departure; open a day to adjust one. | Estas ações abrangem as duas partidas de todos os dias a partir de hoje e substituem o que lá estivesse. Ficam com {n} lugares por partida; abra um dia para acertar. |
-| 547 | Tour *(tablist aria-label)* | Passeio |
-| 570 | Previous month | Mês anterior |
-| 588 | Next month | Mês seguinte |
-| 649–650 | {n} departure(s) on sale this month · {n} seat(s) still available | {n} partida à venda / {n} partidas à venda este mês · {n} lugar ainda disponível / {n} lugares ainda disponíveis |
-| 665 | on sale, seats left | à venda, lugares livres |
-| 669 | full | esgotada |
-| 673 | private booking | reserva privada |
-| 677 | closed by you | fechada por si |
-| 681 | not on sale | não está à venda |
+| 81 | `SLOT_SHORT` `10h` / `14h` | — *(clock, not language)* |
+| 85–87 | `CLASS_WORDS` — classic / T3 / touring | clássico · clássicos / T3 *(invariable)* / turismo · turismos — §3.5 |
+| 94 | no cars | sem veículos |
+| 108 | `Intl.DateTimeFormat("en-GB")` — "3 Nov 2026" | **`"pt-PT"`** — "3 de nov. de 2026", the same locale `admin-format.ts` now uses |
+| 121 | `dayCount()` — "23 days" / "1 day" | 23 dias / 1 dia |
+| 126 | no days | nenhum dia |
+| 129 | {first} to {last} | {first} a {last} |
+| 151 | {short} not on sale | {short} não está à venda |
+| 152 | {short} closed | {short} fechada |
+| 153 | {short} both drivers out | {short} sem condutores livres — *not* "os dois condutores": see §3.5 |
+| 154 | {short} no cars left | {short} sem veículos livres |
+| 155 | {short} {n} of {c} drivers free, {cars} | {short} {n} de {c} condutores livres, {veículos} |
+| 170 | {n} — past | {n} — já passou |
+| 184 | {n} — {slot sentences}  *(day-cell aria-label)* | — *(composed of the rows above)* |
+| 316 | Which departures *(group aria-label)* | Que partidas |
+| 334 | Morning · 10:00 / Afternoon · 14:00 | Manhã · 10:00 / Tarde · 14:00 |
+| 351 | Drivers on each departure | Condutores em cada partida |
+| 358 | One driver fewer | Menos um condutor |
+| 374 | One driver more | Mais um condutor |
+| 382 | {n} already out | {n} já ocupado / {n} já ocupados |
+| 387–388 | How many tours can leave at once — across every route. Two is the roster; drop it to one when somebody is away. | Quantos passeios podem sair ao mesmo tempo — em todas as rotas. A escala normal é de dois; baixe para um quando alguém falta. |
+| 393 | Note (only you see this) | Nota (só a equipa vê) |
+| 398 | `placeholder="Casamento, revisão do carro…"` | — *(already PT; the register the rest matches)* |
+| 409, 526 | Cancel | Cancelar |
+| 415, 417 | Closing… / Close | A fechar… / Fechar |
+| 419–420 | Saving… / Put on sale | A guardar… / Pôr à venda |
+| 428–429 | Clearing… / Clear these departures | A limpar… / Limpar estas partidas |
+| 432–433 | Removes the decision entirely — they go back to not being on the calendar at all. | Apaga a decisão por completo — voltam a não existir no calendário. |
+| 608 | This month is behind you — page forward to plan the next one. | Este mês já passou — avance para planear o próximo. |
+| 614 | `kept` — Notes and driver rosters already on those days are left exactly as they are. | As notas e as escalas de condutores já lançadas nesses dias ficam exatamente como estão. |
+| 619 | Open all {n} | Abrir tudo ({n}) |
+| 622 | Put {n days} on sale? | Pôr {n dias} à venda? |
+| 624–625 | Both departures of every day from {range} go on sale — {n} departures in {month}. {kept} | As duas partidas de todos os dias de {período} ficam à venda — {n} partidas em {mês}. {kept} |
+| 626, 638 | Put them on sale *(confirm)* | Pôr à venda |
+| 627, 639 | Opening… | A abrir… |
+| 631 | Open weekends ({n}) | Abrir fins de semana ({n}) |
+| 634 | Put {n} weekend day(s) on sale? | Pôr {n} dia de fim de semana à venda? / Pôr {n} dias de fim de semana à venda? |
+| 636–637 | Both departures of every Saturday and Sunday from {range} go on sale — {n} departures. Weekdays are not touched. {kept} | As duas partidas de todos os sábados e domingos de {período} ficam à venda — {n} partidas. Os dias de semana não são tocados. {kept} |
+| 643 | Close all | Fechar tudo |
+| 646 | Close {n days}? | Fechar {n dias}? |
+| 648–650 | Both departures of every day from {range} come off sale — {n} departures in {month}. Bookings already taken are not cancelled. {kept} | As duas partidas de todos os dias de {período} saem de venda — {n} partidas em {mês}. As reservas já feitas não são canceladas. {kept} |
+| 651 | Close them *(confirm)* | Fechar |
+| 652 | Closing… | A fechar… |
+| 662 | Set the whole month | Definir o mês inteiro |
+| 691–693 | Sweeps touch both departures of every day from today onwards, and each one asks before it writes. Days already on the calendar keep their notes and their rosters; days new to it start with {n} drivers. | Estas ações abrangem as duas partidas de todos os dias a partir de hoje e perguntam antes de escrever. Os dias que já estão no calendário mantêm as notas e as escalas; os dias novos começam com {n} condutores. |
+| 798–799 | Close {n days}? / Put {n days} on sale? | Fechar {n dias}? / Pôr {n dias} à venda? |
+| 802–804 | Both departures of every day from {from} to {to} come off sale — {n} departures. Bookings already taken are not cancelled. | As duas partidas de todos os dias de {de} a {até} saem de venda — {n} partidas. As reservas já feitas não são canceladas. |
+| 805–806 | Both departures of every day from {from} to {to} go on sale — {n} departures. | As duas partidas de todos os dias de {de} a {até} ficam à venda — {n} partidas. |
+| 807 | Notes and driver rosters already on those days are left exactly as they are. | As notas e as escalas de condutores já lançadas nesses dias ficam exatamente como estão. |
+| 809–810 | One gesture writes at most {n} days, so this one stops at {date} — run it again from there for the rest. | Cada gesto escreve no máximo {n} dias, por isso este acaba em {data} — repita a partir daí para o resto. |
+| 812 | Close them / Put them on sale | Fechar / Pôr à venda |
+| 813 | Closing… / Opening… | A fechar… / A abrir… |
+| 820 | A whole stretch of dates | Um período de datas |
+| 822–823 | The season, a holiday, a fortnight the cars are away — both departures of every day between these two, inclusive. | A época, um feriado, uma quinzena com os veículos parados — as duas partidas de todos os dias entre estas duas, inclusive. |
+| 829 | From | De |
+| 839 | To | Até |
+| 857 | Close this range | Fechar este período |
+| 864 | Open this range | Abrir este período |
+| 879–882 | Up to a year at a time, and it asks before it writes. Days already sold keep their bookings — closing a day stops new ones, it never cancels an old one. Days new to the calendar start with {n} drivers; days that already carry a note or an adjusted roster keep both. | Até um ano de cada vez, e pergunta antes de escrever. Os dias já vendidos mantêm as reservas — fechar um dia trava as novas, nunca cancela as antigas. Os dias novos no calendário começam com {n} condutores; os dias que já têm nota ou escala alterada mantêm as duas. |
+| 981 | Previous month | Mês anterior |
+| 999 | Next month | Mês seguinte |
+| 1069–1070 | {n} departure(s) on sale this month · {n} tour(s) could still be sold | {n} partida à venda / {n} partidas à venda este mês · ainda é possível vender {n} passeio / {n} passeios |
+| 1094 | on sale, drivers still free *(legend)* | à venda, com condutores livres |
+| 1098 | fully committed *(legend)* | esgotada |
+| 1102 | closed by you *(legend)* | fechada por si |
+| 1106 | not on sale *(legend)* | não está à venda |
+| 1111–1113 | A departure can be full with a driver still free — the group needs a car somebody else already has. The fleet: {names} | Uma partida pode estar esgotada com um condutor livre — o grupo precisa de um veículo que outro grupo já tem. A frota: {nomes} |
+| 1113 | `vehicle.name` — Citroën 2CV · Renault 4L · Fiat 600 · VW T3 · **Touring vehicle** | Four proper nouns, and `lib/fleet.ts:86` → **Viatura de turismo** (§5.3) |
 
 `Mês anterior` / `Mês seguinte` already exist verbatim in
-`content/tour-request.ts:79–80` — same words, deliberately.
+`content/tour-request.ts:79–80` — same words, deliberately. `Guardar`,
+`Cancelar`, `Fechar` and `Limpar` are §3.6's, unchanged.
+
+Three strings the pools model retired, listed so a reader of the old table knows
+where they went: `{short} private booking` and `{short}: private booking` (the
+exclusive hold is not a state any more), and every `seats`/`lugares` string —
+what an operator sets is now a roster of drivers, and the seat count lives on the
+vehicle in `lib/fleet.ts`.
 
 #### `lead-edit-form.tsx` (16)
 
@@ -974,7 +1079,8 @@ here so nothing is discovered late.
 | `lib/experience-icons.ts` | 20 icon labels (`Classic car`, `Wine tasting`, …) + 3 `ENQUIRY_KIND_ICONS` labels; render as `title` and sr-only text in the icon picker and on every board card | 3 |
 | `lib/admin-preview.ts` | ~60 strings of example data across five preview areas (blog titles, social captions, segment names, campaign names, referrer rewards, notification templates and log) | 3 |
 | `lib/password-policy.ts:16` | `At least {n} characters. A short phrase works well.` → **Pelo menos {n} caracteres. Uma frase curta funciona bem.** | 3 |
-| `lib/availability.ts` | `formatDay`/`formatMonth`/`WEEKDAY_INITIALS` already take a locale and already have `pt` — callers pass `"en"` | 2 |
+| `lib/availability.ts` | `formatDay`/`formatMonth`/`WEEKDAY_INITIALS` already take a locale and already have `pt` — callers pass `"en"` | 2 — **done** by `translate-calendar`; the callers now pass `"pt"` and no day or month name was written by hand |
+| `lib/fleet.ts:86` | 1: `Vehicle.name` for the touring vehicle, `Touring vehicle` → **Viatura de turismo**. The other four are proper nouns. `FLEET` is rendered in exactly one place — the calendar legend — so the field is admin copy, and its doc comment now says so | **`translate-calendar`** |
 | `lib/sales.ts:77` | `EN-` ref prefix (from *enquiry*) | §9 |
 | `content/system.ts:39–54` | `adminSystemContent` — the error and 404 screens, 7 strings; **and the doc comment naming the monolingual-EN decision** | **this stub** (comment) + 3 (strings) |
 
@@ -1053,9 +1159,13 @@ The important negative: nothing asserts on an action's error message, so the §5
 |---|---|---|
 | `app/admin/**` pages & boundaries | 22 | ~150 |
 | `app/admin/**` server actions | 3 | ~60 |
-| `components/admin/**` | 29 (23 with strings) | ~190 |
-| Adjacent (`lib/`, `content/system.ts`) | 8 | ~190 |
-| **Total** | **62** | **~590** |
+| `components/admin/**` | 29 (23 with strings) | ~190 → **~340** |
+| Adjacent (`lib/`, `content/system.ts`) | 9 | ~190 |
+| **Total** | **63** | **~590 → ~740** |
+
+The revision is one file: `availability-calendar.tsx` went from 33 strings to
+about 180 when #38 rewrote it (§5.2). Nothing else in the count moved, and the
+proportions below still hold.
 
 Of those, roughly 35 are idiom that must be rewritten rather than translated
 (§4), and about 60 are already Portuguese or are proper nouns.
@@ -1096,6 +1206,18 @@ Of those, roughly 35 are idiom that must be rewritten rather than translated
    *enquiry*. `PD-` would match *pedido*, but the prefix appears on records that
    already exist and possibly in messages already sent to guests. Proposal:
    **leave `EN-` alone** and treat it as an opaque identifier, not a word. Confirm.
+10. **`condutor` vs `motorista`, and `veículo` vs `carro`** (added by
+    `translate-calendar`, §3.1). The admin now says **condutor** and **veículo**,
+    because what the calendar manages is a pool of each and because the pool
+    includes a car nobody calls a *carro clássico*. The guest site is not
+    consistent with itself on either: `content/weddings.ts:22,176,180` says
+    *condutor* while `content/tour-request.ts:66` says *motorista*, and the
+    classics are *carros* everywhere. Proposal: **the admin says condutor and
+    veículo; the guest site keeps carro for the classics** — a guest is being
+    sold a ride in a classic car, not allocated a unit of fleet — **and
+    `tour-request.ts:66` changes to condutor** so one person is not called two
+    things across two screens. That last line is one string in
+    `content-truth`'s or `booking-live`'s scope, not this epic's.
 
 ### Two defects found while inventorying — not this stub's to fix
 
