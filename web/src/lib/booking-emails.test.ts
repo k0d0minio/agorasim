@@ -130,6 +130,7 @@ describe("guestConfirmationEmail", () => {
    */
   describe("links resolve against the origin serving this deployment", () => {
     const ORIGIN = "https://preview.example.com";
+    const team = ["diogo@agorasim.pt"];
 
     beforeEach(() => {
       vi.stubEnv("NEXT_PUBLIC_SITE_URL", ORIGIN);
@@ -149,11 +150,14 @@ describe("guestConfirmationEmail", () => {
     });
 
     it("gives the team notification the same masthead", () => {
-      expect(teamNotificationEmail(facts()).html).toContain(`${ORIGIN}/images/logo.png`);
+      expect(teamNotificationEmail(facts(), team).html).toContain(`${ORIGIN}/images/logo.png`);
     });
 
     it("never resolves an email asset against the canonical domain", () => {
-      for (const message of [guestConfirmationEmail(facts()), teamNotificationEmail(facts())]) {
+      for (const message of [
+        guestConfirmationEmail(facts()),
+        teamNotificationEmail(facts(), team),
+      ]) {
         expect(message.html).not.toContain(`${site.domain}/images/logo.png`);
       }
     });
