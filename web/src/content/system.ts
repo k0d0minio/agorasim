@@ -38,9 +38,7 @@ export const systemContent = {
 /**
  * Admin-side equivalents. The admin area is deliberately monolingual — and the
  * language is **Portuguese**: it is Diogo & Rita's console, not a bilingual
- * surface, so there is no `Localized<T>` here and no locale toggle (D4). The
- * strings below are still English while the `admin-portugues` epic works
- * through the console; they are translated by its `translate-admin-rest` stub.
+ * surface, so there is no `Localized<T>` here and no locale toggle (D4).
  * The vocabulary, register and per-string renderings live in
  * `.icm/docs/admin-pt-inventory.md` — take the words from there rather than
  * translating afresh, so the admin keeps one name per concept.
@@ -49,14 +47,14 @@ export const systemContent = {
  */
 export const adminSystemContent = {
   error: {
-    title: "Couldn't reach the database",
-    body: "The operations data didn't load. This is usually a brief connection problem — try again, and if it keeps happening let the team know.",
-    retry: "Try again",
-    dashboard: "Back to dashboard",
+    title: "Não foi possível chegar à base de dados",
+    body: "Os dados não carregaram. Costuma ser um problema passageiro de ligação — tente novamente e, se continuar, avise a equipa.",
+    retry: "Tentar novamente",
+    dashboard: "Voltar ao início",
   },
   notFound: {
-    title: "Page not found",
-    body: "That admin page doesn't exist. It may have been renamed or is not built yet.",
-    dashboard: "Back to dashboard",
+    title: "Página não encontrada",
+    body: "Essa página do painel não existe. Pode ter mudado de nome ou ainda não estar construída.",
+    dashboard: "Voltar ao início",
   },
 } as const;

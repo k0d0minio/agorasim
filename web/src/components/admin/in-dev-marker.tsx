@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 /**
  * The dot marking an area whose UI is designed but not yet wired up.
  *
- * "In development" is signalled two ways across the admin: this marker (in both
+ * "Em construção" is signalled two ways across the admin: this marker (in both
  * navs and on the dashboard cards) and `AdminInDevBanner` on the area itself.
  * It used to be three — the dashboard carried a separate `Badge` as well.
  *
@@ -17,7 +17,7 @@ export function InDevMarker({ className }: { className?: string }) {
         className="size-1.5 rounded-full bg-accent-foreground/50"
         aria-hidden="true"
       />
-      <span className="sr-only">In development</span>
+      <span className="sr-only">Em construção</span>
     </span>
   );
 }
@@ -30,7 +30,7 @@ export function InDevLegend({ className }: { className?: string }) {
         className="mr-1 inline-block size-1.5 rounded-full bg-accent-foreground/50 align-middle"
         aria-hidden="true"
       />
-      marks areas in development — final design, example data.
+      assinala áreas em construção — desenho final, dados de exemplo.
     </p>
   );
 }
