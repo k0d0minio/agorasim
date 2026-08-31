@@ -29,6 +29,7 @@ function facts(overrides: Partial<BookingEmailFacts> = {}): BookingEmailFacts {
     date: "sábado, 15 de agosto de 2026",
     experience: "Rural Saloia — experiência privada",
     departure: "Manhã · 10h00",
+    departureTimeFollows: false,
     meetingPoint: {
       address: "Av. Mário Firmino Miguel, Sintra (Portela de Sintra)",
       mapsUrl: "https://maps.app.goo.gl/zufzHo8QpmspvzqC9",
@@ -112,6 +113,30 @@ describe("guestConfirmationEmail", () => {
     expect(message.html).toContain(`${site.domain}/images/logo.png`);
   });
 
+  it("promises the hour in writing when the tour has no clock time", () => {
+    // Óbidos: "what happens next" says "at your departure time", and without
+    // this the guest has paid without that time appearing anywhere.
+    const pt = guestConfirmationEmail(
+      facts({ locale: "pt", departure: "Partida da manhã", departureTimeFollows: true }),
+    );
+    const en = guestConfirmationEmail(
+      facts({ locale: "en", departure: "Morning departure", departureTimeFollows: true }),
+    );
+
+    for (const part of [pt.text, pt.html!]) {
+      expect(part).toContain("A hora exata da partida segue por email ou WhatsApp");
+    }
+    for (const part of [en.text, en.html!]) {
+      expect(part).toContain("The exact departure time follows by email or WhatsApp");
+    }
+  });
+
+  it("says nothing about a time that follows when the departure names one", () => {
+    const message = guestConfirmationEmail(facts({ departureTimeFollows: false }));
+    expect(message.text).not.toContain("segue por email ou WhatsApp");
+    expect(message.html).not.toContain("segue por email ou WhatsApp");
+  });
+
   it("replies to a person, not to the sending address", () => {
     expect(guestConfirmationEmail(facts()).replyTo).toBe(site.email);
   });
@@ -128,7 +153,18 @@ describe("guestConfirmationEmail", () => {
 describe("teamNotificationEmail", () => {
   const recipients = ["diogo@agorasim.pt", "rita@agorasim.pt"];
 
-  it("goes to everyone configured, with the guest's details on it", () => {
+  it("tells the team an hour is still owed, only when one is", () => {
+    const owed = teamNotificationEmail(facts({ departureTimeFollows: true }), recipients);
+    for (const part of [owed.text, owed.html!]) {
+      expect(part).toContain("Falta combinar a hora");
+    }
+
+    const settled = teamNotificationEmail(facts({ departureTimeFollows: false }), recipients);
+    expect(settled.text).not.toContain("Falta combinar a hora");
+    expect(settled.html).not.toContain("Falta combinar a hora");
+  });
+
+  it("goes to everyone configured, with the guest\'s details on it", () => {
     const message = teamNotificationEmail(facts(), recipients);
     expect(message.to).toEqual(recipients);
     for (const part of [message.text, message.html!]) {

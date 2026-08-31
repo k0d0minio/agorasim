@@ -223,10 +223,13 @@ export const experiences: Experience[] = [
         "Departs from central Lisbon",
       ],
     },
-    image: "/images/obidos-medieval-villages/town-gate-arch-2cv.jpg",
+    // Deliberately not one of the classic-car frames in this folder: this is
+    // the one tour that does not run in them, and the hero is the first thing
+    // a guest reads the tour by.
+    image: "/images/obidos-medieval-villages/obidos-street-flowers.jpg",
     imageAlt: {
-      pt: "Carro clássico Agorasim visto através de uma porta medieval de Óbidos",
-      en: "Agorasim classic car seen through a medieval town gate in Óbidos",
+      pt: "Rua de calçada dentro das muralhas de Óbidos, com uma porta enfeitada de flores e visitantes a passear",
+      en: "A cobbled street inside the walls of Óbidos, a doorway dressed in flowers and visitors walking through",
     },
     faqs: [
       {
@@ -237,6 +240,18 @@ export const experiences: Experience[] = [
         answer: {
           pt: "O ponto de encontro é na Alameda Cardeal Cerejeira, em Lisboa. A confirmação da reserva inclui o mapa exato do ponto de encontro.",
           en: "The meeting point is Alameda Cardeal Cerejeira in Lisbon. Your booking confirmation includes the exact map link for the meeting point.",
+        },
+      },
+      {
+        // Óbidos has no published clock times yet — see `content/logistics.ts`.
+        // Said here rather than left out, so nobody pays to find out.
+        question: {
+          pt: "A que horas parte a experiência Óbidos e Aldeias Medievais?",
+          en: "What time does the Óbidos & Medieval Villages experience leave?",
+        },
+        answer: {
+          pt: "Há uma partida de manhã e outra de tarde. Ao contrário das experiências Saloias, que partem às 10h00 e às 14h00, a hora exata desta rota é confirmada por email ou WhatsApp depois da reserva — o ponto de encontro é sempre o mesmo.",
+          en: "There is one morning and one afternoon departure. Unlike the Saloia experiences, which leave at 10:00 and 14:00, the exact time for this route is confirmed by email or WhatsApp after you book — the meeting point never changes.",
         },
       },
       {
