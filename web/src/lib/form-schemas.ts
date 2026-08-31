@@ -376,6 +376,45 @@ export const deleteExperienceSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// The Blog studio
+// ---------------------------------------------------------------------------
+
+/**
+ * The half of an article the studio may change.
+ *
+ * Not the body: the prose is the pipeline's output, reviewed as markdown in
+ * `src/content/generated/blog/` and re-loaded from there. What Diogo & Rita
+ * genuinely need to fix in place is the shop window — the headline a reader
+ * sees on the card and in Google, and the sentence under it. A body editor here
+ * would be a second source of truth for the article, and the next load would
+ * silently win.
+ *
+ * Both languages required, for the reason every localized pair on this site is:
+ * `t()` has no fallback, so a blanked English title renders as nothing at all.
+ */
+export const blogPostSchema = z.object({
+  id: z.uuid(),
+  titlePt: text.min(1, "Escreva o título em português."),
+  titleEn: text.min(1, "Escreva o título em inglês."),
+  excerptPt: text.min(1, "Escreva o resumo em português."),
+  excerptEn: text.min(1, "Escreva o resumo em inglês."),
+});
+
+/** Field names `saveBlogPost` can report an inline error against. */
+export type BlogPostField = "titlePt" | "titleEn" | "excerptPt" | "excerptEn";
+
+/**
+ * Putting an article on the site, or taking it off.
+ *
+ * One schema with a boolean rather than two actions: it is one control in the
+ * UI, and the audit entry differs only in which verb it names.
+ */
+export const setBlogPostPublishedSchema = z.object({
+  id: z.uuid(),
+  published: z.preprocess((value) => value === "on" || value === "true", z.boolean()),
+});
+
+// ---------------------------------------------------------------------------
 // The availability calendar
 // ---------------------------------------------------------------------------
 
