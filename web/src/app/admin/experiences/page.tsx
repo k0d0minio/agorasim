@@ -57,23 +57,26 @@ export default async function AdminExperiencesPage() {
         <Button asChild>
           <Link href="/admin/experiences/new">
             <Plus className="size-4" />
-            Add
+            Adicionar
           </Link>
         </Button>
       }
     >
       <p className="mb-4 text-sm text-muted-foreground">
-        {catalogue.length} {catalogue.length === 1 ? "experience" : "experiences"} ·{" "}
-        {catalogue.filter((entry) => entry.active).length} shown on the website
+        {catalogue.length} {catalogue.length === 1 ? "experiência" : "experiências"} ·{" "}
+        {catalogue.filter((entry) => entry.active).length}{" "}
+        {catalogue.filter((entry) => entry.active).length === 1
+          ? "visível no site"
+          : "visíveis no site"}
       </p>
 
       {!seeded ? (
         <div className="mb-4 rounded-xl border border-accent-foreground/20 bg-accent/50 p-4 text-sm">
-          <p className="font-semibold text-accent-foreground">Showing the shipped catalogue</p>
+          <p className="font-semibold text-accent-foreground">A mostrar o catálogo de origem</p>
           <p className="text-accent-foreground/80">
-            The database has no experiences yet, so the website is rendering the copy that
-            came with the code. Run the catalogue migration
-            (<code>drizzle/0008_seed_experience_catalogue.sql</code>) and these become editable.
+            A base de dados ainda não tem experiências, por isso o site está a mostrar o
+            texto que veio com o código. O catálogo ainda não foi criado nesta instalação —
+            avise o Jamie e estas entradas passam a ser editáveis aqui.
           </p>
         </div>
       ) : null}
@@ -81,7 +84,7 @@ export default async function AdminExperiencesPage() {
       <Card className="divide-y p-0">
         {catalogue.map((entry, index) => {
           const id = idBySlug.get(entry.slug);
-          const name = t(entry.title, "en");
+          const name = t(entry.title, "pt");
           const Icon = experienceIcon(entry.icon).icon;
           const kind = experienceKindMeta[entry.kind];
           // What the row says about money — the whole price list in a sentence,
@@ -112,13 +115,13 @@ export default async function AdminExperiencesPage() {
                     <span className="inline-flex min-h-11 items-center font-medium">{name}</span>
                   )}
                   <Badge variant={kind.variant}>{kind.label}</Badge>
-                  {entry.active ? null : <Badge variant="outline">Hidden</Badge>}
+                  {entry.active ? null : <Badge variant="outline">Oculta</Badge>}
                 </div>
                 <p className="mt-0.5 text-sm text-muted-foreground">
-                  {t(entry.tagline, "en")}
+                  {t(entry.tagline, "pt")}
                 </p>
                 <p className="mt-1 font-mono text-xs text-muted-foreground">
-                  /{entry.slug} · {t(entry.duration, "en")}
+                  /{entry.slug} · {t(entry.duration, "pt")}
                 </p>
                 <p className="mt-1 text-xs">
                   {pricingSummary ? (
@@ -127,7 +130,7 @@ export default async function AdminExperiencesPage() {
                     /* Not a nag — an unpriced entry genuinely cannot be sold,
                        and the list is where that is discovered. */
                     <span className="text-destructive">
-                      No price list — can&apos;t be booked online
+                      Sem tabela de preços — não pode ser reservada online
                     </span>
                   )}
                 </p>
@@ -143,7 +146,7 @@ export default async function AdminExperiencesPage() {
                   />
                   <ToggleExperienceButton id={id} active={entry.active} name={name} />
                   <Button asChild variant="outline">
-                    <Link href={`/admin/experiences/${id}`}>Edit</Link>
+                    <Link href={`/admin/experiences/${id}`}>Editar</Link>
                   </Button>
                 </div>
               ) : null}
@@ -153,8 +156,8 @@ export default async function AdminExperiencesPage() {
       </Card>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        Changes go live on the website as soon as they are saved. Hiding an experience takes it
-        off the site but keeps it readable on the enquiries that chose it.
+        As alterações aparecem no site assim que guardar. Ocultar uma experiência tira-a do
+        site, mas mantém-na legível nos pedidos que a escolheram.
       </p>
     </AdminShell>
   );

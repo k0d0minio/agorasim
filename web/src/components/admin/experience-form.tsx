@@ -71,7 +71,7 @@ function SubmitButton({ editing }: { editing: boolean }) {
   return (
     <Button type="submit" size="lg" disabled={pending}>
       <Save />
-      {pending ? "Saving…" : editing ? "Save experience" : "Add experience"}
+      {pending ? "A guardar…" : editing ? "Guardar experiência" : "Adicionar experiência"}
     </Button>
   );
 }
@@ -106,8 +106,6 @@ function LocalizedField({
   errorEn?: string;
   placeholder?: { pt: string; en: string };
 }) {
-  const capitalized = `${name[0]?.toUpperCase()}${name.slice(1)}`;
-
   return (
     <fieldset className="flex flex-col gap-2">
       <legend className="text-sm font-medium">{label}</legend>
@@ -123,7 +121,7 @@ function LocalizedField({
                 className="inline-flex w-fit items-center rounded-md bg-muted px-1.5 py-0.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
               >
                 {locale}
-                <span className="sr-only"> — {capitalized}</span>
+                <span className="sr-only"> — {label}</span>
               </Label>
               {rows ? (
                 <Textarea
@@ -160,9 +158,9 @@ function IconPicker({ defaultValue }: { defaultValue: ExperienceIconKey }) {
 
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="text-sm font-medium">Icon</legend>
+      <legend className="text-sm font-medium">Ícone</legend>
       <p className="text-xs text-muted-foreground">
-        How this experience shows up on the Sales board and table.
+        Como esta experiência aparece no quadro de Vendas.
       </p>
       <div className="flex flex-wrap gap-2">
         {EXPERIENCE_ICON_KEYS.map((key) => {
@@ -228,24 +226,24 @@ function FaqEditor({ defaultValue }: { defaultValue: FaqDraft[] }) {
 
   return (
     <fieldset className="flex flex-col gap-3">
-      <legend className="text-sm font-medium">Questions & answers</legend>
+      <legend className="text-sm font-medium">Perguntas e respostas</legend>
       <p className="text-xs text-muted-foreground">
-        Answer the questions guests actually ask. Both languages are needed for a question to
-        appear on the site.
+        Responda às perguntas que os clientes fazem mesmo. Uma pergunta só aparece no site
+        com as duas línguas preenchidas.
       </p>
 
       {rows.map((row, i) => (
         <div key={row.key} className="flex flex-col gap-3 rounded-xl border p-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-muted-foreground uppercase">
-              Question {i + 1}
+              Pergunta {i + 1}
             </p>
             <Button
               type="button"
               variant="ghost"
               size="icon"
               onClick={() => setRows(rows.filter((existing) => existing.key !== row.key))}
-              aria-label={`Remove question ${i + 1}`}
+              aria-label={`Remover pergunta ${i + 1}`}
             >
               <Trash2 className="size-4" />
             </Button>
@@ -256,27 +254,27 @@ function FaqEditor({ defaultValue }: { defaultValue: FaqDraft[] }) {
               name="faqQuestionPt"
               defaultValue={row.question.pt}
               placeholder="Pergunta (PT)"
-              aria-label={`Question ${i + 1} in Portuguese`}
+              aria-label={`Pergunta ${i + 1} em português`}
             />
             <Input
               name="faqQuestionEn"
               defaultValue={row.question.en}
               placeholder="Question (EN)"
-              aria-label={`Question ${i + 1} in English`}
+              aria-label={`Pergunta ${i + 1} em inglês`}
             />
             <Textarea
               name="faqAnswerPt"
               rows={3}
               defaultValue={row.answer.pt}
               placeholder="Resposta (PT)"
-              aria-label={`Answer ${i + 1} in Portuguese`}
+              aria-label={`Resposta ${i + 1} em português`}
             />
             <Textarea
               name="faqAnswerEn"
               rows={3}
               defaultValue={row.answer.en}
               placeholder="Answer (EN)"
-              aria-label={`Answer ${i + 1} in English`}
+              aria-label={`Resposta ${i + 1} em inglês`}
             />
           </div>
         </div>
@@ -289,7 +287,7 @@ function FaqEditor({ defaultValue }: { defaultValue: FaqDraft[] }) {
           onClick={addRow}
         >
           <Plus className="size-4" />
-          Add a question
+          Adicionar uma pergunta
         </Button>
       </div>
     </fieldset>
@@ -330,16 +328,16 @@ export function ExperienceForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>{editing ? "Edit experience" : "New experience"}</CardTitle>
+          <CardTitle>{editing ? "Editar experiência" : "Nova experiência"}</CardTitle>
           <CardDescription>
-            What guests see on the website, and what the admin draws for it. Portuguese and
-            English are both required — the site has no fallback language.
+            O que os clientes veem no site e o que o painel desenha para esta entrada.
+            Português e inglês são ambos obrigatórios — o site não tem língua de recurso.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="slug">Web address</Label>
+              <Label htmlFor="slug">Endereço no site</Label>
               {/* A slug typed on a phone fights autocapitalise and autocorrect
                   — both off, it is an identifier, not prose. */}
               <Input
@@ -353,8 +351,8 @@ export function ExperienceForm({
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Appears in the page URL and is stored on every enquiry. Changing it breaks
-                existing links.
+                Aparece no endereço da página e fica guardado em todos os pedidos. Se
+                mudar, os links antigos deixam de funcionar.
               </p>
               {state.fieldErrors?.slug ? (
                 <p className="text-sm text-destructive" role="alert">
@@ -364,7 +362,7 @@ export function ExperienceForm({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="kind">Type</Label>
+              <Label htmlFor="kind">Tipo</Label>
               <Select id="kind" name="kind" defaultValue={values.kind}>
                 {EXPERIENCE_KINDS.map((kind) => (
                   <option key={kind} value={kind}>
@@ -383,20 +381,20 @@ export function ExperienceForm({
             />
 
             <div className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium">Prices</span>
+              <span className="text-sm font-medium">Preços</span>
               <p className="rounded-lg border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
                 {pricingSummary ??
-                  "No price list yet — this entry cannot be booked and paid for online; guests get the enquiry form instead."}
+                  "Ainda sem tabela de preços — esta entrada não pode ser reservada e paga online; os clientes recebem o formulário de pedido."}
               </p>
               <p className="text-xs text-muted-foreground">
-                The price list (shared/private tiers, child rates, minimums) is managed
-                with Jamie for now — changing a price is a message away. An editor for
-                it is on the roadmap.
+                A tabela de preços (partilhado/privado, crianças, mínimos) é gerida com o
+                Jamie para já — mudar um preço é só mandar mensagem. Um editor está
+                previsto.
               </p>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="sortOrder">Order</Label>
+              <Label htmlFor="sortOrder">Ordem</Label>
               <Input
                 id="sortOrder"
                 name="sortOrder"
@@ -405,12 +403,12 @@ export function ExperienceForm({
                 defaultValue={values.sortOrder}
               />
               <p className="text-xs text-muted-foreground">
-                Lower numbers come first. The list has arrows for this too.
+                Números mais baixos aparecem primeiro. A lista também tem setas para isto.
               </p>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="active">Shown on the website</Label>
+              <Label htmlFor="active">Visível no site</Label>
               <label className="flex min-h-11 items-center gap-2.5 rounded-lg border px-3 text-sm">
                 <input
                   id="active"
@@ -419,7 +417,7 @@ export function ExperienceForm({
                   defaultChecked={values.active}
                   className="size-4 rounded border-border accent-primary"
                 />
-                Guests can see and choose this experience
+                Os clientes podem ver e escolher esta experiência
               </label>
             </div>
           </div>
@@ -430,32 +428,32 @@ export function ExperienceForm({
 
       <Card>
         <CardHeader>
-          <CardTitle>Words</CardTitle>
+          <CardTitle>Texto</CardTitle>
           <CardDescription>
-            The summary is the answer-first paragraph search engines and AI assistants quote —
-            keep it factual and about 40 words.
+            O resumo é o parágrafo que os motores de busca e os assistentes de IA citam —
+            factual e à volta de 40 palavras.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
           <LocalizedField
             name="title"
-            label="Name"
+            label="Nome"
             defaultValue={values.title}
             errorPt={state.fieldErrors?.titlePt}
             errorEn={state.fieldErrors?.titleEn}
           />
           <LocalizedField
             name="tagline"
-            label="Tagline"
-            hint="One line, under the name."
+            label="Frase de apresentação"
+            hint="Uma linha, por baixo do nome."
             defaultValue={values.tagline}
             errorPt={state.fieldErrors?.taglinePt}
             errorEn={state.fieldErrors?.taglineEn}
           />
           <LocalizedField
             name="summary"
-            label="Summary"
-            hint="Answer-first: what this is, where, and how long."
+            label="Resumo"
+            hint="Direto ao assunto: o que é, onde e quanto tempo."
             rows={3}
             defaultValue={values.summary}
             errorPt={state.fieldErrors?.summaryPt}
@@ -463,21 +461,21 @@ export function ExperienceForm({
           />
           <LocalizedField
             name="description"
-            label="Description"
-            hint="The full description. Leave a blank line between paragraphs."
+            label="Descrição"
+            hint="A descrição completa. Deixe uma linha em branco entre parágrafos."
             rows={8}
             defaultValue={values.description}
           />
           <LocalizedField
             name="highlights"
-            label="Highlights"
-            hint="One per line — these become the bulleted list."
+            label="Destaques"
+            hint="Um por linha — dão origem à lista de pontos."
             rows={5}
             defaultValue={values.highlights}
           />
           <LocalizedField
             name="duration"
-            label="Duration"
+            label="Duração"
             defaultValue={values.duration}
             placeholder={{ pt: "Aprox. 2h", en: "Approx. 2h" }}
             errorPt={state.fieldErrors?.durationPt}
@@ -485,8 +483,8 @@ export function ExperienceForm({
           />
           <LocalizedField
             name="imageAlt"
-            label="Image description"
-            hint="Read aloud by screen readers, and used when the image cannot load."
+            label="Descrição da imagem"
+            hint="Lida em voz alta pelos leitores de ecrã e usada quando a imagem não carrega."
             defaultValue={values.imageAlt}
             errorPt={state.fieldErrors?.imageAltPt}
             errorEn={state.fieldErrors?.imageAltEn}
@@ -514,7 +512,7 @@ export function ExperienceForm({
       <FormActionBar>
         <SubmitButton editing={editing} />
         <Button type="button" variant="outline" onClick={() => router.push("/admin/experiences")}>
-          Back to the catalogue
+          Voltar ao catálogo
         </Button>
       </FormActionBar>
     </form>

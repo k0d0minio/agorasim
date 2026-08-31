@@ -129,7 +129,7 @@ export async function saveExperience(
     .limit(1);
 
   if (clash) {
-    return { fieldErrors: { slug: "Another experience already uses that address." } };
+    return { fieldErrors: { slug: "Já há outra experiência com esse endereço." } };
   }
 
   // The image the row held before this save, so a replaced upload can be
@@ -153,13 +153,13 @@ export async function saveExperience(
         .where(eq(experienceCatalogue.id, id))
         .returning({ id: experienceCatalogue.id });
 
-      if (!updated) return { error: "That experience no longer exists." };
+      if (!updated) return { error: "Essa experiência já não existe." };
     } else {
       await db.insert(experienceCatalogue).values(entry);
     }
   } catch (err) {
     console.error("[admin] failed to save experience", err);
-    return { error: "Couldn't save — the change was not stored." };
+    return { error: "Não foi possível guardar — a alteração não ficou registada." };
   }
 
   await recordAuditOrWarn({
@@ -190,7 +190,7 @@ export async function saveExperience(
   return {
     ok: true,
     slug: entry.slug,
-    message: id ? "Experience updated." : "Experience added.",
+    message: id ? "Experiência atualizada." : "Experiência adicionada.",
   };
 }
 
@@ -211,7 +211,7 @@ export async function setExperienceActive(
   const actor = await requireAdmin();
 
   const parsed = setExperienceActiveSchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: "Couldn't find that experience." };
+  if (!parsed.success) return { error: "Não foi possível encontrar essa experiência." };
 
   const { id, active } = parsed.data;
 
@@ -222,7 +222,7 @@ export async function setExperienceActive(
       .where(eq(experienceCatalogue.id, id))
       .returning({ slug: experienceCatalogue.slug });
 
-    if (!updated) return { error: "That experience no longer exists." };
+    if (!updated) return { error: "Essa experiência já não existe." };
 
     await recordAuditOrWarn({
       actorUserId: actor.id,
@@ -237,12 +237,12 @@ export async function setExperienceActive(
     return {
       ok: true,
       message: active
-        ? `${updated.slug} is back on the website.`
-        : `${updated.slug} is archived and no longer shown to guests.`,
+        ? `${updated.slug} voltou ao site.`
+        : `${updated.slug} está arquivada e deixou de ser mostrada aos clientes.`,
     };
   } catch (err) {
     console.error("[admin] failed to change experience visibility", err);
-    return { error: "Couldn't save — the change was not stored." };
+    return { error: "Não foi possível guardar — a alteração não ficou registada." };
   }
 }
 
@@ -260,7 +260,7 @@ export async function moveExperience(
   const actor = await requireAdmin();
 
   const parsed = moveExperienceSchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: "Couldn't move that experience." };
+  if (!parsed.success) return { error: "Não foi possível mover essa experiência." };
 
   const { id, direction } = parsed.data;
 
@@ -275,7 +275,7 @@ export async function moveExperience(
       .orderBy(asc(experienceCatalogue.sortOrder), asc(experienceCatalogue.slug));
 
     const index = rows.findIndex((row) => row.id === id);
-    if (index === -1) return { error: "That experience no longer exists." };
+    if (index === -1) return { error: "Essa experiência já não existe." };
 
     const neighbourIndex = direction === "up" ? index - 1 : index + 1;
     const neighbour = rows[neighbourIndex];
@@ -317,7 +317,7 @@ export async function moveExperience(
     return { ok: true };
   } catch (err) {
     console.error("[admin] failed to reorder the catalogue", err);
-    return { error: "Couldn't save the new order." };
+    return { error: "Não foi possível guardar a nova ordem." };
   }
 }
 
@@ -337,7 +337,7 @@ export async function deleteExperience(
   const actor = await requireOwner();
 
   const parsed = deleteExperienceSchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: "Type DELETE to confirm." };
+  if (!parsed.success) return { error: "Escreva DELETE para confirmar." };
 
   const [entry] = await db
     .select({
@@ -349,7 +349,7 @@ export async function deleteExperience(
     .where(eq(experienceCatalogue.id, parsed.data.id))
     .limit(1);
 
-  if (!entry) return { error: "That experience no longer exists." };
+  if (!entry) return { error: "Essa experiência já não existe." };
 
   try {
     await recordAudit({
@@ -361,14 +361,14 @@ export async function deleteExperience(
     });
   } catch (err) {
     console.error("[admin] refused to delete — could not write the audit entry", err);
-    return { error: "Couldn't record the deletion, so nothing was deleted. Try again." };
+    return { error: "Não foi possível registar a eliminação, por isso nada foi apagado. Tente novamente." };
   }
 
   try {
     await db.delete(experienceCatalogue).where(eq(experienceCatalogue.id, entry.id));
   } catch (err) {
     console.error("[admin] failed to delete experience", err);
-    return { error: "Couldn't delete that experience." };
+    return { error: "Não foi possível apagar essa experiência." };
   }
 
   revalidatePublicSite();
@@ -376,5 +376,5 @@ export async function deleteExperience(
   // The row is gone, so its uploaded photo is unreachable — clean it up.
   await deleteImageBlob(entry.image);
 
-  return { ok: true, message: `${entry.slug} deleted.` };
+  return { ok: true, message: `${entry.slug} apagada.` };
 }

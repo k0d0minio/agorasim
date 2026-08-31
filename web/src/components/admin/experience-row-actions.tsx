@@ -86,14 +86,14 @@ export function MoveExperienceButtons({
       <form action={formAction}>
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="direction" value="up" />
-        <IconSubmit label={`Move ${name} up`} disabled={isFirst}>
+        <IconSubmit label={`Mover ${name} para cima`} disabled={isFirst}>
           <ArrowUp className="size-4" />
         </IconSubmit>
       </form>
       <form action={formAction}>
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="direction" value="down" />
-        <IconSubmit label={`Move ${name} down`} disabled={isLast}>
+        <IconSubmit label={`Mover ${name} para baixo`} disabled={isLast}>
           <ArrowDown className="size-4" />
         </IconSubmit>
       </form>
@@ -126,7 +126,7 @@ export function ToggleExperienceButton({
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="active" value={active ? "false" : "true"} />
       {/* The icon is the action, not the state: an active entry offers "hide". */}
-      <IconSubmit label={active ? `Hide ${name} from the website` : `Show ${name} again`}>
+      <IconSubmit label={active ? `Ocultar ${name} do site` : `Mostrar ${name} outra vez`}>
         {active ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
       </IconSubmit>
       {state.error ? (
@@ -142,7 +142,7 @@ function ConfirmDeleteButton({ armed }: { armed: boolean }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" variant="destructive" disabled={pending || !armed}>
-      {pending ? "Deleting…" : "Delete permanently"}
+      {pending ? "A apagar…" : "Apagar definitivamente"}
     </Button>
   );
 }
@@ -175,11 +175,11 @@ export function DeleteExperienceDialog({ id, name }: { id: string; name: string 
         type="button"
         variant="ghost"
         onClick={() => setOpen(true)}
-        aria-label={`Delete ${name}`}
+        aria-label={`Apagar ${name}`}
        
       >
         <Trash2 className="size-4" />
-        Delete
+        Apagar
       </Button>
 
       {state.error ? (
@@ -193,17 +193,17 @@ export function DeleteExperienceDialog({ id, name }: { id: string; name: string 
           <form action={formAction} className="flex flex-col gap-4">
             <input type="hidden" name="id" value={id} />
             <DialogHeader>
-              <DialogTitle>Delete {name}?</DialogTitle>
+              <DialogTitle>Apagar {name}?</DialogTitle>
               <DialogDescription>
-                The entry is removed from the database. Enquiries that chose it keep the
-                slug on file, but nothing will explain what it was. Hiding it from the
-                website is almost always the better move.
+                A entrada é removida da base de dados. Os pedidos que a escolheram guardam
+                o endereço, mas deixa de haver nada que explique o que era. Ocultá-la do site
+                é quase sempre a melhor opção.
               </DialogDescription>
             </DialogHeader>
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor={`confirm-experience-${id}`}>
-                Type {DELETE_CONFIRMATION} to confirm
+                Escreva {DELETE_CONFIRMATION} para confirmar
               </Label>
               <Input
                 id={`confirm-experience-${id}`}
@@ -216,7 +216,7 @@ export function DeleteExperienceDialog({ id, name }: { id: string; name: string 
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
+                Cancelar
               </Button>
               <ConfirmDeleteButton armed={typed === DELETE_CONFIRMATION} />
             </DialogFooter>
