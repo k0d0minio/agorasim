@@ -1,3 +1,24 @@
+> Resolved: 2026-08-31 — **Out**, Jamie's call, asked and answered in-session. The
+> e-mail-marketing preview was never contracted, has no epic and had no row in
+> `.icm/project.md`'s feature table; it is gone the way D2 took referrals out.
+> Removed: `web/src/app/admin/email/page.tsx`, the `/admin/email` entry in
+> `lib/admin-nav.ts` (and its now-unused `Mail` icon import), and the
+> `previewSegments` / `PreviewCampaign` / `previewCampaigns` fixtures in
+> `lib/admin-preview.ts`. Two comments that cited the feature as forthcoming were made
+> true (`admin/actions.ts`, `[locale]/blog/page.tsx`), and `admin-portugues`'
+> breakdown + the PT inventory now say the surface is deleted rather than untranslated.
+>
+> Not done here, deliberately: `.icm/project.md` is `/project`'s to maintain, so the
+> feature table still has no row for e-mail marketing and the decision has no D-number.
+> The next `/project` run should record it as `out` alongside the referral programme and
+> gift vouchers. Left standing: `web/docs/admin-redesign-screenshots/README.md` keeps its
+> "Email marketing" before/after row — that file is a record of captures actually taken
+> for the redesign PR, and editing it would falsify the record rather than clean it.
+>
+> Follow-on parked: `.icm/intake/triage/blog-newsletter-signup-orphan.md` — the public
+> blog still offers a monthly newsletter "available soon", and the machinery that would
+> have sent it just left.
+
 # Stub: The e-mail marketing page has no owner — decide it in or out
 
 - lane: chore

@@ -17,7 +17,6 @@ import {
   Inbox,
   LayoutDashboard,
   Lightbulb,
-  Mail,
   MessageSquareShare,
   Newspaper,
   ScrollText,
@@ -152,16 +151,6 @@ export const ADMIN_NAV: AdminNavItem[] = [
     group: "Marketing",
     description:
       "A generated posting calendar for Instagram & Facebook — approve, and it posts itself.",
-    dev: true,
-    primary: false,
-  },
-  {
-    href: "/admin/email",
-    label: "Email marketing",
-    icon: Mail,
-    group: "Marketing",
-    description:
-      "Segments and bilingual campaigns that bring past and archived guests back for more.",
     dev: true,
     primary: false,
   },

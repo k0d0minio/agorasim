@@ -165,7 +165,7 @@ Entries — note the two `studio` labels are engineer-idiom and are simply dropp
 | Experiences | **Experiências** | The catalogue → **O catálogo** | Catalogue → **Catálogo** |
 | Blog studio | **Blog** | — | — |
 | Social studio | **Redes sociais** | — | — |
-| Email marketing | **Campanhas de email** | — | — |
+| ~~Email marketing~~ | *entry removed 2026-08-31 — the area is gone, nothing to translate* | — | — |
 | Referrals | **Recomendações** | — | — |
 | Notifications | **Mensagens automáticas** | — | — |
 | Feature requests | **Sugestões** | — | Requests → **Sugestões** |
@@ -306,9 +306,9 @@ Stat labels alongside them: `New leads` → **Pedidos novos**; `Drafts to review
 recording studio. Drop the word rather than translate it: **Blog** and
 **Redes sociais**. The area still says what it is on the card description.
 
-Same treatment for **"Email marketing"** → **Campanhas de email** (the English is
-an industry term Rita has no reason to know) and **"Referrals"** →
-**Recomendações**.
+Same treatment for **"Referrals"** → **Recomendações**. ("Email marketing" would have
+been **Campanhas de email** for the same reason — an industry term Rita has no reason
+to know — but that area was removed on 2026-08-31, so the question is moot.)
 
 ### 4.5 Everything else that is idiom, not language
 
@@ -462,7 +462,11 @@ Preview rows behind it live in `lib/admin-preview.ts` — see §5.3.
 | 81 | Edit | Editar |
 | 91 | Only official platform APIs are used — never bots that put your accounts at risk. Other networks join after their per-platform approval. | Usamos apenas as vias oficiais de cada plataforma — nunca robôs que ponham as suas contas em risco. As outras redes entram depois da aprovação de cada uma. |
 
-#### `email/page.tsx` (8)
+#### `email/page.tsx` (8) — **file deleted 2026-08-31, do not translate**
+
+> The e-mail-marketing preview was ruled out of scope (see
+> `.icm/intake/triage/_done/admin-email-marketing-orphan.md`). The rows below are
+> kept as the snapshot this document is, not as work.
 
 | Line | English | **Portuguese** |
 |---|---|---|

@@ -585,7 +585,8 @@ export type InviteUserState = {
  * Create an account with a temporary password the owner reads out to the person.
  *
  * A signed invite link would be nicer, but it needs a way to send email, which
- * this deployment does not have yet (email marketing is still on the roadmap).
+ * this deployment does not have yet (transactional mail arrives with the
+ * lifecycle-messages epic).
  * A temporary password handed over out-of-band is honest about that, and the new
  * operator changes it from their own settings screen on first sign-in.
  */

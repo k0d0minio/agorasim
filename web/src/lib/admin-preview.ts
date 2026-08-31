@@ -1,10 +1,10 @@
 /**
  * Example data for the admin design-preview pages (blog studio, social studio,
- * email marketing, referrals, notifications) and for the paid bookings the Sales
- * screen shows next to real enquiries. Each preview page renders its final
- * layout with this data until the feature behind it is wired up — every one of
- * them carries an `AdminInDevBanner` saying so, and every example booking is
- * marked as an example on the row itself.
+ * referrals, notifications) and for the paid bookings the Sales screen shows
+ * next to real enquiries. Each preview page renders its final layout with this
+ * data until the feature behind it is wired up — every one of them carries an
+ * `AdminInDevBanner` saying so, and every example booking is marked as an
+ * example on the row itself.
  *
  * Nothing here touches the database; delete entries freely as features go live.
  *
@@ -79,31 +79,6 @@ export const previewSocialPosts: PreviewSocialPost[] = [
   { platform: "Facebook", caption: "New on the blog: a perfect day in Ericeira, away from the crowds — the route we take with first-time visitors.", slot: "Thu 6 Aug · 12:30", status: "Scheduled" },
   { platform: "Instagram", caption: "Some entrances are never forgotten. Wedding season in the Fiat 600 has begun. 💐", slot: "Sat 8 Aug · 10:00", status: "Needs approval" },
   { platform: "Instagram", caption: "Bread still warm from the wood-fired oven — the Saloia breakfast our guests talk about for weeks.", slot: "Fri 31 Jul · 09:00", status: "Posted" },
-];
-
-// ---------------------------------------------------------------------------
-// Email marketing (Feature 9)
-// ---------------------------------------------------------------------------
-
-export const previewSegments = [
-  { name: "Past guests", count: 128, note: "Toured in the last 24 months" },
-  { name: "Archived guests", count: 64, note: "Older bookings & quiet leads" },
-  { name: "Newsletter", count: 213, note: "Signed up on the site" },
-  { name: "Wedding enquiries", count: 19, note: "Asked about car hire" },
-];
-
-export type PreviewCampaign = {
-  name: string;
-  subject: string;
-  segment: string;
-  status: "Sent" | "Scheduled" | "Draft";
-  stats?: string;
-};
-
-export const previewCampaigns: PreviewCampaign[] = [
-  { name: "Summer evenings", subject: "The countryside is at its best right now", segment: "Past guests", status: "Sent", stats: "58% opened · 12% clicked" },
-  { name: "Come back this autumn", subject: "Harvest season in the Saloia hills", segment: "Archived guests", status: "Scheduled", stats: "Sends 1 Sep · 09:00" },
-  { name: "Wedding season 2027", subject: "Your classic car, your date — locked", segment: "Wedding enquiries", status: "Draft" },
 ];
 
 // ---------------------------------------------------------------------------
