@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, HelpCircle } from "lucide-react";
 
 import { bookingContent } from "@/content/booking";
 import { bookingEmails } from "@/content/emails";
+import { departureLabel, meetingPoints } from "@/content/logistics";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { formatDay } from "@/lib/availability";
 import { confirmPaidBooking } from "@/lib/booking-checkout";
@@ -69,7 +70,15 @@ export default async function BookingConfirmationPage({
             <dl className="mt-6 space-y-2 border-t pt-4 text-sm">
               <Row label={t(c.reference, l)} value={state.ref} />
               <Row label={t(bookingContent.labels.experience, l)} value={state.experience} />
-              <Row label={t(bookingContent.labels.summary, l)} value={state.date} />
+              <Row label={t(bookingEmails.guest.labels.date, l)} value={state.date} />
+              <Row label={t(bookingEmails.guest.labels.departure, l)} value={state.departure} />
+              {state.meetingPoint ? (
+                <Row
+                  label={t(bookingEmails.guest.labels.meetingPoint, l)}
+                  value={state.meetingPoint.address}
+                  href={state.meetingPoint.mapsUrl}
+                />
+              ) : null}
               <Row
                 label={t(bookingEmails.guest.labels.party, l)}
                 value={String(state.partySize)}
@@ -113,6 +122,9 @@ type ResolvedBooking =
       ref: string;
       date: string;
       experience: string;
+      departure: string;
+      /** Absent for a tour the logistics map does not name — never guessed. */
+      meetingPoint: { address: string; mapsUrl: string } | null;
       partySize: number;
       total: string;
     }
@@ -162,6 +174,8 @@ async function resolve(sessionId: string, locale: Locale): Promise<ResolvedBooki
       ref: bookingRef(booking.id),
       date: formatDay(booking.date, locale),
       experience: [booking.experienceSlug, ...booking.addOns].map(name).join(" · "),
+      departure: t(departureLabel(booking.experienceSlug, booking.slot), locale),
+      meetingPoint: meetingPoints[booking.experienceSlug] ?? null,
       partySize: booking.partySize,
       total: formatPrice(booking.amountCents, locale, booking.currency),
     };
@@ -171,11 +185,19 @@ async function resolve(sessionId: string, locale: Locale): Promise<ResolvedBooki
   }
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, href }: { label: string; value: string; href?: string }) {
   return (
     <div className="flex justify-between gap-4">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right font-medium">{value}</dd>
+      <dd className="text-right font-medium">
+        {href ? (
+          <a href={href} className="underline hover:text-primary">
+            {value}
+          </a>
+        ) : (
+          value
+        )}
+      </dd>
     </div>
   );
 }
