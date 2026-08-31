@@ -10,7 +10,7 @@ import { mailtoHref, whatsAppHref, type ContactContext } from "@/lib/contact-tem
 import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
 import { toTelHref, toWhatsAppNumber } from "@/lib/phone";
 import { requestStatusMeta } from "@/lib/admin-format";
-import { enquiryRef, recordFromRequest } from "@/lib/sales";
+import { bookingSummaries, enquiryRef, recordFromRequest } from "@/lib/sales";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { DeleteSubmissionDialog } from "@/components/admin/delete-submission-dialog";
 import {
@@ -60,7 +60,9 @@ export default async function AdminLeadPage({
   ]);
 
   const index = catalogueIndex(catalogue);
-  const record = recordFromRequest(lead);
+  // The same join the board does, for one lead: without it this page shows
+  // neither the money nor the reference the guest was actually given.
+  const record = recordFromRequest(lead, (await bookingSummaries([lead.id])).get(lead.id));
   const now = new Date();
 
   const experienceName = lead.experienceSlug
@@ -102,6 +104,13 @@ export default async function AdminLeadPage({
                 </div>
                 <CardDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="font-mono">{enquiryRef(lead.id)}</span>
+                  {record.bookingRef ? (
+                    <>
+                      <span aria-hidden>·</span>
+                      {/* What the guest quotes — see SalesRecord.bookingRef. */}
+                      <span className="font-mono">{record.bookingRef}</span>
+                    </>
+                  ) : null}
                   <span aria-hidden>·</span>
                   <span>
                     Received <Received at={lead.createdAt} /> ({formatDateTime(lead.createdAt)})

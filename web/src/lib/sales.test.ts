@@ -85,6 +85,7 @@ describe("recordFromRequest", () => {
 
   it("carries the money, and the booked day, when a booking is behind it", () => {
     const record = recordFromRequest(tourRequest(), {
+      ref: "BK-ABD1AE",
       value: "€340",
       payment: "Paid in full",
       date: "2026-08-22",
@@ -95,6 +96,28 @@ describe("recordFromRequest", () => {
     // The day that was actually sold wins over the guest's free-text guess:
     // "15 August" was a hope, the 22nd is a booking.
     expect(record.when).toBe("2026-08-22");
+  });
+
+  it("carries the reference the guest was given, which is not the lead's", () => {
+    const lead = tourRequest();
+    const record = recordFromRequest(lead, {
+      ref: "BK-ABD1AE",
+      value: "€340",
+      payment: "Paid in full",
+      date: "2026-08-22",
+    });
+
+    // The guest quotes the booking's reference; the team has always used the
+    // lead's. They are derived from different uuids, so a card that carried
+    // only one of them could not be found by somebody reading the other off a
+    // confirmation email.
+    expect(record.bookingRef).toBe("BK-ABD1AE");
+    expect(record.ref).toBe(enquiryRef(lead.id));
+    expect(record.ref).not.toBe(record.bookingRef);
+  });
+
+  it("has no guest reference when nothing was ever sold", () => {
+    expect(recordFromRequest(tourRequest()).bookingRef).toBeNull();
   });
 });
 
@@ -109,6 +132,8 @@ describe("exampleBookingRecords", () => {
     for (const record of exampleBookingRecords()) {
       expect(record.status).toBe("booked");
       expect(record.href).toBeNull();
+      // Nothing was sold, so there is no reference a guest could be quoting.
+      expect(record.bookingRef).toBeNull();
     }
   });
 

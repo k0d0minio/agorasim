@@ -91,6 +91,16 @@ export function SalesBoard({
                   {record.example ? <Badge variant="outline">Example</Badge> : null}
                 </div>
 
+                {/*
+                  The reference the guest is holding. Theirs comes from the
+                  booking, the team's from the lead, and they are different
+                  uuids — so a card that never showed this one could not be
+                  found by somebody quoting it down the phone.
+                */}
+                {record.bookingRef ? (
+                  <p className="font-mono text-xs text-muted-foreground">{record.bookingRef}</p>
+                ) : null}
+
                 <RecordIcons record={record} catalogue={catalogue} className="mt-1" />
 
                 <ExperienceNames
