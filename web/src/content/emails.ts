@@ -85,6 +85,16 @@ export const bookingEmails = {
         en: "Everything is set: we meet at the meeting point above, at your departure time. If you need anything before the day, just reply to this email.",
       } as Localized,
     },
+    /**
+     * Added to "what happens next" only for a tour whose departure has no clock
+     * time yet — Óbidos today, see `content/logistics.ts`. Without it the
+     * paragraph above refers a guest to "your departure time" and this email
+     * never says what it is.
+     */
+    departureTimeNote: {
+      pt: "A hora exata da partida segue por email ou WhatsApp antes do dia da experiência — o ponto de encontro é o indicado acima e não muda.",
+      en: "The exact departure time follows by email or WhatsApp before the day of your experience — the meeting point is the one above and does not change.",
+    } as Localized,
     cancellationNote: {
       pt: "Cancelamento gratuito até 48 horas antes da experiência. Com mau tempo, tentamos sempre reagendar — e reembolsamos em condições extremas.",
       en: "Free cancellation up to 48 hours before the experience. In bad weather we always try to reschedule — and refund in extreme conditions.",
@@ -126,6 +136,14 @@ export const bookingEmails = {
       email: "Email",
       phone: "Telefone",
       locale: "Idioma",
+    },
+    /**
+     * The job this booking leaves open, said where they will see it: the guest
+     * was told the hour follows, so somebody has to send it.
+     */
+    departureTimeNote: {
+      title: "Falta combinar a hora",
+      body: "Esta rota ainda não tem hora de partida publicada. O cliente foi informado de que a hora exata segue por email ou WhatsApp antes do dia — combinem-na com ele.",
     },
     cta: "Ver no painel",
     /** How the same link reads in the plain text part. */
