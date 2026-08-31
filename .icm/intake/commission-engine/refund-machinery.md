@@ -24,6 +24,30 @@ application fee proportionally (`refund_application_fee` or explicit fee refund)
 recording what was returned. Admin booking detail shows refund state. This is the
 substrate the cancellation-selfserve epic triggers.
 
+## Since this was written (2026-08-31)
+
+`cancellation-selfserve/cancel-route-flow` shipped ahead of this ticket rather
+than behind it, so two of the statements above have moved:
+
+- **Something now writes `refunded`.** `lib/booking-cancellation.ts` issues a
+  full Stripe refund and writes `refunded` + `cancelled_via = 'guest'` itself,
+  guarded on `status = 'confirmed'` and keyed with a per-booking idempotency
+  key. This ticket's `charge.refunded` handler must therefore be idempotent
+  against a booking *already* marked refunded by that path — it reconciles, it
+  does not re-decide. The refund id is in the audit entry, not on the row; a
+  `refund_id` column is still this ticket's to add.
+- **Seats already free up.** `holdsCapacitySql` only ever counted `confirmed`
+  and live `pending`, so a `refunded` booking releases its driver and car with
+  no change — the occupancy bullet below is already satisfied. What remains is
+  the dashboard-issued refund, which still leaves a booking `confirmed`.
+
+The fee half is untouched and still entirely this ticket's: nothing takes an
+application fee yet (no Connect, no `application_fee_amount` in
+`lib/booking-checkout.ts`), so the guest cancel path returns no fee because
+there is none to return. When `tour-application-fees` lands, the refund call in
+`lib/booking-cancellation.ts` gains `refund_application_fee: true` and nothing
+else there moves.
+
 ## Acceptance criteria (rough)
 
 - [ ] Dashboard-issued sandbox refund → booking shows refunded, seats freed

@@ -151,3 +151,94 @@ export const bookingEmails = {
     footerNote: "Notificação automática do site — responda para escrever ao cliente.",
   },
 } as const;
+
+/**
+ * The two emails a cancellation causes — the mirror of {@link bookingEmails}.
+ *
+ * Same split for the same reasons: the guest's copy in the language they booked
+ * in, the team's in Portuguese only. What differs is the job each one does. The
+ * guest's is a receipt — it exists so that "did that actually go through?" has a
+ * written answer with a number in it, which is the question a person asks
+ * themselves an hour after cancelling something online. The team's is an
+ * operational alert: a car and a driver just came free on a departure Diogo or
+ * Rita may already have been planning around, and they should hear it from the
+ * system rather than notice it on the board.
+ */
+export const cancellationEmails = {
+  /** To the guest, in their own language. */
+  guest: {
+    subject: {
+      pt: "Reserva cancelada — {experience}, {date}",
+      en: "Booking cancelled — {experience}, {date}",
+    } as Localized,
+    preheader: {
+      pt: "Referência {ref} · reembolso de {total} emitido",
+      en: "Reference {ref} · {total} refund issued",
+    } as Localized,
+    banner: {
+      pt: "Reserva cancelada",
+      en: "Booking cancelled",
+    } as Localized,
+    greeting: { pt: "Olá {name},", en: "Hello {name}," } as Localized,
+    lead: {
+      pt: "A sua reserva foi cancelada, como pediu. Não há nada mais a fazer da sua parte.",
+      en: "Your booking has been cancelled, as you asked. There's nothing further for you to do.",
+    } as Localized,
+    detailsHeading: {
+      pt: "Reserva cancelada",
+      en: "Cancelled booking",
+    } as Localized,
+    /**
+     * The money, as its own block rather than a row in the table: it is the one
+     * fact this email exists to state, and the guest is looking for it.
+     */
+    refund: {
+      title: { pt: "Reembolso", en: "Refund" } as Localized,
+      body: {
+        pt: "Emitimos o reembolso total de {total} para o mesmo cartão. O seu banco costuma demorar 5 a 10 dias úteis a mostrar o valor na conta.",
+        en: "We've issued a full {total} refund to the same card. Your bank usually takes 5–10 working days to show it on your statement.",
+      } as Localized,
+    },
+    /** Not a sales pitch — one sentence, and it is the last one. */
+    outro: {
+      pt: "Se um dia quiser voltar a marcar, teremos muito gosto em recebê-lo. E se houver alguma coisa em que possamos ajudar, ligue-nos:",
+      en: "If you'd like to book with us another time, we'd love to have you. And if there's anything we can help with, just call:",
+    } as Localized,
+    signoff: {
+      pt: "Até uma próxima,\nAgorasim",
+      en: "Until next time,\nAgorasim",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque cancelou uma reserva em {site}.",
+      en: "You are receiving this email because you cancelled a booking at {site}.",
+    } as Localized,
+  },
+
+  /** To Diogo & Rita. Portuguese only — see the note on {@link bookingEmails}. */
+  team: {
+    subject: "Reserva cancelada — {date} · {name} ({party}p)",
+    preheader: "{experience} · {party} pessoas · reembolso {total}",
+    banner: "Reserva cancelada",
+    heading: "O cliente cancelou pelo link do email de confirmação.",
+    detailsHeading: "Reserva cancelada",
+    labels: {
+      reference: "Referência",
+      date: "Data",
+      departure: "Partida",
+      experience: "Experiência",
+      party: "Pessoas",
+      refund: "Reembolso emitido",
+    },
+    /**
+     * The operational consequence, said plainly. This is the sentence that
+     * turns an email into a decision about the day.
+     */
+    released: {
+      title: "Lugar libertado",
+      body: "O condutor e o carro desta partida voltaram a ficar disponíveis no calendário — a data pode ser vendida outra vez.",
+    },
+    cta: "Ver no painel",
+    ctaLine: "Ver no painel: {adminUrl}",
+    footerNote: "Notificação automática do site — cancelamento self-service do cliente.",
+  },
+} as const;

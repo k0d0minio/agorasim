@@ -20,8 +20,10 @@
  * **Every booking is born with a credential.** The row carries a hashed
  * cancellation token from the insert (`lib/cancellation-token.ts`), because the
  * table holds no guest identity to authenticate against — the token in the
- * emailed link is the only thing that will prove a booking is somebody's. There
- * is no route reading it yet.
+ * emailed link is the only thing that will prove a booking is somebody's. The
+ * digest written at the insert is a placeholder: the link the guest actually
+ * receives is minted when the confirmation email is composed, and replaces it.
+ * `/[locale]/reserva/cancelar/[token]` is what reads it back.
  *
  * **The guest is a lead from the first click.** The `tour_requests` row is
  * written up front, not on payment: an abandoned checkout is a person who
@@ -42,25 +44,20 @@ import {
 } from "@/db";
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { bookingContent } from "@/content/booking";
-import { bookingEmails } from "@/content/emails";
-import {
-  departureLabel,
-  departureTimeFollowsByEmail,
-  meetingPoints,
-} from "@/content/logistics";
 import { t, type Locale } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
-import { formatDay, type DateKey } from "@/lib/availability";
+import { type DateKey } from "@/lib/availability";
 import { bookingRef, holdExpiryFrom } from "@/lib/bookings";
 import {
   isCancellationTokenConfigured,
   issueCancellationToken,
 } from "@/lib/cancellation-token";
 import { CANCEL_RETURN_PARAM, CANCEL_RETURN_VALUE } from "@/lib/checkout-draft";
-import { BOOKING_CURRENCY, formatPrice } from "@/lib/money";
+import { BOOKING_CURRENCY } from "@/lib/money";
 import type { VehicleClass } from "@/lib/fleet";
 import type { BookingMode, PartyCount, PricedLine } from "@/lib/pricing";
 import { guestConfirmationEmail, teamNotificationEmail } from "@/lib/booking-emails";
+import { bookingEmailFacts } from "@/lib/booking-facts";
 import { isEmailConfigured, sendEmail, teamRecipients } from "@/lib/email";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { siteUrl } from "@/lib/site-origin";
@@ -408,6 +405,45 @@ export async function confirmPaidBooking(options: {
   return { status: "confirmed", booking: confirmed, alreadyConfirmed: false };
 }
 
+/**
+ * Mint the cancel token this guest's confirmation will actually carry, and
+ * write its digest onto the row.
+ *
+ * **Why re-issue rather than reuse.** The digest written at checkout was minted
+ * from a plaintext that was deliberately dropped in the same function — a
+ * booking is never tokenless, but nothing anywhere can recover a link from a
+ * hash. This is the one moment the plaintext is needed and the one place it can
+ * be produced: the email is composed here, so the token is minted here, and the
+ * row's digest is replaced with this one. The checkout-time value was only ever
+ * a placeholder that made "every booking has a credential" true from the insert.
+ *
+ * **Only the winner of the confirmation race runs this**, because only the
+ * winner sends an email. A second caller would mint a second token and quietly
+ * invalidate the link in the mail the first one already sent.
+ *
+ * Returns `null` — a confirmation with no cancel button — rather than throwing,
+ * on both failure paths. The money is taken and the booking is real; neither an
+ * unset secret nor a database blip is worth withholding a confirmation over.
+ */
+async function issueCancelToken(booking: Booking): Promise<string | null> {
+  if (!isCancellationTokenConfigured()) return null;
+
+  try {
+    const { token, digest } = await issueCancellationToken();
+    await db
+      .update(bookings)
+      .set({ cancellationTokenHash: digest, updatedAt: new Date() })
+      .where(eq(bookings.id, booking.id));
+    return token;
+  } catch (err) {
+    console.error(
+      `[booking] ${bookingRef(booking.id)} could not be given a cancel link`,
+      err,
+    );
+    return null;
+  }
+}
+
 /** Both confirmation emails. Never throws — see the module note. */
 async function sendConfirmationEmails(
   booking: Booking,
@@ -422,42 +458,12 @@ async function sendConfirmationEmails(
   }
   if (!isEmailConfigured()) return;
 
-  const locale = booking.locale;
-  const name = (slug: string) => {
-    const entry = catalogue.get(slug);
-    // A retired add-on still has to be nameable in the email of the guest who
-    // bought it; the slug is a poor name but it is never a blank line.
-    return entry ? t(entry.title, locale) : slug;
-  };
-
-  // "2 adultos · 1 criança (4–12)" — zero-count bands are simply not said.
-  const w = bookingEmails.guest.partyWords;
-  const partyLabel = [
-    [booking.adults, w.adult, w.adults] as const,
-    [booking.children, w.child, w.children] as const,
-    [booking.infants, w.infant, w.infants] as const,
-  ]
-    .filter(([count]) => count > 0)
-    .map(([count, one, many]) => `${count} ${t(count === 1 ? one : many, locale)}`)
-    .join(" · ");
-
-  const facts = {
-    ref: bookingRef(booking.id),
-    guestName: lead.name,
-    guestEmail: lead.email,
-    guestPhone: lead.phone,
-    locale,
-    date: formatDay(booking.date, locale),
-    experience: `${name(booking.experienceSlug)} — ${t(bookingEmails.guest.modeWords[booking.mode], locale)}`,
-    departure: t(departureLabel(booking.experienceSlug, booking.slot), locale),
-    departureTimeFollows: departureTimeFollowsByEmail(booking.experienceSlug),
-    meetingPoint: meetingPoints[booking.experienceSlug] ?? null,
-    addOns: booking.addOns.map(name),
-    partySize: booking.partySize,
-    partyLabel: partyLabel || String(booking.partySize),
-    total: formatPrice(booking.amountCents, locale, booking.currency),
-    adminUrl: `${siteUrl()}/admin/sales/${lead.id}`,
-  };
+  const facts = bookingEmailFacts({
+    booking,
+    lead,
+    catalogue,
+    cancelToken: await issueCancelToken(booking),
+  });
 
   const team = teamRecipients();
   const results = await Promise.all([

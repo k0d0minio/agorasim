@@ -66,6 +66,7 @@ export const AUDIT_ACTIONS = [
   "availability.cleared",
   "booking.confirmed",
   "booking.expired",
+  "booking.cancelled_by_guest",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

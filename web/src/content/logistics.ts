@@ -87,3 +87,54 @@ export function departureLabel(experienceSlug: string, slot: string): Localized 
     ? { pt: "Tarde", en: "Afternoon" }
     : { pt: "Manhã", en: "Morning" };
 }
+
+/**
+ * The clock hour each departure actually leaves at, in Europe/Lisbon.
+ *
+ * {@link departureLabels} above is what a guest *reads*; this is what the code
+ * can *compute with* — and the two are separate on purpose. A label is a
+ * bilingual sentence that may say "confirmed by email"; a deadline needs a
+ * number. The cancellation policy is the first thing to need one: "48 hours
+ * before the experience" is meaningless until the experience has an instant,
+ * and reverse-engineering "10h00" out of a Portuguese string would be a parser
+ * nobody should have to maintain.
+ *
+ * 10:00 and 14:00 are the two slots the business runs, shared by every route
+ * (info PDF §1.5) — so they are the default here rather than a per-tour fact
+ * that has to be repeated.
+ */
+export const DEFAULT_DEPARTURE_HOURS: Record<"morning" | "afternoon", number> = {
+  morning: 10,
+  afternoon: 14,
+};
+
+/**
+ * The hour a departure leaves, for the tours that have confirmed one.
+ *
+ * Only tours whose hours differ from {@link DEFAULT_DEPARTURE_HOURS} need an
+ * entry; today none do, which is why this is empty rather than a copy of the
+ * defaults that could drift from them.
+ */
+export const departureHours: Record<
+  string,
+  Partial<Record<"morning" | "afternoon", number>>
+> = {};
+
+/**
+ * The Europe/Lisbon clock hour to measure a deadline against, for one tour and
+ * slot.
+ *
+ * **A tour still awaiting its times is anchored to the morning hour**, whichever
+ * slot was booked. Óbidos sells an "afternoon departure" whose real time nobody
+ * has stated (see {@link toursAwaitingDepartureTimes}): it could be 13:00 as
+ * easily as 15:00, and a 48-hour deadline computed from a guess that runs late
+ * is a deadline that expires *after* the guest's own cut-off — the one error
+ * here with a refund on the other side of it. Anchoring early costs a guest a
+ * few hours of self-serve window and sends them to the phone, which is the side
+ * to be wrong on. It corrects itself the day those hours are filled in above.
+ */
+export function departureHour(experienceSlug: string, slot: string): number {
+  const key: "morning" | "afternoon" = slot === "afternoon" ? "afternoon" : "morning";
+  const anchor = departureTimeFollowsByEmail(experienceSlug) ? "morning" : key;
+  return departureHours[experienceSlug]?.[anchor] ?? DEFAULT_DEPARTURE_HOURS[anchor];
+}

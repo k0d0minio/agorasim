@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  guestCancellationEmail,
   guestConfirmationEmail,
+  teamCancellationEmail,
   teamNotificationEmail,
   type BookingEmailFacts,
 } from "@/lib/booking-emails";
@@ -40,6 +42,7 @@ function facts(overrides: Partial<BookingEmailFacts> = {}): BookingEmailFacts {
     partyLabel: "2 adultos",
     total: "€340",
     adminUrl: "https://agorasim.pt/admin/sales/abc",
+    cancelUrl: "https://agorasim.pt/pt/reserva/cancelar/" + "t".repeat(43),
     ...overrides,
   };
 }
@@ -256,5 +259,79 @@ describe("teamNotificationEmail", () => {
     expect(message.subject).not.toMatch(/\{/);
     expect(message.text).not.toMatch(/\{/);
     expect(message.html).not.toMatch(/\{(name|ref|experience|date|party|total|adminUrl)\}/);
+  });
+});
+
+describe("the cancel link on the confirmation", () => {
+  it("carries the guest's own link, as a button and as a bare URL", () => {
+    const message = guestConfirmationEmail(facts());
+    // The button, for a client that renders HTML...
+    expect(message.html).toContain(`href="${facts().cancelUrl}"`);
+    // ...and the URL on its own line, for one that does not.
+    expect(message.text).toContain(facts().cancelUrl!);
+  });
+
+  it("warns that the link is a credential", () => {
+    const message = guestConfirmationEmail(facts());
+    expect(message.text).toContain("Não o reencaminhe.");
+    expect(guestConfirmationEmail(facts({ locale: "en" })).text).toContain(
+      "Please don't forward it.",
+    );
+  });
+
+  it("omits the whole block for a booking that has no token", () => {
+    const message = guestConfirmationEmail(facts({ cancelUrl: null }));
+    expect(message.text).not.toContain("reserva/cancelar");
+    expect(message.html).not.toContain("reserva/cancelar");
+    // The promise it sits under is unaffected — that is answered by phone.
+    expect(message.text).toContain("Cancelamento gratuito até 48 horas");
+  });
+
+  it("never puts the link in the team's copy — it would let a forward cancel a tour", () => {
+    const message = teamNotificationEmail(facts(), ["diogo@agorasim.pt"]);
+    expect(message.text).not.toContain("reserva/cancelar");
+    expect(message.html).not.toContain("reserva/cancelar");
+  });
+});
+
+describe("the cancellation emails", () => {
+  const recipients = ["diogo@agorasim.pt"];
+
+  it("states the refund amount, which is the one fact the guest wants", () => {
+    const message = guestCancellationEmail(facts());
+    expect(message.text).toContain("€340");
+    expect(message.subject).toContain("Reserva cancelada");
+  });
+
+  it("writes to the guest in the language they booked in", () => {
+    expect(guestCancellationEmail(facts({ locale: "en" })).subject).toContain(
+      "Booking cancelled",
+    );
+  });
+
+  it("carries no cancel link — the token behind it has been spent", () => {
+    const message = guestCancellationEmail(facts());
+    expect(message.text).not.toContain("reserva/cancelar");
+    expect(message.html).not.toContain("reserva/cancelar");
+  });
+
+  it("substitutes every placeholder, in both parts and both languages", () => {
+    for (const locale of ["pt", "en"] as const) {
+      const message = guestCancellationEmail(facts({ locale }));
+      expect(message.subject).not.toMatch(/\{/);
+      expect(message.text).not.toMatch(/\{/);
+      expect(message.html).not.toMatch(/\{(name|ref|experience|date|total|site)\}/);
+    }
+  });
+
+  it("tells the team the seat is free again", () => {
+    const message = teamCancellationEmail(facts(), recipients);
+    expect(message.text).toContain("Lugar libertado");
+    expect(message.subject).not.toMatch(/\{/);
+    expect(message.text).not.toMatch(/\{/);
+  });
+
+  it("replies to the guest, like the booking notification does", () => {
+    expect(teamCancellationEmail(facts(), recipients).replyTo).toBe("sofia@example.com");
   });
 });
