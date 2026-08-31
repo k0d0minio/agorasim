@@ -25,9 +25,10 @@ unreferenced photos become referenced by content-truth stubs (testimonials wirin
 ## Prompt
 
 In the agorasim repo (`web/`), run the image audit per
-`.icm/intake/triage/image-audit.md` — but first check `.icm/intake/content-truth/`
-status (its stubs wire some currently-unreferenced photos; don't delete what they
-need). Build the referenced-vs-unreferenced list from `web/src` greps, propose the
+`.icm/intake/triage/image-audit.md`. The content-truth epic has settled (archived
+2026-08-31 to `.icm/intake/_done/content-truth/`), so its stubs' photos are wired and
+referenced now — read that epic before deleting anything it put on the page. Build
+the referenced-vs-unreferenced list from `web/src` greps, propose the
 keep/compress/delete split to Jamie before deleting anything (his photos, his
 call), compress referenced sources, and update `web/public/images/README.md`. PR on
 a `claude/` branch; no local checks — CI is the source of truth.
