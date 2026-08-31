@@ -23,6 +23,7 @@
  * takes plain text and escapes it; nothing accepts raw HTML from a caller.
  */
 import { site } from "@/content/site";
+import { siteUrl } from "@/lib/site-origin";
 
 /**
  * `globals.css` `:root`, converted from oklch to sRGB.
@@ -70,8 +71,14 @@ const HEADING_FONT =
 const BODY_FONT =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
-/** The site's logo, absolute because a mail client has no origin to resolve against. */
-const LOGO_URL = `${site.domain}/images/logo.png`;
+/**
+ * The site's logo, absolute because a mail client has no origin to resolve
+ * against — and resolved against the origin actually serving this deployment
+ * rather than `site.domain`, which is the canonical address the site is
+ * claiming and not, until the domain is recovered, one that answers. See
+ * `lib/site-origin.ts`.
+ */
+const logoUrl = () => `${siteUrl()}/images/logo.png`;
 
 /** Text → HTML. Applied to every interpolated value, without exception. */
 export function escapeHtml(value: string): string {
@@ -305,7 +312,7 @@ export function emailDocument(options: {
         <!-- Masthead -->
         <tr>
           <td align="center" style="padding:0 0 24px;">
-            <img src="${LOGO_URL}" width="56" height="56" alt="${escapeHtml(site.name)}" style="display:block;width:56px;height:56px;margin:0 auto 10px;" />
+            <img src="${logoUrl()}" width="56" height="56" alt="${escapeHtml(site.name)}" style="display:block;width:56px;height:56px;margin:0 auto 10px;" />
             <div style="font-family:${HEADING_FONT};font-size:26px;line-height:32px;font-weight:600;letter-spacing:-0.01em;color:${emailPalette.primary};">${escapeHtml(site.name)}</div>
           </td>
         </tr>

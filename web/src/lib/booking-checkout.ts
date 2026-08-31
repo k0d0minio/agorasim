@@ -53,7 +53,8 @@ import type { BookingMode, PartyCount, PricedLine } from "@/lib/pricing";
 import { guestConfirmationEmail, teamNotificationEmail } from "@/lib/booking-emails";
 import { isEmailConfigured, sendEmail, teamRecipients } from "@/lib/email";
 import { recordAuditOrWarn } from "@/lib/audit";
-import { siteUrl, stripe } from "@/lib/stripe";
+import { siteUrl } from "@/lib/site-origin";
+import { stripe } from "@/lib/stripe";
 
 /**
  * Start a checkout: the lead, the hold, and the Stripe session.

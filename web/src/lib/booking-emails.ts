@@ -35,6 +35,7 @@ import {
   escapeHtml,
   type DetailRow,
 } from "@/lib/email-layout";
+import { siteUrl, siteUrlLabel } from "@/lib/site-origin";
 
 /** Everything the two emails need to know, already formatted for reading. */
 export type BookingEmailFacts = {
@@ -81,9 +82,6 @@ function fill(template: string, values: Record<string, string>): string {
   );
 }
 
-/** `https://agorasim.pt` → `agorasim.pt`, for a link nobody needs to read twice. */
-const SITE_LABEL = site.domain.replace(/^https?:\/\//, "");
-
 const [diogo, rita] = site.contacts;
 
 /**
@@ -95,11 +93,12 @@ const [diogo, rita] = site.contacts;
  * worse, teach the codebase that HTML may be interpolated before escaping.
  */
 function footerWithSiteLink(template: string): string {
+  const origin = siteUrl();
   return template
     .split("{site}")
     .map(escapeHtml)
     .join(
-      `<a href="${site.domain}" style="color:${emailPalette.textMuted};text-decoration:underline;">${SITE_LABEL}</a>`,
+      `<a href="${origin}" style="color:${emailPalette.textMuted};text-decoration:underline;">${escapeHtml(siteUrlLabel(origin))}</a>`,
     );
 }
 
@@ -126,7 +125,7 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     date: facts.date,
     party: String(facts.partySize),
     total: facts.total,
-    site: site.domain,
+    site: siteUrl(),
   };
 
   const subject = fill(t(c.subject, l), values);
@@ -179,7 +178,7 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     `${rita.name} ${rita.phoneDisplay}`,
     "",
     t(c.signoff, l),
-    site.domain,
+    siteUrl(),
   ]);
 
   const html = emailDocument({

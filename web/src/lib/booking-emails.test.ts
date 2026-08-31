@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   guestConfirmationEmail,
@@ -7,6 +7,7 @@ import {
 } from "@/lib/booking-emails";
 import { emailPalette } from "@/lib/email-layout";
 import { site } from "@/content/site";
+import { siteUrl } from "@/lib/site-origin";
 
 /**
  * The two emails a paid booking causes.
@@ -109,8 +110,53 @@ describe("guestConfirmationEmail", () => {
     expect(message.html).toContain("</html>");
     expect(message.html).toContain(emailPalette.primary);
     expect(message.html).toContain(emailPalette.page);
-    // Absolute, because a mail client has no origin to resolve a path against.
-    expect(message.html).toContain(`${site.domain}/images/logo.png`);
+    // Absolute, because a mail client has no origin to resolve a path against —
+    // and against the origin actually serving this deployment, not `site.domain`.
+    expect(message.html).toContain(`${siteUrl()}/images/logo.png`);
+  });
+
+  /**
+   * `site.domain` is the address the site *claims* — the canonical every
+   * `<link rel="canonical">`, hreflang pair and JSON-LD `@id` has to carry. It
+   * is not, until Diogo & Rita recover the domain, an address that answers:
+   * `agorasim.pt` returns 403 to everyone. An email resolved against it ships a
+   * broken masthead and a footer link into a dead page — on every confirmation
+   * the client sees while testing the sandbox, which is exactly when the site
+   * has to look like it works.
+   *
+   * So the emails follow the deployment's own origin. These pin that, and they
+   * are written so they keep passing once `NEXT_PUBLIC_SITE_URL` becomes
+   * `https://agorasim.pt` and the two answers converge again.
+   */
+  describe("links resolve against the origin serving this deployment", () => {
+    const ORIGIN = "https://preview.example.com";
+
+    beforeEach(() => {
+      vi.stubEnv("NEXT_PUBLIC_SITE_URL", ORIGIN);
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("loads the masthead logo from that origin", () => {
+      expect(guestConfirmationEmail(facts()).html).toContain(`${ORIGIN}/images/logo.png`);
+    });
+
+    it("points the footer link there, and labels it with the same host", () => {
+      const html = guestConfirmationEmail(facts()).html;
+      expect(html).toContain(`href="${ORIGIN}"`);
+      expect(html).toContain("preview.example.com");
+    });
+
+    it("gives the team notification the same masthead", () => {
+      expect(teamNotificationEmail(facts()).html).toContain(`${ORIGIN}/images/logo.png`);
+    });
+
+    it("never resolves an email asset against the canonical domain", () => {
+      for (const message of [guestConfirmationEmail(facts()), teamNotificationEmail(facts())]) {
+        expect(message.html).not.toContain(`${site.domain}/images/logo.png`);
+      }
+    });
   });
 
   it("promises the hour in writing when the tour has no clock time", () => {
