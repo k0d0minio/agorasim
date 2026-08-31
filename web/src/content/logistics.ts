@@ -32,9 +32,12 @@ export const meetingPoints: Record<string, MeetingPoint> = {
  * What each departure is called for a given tour.
  *
  * The countryside tour has confirmed clock times (10:00 / 14:00). Óbidos runs
- * morning and afternoon too, but Diogo & Rita have not put a number on them —
- * so the labels say "morning departure" rather than inventing one, and the
- * exact time travels in the confirmation conversation.
+ * morning and afternoon too, but Diogo & Rita have not put a number on them
+ * (open-questions pack item 8, unanswered) — so its labels invent no time and
+ * say instead where the real one comes from. The label is the string every
+ * surface renders a departure through: the booking chips, the guest's
+ * confirmation and the team's notification. Saying it here says it everywhere,
+ * and nobody can pay for a departure whose time was never stated.
  */
 export const departureLabels: Record<
   string,
@@ -45,10 +48,34 @@ export const departureLabels: Record<
     afternoon: { pt: "Tarde · 14h00", en: "Afternoon · 14:00" },
   },
   "obidos-medieval-villages": {
-    morning: { pt: "Partida da manhã", en: "Morning departure" },
-    afternoon: { pt: "Partida da tarde", en: "Afternoon departure" },
+    morning: {
+      pt: "Partida da manhã — hora exata confirmada por email",
+      en: "Morning departure — exact time confirmed by email",
+    },
+    afternoon: {
+      pt: "Partida da tarde — hora exata confirmada por email",
+      en: "Afternoon departure — exact time confirmed by email",
+    },
   },
 };
+
+/**
+ * Tours whose departures still have no clock time.
+ *
+ * The one thing a guest cannot be sent away from a paid checkout without is
+ * when to turn up. Where the labels above name an hour, the confirmation says
+ * it and is done; where they do not, this set makes the confirmation email
+ * promise the time in writing instead of referring to one it never states.
+ *
+ * The day Diogo & Rita answer with hours: put them in `departureLabels` above
+ * and delete the slug from here. Nothing else in the codebase has to move.
+ */
+const toursAwaitingDepartureTimes = new Set(["obidos-medieval-villages"]);
+
+/** Does this tour still owe the guest a clock time after they have paid? */
+export function departureTimeFollowsByEmail(experienceSlug: string): boolean {
+  return toursAwaitingDepartureTimes.has(experienceSlug);
+}
 
 /** The label for one departure, with a safe generic fallback per slot. */
 export function departureLabel(experienceSlug: string, slot: string): Localized {

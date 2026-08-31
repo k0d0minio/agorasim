@@ -54,6 +54,13 @@ export type BookingEmailFacts = {
   experience: string;
   /** "Manhã · 10h00" — the departure, in the guest's language. */
   departure: string;
+  /**
+   * True when the tour's departure has no clock time yet — `content/logistics.ts`
+   * decides, the caller asks. The confirmation then promises the hour in
+   * writing rather than sending a guest away with "at your departure time" and
+   * no time anywhere in the mail, and the team's copy says who owes it.
+   */
+  departureTimeFollows: boolean;
   /** Where to be, with the team's own maps pin. `null` when the tour has none. */
   meetingPoint: { address: string; mapsUrl: string } | null;
   /** Add-on names, in the guest's language. Empty when there are none. */
@@ -126,6 +133,13 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
   const greeting = fill(t(c.greeting, l), values);
   const addOnsList = facts.addOns.join(", ");
 
+  // "What happens next" ends by referring to the guest's departure time. When
+  // the tour has one, the details above it said so; when it does not, this is
+  // the sentence that keeps the paragraph from pointing at nothing.
+  const nextBody = facts.departureTimeFollows
+    ? `${t(c.next.body, l)} ${t(c.departureTimeNote, l)}`
+    : t(c.next.body, l);
+
   // Omitted entirely rather than left as an empty "Extras:" line — a
   // confirmation with a blank field on it reads like something went wrong.
   const rows: DetailRow[] = [
@@ -159,7 +173,7 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     "",
     // One paragraph in text, two blocks in HTML: on a phone a wall of text is
     // read as a wall, but in a plain text mail an isolated line looks truncated.
-    `${t(c.next.body, l)} ${t(c.cancellationNote, l)} ${t(c.changeNote, l)}`,
+    `${nextBody} ${t(c.cancellationNote, l)} ${t(c.changeNote, l)}`,
     "",
     `${diogo.name} ${diogo.phoneDisplay}`,
     `${rita.name} ${rita.phoneDisplay}`,
@@ -179,7 +193,7 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
       emailEyebrow(t(c.detailsHeading, l)),
       emailDetails(rows),
       emailSpacer(24),
-      emailNote({ title: t(c.next.title, l), body: t(c.next.body, l) }),
+      emailNote({ title: t(c.next.title, l), body: nextBody }),
       emailSpacer(16),
       emailParagraph(t(c.cancellationNote, l), { muted: true, spaceBelow: 8 }),
       emailSpacer(8),
@@ -264,6 +278,9 @@ export function teamNotificationEmail(
     c.heading,
     "",
     ...bookingRows.map((row) => `${row.label}: ${row.value}`),
+    facts.departureTimeFollows
+      ? `\n${c.departureTimeNote.title}: ${c.departureTimeNote.body}`
+      : null,
     "",
     c.guestHeading,
     ...guestRows.map((row) => `${row.label}: ${row.value}`),
@@ -282,6 +299,11 @@ export function teamNotificationEmail(
       emailEyebrow(c.detailsHeading),
       emailDetails(bookingRows),
       emailSpacer(24),
+      // Only when the tour owes one: the guest has been promised an hour in
+      // writing, and this notification is where that job is picked up.
+      ...(facts.departureTimeFollows
+        ? [emailNote(c.departureTimeNote), emailSpacer(24)]
+        : []),
       emailDivider(),
       emailSpacer(24),
       emailEyebrow(c.guestHeading),
