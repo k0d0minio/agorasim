@@ -57,12 +57,12 @@ export function ExperienceImageField({
     // Checked here so the operator hears about it before the bytes leave
     // their phone; the token the server mints enforces the same limits.
     if (!(EXPERIENCE_IMAGE_CONTENT_TYPES as readonly string[]).includes(file.type)) {
-      setUploadError("That file isn't a photo. Use a JPEG, PNG, WebP or AVIF image.");
+      setUploadError("Esse ficheiro não é uma fotografia. Use uma imagem JPEG, PNG, WebP ou AVIF.");
       return;
     }
     if (file.size > EXPERIENCE_IMAGE_MAX_BYTES) {
       setUploadError(
-        `That photo is too large — the limit is ${MAX_MB} MB. Most phones can export a smaller copy.`,
+        `Essa fotografia é demasiado grande — o limite é ${MAX_MB} MB. A maioria dos telemóveis consegue guardar uma cópia mais pequena.`,
       );
       return;
     }
@@ -81,8 +81,8 @@ export function ExperienceImageField({
       // The blob client reports server refusals generically, so the words an
       // operator can act on have to come from here.
       setUploadError(
-        "The upload didn't go through. Check your connection and try again — " +
-          "if it never works, image storage isn't configured for this deployment yet.",
+        "O envio não foi por diante. Verifique a ligação e tente outra vez — " +
+          "se nunca funcionar, o armazenamento de imagens ainda não está configurado nesta instalação.",
       );
     } finally {
       setProgress(null);
@@ -95,7 +95,7 @@ export function ExperienceImageField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor="experience-image-file">Image</Label>
+      <Label htmlFor="experience-image-file">Imagem</Label>
 
       {/* What `saveExperience` actually receives — same field as ever. */}
       <input type="hidden" name="image" value={value} />
@@ -114,7 +114,7 @@ export function ExperienceImageField({
           <div className="relative aspect-video w-full bg-muted">
             <Image
               src={value}
-              alt="The photo currently chosen for this experience"
+              alt="A fotografia escolhida para esta experiência"
               fill
               sizes="(max-width: 640px) 100vw, 480px"
               className="object-cover"
@@ -129,7 +129,7 @@ export function ExperienceImageField({
               onClick={() => fileInputRef.current?.click()}
             >
               <RefreshCw className="size-4" />
-              {uploading ? `Uploading… ${Math.round(progress)}%` : "Replace"}
+              {uploading ? `A enviar… ${Math.round(progress)}%` : "Substituir"}
             </Button>
             <Button
               type="button"
@@ -139,7 +139,7 @@ export function ExperienceImageField({
               onClick={() => setValue("")}
             >
               <Trash2 className="size-4" />
-              Remove
+              Remover
             </Button>
             <span className="min-w-0 flex-1 truncate text-right font-mono text-xs text-muted-foreground">
               {value}
@@ -155,12 +155,12 @@ export function ExperienceImageField({
           className="h-24 w-full border-dashed"
         >
           <ImagePlus className="size-5" />
-          {uploading ? `Uploading… ${Math.round(progress)}%` : "Choose a photo"}
+          {uploading ? `A enviar… ${Math.round(progress)}%` : "Escolher uma fotografia"}
         </Button>
       )}
 
       <p className="text-xs text-muted-foreground">
-        Shown on the website next to this experience. JPEG, PNG, WebP or AVIF, up to{" "}
+        Aparece no site junto a esta experiência. JPEG, PNG, WebP ou AVIF, até{" "}
         {MAX_MB} MB.
       </p>
 
@@ -172,7 +172,7 @@ export function ExperienceImageField({
 
       {uploading ? (
         <p className="text-xs text-muted-foreground" role="status" aria-live="polite">
-          Uploading… {Math.round(progress)}%
+          A enviar… {Math.round(progress)}%
         </p>
       ) : null}
     </div>
