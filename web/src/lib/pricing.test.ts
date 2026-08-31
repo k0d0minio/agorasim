@@ -7,6 +7,7 @@ import {
   maxAdultsOf,
   parseExperiencePricing,
   priceBooking,
+  priceRange,
   weekdayOf,
   type ExperiencePricing,
   type PartyCount,
@@ -320,6 +321,17 @@ describe("display helpers", () => {
     expect(fromPrice(countryside.pricing)).toEqual({ cents: 5800, perGroup: false });
     expect(fromPrice(manzwine.pricing)).toEqual({ cents: 3500, perGroup: false });
     expect(fromPrice(null)).toBeNull();
+  });
+
+  it("ranges a tour from its cheapest head to its dearest group", () => {
+    // Both ends are rows of the prices PDF: €58 a head on a full per-person
+    // departure, €700 for twelve adults in private.
+    expect(priceRange(countryside.pricing)).toEqual({ lowCents: 5800, highCents: 70000 });
+    // Óbidos: €100 public per adult, €360 for a private group of up to three.
+    expect(priceRange(obidos.pricing)).toEqual({ lowCents: 10000, highCents: 36000 });
+    // An add-on has one figure, so its range is that figure twice.
+    expect(priceRange(manzwine.pricing)).toEqual({ lowCents: 3500, highCents: 3500 });
+    expect(priceRange(null)).toBeNull();
   });
 
   it("knows the stepper's ceiling and what is priced at all", () => {

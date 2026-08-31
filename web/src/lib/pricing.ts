@@ -438,6 +438,35 @@ export function fromPrice(
   return null;
 }
 
+/**
+ * The cheapest and dearest figure the experience is sold at, in cents — what
+ * the page's `AggregateOffer` publishes as its low and high price.
+ *
+ * Every tier figure counts, per-adult and per-group alike, because each one is
+ * genuinely an offer a guest can buy: the countryside tour runs from €58 a head
+ * on a per-person booking to €700 for twelve adults in private. Child rates are
+ * left out — a child rate is never a price on its own, only an addition to one.
+ */
+export function priceRange(
+  pricing: ExperiencePricing | null | undefined,
+): { lowCents: number; highCents: number } | null {
+  if (!pricing) return null;
+  if (pricing.type === "addon") {
+    return { lowCents: pricing.perAdultCents, highCents: pricing.perAdultCents };
+  }
+
+  const figures: number[] = [];
+  for (const mode of [pricing.public, pricing.private]) {
+    for (const tier of mode?.tiers ?? []) {
+      if (typeof tier.perAdultCents === "number") figures.push(tier.perAdultCents);
+      if (typeof tier.groupCents === "number") figures.push(tier.groupCents);
+    }
+  }
+
+  if (figures.length === 0) return null;
+  return { lowCents: Math.min(...figures), highCents: Math.max(...figures) };
+}
+
 /** Whether an experience has a usable price list at all. */
 export function isPriced(pricing: ExperiencePricing | null | undefined): boolean {
   if (!pricing) return false;
