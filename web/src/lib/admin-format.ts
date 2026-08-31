@@ -1,6 +1,8 @@
 import type { VariantProps } from "class-variance-authority";
 import type {
   AdminRole,
+  BookingStatus,
+  ContentStatus,
   EnquiryKind,
   ExperienceKind,
   FeatureRequestPriority,
@@ -25,6 +27,17 @@ export { MIN_PASSWORD_LENGTH_HINT } from "@/lib/password-policy";
  * the submission — and `form-schemas.ts` is `server-only`.
  */
 export const DELETE_CONFIRMATION = "APAGAR";
+
+/**
+ * The word an operator types to confirm a cancellation that sends money back.
+ *
+ * Its own word rather than reusing {@link DELETE_CONFIRMATION}, because the two
+ * gestures are different: one destroys a record, this one moves money and tells
+ * a guest their tour is off. Deliberately **not** "CANCELAR" — the dialog's own
+ * dismiss button says exactly that, and asking someone to type the word written
+ * on the way out is how a confirmation gets typed by reflex.
+ */
+export const REFUND_CONFIRMATION = "REEMBOLSAR";
 
 /**
  * Badge variant, taken straight from `ui/badge.tsx`. The hand-written mirror
@@ -67,6 +80,25 @@ export const requestStatusMeta: Record<
  * exactly once, so the list cannot fall behind the database enum.
  */
 export const REQUEST_STATUSES = Object.keys(requestStatusMeta) as RequestStatus[];
+
+/**
+ * Where a booking's money is, as the admin says it.
+ *
+ * Kept apart from {@link requestStatusMeta}: a lead's stage is where the *team*
+ * is with a person, and this is what happened to a *payment*. A booking whose
+ * lead reads "Reservado" can perfectly well be refunded, and one vocabulary for
+ * both would have to lie about one of them.
+ */
+export const bookingStatusMeta: Record<
+  BookingStatus,
+  { label: string; variant: BadgeVariant }
+> = {
+  pending: { label: "Pagamento pendente", variant: "secondary" },
+  confirmed: { label: "Paga", variant: "default" },
+  cancelled: { label: "Cancelada", variant: "outline" },
+  expired: { label: "Expirada", variant: "outline" },
+  refunded: { label: "Reembolsada", variant: "destructive" },
+};
 
 export const featureRequestStatusMeta: Record<
   FeatureRequestStatus,
@@ -152,8 +184,12 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "availability.closed": "fechou dias",
   "availability.cleared": "limpou dias do calendário",
   "booking.confirmed": "uma reserva foi paga e confirmada",
-  "booking.cancelled_by_guest": "uma reserva foi cancelada pelo cliente",
   "booking.expired": "uma reserva não foi paga a tempo",
+  "booking.cancelled": "cancelou uma reserva",
+  "booking.refunded": "cancelou e reembolsou uma reserva",
+  "blog_post.updated": "editou um artigo do blog",
+  "blog_post.published": "publicou um artigo no blog",
+  "blog_post.unpublished": "retirou um artigo do blog",
 };
 
 /**
@@ -186,6 +222,41 @@ export const experienceKindMeta: Record<
 };
 
 export const EXPERIENCE_KINDS = Object.keys(experienceKindMeta) as ExperienceKind[];
+
+/**
+ * Where an article is in its review, as the Blog studio words it.
+ *
+ * The database enum is shared by every generated-content table
+ * (`content_status`), so all four values have to render — but only two of them
+ * are reachable from this screen: the loader writes `draft`, the studio writes
+ * `published`, and unpublishing goes back to `draft`. `in_review` and
+ * `approved` are the pipeline's own vocabulary and are shown, not offered.
+ */
+export const blogStatusMeta: Record<
+  ContentStatus,
+  { label: string; variant: BadgeVariant; hint: string }
+> = {
+  draft: {
+    label: "Rascunho",
+    variant: "secondary",
+    hint: "Escrito e à sua espera — ninguém o vê no site",
+  },
+  in_review: {
+    label: "Em revisão",
+    variant: "secondary",
+    hint: "A ser revisto antes de lhe chegar",
+  },
+  approved: {
+    label: "Aprovado",
+    variant: "secondary",
+    hint: "Revisto e pronto a publicar",
+  },
+  published: {
+    label: "Publicado",
+    variant: "default",
+    hint: "No site, em português e em inglês",
+  },
+};
 
 /**
  * Labels for actions nothing writes any more, still present in old rows. The

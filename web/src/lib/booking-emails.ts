@@ -17,7 +17,7 @@
  * in it that would be unsafe in a bundle, and it imports nothing that would be.
  */
 import { site, taglines } from "@/content/site";
-import { bookingEmails, cancellationEmails } from "@/content/emails";
+import { bookingEmails } from "@/content/emails";
 import { cancellationEmailCopy } from "@/content/cancellation";
 import { t, type Locale } from "@/i18n/config";
 import type { EmailMessage } from "@/lib/email";
@@ -123,6 +123,31 @@ function footerWithSiteLink(template: string): string {
 /** Plain text: drops the empty lines an omitted section would otherwise leave. */
 function textLines(lines: (string | null)[]): string {
   return lines.filter((line) => line !== null).join("\n");
+}
+
+/**
+ * "2 adultos · 1 criança (4–12)" — the party, in the guest's language.
+ *
+ * Bands with nobody in them are simply not said, so a couple reads "2 adultos"
+ * rather than "2 adultos · 0 crianças · 0 bebés". Falls back to the bare head
+ * count for a row priced before the bands existed, where every band is zero and
+ * the total is not.
+ */
+export function partyLabel(
+  party: { adults: number; children: number; infants: number; partySize: number },
+  locale: Locale,
+): string {
+  const w = bookingEmails.guest.partyWords;
+  const label = [
+    [party.adults, w.adult, w.adults] as const,
+    [party.children, w.child, w.children] as const,
+    [party.infants, w.infant, w.infants] as const,
+  ]
+    .filter(([count]) => count > 0)
+    .map(([count, one, many]) => `${count} ${t(count === 1 ? one : many, locale)}`)
+    .join(" · ");
+
+  return label || String(party.partySize);
 }
 
 /**
@@ -262,6 +287,138 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
   };
 }
 
+/** Everything the cancellation notice needs, already formatted for reading. */
+export type BookingCancellationFacts = {
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  /** The language the guest booked in — the language this goes out in. */
+  locale: Locale;
+  /** "Saturday, 15 August 2026" — already in the guest's language. */
+  date: string;
+  experience: string;
+  /** "2 adultos · 1 criança (4–12)" — already in the guest's language. */
+  partyLabel: string;
+  /** "€340" — what they had paid, before any of it went back. */
+  total: string;
+  /** "€340" — what went back, or `null` when nothing did. */
+  refund: string | null;
+  /** True when the refund is smaller than {@link total}. */
+  partialRefund: boolean;
+};
+
+/**
+ * The guest's cancellation notice, in the language they booked in.
+ *
+ * One message for both paths that end a booking — the team cancelling from the
+ * Sales board, and (once it exists) the guest's own cancel link — because what
+ * it has to say is the same either way: the tour is off, and here is what
+ * happened to the money. The two differ in who pressed the button, which is a
+ * fact for the audit log, not for this email.
+ *
+ * `replyTo` is the business inbox, as on the confirmation: a cancelled tour is
+ * the moment somebody is most likely to write back, and it must reach a person.
+ */
+export function guestCancellationEmail(facts: BookingCancellationFacts): EmailMessage {
+  const c = bookingEmails.cancellation;
+  const l = facts.locale;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    ref: facts.ref,
+    experience: facts.experience,
+    date: facts.date,
+    total: facts.total,
+    refund: facts.refund ?? "",
+    site: siteUrl(),
+  };
+
+  const subject = fill(t(c.subject, l), values);
+  const greeting = fill(t(c.greeting, l), values);
+
+  // The money, as one block: what went back and when to expect it, or a plain
+  // statement that nothing did. Never both, and never neither.
+  const moneyNote = facts.refund
+    ? {
+        title: t(c.refundLine.title, l),
+        body: [
+          fill(t(c.refundLine.body, l), values),
+          facts.partialRefund ? fill(t(c.partialNote, l), values) : null,
+        ]
+          .filter((line) => line !== null)
+          .join(" "),
+      }
+    : { title: t(c.noRefundLine.title, l), body: t(c.noRefundLine.body, l) };
+
+  const rows: DetailRow[] = [
+    { label: t(bookingEmails.guest.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(bookingEmails.guest.labels.experience, l), value: facts.experience },
+    { label: t(bookingEmails.guest.labels.date, l), value: facts.date },
+    { label: t(bookingEmails.guest.labels.party, l), value: facts.partyLabel },
+    { label: t(c.labels.paid, l), value: facts.total },
+    ...(facts.refund
+      ? [{ label: t(c.labels.refund, l), value: facts.refund, emphasis: true }]
+      : []),
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    fill(t(c.lead, l), values),
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    `${moneyNote.title}: ${moneyNote.body}`,
+    "",
+    t(c.changeNote, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(c.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader, l), values),
+    // The muted strip, not the green one: this is not a confirmation, and a
+    // cancellation wearing the confirmation's banner is a guest who reads the
+    // first inch of the mail and believes the opposite of what it says.
+    banner: { text: t(c.banner, l), background: emailPalette.textMuted },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(fill(t(c.lead, l), values), { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      emailSpacer(24),
+      emailNote(moneyNote),
+      emailSpacer(16),
+      emailParagraph(t(c.changeNote, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+  };
+}
+
 /**
  * The team's copy. Portuguese, and carrying the contact details the guest's
  * copy does not need — this is the message that turns into a phone call.
@@ -367,114 +524,50 @@ export function teamNotificationEmail(
   };
 }
 
-/**
- * The guest's cancellation receipt, in the language they booked in.
- *
- * Built from the same {@link BookingEmailFacts} the confirmation used, with one
- * field pointedly ignored: `cancelUrl`. The token behind it has been spent by
- * the time this is composed, and a dead link at the bottom of a receipt is a
- * small betrayal of the only job this email has — to be the thing a guest can
- * find again when they wonder whether the money is really coming back.
- */
-export function guestCancellationEmail(facts: BookingEmailFacts): EmailMessage {
-  const c = cancellationEmails.guest;
-  const l = facts.locale;
-
-  const values: Record<string, string> = {
-    name: facts.guestName,
-    ref: facts.ref,
-    experience: facts.experience,
-    date: facts.date,
-    total: facts.total,
-    site: siteUrl(),
-  };
-
-  const subject = fill(t(c.subject, l), values);
-  const greeting = fill(t(c.greeting, l), values);
-  const refundBody = fill(t(c.refund.body, l), values);
-
-  // No meeting point and no add-ons: this is a receipt for something that is
-  // not happening, and every line that reads like an itinerary works against
-  // that. What stays is what a guest would quote back to us on the phone.
-  const rows: DetailRow[] = [
-    { label: t(bookingEmails.guest.labels.reference, l), value: facts.ref, mono: true },
-    { label: t(bookingEmails.guest.labels.experience, l), value: facts.experience },
-    { label: t(bookingEmails.guest.labels.date, l), value: facts.date },
-    { label: t(bookingEmails.guest.labels.departure, l), value: facts.departure },
-    { label: t(bookingEmails.guest.labels.total, l), value: facts.total, emphasis: true },
-  ];
-
-  const text = textLines([
-    greeting,
-    "",
-    t(c.lead, l),
-    "",
-    ...rows.map((row) => `${row.label}: ${row.value}`),
-    "",
-    `${t(c.refund.title, l)}: ${refundBody}`,
-    "",
-    t(c.outro, l),
-    `${diogo.name} ${diogo.phoneDisplay}`,
-    `${rita.name} ${rita.phoneDisplay}`,
-    "",
-    t(c.signoff, l),
-    siteUrl(),
-  ]);
-
-  const html = emailDocument({
-    lang: l,
-    title: subject,
-    preheader: fill(t(c.preheader, l), values),
-    // Neutral rather than the confirmation's green: nothing here is a success
-    // to celebrate, and nothing here is an error either.
-    banner: { text: t(c.banner, l), background: emailPalette.textMuted },
-    content: [
-      emailHeading(greeting),
-      emailParagraph(t(c.lead, l), { spaceBelow: 24 }),
-      emailEyebrow(t(c.detailsHeading, l)),
-      emailDetails(rows),
-      emailSpacer(24),
-      emailNote({ title: t(c.refund.title, l), body: refundBody }),
-      emailSpacer(24),
-      emailParagraph(t(c.outro, l), { spaceBelow: 12 }),
-      emailContacts(
-        [diogo, rita].map((contact) => ({
-          name: contact.name,
-          display: contact.phoneDisplay,
-          href: `tel:${contact.phone}`,
-        })),
-      ),
-      emailSpacer(24),
-      emailDivider(),
-      emailSpacer(20),
-      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
-    ].join(""),
-    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
-  });
-
-  return { to: [facts.guestEmail], subject, text, html, replyTo: site.email };
-}
+/** What the team's cancellation notice needs, already formatted for reading. */
+export type TeamCancellationFacts = {
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  /** The language the *guest* reads — reported here, not obeyed. */
+  locale: Locale;
+  date: string;
+  experience: string;
+  partyLabel: string;
+  partySize: number;
+  /** "€340" — what went back to the guest. */
+  refund: string;
+  /** Deep link to the lead on the Sales board. */
+  adminUrl: string;
+};
 
 /**
- * The team's cancellation notice. Portuguese, and about the departure rather
- * than about the guest: what this email is for is the seat coming free.
+ * Diogo & Rita's notice that a guest cancelled themselves.
  *
- * `replyTo` is the guest, as on the booking notification — a cancellation
- * inside the window is the one Rita most often wants to answer personally, and
- * this makes that a single tap.
+ * **Only the guest's own cancel link sends this.** `lib/booking-refund.ts`
+ * leaves the team notification to its callers precisely so that the Sales board
+ * does not send one: there, the team are the people who just pressed the
+ * button, and mailing them about it would be telling them what they already
+ * know. Here they are not — a guest can do this at midnight — and the thing
+ * they need to hear is not "a booking changed" but "a car is free on that
+ * departure again".
+ *
+ * Portuguese, like every other internal notification. `replyTo` is the guest,
+ * so the most likely next action — asking them whether another date would
+ * work — is one tap.
  */
 export function teamCancellationEmail(
-  facts: BookingEmailFacts,
+  facts: TeamCancellationFacts,
   recipients: string[],
 ): EmailMessage {
-  const c = cancellationEmails.team;
+  const c = bookingEmails.teamCancellation;
 
   const values: Record<string, string> = {
     ref: facts.ref,
     date: facts.date,
     experience: facts.experience,
     party: String(facts.partySize),
-    total: facts.total,
+    refund: facts.refund,
     name: facts.guestName,
     adminUrl: facts.adminUrl,
   };
@@ -484,10 +577,9 @@ export function teamCancellationEmail(
   const rows: DetailRow[] = [
     { label: c.labels.reference, value: facts.ref, mono: true },
     { label: c.labels.date, value: facts.date },
-    { label: c.labels.departure, value: facts.departure },
     { label: c.labels.experience, value: facts.experience },
     { label: c.labels.party, value: facts.partyLabel },
-    { label: c.labels.refund, value: facts.total, emphasis: true },
+    { label: c.labels.refund, value: facts.refund, emphasis: true },
   ];
 
   const text = textLines([

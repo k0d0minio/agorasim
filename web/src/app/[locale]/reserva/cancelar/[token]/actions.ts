@@ -67,19 +67,16 @@ export async function cancelBookingAction(
   const outcome = await cancelBooking({
     token,
     catalogue: new Map(catalogue.map((entry) => [entry.slug, entry])),
-    // The `/pt` or `/en` the guest is standing on now. Same reasoning as the
-    // confirmation page: the language they are reading in is better evidence
-    // than the one recorded weeks ago, and their receipt should match it.
-    pathLocale: locale,
   });
 
   switch (outcome.status) {
     case "cancelled":
       return {
         done: true,
-        // Formatted here rather than in the engine: the engine deals in cents,
-        // and only this layer knows which language to render them in.
-        total: formatPrice(outcome.booking.amountCents, locale, outcome.booking.currency),
+        // What actually went back, not what the booking cost: they differ if
+        // the team had already refunded part of it by hand, and the sentence
+        // the guest reads must be about their money, not about the price list.
+        total: formatPrice(outcome.refundedCents, locale, outcome.booking.currency),
       };
     case "too-late":
       return { tooLate: true };

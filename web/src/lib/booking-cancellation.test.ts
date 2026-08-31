@@ -1,23 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * The guest cancellation engine, exercised through the real functions.
+ * The guest's half of a cancellation — the part that is *not* shared with the
+ * Sales board.
  *
- * Four properties are worth this much scaffolding, because each one fails
- * expensively and silently:
+ * Claiming the row, refunding the charge and freeing the seat all live in
+ * `lib/booking-refund.ts` and are tested against the admin action, so this file
+ * deliberately mocks that engine out and asserts only what the guest path adds:
  *
- * 1. **A double tap refunds once.** The claiming update is guarded on
- *    `status = 'confirmed'`; the loser must never reach Stripe.
- * 2. **Inside 48 hours nothing moves** — no write, and above all no refund.
- * 3. **A failed refund leaves no trace.** The booking goes back to `confirmed`
- *    with its token restored, because a booking marked refunded that was not
- *    refunded is money kept and a seat given away.
- * 4. **A spent link says nothing.** Unknown, spent and unconfirmed all answer
- *    identically, so the page cannot leak whether a booking exists.
- *
- * Only the edges are faked: the Neon client, Stripe, the mailer and the audit
- * writer. The schema is the real one, so `eq()` builds real SQL against real
- * columns, and the *contents* of the update below are what a row would get.
+ * 1. **The token is the authentication.** It is looked up by digest, never by
+ *    the token itself, and a shape that is not a token costs no query.
+ * 2. **The 48-hour gate.** It is the guest path's alone — Rita cancelling by
+ *    hand is not bound by a promise made to the person on the phone — so
+ *    inside the window the engine must never be reached at all.
+ * 3. **The link is single-use**, and spent after a successful cancellation.
+ * 4. **The team gets told**, which the shared engine leaves to its callers.
+ * 5. **A dead link says nothing** about whether a booking is behind it.
  */
 
 // ---------------------------------------------------------------------------
@@ -83,16 +81,27 @@ vi.mock("@/db", async () => {
 // Stripe, the mailer and the audit log
 // ---------------------------------------------------------------------------
 
-const refundCreate = vi.fn();
-let stripeConfigured = true;
+/**
+ * The shared engine, mocked. Its own behaviour — the guarded claim, the Stripe
+ * call, the audit row — is `app/admin/actions.test.ts`'s subject; what matters
+ * here is *whether and how* the guest path calls it.
+ */
+const cancelAndRefundBooking =
+  vi.fn<(options: Record<string, unknown>) => Promise<Record<string, unknown>>>();
 
-vi.mock("@/lib/stripe", () => ({
-  isStripeConfigured: () => stripeConfigured,
-  stripe: () => ({ refunds: { create: refundCreate } }),
-}));
+vi.mock("@/lib/booking-refund", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/booking-refund")>("@/lib/booking-refund");
+  return {
+    // The real predicates: "still cancellable" and "how much is left" must be
+    // the same answers the Sales board gets, not a second opinion.
+    isCancellable: actual.isCancellable,
+    refundableCents: actual.refundableCents,
+    cancelAndRefundBooking: (options: Record<string, unknown>) =>
+      cancelAndRefundBooking(options),
+  };
+});
 
-// Typed with their arguments, so the assertions below can read what was
-// passed rather than just how many times.
 const sendEmail = vi.fn<(message: unknown) => Promise<{ sent: true }>>(async () => ({
   sent: true as const,
 }));
@@ -102,12 +111,7 @@ vi.mock("@/lib/email", () => ({
   teamRecipients: () => ["diogo@agorasim.pt"],
 }));
 
-const recordAuditOrWarn = vi.fn<(entry: Record<string, unknown>) => Promise<void>>(
-  async () => {},
-);
-vi.mock("@/lib/audit", () => ({
-  recordAuditOrWarn: (entry: Record<string, unknown>) => recordAuditOrWarn(entry),
-}));
+vi.mock("@/lib/experience-catalogue", () => ({ listCatalogue: async () => [] }));
 
 // Dynamic, and after the mocks: a static import is hoisted above the `const`
 // declarations the mock factories close over, and would read `fakeDb` before it
@@ -145,6 +149,9 @@ function bookingRow(overrides: Record<string, unknown> = {}) {
     priceBreakdown: [],
     status: "confirmed",
     locale: "pt",
+    refundedAmountCents: 0,
+    stripeRefundId: null,
+    refundedAt: null,
     stripeSessionId: "cs_test_1",
     stripePaymentIntentId: "pi_test_1",
     holdExpiresAt: new Date("2026-08-01T00:30:00Z"),
@@ -183,12 +190,6 @@ function collectStrings(value: unknown, seen = new Set<unknown>()): string[] {
   );
 }
 
-/** The last `.set()` payload handed to an update. */
-function lastSetPayload(): Record<string, unknown> | undefined {
-  const sets = calls.filter((call) => call.method === "set");
-  return sets.at(-1)?.args[0] as Record<string, unknown> | undefined;
-}
-
 function setPayloads(): Record<string, unknown>[] {
   return calls
     .filter((call) => call.method === "set")
@@ -200,11 +201,13 @@ let token: string;
 beforeEach(async () => {
   calls = [];
   results = [];
-  stripeConfigured = true;
-  refundCreate.mockReset();
-  refundCreate.mockResolvedValue({ id: "re_test_1" });
   sendEmail.mockClear();
-  recordAuditOrWarn.mockClear();
+  cancelAndRefundBooking.mockReset();
+  cancelAndRefundBooking.mockResolvedValue({
+    status: "cancelled",
+    booking: bookingRow({ status: "refunded", refundedAmountCents: 34000 }),
+    refundedCents: 34000,
+  });
 
   process.env.BOOKING_TOKEN_SECRET = "test-secret-for-cancellation-tokens";
   token = (await issueCancellationToken()).token;
@@ -257,62 +260,63 @@ describe("resolving a link", () => {
 });
 
 describe("cancelling", () => {
-  /** Queue the reads a successful cancellation makes, in order. */
-  function queueHappyPath(claimed = bookingRow({ status: "refunded" })) {
+  /** Queue the two reads `resolveCancellation` makes, then the token-spend write. */
+  function queueLookup() {
     queueResult([bookingRow()]); // the booking, by digest
     queueResult([leadRow]); // its lead
-    queueResult([claimed]); // the claiming update's RETURNING
-    queueResult([]); // the lead moving back to "New"
+    queueResult([]); // the token-spend update
   }
 
-  it("refunds in full, frees the seat and spends the token in one write", async () => {
-    queueHappyPath();
+  it("hands the whole job to the shared engine, as the guest", async () => {
+    queueLookup();
 
     const outcome = await cancelBooking({ token, catalogue, now: WELL_BEFORE });
     expect(outcome.status).toBe("cancelled");
 
-    // The claiming update: the status that releases capacity, the path that
-    // did it, and the token spent in the same statement.
-    const claim = setPayloads()[0];
-    expect(claim.status).toBe("refunded");
-    expect(claim.cancelledVia).toBe("guest");
-    expect(claim.cancellationTokenHash).toBeNull();
-    expect(claim.cancelledAt).toEqual(WELL_BEFORE);
-
-    // The full amount: no `amount`, which is what makes it the whole charge.
-    expect(refundCreate).toHaveBeenCalledTimes(1);
-    const [params, options] = refundCreate.mock.calls[0];
-    expect(params.payment_intent).toBe("pi_test_1");
-    expect(params).not.toHaveProperty("amount");
-    expect(params.reason).toBe("requested_by_customer");
-    // Keyed on the booking, so a retry cannot issue a second refund.
-    expect(options.idempotencyKey).toContain(bookingRow().id);
+    expect(cancelAndRefundBooking).toHaveBeenCalledTimes(1);
+    const options = cancelAndRefundBooking.mock.calls[0][0];
+    expect(options.bookingId).toBe(bookingRow().id);
+    expect(options.via).toBe("guest");
+    // Nobody in the admin pressed this; the token was the authority.
+    expect(options.actorUserId).toBeNull();
   });
 
-  it("writes an audit entry that names the path but never the token", async () => {
-    queueHappyPath();
+  it("returns everything still refundable, not the sticker price", async () => {
+    // The team already gave €100 back by hand. "Free cancellation" is the rest
+    // of it — refunding the full €340 would return that €100 twice.
+    queueResult([bookingRow({ refundedAmountCents: 10000 })]);
+    queueResult([leadRow]);
+    queueResult([]);
+
+    await cancelBooking({ token, catalogue, now: WELL_BEFORE });
+    expect(cancelAndRefundBooking.mock.calls[0][0].refundCents).toBe(24000);
+  });
+
+  it("spends the token, so the link works exactly once", async () => {
+    queueLookup();
     await cancelBooking({ token, catalogue, now: WELL_BEFORE });
 
-    expect(recordAuditOrWarn).toHaveBeenCalledTimes(1);
-    const entry = recordAuditOrWarn.mock.calls[0][0];
-    expect(entry.action).toBe("booking.cancelled_by_guest");
-    expect(JSON.stringify(entry)).not.toContain(token);
+    const spend = setPayloads().at(-1)!;
+    expect(spend.cancellationTokenHash).toBeNull();
   });
 
-  it("sends the guest's receipt and the team's notice", async () => {
-    queueHappyPath();
+  it("tells the team a seat came free — the engine leaves that to us", async () => {
+    queueLookup();
     await cancelBooking({ token, catalogue, now: WELL_BEFORE });
-    expect(sendEmail).toHaveBeenCalledTimes(2);
+
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const message = sendEmail.mock.calls[0][0] as { subject: string; text: string };
+    expect(message.subject).toContain("Reserva cancelada");
+    expect(message.text).toContain("Lugar libertado");
   });
 
-  it("refuses inside 48 hours, and touches nothing at all", async () => {
+  it("refuses inside 48 hours without going near the engine", async () => {
     queueResult([bookingRow()]);
     queueResult([leadRow]);
 
     const outcome = await cancelBooking({ token, catalogue, now: TOO_CLOSE });
     expect(outcome.status).toBe("too-late");
-    expect(refundCreate).not.toHaveBeenCalled();
-    expect(calls.some((call) => call.method === "update")).toBe(false);
+    expect(cancelAndRefundBooking).not.toHaveBeenCalled();
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
@@ -325,64 +329,40 @@ describe("cancelling", () => {
       now: new Date("2026-08-15T18:00:00Z"),
     });
     expect(outcome.status).toBe("too-late");
-    expect(refundCreate).not.toHaveBeenCalled();
+    expect(cancelAndRefundBooking).not.toHaveBeenCalled();
   });
 
-  it("does not refund twice when two taps race — the loser claims nothing", async () => {
-    queueResult([bookingRow()]);
-    queueResult([leadRow]);
-    // The guarded update matches no `confirmed` row: the other tap won.
-    queueResult([]);
+  it("reports a lost race as unavailable — the Sales board or another tap won", async () => {
+    queueLookup();
+    cancelAndRefundBooking.mockResolvedValue({
+      status: "not-cancellable",
+      booking: bookingRow({ status: "cancelled" }),
+    });
 
     const outcome = await cancelBooking({ token, catalogue, now: WELL_BEFORE });
     expect(outcome.status).toBe("unavailable");
-    expect(refundCreate).not.toHaveBeenCalled();
-  });
-
-  it("puts the booking back when the refund fails", async () => {
-    queueHappyPath();
-    queueResult([]); // the rollback update
-    refundCreate.mockRejectedValue(new Error("card network is down"));
-
-    const outcome = await cancelBooking({ token, catalogue, now: WELL_BEFORE });
-    expect(outcome.status).toBe("failed");
-
-    // The guest still holds a confirmed booking and a working link.
-    const rollback = lastSetPayload()!;
-    expect(rollback.status).toBe("confirmed");
-    expect(rollback.cancelledAt).toBeNull();
-    expect(rollback.cancelledVia).toBeNull();
-    expect(rollback.cancellationTokenHash).toBe(bookingRow().cancellationTokenHash);
-
-    // Nothing is announced for something that did not happen.
     expect(sendEmail).not.toHaveBeenCalled();
-    expect(recordAuditOrWarn).not.toHaveBeenCalled();
   });
 
-  it("refuses rather than freeing a seat it cannot refund", async () => {
-    // No Stripe in this deployment: marking the booking refunded would give
-    // the car away and keep the money.
-    stripeConfigured = false;
-    queueResult([bookingRow()]);
-    queueResult([leadRow]);
+  it("reports a refused refund as failed, and announces nothing", async () => {
+    queueLookup();
+    cancelAndRefundBooking.mockResolvedValue({
+      status: "refund-failed",
+      booking: bookingRow({ status: "cancelled" }),
+      message: "card network is down",
+    });
 
     const outcome = await cancelBooking({ token, catalogue, now: WELL_BEFORE });
     expect(outcome.status).toBe("failed");
-    expect(calls.some((call) => call.method === "update")).toBe(false);
-  });
-
-  it("refuses a booking with no payment intent to refund against", async () => {
-    queueResult([bookingRow({ stripePaymentIntentId: null })]);
-    queueResult([leadRow]);
-
-    const outcome = await cancelBooking({ token, catalogue, now: WELL_BEFORE });
-    expect(outcome.status).toBe("failed");
-    expect(refundCreate).not.toHaveBeenCalled();
+    // The engine already mailed the guest; the team notice is for a seat that
+    // came free cleanly, which this is not.
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("reports an unusable link as unavailable, saying nothing about why", async () => {
     queueResult([]);
     const outcome = await cancelBooking({ token, catalogue, now: WELL_BEFORE });
     expect(outcome).toEqual({ status: "unavailable" });
+    expect(cancelAndRefundBooking).not.toHaveBeenCalled();
   });
 });

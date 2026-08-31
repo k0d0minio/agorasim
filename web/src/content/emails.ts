@@ -114,6 +114,87 @@ export const bookingEmails = {
     } as Localized,
   },
 
+  /**
+   * The cancellation notice, in the guest's own language.
+   *
+   * One message for every way a booking ends, because from the guest's side
+   * there is only one fact — their tour is off — and the money is a line in it,
+   * not a different email. What varies is said in one place: {@link
+   * cancellation.refundLine} when something went back, {@link
+   * cancellation.noRefundLine} when nothing did, and the partial case names
+   * both amounts rather than letting a guest who paid €340 read "€170
+   * refunded" and wonder about the rest.
+   *
+   * Deliberately silent about *why*. The team cancels for weather, for a car
+   * that will not start and for goodwill, and a template that guessed between
+   * them would eventually guess wrong at somebody; whoever cancelled is on the
+   * phone or in a reply anyway, which is where the reason belongs.
+   */
+  cancellation: {
+    subject: {
+      pt: "Reserva cancelada — {experience}, {date}",
+      en: "Booking cancelled — {experience}, {date}",
+    } as Localized,
+    preheader: {
+      pt: "Referência {ref} · {date}",
+      en: "Reference {ref} · {date}",
+    } as Localized,
+    banner: {
+      pt: "Reserva cancelada",
+      en: "Booking cancelled",
+    } as Localized,
+    greeting: {
+      pt: "Olá {name},",
+      en: "Hello {name},",
+    } as Localized,
+    lead: {
+      pt: "A sua reserva de {date} foi cancelada.",
+      en: "Your booking for {date} has been cancelled.",
+    } as Localized,
+    detailsHeading: {
+      pt: "A reserva cancelada",
+      en: "The cancelled booking",
+    } as Localized,
+    labels: {
+      /** What the guest had paid, before any of it went back. */
+      paid: { pt: "Total pago", en: "Total paid" } as Localized,
+      refund: { pt: "Reembolso", en: "Refund" } as Localized,
+    },
+    /** The money is going back — in full or in part. */
+    refundLine: {
+      title: { pt: "O reembolso", en: "Your refund" } as Localized,
+      body: {
+        pt: "Devolvemos {refund} para o mesmo cartão ou método com que pagou. O valor costuma aparecer em 5 a 10 dias úteis, consoante o banco.",
+        en: "We have returned {refund} to the same card or method you paid with. It usually appears within 5 to 10 working days, depending on your bank.",
+      } as Localized,
+    },
+    /** Added only when the refund is smaller than the total — see the note above. */
+    partialNote: {
+      pt: "Pagou {total} e devolvemos {refund}. Se isto não for o que combinámos, responda a este email.",
+      en: "You paid {total} and we returned {refund}. If that is not what we agreed, just reply to this email.",
+    } as Localized,
+    /** Nothing went back — said plainly rather than left to be noticed. */
+    noRefundLine: {
+      title: { pt: "Sobre o pagamento", en: "About your payment" } as Localized,
+      body: {
+        pt: "Não foi devolvido nenhum valor desta reserva. Se acha que devia ter sido, responda a este email ou ligue-nos — resolvemos consigo.",
+        en: "No amount has been returned for this booking. If you believe it should have been, reply to this email or call us — we will sort it out with you.",
+      } as Localized,
+    },
+    changeNote: {
+      pt: "Se quiser voltar a marcar, ou se isto foi um engano, responda a este email ou ligue-nos:",
+      en: "If you would like to book again, or if this was a mistake, reply to this email or call us:",
+    } as Localized,
+    signoff: {
+      pt: "Até uma próxima,\nAgorasim",
+      en: "Until next time,\nAgorasim",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque tinha uma reserva em {site}.",
+      en: "You are receiving this email because you had a booking at {site}.",
+    } as Localized,
+  },
+
   /** To Diogo & Rita. Portuguese only — see the note above. */
   team: {
     subject: "Nova reserva paga — {date} · {name} ({party}p)",
@@ -150,89 +231,30 @@ export const bookingEmails = {
     ctaLine: "Ver no painel: {adminUrl}",
     footerNote: "Notificação automática do site — responda para escrever ao cliente.",
   },
-} as const;
 
-/**
- * The two emails a cancellation causes — the mirror of {@link bookingEmails}.
- *
- * Same split for the same reasons: the guest's copy in the language they booked
- * in, the team's in Portuguese only. What differs is the job each one does. The
- * guest's is a receipt — it exists so that "did that actually go through?" has a
- * written answer with a number in it, which is the question a person asks
- * themselves an hour after cancelling something online. The team's is an
- * operational alert: a car and a driver just came free on a departure Diogo or
- * Rita may already have been planning around, and they should hear it from the
- * system rather than notice it on the board.
- */
-export const cancellationEmails = {
-  /** To the guest, in their own language. */
-  guest: {
-    subject: {
-      pt: "Reserva cancelada — {experience}, {date}",
-      en: "Booking cancelled — {experience}, {date}",
-    } as Localized,
-    preheader: {
-      pt: "Referência {ref} · reembolso de {total} emitido",
-      en: "Reference {ref} · {total} refund issued",
-    } as Localized,
-    banner: {
-      pt: "Reserva cancelada",
-      en: "Booking cancelled",
-    } as Localized,
-    greeting: { pt: "Olá {name},", en: "Hello {name}," } as Localized,
-    lead: {
-      pt: "A sua reserva foi cancelada, como pediu. Não há nada mais a fazer da sua parte.",
-      en: "Your booking has been cancelled, as you asked. There's nothing further for you to do.",
-    } as Localized,
-    detailsHeading: {
-      pt: "Reserva cancelada",
-      en: "Cancelled booking",
-    } as Localized,
-    /**
-     * The money, as its own block rather than a row in the table: it is the one
-     * fact this email exists to state, and the guest is looking for it.
-     */
-    refund: {
-      title: { pt: "Reembolso", en: "Refund" } as Localized,
-      body: {
-        pt: "Emitimos o reembolso total de {total} para o mesmo cartão. O seu banco costuma demorar 5 a 10 dias úteis a mostrar o valor na conta.",
-        en: "We've issued a full {total} refund to the same card. Your bank usually takes 5–10 working days to show it on your statement.",
-      } as Localized,
-    },
-    /** Not a sales pitch — one sentence, and it is the last one. */
-    outro: {
-      pt: "Se um dia quiser voltar a marcar, teremos muito gosto em recebê-lo. E se houver alguma coisa em que possamos ajudar, ligue-nos:",
-      en: "If you'd like to book with us another time, we'd love to have you. And if there's anything we can help with, just call:",
-    } as Localized,
-    signoff: {
-      pt: "Até uma próxima,\nAgorasim",
-      en: "Until next time,\nAgorasim",
-    } as Localized,
-    footerNote: {
-      pt: "Recebeu este email porque cancelou uma reserva em {site}.",
-      en: "You are receiving this email because you cancelled a booking at {site}.",
-    } as Localized,
-  },
-
-  /** To Diogo & Rita. Portuguese only — see the note on {@link bookingEmails}. */
-  team: {
+  /**
+   * The notice a *guest's own* cancellation sends the team.
+   *
+   * Deliberately absent from the admin path: `lib/booking-refund.ts` leaves the
+   * team notification to its callers so the Sales board sends none — there, the
+   * team are the ones who pressed the button. This is what the cancel link owes
+   * them instead, and its subject leads with the date because the thing that
+   * changed is a departure, not a person.
+   */
+  teamCancellation: {
     subject: "Reserva cancelada — {date} · {name} ({party}p)",
-    preheader: "{experience} · {party} pessoas · reembolso {total}",
-    banner: "Reserva cancelada",
+    preheader: "{experience} · {party} pessoas · reembolso {refund}",
+    banner: "Reserva cancelada pelo cliente",
     heading: "O cliente cancelou pelo link do email de confirmação.",
     detailsHeading: "Reserva cancelada",
     labels: {
       reference: "Referência",
       date: "Data",
-      departure: "Partida",
       experience: "Experiência",
       party: "Pessoas",
       refund: "Reembolso emitido",
     },
-    /**
-     * The operational consequence, said plainly. This is the sentence that
-     * turns an email into a decision about the day.
-     */
+    /** The operational consequence — the reason this email exists. */
     released: {
       title: "Lugar libertado",
       body: "O condutor e o carro desta partida voltaram a ficar disponíveis no calendário — a data pode ser vendida outra vez.",

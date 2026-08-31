@@ -25,6 +25,8 @@
 
 import { BUSINESS_TIME_ZONE, isDateKey } from "@/lib/availability";
 import { departureHour } from "@/content/logistics";
+import type { Locale } from "@/i18n/config";
+import { siteUrl } from "@/lib/site-origin";
 
 /**
  * The notice the policy promises. One number, named, because it appears in
@@ -154,4 +156,19 @@ export function cancellationWindow(
     msUntil <= 0 ? "departed" : now.getTime() < deadline.getTime() ? "free" : "too-late";
 
   return { departsAt, deadline, hoursUntilDeparture, verdict };
+}
+
+/**
+ * Where a cancel link points.
+ *
+ * Not in `lib/routes.ts`, on the same reasoning as the Stripe return page: this
+ * is a transactional URL reached once, from an email, carrying a credential. It
+ * has no place in the nav, the sitemap or the hreflang set — and putting it in
+ * the route table would invite exactly that.
+ *
+ * The locale is the guest's own, so the page opens in the language their
+ * confirmation was written in.
+ */
+export function cancelUrl(locale: Locale, token: string): string {
+  return `${siteUrl()}/${locale}/reserva/cancelar/${token}`;
 }

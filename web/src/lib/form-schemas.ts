@@ -28,7 +28,7 @@ import {
   localeEnum,
   requestStatusEnum,
 } from "@/db/schema";
-import { DELETE_CONFIRMATION } from "@/lib/admin-format";
+import { DELETE_CONFIRMATION, REFUND_CONFIRMATION } from "@/lib/admin-format";
 import {
   DEFAULT_DRIVERS,
   isDateKey,
@@ -36,7 +36,7 @@ import {
   MAX_RANGE_DAYS,
 } from "@/lib/availability";
 import { MAX_PARTY_ONLINE } from "@/lib/fleet";
-import { parsePriceInput } from "@/lib/money";
+import { parseAmountInput, parsePriceInput } from "@/lib/money";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
 import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
@@ -368,6 +368,45 @@ export const deleteExperienceSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// The Blog studio
+// ---------------------------------------------------------------------------
+
+/**
+ * The half of an article the studio may change.
+ *
+ * Not the body: the prose is the pipeline's output, reviewed as markdown in
+ * `src/content/generated/blog/` and re-loaded from there. What Diogo & Rita
+ * genuinely need to fix in place is the shop window — the headline a reader
+ * sees on the card and in Google, and the sentence under it. A body editor here
+ * would be a second source of truth for the article, and the next load would
+ * silently win.
+ *
+ * Both languages required, for the reason every localized pair on this site is:
+ * `t()` has no fallback, so a blanked English title renders as nothing at all.
+ */
+export const blogPostSchema = z.object({
+  id: z.uuid(),
+  titlePt: text.min(1, "Escreva o título em português."),
+  titleEn: text.min(1, "Escreva o título em inglês."),
+  excerptPt: text.min(1, "Escreva o resumo em português."),
+  excerptEn: text.min(1, "Escreva o resumo em inglês."),
+});
+
+/** Field names `saveBlogPost` can report an inline error against. */
+export type BlogPostField = "titlePt" | "titleEn" | "excerptPt" | "excerptEn";
+
+/**
+ * Putting an article on the site, or taking it off.
+ *
+ * One schema with a boolean rather than two actions: it is one control in the
+ * UI, and the audit entry differs only in which verb it names.
+ */
+export const setBlogPostPublishedSchema = z.object({
+  id: z.uuid(),
+  published: z.preprocess((value) => value === "on" || value === "true", z.boolean()),
+});
+
+// ---------------------------------------------------------------------------
 // The availability calendar
 // ---------------------------------------------------------------------------
 
@@ -512,6 +551,37 @@ export const deleteTourRequestSchema = z.object({
 
 export const exportSubjectSchema = z.object({
   email: z.string().trim().toLowerCase().regex(EMAIL_RE),
+});
+
+// ---------------------------------------------------------------------------
+// Cancelling a paid booking
+// ---------------------------------------------------------------------------
+
+/**
+ * Cancel and refund, from the Sales board.
+ *
+ * The amount is typed rather than picked, because "how much goes back" is the
+ * judgement the team is actually making — full for weather, part of it for a
+ * late cancellation met with goodwill, and `0` for neither. It is parsed with
+ * {@link parseAmountInput} precisely so a typed zero survives as `0` instead of
+ * arriving as an empty field.
+ *
+ * The ceiling is *not* checked here: how much is left to refund is a fact about
+ * the booking row, which a schema over a `FormData` has no way to read. The
+ * action re-reads the booking and validates against `refundableCents` — the same
+ * reason it, and not this, decides whether the booking may be cancelled at all.
+ */
+export const cancelBookingSchema = z.object({
+  bookingId: z.uuid(),
+  refundAmount: z
+    .string()
+    .transform((value) => parseAmountInput(value))
+    .refine((cents) => cents !== null, "Indique o valor a reembolsar, ou 0.")
+    .transform((cents) => cents as number),
+  confirm: z.literal(
+    REFUND_CONFIRMATION,
+    `Escreva ${REFUND_CONFIRMATION} para confirmar.`,
+  ),
 });
 
 // ---------------------------------------------------------------------------

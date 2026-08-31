@@ -2,6 +2,8 @@ import type { Locale } from "@/i18n/config";
 import { t } from "@/i18n/config";
 import { site } from "@/content/site";
 import type { Experience, Faq } from "@/content/experiences";
+import { blogContent } from "@/content/blog";
+import type { BlogPost } from "@/lib/blog-posts";
 import { priceRange } from "@/lib/pricing";
 import { href } from "@/lib/routes";
 
@@ -116,6 +118,73 @@ export function faqJsonLd(faqs: Faq[], locale: Locale): Json | null {
       "@type": "Question",
       name: t(f.question, locale),
       acceptedAnswer: { "@type": "Answer", text: t(f.answer, locale) },
+    })),
+  };
+}
+
+/**
+ * One article, as `Article`.
+ *
+ * The two dates are the whole reason `published_at` exists as a column
+ * separate from `date_modified`: generative engines lean on freshness, and a
+ * `dateModified` that merely repeated `datePublished` would be a signal that
+ * says nothing. Both are days rather than instants — the blog is dated to the
+ * day everywhere a reader sees it, and claiming a timestamp we do not show is
+ * precision we have not earned.
+ *
+ * `author` is the business, not a person. Diogo & Rita are the voice and the
+ * pipeline is the hand; naming either a `Person` would be a claim about a
+ * byline the site does not carry.
+ */
+export function articleJsonLd(post: BlogPost, locale: Locale): Json {
+  const url = `${site.domain}${href(locale, "blog", post.slug)}`;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "@id": `${url}#article`,
+    headline: t(post.title, locale),
+    description: t(post.excerpt, locale),
+    url,
+    mainEntityOfPage: url,
+    inLanguage: locale === "pt" ? "pt-PT" : "en-GB",
+    ...(post.publishedOn ? { datePublished: post.publishedOn } : {}),
+    ...(post.updatedOn ? { dateModified: post.updatedOn } : {}),
+    ...(post.tags.length > 0 ? { keywords: post.tags } : {}),
+    // Only an image the site actually renders — one without alt text is
+    // dropped by the page, and structured data must not claim otherwise.
+    ...(post.heroImage && post.heroImageAlt
+      ? { image: `${site.domain}${post.heroImage}` }
+      : {}),
+    author: { "@id": `${site.domain}/#organization` },
+    publisher: { "@id": `${site.domain}/#organization` },
+    // What every article is ultimately about, and the thing this site sells.
+    about: { "@id": `${site.domain}/#organization` },
+  };
+}
+
+/**
+ * The blog itself, with its articles listed — what a generative engine reads to
+ * learn the section exists and what is in it.
+ *
+ * Only emitted when there are posts: a `Blog` with an empty `blogPost` array is
+ * a claim about a section that has no pages.
+ */
+export function blogJsonLd(posts: BlogPost[], locale: Locale): Json {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Blog",
+    "@id": `${site.domain}${href(locale, "blog")}#blog`,
+    name: t(blogContent.title, locale),
+    description: t(blogContent.lead, locale),
+    url: `${site.domain}${href(locale, "blog")}`,
+    inLanguage: locale === "pt" ? "pt-PT" : "en-GB",
+    publisher: { "@id": `${site.domain}/#organization` },
+    blogPost: posts.map((post) => ({
+      "@type": "BlogPosting",
+      headline: t(post.title, locale),
+      url: `${site.domain}${href(locale, "blog", post.slug)}`,
+      ...(post.publishedOn ? { datePublished: post.publishedOn } : {}),
     })),
   };
 }

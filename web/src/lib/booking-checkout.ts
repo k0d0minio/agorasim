@@ -44,20 +44,30 @@ import {
 } from "@/db";
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { bookingContent } from "@/content/booking";
+import { bookingEmails } from "@/content/emails";
+import {
+  departureLabel,
+  departureTimeFollowsByEmail,
+  meetingPoints,
+} from "@/content/logistics";
 import { t, type Locale } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
-import { type DateKey } from "@/lib/availability";
+import { formatDay, type DateKey } from "@/lib/availability";
 import { bookingRef, holdExpiryFrom } from "@/lib/bookings";
 import {
   isCancellationTokenConfigured,
   issueCancellationToken,
 } from "@/lib/cancellation-token";
+import { cancelUrl } from "@/lib/cancellation";
 import { CANCEL_RETURN_PARAM, CANCEL_RETURN_VALUE } from "@/lib/checkout-draft";
-import { BOOKING_CURRENCY } from "@/lib/money";
+import { BOOKING_CURRENCY, formatPrice } from "@/lib/money";
 import type { VehicleClass } from "@/lib/fleet";
 import type { BookingMode, PartyCount, PricedLine } from "@/lib/pricing";
-import { guestConfirmationEmail, teamNotificationEmail } from "@/lib/booking-emails";
-import { bookingEmailFacts } from "@/lib/booking-facts";
+import {
+  guestConfirmationEmail,
+  partyLabel,
+  teamNotificationEmail,
+} from "@/lib/booking-emails";
 import { isEmailConfigured, sendEmail, teamRecipients } from "@/lib/email";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { siteUrl } from "@/lib/site-origin";
@@ -458,12 +468,34 @@ async function sendConfirmationEmails(
   }
   if (!isEmailConfigured()) return;
 
-  const facts = bookingEmailFacts({
-    booking,
-    lead,
-    catalogue,
-    cancelToken: await issueCancelToken(booking),
-  });
+  const locale = booking.locale;
+  const name = (slug: string) => {
+    const entry = catalogue.get(slug);
+    // A retired add-on still has to be nameable in the email of the guest who
+    // bought it; the slug is a poor name but it is never a blank line.
+    return entry ? t(entry.title, locale) : slug;
+  };
+
+  const cancelToken = await issueCancelToken(booking);
+
+  const facts = {
+    ref: bookingRef(booking.id),
+    guestName: lead.name,
+    guestEmail: lead.email,
+    guestPhone: lead.phone,
+    locale,
+    date: formatDay(booking.date, locale),
+    experience: `${name(booking.experienceSlug)} — ${t(bookingEmails.guest.modeWords[booking.mode], locale)}`,
+    departure: t(departureLabel(booking.experienceSlug, booking.slot), locale),
+    departureTimeFollows: departureTimeFollowsByEmail(booking.experienceSlug),
+    meetingPoint: meetingPoints[booking.experienceSlug] ?? null,
+    addOns: booking.addOns.map(name),
+    partySize: booking.partySize,
+    partyLabel: partyLabel(booking, locale),
+    total: formatPrice(booking.amountCents, locale, booking.currency),
+    adminUrl: `${siteUrl()}/admin/sales/${lead.id}`,
+    cancelUrl: cancelToken ? cancelUrl(locale, cancelToken) : null,
+  };
 
   const team = teamRecipients();
   const results = await Promise.all([

@@ -2,44 +2,46 @@
  * The guest side of a cancellation: what a link unlocks, and what pressing the
  * button does.
  *
+ * **The money is not this module's business.** Cancelling a paid booking —
+ * claiming the row, refunding the charge, returning the application fee in
+ * proportion, freeing the seat, writing the audit entry, telling the guest — is
+ * `lib/booking-refund.ts`, and it is deliberately the same code the Sales board
+ * runs. The two paths differ in exactly one fact, who pressed the button, and
+ * that fact is a `via` argument. Anything else here would be a second
+ * implementation of the same thing, and the failure mode of two is that one of
+ * them forgets the email, or the seat, or the audit row.
+ *
+ * So what is left in this module is only what is genuinely the *guest's* path
+ * and not the team's:
+ *
+ * 1. **Authentication**, which for a table holding no guest identity means
+ *    resolving an unguessable token to a booking ({@link resolveCancellation}).
+ * 2. **The 48-hour policy** — a gate the Sales board deliberately does not have,
+ *    because Rita cancelling a tour by hand is not bound by the promise made to
+ *    the person she is on the phone with.
+ * 3. **Spending the token**, so an emailed link works once.
+ * 4. **Telling the team**, which `booking-refund.ts` leaves to its callers: from
+ *    the Sales board they are the ones who just did it, but a guest cancelling
+ *    at midnight is news.
+ *
  * **Two questions, deliberately separate.** {@link resolveCancellation} answers
  * "whose booking is this and may it still be cancelled?" and writes nothing;
- * {@link cancelBooking} answers "do it" . The page calls the first on every
- * render and the second only from a confirmed POST, which is what keeps a link
- * preview, a crawler, or a mail client that prefetches URLs from cancelling
- * somebody's tour by looking at it.
- *
- * **The order of operations is the whole safety argument.** The row is claimed
- * *before* Stripe is called, with a `status = 'confirmed'` guard — the same
- * trick `confirmPaidBooking` uses. Two taps on the button race; exactly one
- * updates a row; only that one reaches the refund. Doing it the other way round
- * (refund, then write) would mean a database blip between the two leaves a
- * guest refunded and a booking still selling their seat.
- *
- * **The token is spent by the same write.** Setting `cancellation_token_hash`
- * to null is what makes the link single-use, and it happens inside the claiming
- * update rather than after it, so there is no window in which a second request
- * can resolve the same token to a still-confirmed booking.
- *
- * **What is deliberately not here: the fee.** The agreement returns commission
- * in proportion to a refund, and `refund-machinery` (commission-engine) is the
- * ticket that implements it — including the `charge.refunded` webhook that will
- * reconcile the refunds this module issues. Nothing is lost by shipping first:
- * this deployment takes no application fee at all yet (there is no Connect
- * account and no `application_fee_amount` in `lib/booking-checkout.ts`), so
- * there is currently no fee to return. When there is one, the refund call below
- * gains `refund_application_fee: true` and nothing else here moves.
+ * {@link cancelBooking} does it. The page calls the first on every render and
+ * the second only from a confirmed POST, which is what keeps a link preview, a
+ * crawler, or a mail client that prefetches URLs from cancelling a tour by
+ * looking at it.
  */
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { bookings, db, tourRequests, type Booking } from "@/db";
+import { bookingEmails } from "@/content/emails";
 import type { Experience } from "@/content/experiences";
-import type { Locale } from "@/i18n/config";
-import { recordAuditOrWarn } from "@/lib/audit";
-import { guestCancellationEmail, teamCancellationEmail } from "@/lib/booking-emails";
-import { bookingEmailFacts } from "@/lib/booking-facts";
+import { t } from "@/i18n/config";
+import { formatDay } from "@/lib/availability";
+import { partyLabel, teamCancellationEmail } from "@/lib/booking-emails";
+import { cancelAndRefundBooking, isCancellable, refundableCents } from "@/lib/booking-refund";
 import { bookingRef } from "@/lib/bookings";
 import { cancellationWindow, type CancellationWindow } from "@/lib/cancellation";
 import {
@@ -47,14 +49,15 @@ import {
   looksLikeCancellationToken,
 } from "@/lib/cancellation-token";
 import { isEmailConfigured, sendEmail, teamRecipients } from "@/lib/email";
-import { isStripeConfigured, stripe } from "@/lib/stripe";
+import { formatPrice } from "@/lib/money";
+import { siteUrl } from "@/lib/site-origin";
 
 /**
  * What a token resolved to.
  *
  * **`unknown` is one state on purpose.** A token that never existed, one that
- * has been spent, one revoked by a secret rotation, and a booking that was
- * never confirmed all land here, and the page renders them identically. The
+ * has been spent, one revoked by a secret rotation, and a booking that is no
+ * longer cancellable all land here, and the page renders them identically. The
  * distinctions are real but they are not the guest's to see: telling whoever is
  * holding a link that it "has already been used" confirms that a booking exists
  * behind it, which is precisely what an unauthenticated route must not do.
@@ -94,9 +97,9 @@ export async function resolveCancellation(
   // token falls out here with no special case.
   if (!row) return { kind: "unknown" };
 
-  // Anything but `confirmed` — already refunded, expired, still pending — has
-  // nothing for this route to do, and says so in the neutral voice.
-  if (row.status !== "confirmed") return { kind: "unknown" };
+  // The same predicate the Sales board uses, rather than a second opinion about
+  // what "still cancellable" means.
+  if (!isCancellable(row)) return { kind: "unknown" };
 
   const [lead] = row.tourRequestId
     ? await db
@@ -130,16 +133,17 @@ export async function resolveCancellation(
 
 export type CancellationOutcome =
   /** Done: refunded, seat freed, emails away. */
-  | { status: "cancelled"; booking: Booking; refundId: string | null }
+  | { status: "cancelled"; booking: Booking; refundedCents: number }
   /** The link stopped being valid between rendering the page and pressing the button. */
   | { status: "unavailable" }
   /** Inside 48 hours, or already departed. */
   | { status: "too-late" }
-  /** Our fault. The booking is untouched — see the rollback below. */
+  /** Our fault, or Stripe's. */
   | { status: "failed" };
 
 /**
- * Cancel a booking, refund it in full, and tell both sides.
+ * Cancel a booking on the guest's own authority: full refund, seat freed, token
+ * spent, both sides told.
  *
  * The window is re-checked here rather than trusted from the page: the page was
  * rendered at some point in the past, and a guest who opened it three hours
@@ -150,11 +154,9 @@ export async function cancelBooking(options: {
   token: string;
   /** Names experiences in the two emails. */
   catalogue: Map<string, Experience>;
-  /** The `/pt` or `/en` the guest is standing on — see below. */
-  pathLocale?: Locale;
   now?: Date;
 }): Promise<CancellationOutcome> {
-  const { token, catalogue, pathLocale, now = new Date() } = options;
+  const { token, catalogue, now = new Date() } = options;
 
   const resolved = await resolveCancellation(token, now);
   if (resolved.kind === "unknown") return { status: "unavailable" };
@@ -162,163 +164,115 @@ export async function cancelBooking(options: {
 
   const { booking, lead } = resolved;
 
-  // Stripe has to be reachable before the row is touched. Marking a booking
-  // refunded in a deployment that cannot issue refunds would free the seat and
-  // keep the money — the one outcome worse than refusing.
-  if (!isStripeConfigured() || !booking.stripePaymentIntentId) {
-    console.error(
-      `[cancel] ${bookingRef(booking.id)} cannot be refunded — no payment intent or no Stripe`,
-    );
-    return { status: "failed" };
+  /**
+   * "Free cancellation" means everything still returnable goes back — which is
+   * `refundableCents`, not `amountCents`. They differ only if the team has
+   * already refunded part of this booking by hand, and in that case returning
+   * the full price would refund some of it twice.
+   */
+  const outcome = await cancelAndRefundBooking({
+    bookingId: booking.id,
+    refundCents: refundableCents(booking),
+    via: "guest",
+    // Nobody in the admin pressed this. The guest's authority was the token,
+    // and `cancelled_via` is what records that.
+    actorUserId: null,
+  });
+
+  switch (outcome.status) {
+    case "cancelled":
+      break;
+    case "not-cancellable":
+    case "not-found":
+      // Another tap, or the Sales board, got there first.
+      return { status: "unavailable" };
+    default:
+      // `refund-failed` lands here too, and it is the one case where the
+      // booking *is* cancelled and the money is not back. That is deliberate
+      // in `booking-refund.ts` — a guest told their tour is off must not find
+      // it un-cancelled — and it is logged there for a person to finish. The
+      // guest is told it did not complete, which is the honest half.
+      console.error(
+        `[cancel] ${bookingRef(booking.id)} could not be cancelled by its guest (${outcome.status})`,
+      );
+      return { status: "failed" };
   }
 
   /**
-   * Claim it. The guard is what makes a double tap safe: the second request
-   * finds no `confirmed` row and returns without reaching the refund.
+   * Spend the token, in its own write.
    *
-   * The status is `refunded` rather than `cancelled`, and the difference is not
-   * cosmetic — `cancelled` in this codebase means a payment that never
-   * completed (`closeUnpaidBooking`), while `refunded` means money went out and
-   * came back, which is what happened here. Neither holds capacity, so the seat
-   * is free either way (`holdsCapacity`, `lib/bookings.ts`); only the books can
-   * tell them apart, and the books should be able to.
+   * Separate from the claim rather than folded into it, because the claim
+   * belongs to `booking-refund.ts` and self-serve links do not: the Sales board
+   * has no token to spend. A failure here is logged and swallowed — the booking
+   * is cancelled and the money is back, and the only cost is that a link which
+   * now resolves to a non-cancellable booking says "this link no longer works"
+   * via {@link isCancellable} instead of via a null hash. Same page, same words.
    */
-  const [claimed] = await db
+  await db
     .update(bookings)
-    .set({
-      status: "refunded",
-      cancelledAt: now,
-      cancelledVia: "guest",
-      // Spent, in the same write that claims the row.
-      cancellationTokenHash: null,
-      updatedAt: now,
-      ...(pathLocale && pathLocale !== booking.locale ? { locale: pathLocale } : {}),
-    })
-    .where(and(eq(bookings.id, booking.id), eq(bookings.status, "confirmed")))
-    .returning();
+    .set({ cancellationTokenHash: null, updatedAt: new Date() })
+    .where(eq(bookings.id, booking.id))
+    .catch((err) => {
+      console.error(`[cancel] could not spend the token for ${bookingRef(booking.id)}`, err);
+    });
 
-  if (!claimed) return { status: "unavailable" };
+  await notifyTeam(outcome.booking, lead, catalogue, outcome.refundedCents);
 
-  let refundId: string | null = null;
-  try {
-    const refund = await stripe().refunds.create(
-      {
-        payment_intent: booking.stripePaymentIntentId,
-        // No `amount`: the whole charge. "Free cancellation" is the promise,
-        // and a partial refund here would be the site quietly not keeping it.
-        reason: "requested_by_customer",
-        metadata: { bookingId: booking.id, ref: bookingRef(booking.id), via: "guest" },
-      },
-      {
-        // Two requests that get this far for one booking describe the same
-        // refund, not two. Keyed on the booking rather than the attempt, so a
-        // retry after a timeout returns the original refund instead of issuing
-        // a second one — which is also what makes the rollback below safe.
-        idempotencyKey: `cancel-${booking.id}`,
-      },
-    );
-    refundId = refund.id;
-  } catch (err) {
-    console.error(`[cancel] refund failed for ${bookingRef(booking.id)}`, err);
-
-    /**
-     * Put the booking back. The guest is told nothing happened, and nothing
-     * did: they still hold a confirmed booking and a working link.
-     *
-     * Safe against the nastiest case — a timeout that Stripe actually
-     * processed — because the idempotency key above means the retry returns
-     * that same refund rather than issuing another. The worst outcome is a
-     * booking that is refunded at Stripe and confirmed here, which is exactly
-     * the state `refund-machinery`'s `charge.refunded` handler exists to
-     * reconcile, and which is visible in the dashboard meanwhile.
-     */
-    await db
-      .update(bookings)
-      .set({
-        status: "confirmed",
-        cancelledAt: null,
-        cancelledVia: null,
-        cancellationTokenHash: booking.cancellationTokenHash,
-        updatedAt: new Date(),
-      })
-      .where(eq(bookings.id, booking.id))
-      .catch((rollbackErr) => {
-        // Both failed. Loudly, because now only a person can sort it out.
-        console.error(
-          `[cancel] ${bookingRef(booking.id)} is marked refunded but was not refunded — needs a human`,
-          rollbackErr,
-        );
-      });
-
-    return { status: "failed" };
-  }
-
-  // The lead goes back to "New" rather than to an archived state: somebody who
-  // booked and cancelled is still a person who wanted this tour, and the Sales
-  // board is where that gets noticed.
-  if (claimed.tourRequestId) {
-    await db
-      .update(tourRequests)
-      .set({ status: "new", updatedAt: now })
-      .where(eq(tourRequests.id, claimed.tourRequestId))
-      .catch((err) => {
-        console.error(`[cancel] could not move lead for ${bookingRef(booking.id)}`, err);
-      });
-  }
-
-  await recordAuditOrWarn({
-    // Nobody in the admin pressed this — the guest did, holding a token. The
-    // actor is null for the same reason it is on Stripe's own events.
-    actorUserId: null,
-    action: "booking.cancelled_by_guest",
-    entityType: "booking",
-    entityId: claimed.id,
-    after: {
-      ref: bookingRef(claimed.id),
-      date: claimed.date,
-      status: "refunded",
-      amountCents: claimed.amountCents,
-      // The refund id, never the token — see `lib/cancellation-token.ts`.
-      refundId,
-    },
-    ipAddress: null,
-  });
-
-  await sendCancellationEmails(claimed, lead, catalogue);
-
-  return { status: "cancelled", booking: claimed, refundId };
+  return { status: "cancelled", booking: outcome.booking, refundedCents: outcome.refundedCents };
 }
 
 /**
- * Both cancellation emails. Never throws, for the same reason the confirmation
- * pair does not: the refund has been issued and the seat is free, and failing
- * the request over a slow mail server would show the guest an error for
- * something that worked.
+ * Tell Diogo & Rita that a seat just came free.
+ *
+ * `booking-refund.ts` sends the guest's copy and deliberately leaves this to
+ * its callers: from the Sales board the team *are* the ones who cancelled it,
+ * and a notification would be telling them what they just did. From here they
+ * are not — a guest can do this at midnight — so this is the half the guest
+ * path owes and the admin path does not.
+ *
+ * Never throws, on the same reasoning as every other send in this codebase: the
+ * refund is issued and the seat is free, and failing over a slow mail server
+ * would report a failure for something that worked.
  */
-async function sendCancellationEmails(
+async function notifyTeam(
   booking: Booking,
   lead: typeof tourRequests.$inferSelect,
   catalogue: Map<string, Experience>,
+  refundedCents: number,
 ): Promise<void> {
   if (!isEmailConfigured()) return;
 
-  // No `cancelToken`: the link is spent, and a receipt carrying a dead one
-  // would be worse than a receipt carrying none.
-  const facts = bookingEmailFacts({ booking, lead, catalogue });
-
   const team = teamRecipients();
-  const results = await Promise.all([
-    sendEmail(guestCancellationEmail(facts)),
-    team.length > 0
-      ? sendEmail(teamCancellationEmail(facts, team))
-      : Promise.resolve({ sent: false as const, reason: "no-recipient" as const }),
-  ]);
+  if (team.length === 0) return;
 
-  for (const [who, result] of [["guest", results[0]], ["team", results[1]]] as const) {
+  const locale = booking.locale;
+  const experience = catalogue.get(booking.experienceSlug);
+
+  try {
+    const result = await sendEmail(
+      teamCancellationEmail(
+        {
+          ref: bookingRef(booking.id),
+          guestName: lead.name,
+          guestEmail: lead.email,
+          locale,
+          date: formatDay(booking.date, locale),
+          experience: `${experience ? t(experience.title, locale) : booking.experienceSlug} — ${t(bookingEmails.guest.modeWords[booking.mode], locale)}`,
+          partyLabel: partyLabel(booking, locale),
+          partySize: booking.partySize,
+          refund: formatPrice(refundedCents, locale, booking.currency),
+          adminUrl: lead.id ? `${siteUrl()}/admin/sales/${lead.id}` : siteUrl(),
+        },
+        team,
+      ),
+    );
+
     if (!result.sent) {
       console.error(
-        `[cancel] ${facts.ref} was refunded but the ${who} email was not sent (${result.reason})`,
+        `[cancel] ${bookingRef(booking.id)} was refunded but the team email was not sent (${result.reason})`,
       );
     }
+  } catch (err) {
+    console.error(`[cancel] team notification failed for ${bookingRef(booking.id)}`, err);
   }
 }

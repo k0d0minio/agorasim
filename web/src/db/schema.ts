@@ -728,6 +728,34 @@ export const bookings = pgTable("bookings", {
    */
   cancellationTokenHash: text("cancellation_token_hash"),
 
+  /**
+   * How much of {@link bookings.amountCents} has gone back to the guest, in the
+   * same unit it was charged in.
+   *
+   * **An amount, not a flag**, because a refund is not a boolean: the team
+   * refunds in full for weather, and part of a total when a party shrinks or
+   * goodwill meets a late cancellation. A `refunded` status alone would say
+   * "money went back" and leave "how much?" — the first question a guest asks —
+   * answerable only from the Stripe dashboard.
+   *
+   * Cumulative, so a second partial refund adds to it rather than replacing it,
+   * and `0` is the honest default for every row that has never been refunded.
+   * `status = 'refunded'` and a non-zero value here always travel together; a
+   * cancellation that returned nothing stays `cancelled`.
+   */
+  refundedAmountCents: integer("refunded_amount_cents").notNull().default(0),
+  /**
+   * Stripe's handle for the most recent refund — `re_…`.
+   *
+   * The join between this row and the money, for the conversation that starts
+   * "the bank says nothing arrived". Only the latest is kept: the full history
+   * of refunds against a payment lives in Stripe, and duplicating it here would
+   * be a second ledger to keep honest.
+   */
+  stripeRefundId: text("stripe_refund_id"),
+  /** When money last went back. Null until any does. */
+  refundedAt: timestamp("refunded_at", { withTimezone: true }),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -854,9 +882,15 @@ export type GeoContentDraft = typeof geoContentDrafts.$inferSelect;
 export type NewGeoContentDraft = typeof geoContentDrafts.$inferInsert;
 
 /**
- * Blog post drafts (future `blog/` pipeline). Localized title/excerpt plus a
- * body modelled as `Localized<string[]>` (paragraphs), matching how long-form
- * copy is stored in `src/content/pages.ts`.
+ * Blog posts. Localized title/excerpt plus a body modelled as
+ * `Localized<string[]>` (paragraphs), matching how long-form copy is stored in
+ * `src/content/pages.ts`.
+ *
+ * Named `_drafts` because a row arrives as one: `scripts/load-blog-drafts.ts`
+ * upserts reviewed pipeline markdown here as `draft`, and the row only reaches
+ * the public site when someone taps **Publicar** in `/admin/blog`. So this is
+ * both the review queue and the published corpus — `status` says which, and
+ * `lib/blog-posts.ts` is the only reader the website has.
  */
 export const blogPostDrafts = pgTable("blog_post_drafts", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -864,10 +898,30 @@ export const blogPostDrafts = pgTable("blog_post_drafts", {
   title: jsonb("title").$type<Localized>().notNull(),
   excerpt: jsonb("excerpt").$type<Localized>().notNull(),
   body: jsonb("body").$type<Localized<string[]>>().notNull(),
+  /**
+   * Language-neutral keywords — places, themes ("Ericeira", "Colares"). Not
+   * `Localized`, deliberately: they are shown to both audiences and fed to
+   * `Article.keywords`, and a tag that needs translating is a section, not a tag.
+   */
   tags: jsonb("tags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   heroImage: text("hero_image"),
+  /**
+   * Alt text for {@link heroImage}, per locale. Nullable because a row may not
+   * carry a photograph at all; when there is one, the public page refuses to
+   * render it without this (WCAG 2.2 AA — D14).
+   */
+  heroImageAlt: jsonb("hero_image_alt").$type<Localized>(),
 
   status: contentStatusEnum("status").notNull().default("draft"),
+  /**
+   * The moment someone tapped **Publicar** — `datePublished` in the article's
+   * JSON-LD, and the sort key of the public index. Cleared on unpublish, so a
+   * post that goes back and comes out again is dated by its second outing.
+   * Distinct from `status` only in that it answers *when*, but that is the
+   * whole difference between an ordered blog and an arbitrary one.
+   */
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  /** The article's own freshness date — `dateModified` in its JSON-LD. */
   dateModified: date("date_modified"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -875,6 +929,8 @@ export const blogPostDrafts = pgTable("blog_post_drafts", {
 }, (table) => [
   index("blog_post_drafts_status_idx").on(table.status),
   index("blog_post_drafts_updated_at_idx").on(table.updatedAt),
+  // The public index reads exactly this: published rows, newest first.
+  index("blog_post_drafts_published_at_idx").on(table.publishedAt),
 ]);
 
 export type BlogPostDraft = typeof blogPostDrafts.$inferSelect;
