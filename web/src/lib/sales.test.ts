@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   enquiryRef,
-  exampleBookingRecords,
   groupByStage,
   recordFromRequest,
   type SalesRecord,
@@ -16,8 +15,8 @@ import type { TourRequest } from "@/db";
  *
  * The read itself isn't here — it is one `db.batch` covered by types and by
  * the build. What is here is everything a wrong answer would show an operator
- * without erroring: a board that files a lead under the wrong stage, an
- * example booking passing itself off as real money.
+ * without erroring: a board that files a lead under the wrong stage, or a card
+ * carrying money no booking backs.
  */
 
 function tourRequest(overrides: Partial<TourRequest> = {}): TourRequest {
@@ -68,7 +67,6 @@ describe("recordFromRequest", () => {
       // The guest's own words for "when", not a parsed date — the form takes
       // free text on purpose.
       when: "15 August",
-      example: false,
     });
   });
 
@@ -98,26 +96,6 @@ describe("recordFromRequest", () => {
   });
 });
 
-describe("exampleBookingRecords", () => {
-  it("marks every row as an example", () => {
-    const records = exampleBookingRecords();
-    expect(records.length).toBeGreaterThan(0);
-    expect(records.every((record) => record.example)).toBe(true);
-  });
-
-  it("files them as booked, and gives them no detail page to open", () => {
-    for (const record of exampleBookingRecords()) {
-      expect(record.status).toBe("booked");
-      expect(record.href).toBeNull();
-    }
-  });
-
-  it("references the catalogue by slug, so the same icons draw for them", () => {
-    const [first] = exampleBookingRecords();
-    expect(first.experienceSlug).toMatch(/^[a-z0-9-]+$/);
-  });
-});
-
 describe("groupByStage", () => {
   it("returns every column, in lifecycle order, empty ones included", () => {
     expect(groupByStage([]).map((column) => column.status)).toEqual(REQUEST_STATUSES);
@@ -127,7 +105,7 @@ describe("groupByStage", () => {
     const records: SalesRecord[] = [
       recordFromRequest(tourRequest({ status: "new" })),
       recordFromRequest(tourRequest({ id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", status: "quoted" })),
-      ...exampleBookingRecords(),
+      recordFromRequest(tourRequest({ id: "bbbbbbbb-cccc-dddd-eeee-ffffffffffff", status: "booked" })),
     ];
 
     const byStatus = Object.fromEntries(
@@ -136,7 +114,7 @@ describe("groupByStage", () => {
 
     expect(byStatus.new).toBe(1);
     expect(byStatus.quoted).toBe(1);
-    expect(byStatus.booked).toBe(exampleBookingRecords().length);
+    expect(byStatus.booked).toBe(1);
     expect(byStatus.contacted).toBe(0);
   });
 });
