@@ -30,16 +30,15 @@ export default async function AdminAccountPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-1 text-sm text-muted-foreground">
             <p>{role.description}</p>
-            <p>Last signed in: {formatDateTime(viewer.lastLoginAt)}</p>
+            <p>Última entrada: {formatDateTime(viewer.lastLoginAt)}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Change your password</CardTitle>
+            <CardTitle>Mudar a palavra-passe</CardTitle>
             <CardDescription>
-              Everything you do in here is recorded against this account, so it should be
-              yours alone.
+              Tudo o que faz aqui fica registado nesta conta, por isso ela deve ser só sua.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -49,10 +48,11 @@ export default async function AdminAccountPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Sign out everywhere</CardTitle>
+            <CardTitle>Sair de todos os dispositivos</CardTitle>
             <CardDescription>
-              Ends every session on every device — a phone left in a taxi, a browser on a
-              shared computer. You will need to sign in again here too.
+              Termina todas as sessões em todos os dispositivos — um telemóvel esquecido
+              num táxi, um navegador num computador partilhado. Também terá de voltar a
+              entrar aqui.
             </CardDescription>
           </CardHeader>
           <CardContent>

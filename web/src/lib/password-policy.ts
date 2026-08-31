@@ -13,4 +13,4 @@
 export const MIN_PASSWORD_LENGTH = 12;
 
 /** The rule, as shown under a password field. */
-export const MIN_PASSWORD_LENGTH_HINT = `At least ${MIN_PASSWORD_LENGTH} characters. A short phrase works well.`;
+export const MIN_PASSWORD_LENGTH_HINT = `Pelo menos ${MIN_PASSWORD_LENGTH} caracteres. Uma frase curta funciona bem.`;

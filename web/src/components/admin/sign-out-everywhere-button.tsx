@@ -18,7 +18,7 @@ function ConfirmButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" variant="destructive" disabled={pending}>
-      {pending ? "Signing out…" : "Sign out everywhere"}
+      {pending ? "A terminar…" : "Sair de todos os dispositivos"}
     </Button>
   );
 }
@@ -35,21 +35,21 @@ export function SignOutEverywhereButton() {
     <>
       <Button type="button" variant="outline" onClick={() => setOpen(true)}>
         <LogOut className="size-4" />
-        Sign out everywhere
+        Sair de todos os dispositivos
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sign out of every device?</DialogTitle>
+            <DialogTitle>Terminar a sessão em todos os dispositivos?</DialogTitle>
             <DialogDescription>
-              Every session for your account ends immediately, including this one. Your
-              password does not change.
+              Todas as sessões da sua conta terminam de imediato, incluindo esta. A
+              palavra-passe não muda.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
+              Cancelar
             </Button>
             <form action={signOutEverywhere}>
               <ConfirmButton />

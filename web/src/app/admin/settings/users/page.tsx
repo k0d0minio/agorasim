@@ -38,8 +38,9 @@ export default async function AdminUsersPage() {
 
         <section className="flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">
-            {users.length} account{users.length === 1 ? "" : "s"}. Accounts are disabled
-            rather than deleted, so the audit log always resolves to a real person.
+            {users.length} conta{users.length === 1 ? "" : "s"}. As contas são desativadas
+            em vez de apagadas, para o registo de atividade corresponder sempre a uma
+            pessoa real.
           </p>
 
           {/* Phone & narrow screens: one stacked row per person — the
@@ -54,9 +55,9 @@ export default async function AdminUsersPage() {
                     <p className="min-w-0 flex-1 truncate font-medium">{user.name}</p>
                     <Badge variant={role.variant}>{role.label}</Badge>
                     {user.disabledAt ? (
-                      <Badge variant="outline">Disabled</Badge>
+                      <Badge variant="outline">Desativada</Badge>
                     ) : (
-                      <Badge variant="secondary">Active</Badge>
+                      <Badge variant="secondary">Ativa</Badge>
                     )}
                   </div>
                   <a
@@ -66,9 +67,9 @@ export default async function AdminUsersPage() {
                     {user.email}
                   </a>
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <dt>Added</dt>
+                    <dt>Criada</dt>
                     <dd>{formatDate(user.createdAt)}</dd>
-                    <dt>Last sign-in</dt>
+                    <dt>Última entrada</dt>
                     <dd>{formatDateTime(user.lastLoginAt)}</dd>
                   </dl>
                   <div>
@@ -90,12 +91,12 @@ export default async function AdminUsersPage() {
               <Table className="min-w-[760px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Person</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Added</TableHead>
-                    <TableHead>Last sign-in</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Pessoa</TableHead>
+                    <TableHead>Função</TableHead>
+                    <TableHead>Criada</TableHead>
+                    <TableHead>Última entrada</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -123,9 +124,9 @@ export default async function AdminUsersPage() {
                         </TableCell>
                         <TableCell>
                           {user.disabledAt ? (
-                            <Badge variant="outline">Disabled</Badge>
+                            <Badge variant="outline">Desativada</Badge>
                           ) : (
-                            <Badge variant="secondary">Active</Badge>
+                            <Badge variant="secondary">Ativa</Badge>
                           )}
                         </TableCell>
                         <TableCell className="text-right">

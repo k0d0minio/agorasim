@@ -28,13 +28,13 @@ export default async function AdminLoginPage({
             app reads as the app — not as a form on a blank page. */}
         <div className="mb-6 text-center">
           <p className="font-heading text-2xl font-semibold">Agorasim</p>
-          <p className="text-sm text-muted-foreground">Operations</p>
+          <p className="text-sm text-muted-foreground">Painel</p>
         </div>
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Sign in</CardTitle>
+            <CardTitle className="text-lg">Entrar</CardTitle>
             <CardDescription>
-              With your own account — everything in here is recorded against it.
+              Com a sua própria conta — tudo o que aqui se faz fica registado nela.
             </CardDescription>
           </CardHeader>
           <CardContent>
