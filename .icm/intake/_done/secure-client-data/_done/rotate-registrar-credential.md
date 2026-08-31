@@ -37,6 +37,6 @@ change the controlpanel.pro password (context: it was shared in a document that 
 briefly in a public code repository; the repo is private now, changing it is
 precautionary), present it to Jamie to send, and add a log line to
 `workspaces/deals/diogo-rita/DEAL.md` in the icm-board repo once Jamie confirms
-rotation. Read `.icm/intake/secure-client-data/rotate-registrar-credential.md` for
+rotation. Read `.icm/intake/_done/secure-client-data/_done/rotate-registrar-credential.md` for
 context. Never write the old or new password anywhere. No outbound action leaves the
 session — Jamie sends.
