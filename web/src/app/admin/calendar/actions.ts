@@ -55,9 +55,9 @@ export type AvailabilityActionState = {
   changed?: number;
 };
 
-/** "3 days" / "1 day" — the confirmation reads back what was done. */
+/** "3 dias" / "1 dia" — the confirmation reads back what was done. */
 function days(n: number): string {
-  return `${n} ${n === 1 ? "day" : "days"}`;
+  return `${n} ${n === 1 ? "dia" : "dias"}`;
 }
 
 /**
@@ -103,12 +103,12 @@ export async function setAvailability(
   const actor = await requireAdmin();
 
   const parsed = setAvailabilitySchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: "Couldn't read which days to change." };
+  if (!parsed.success) return { error: "Não foi possível perceber que dias mudar." };
 
   const { slots, status, drivers, note } = parsed.data;
   const dates = addressedDays(parsed.data);
-  if (dates.length === 0) return { error: "No days were selected." };
-  if (slots.length === 0) return { error: "Pick at least one departure." };
+  if (dates.length === 0) return { error: "Não foi selecionado nenhum dia." };
+  if (slots.length === 0) return { error: "Escolha pelo menos uma partida." };
 
   let written: DateKey[];
   try {
@@ -116,7 +116,7 @@ export async function setAvailability(
     written = Array.from(new Set(rows.map((row) => row.date)));
   } catch (err) {
     console.error("[admin] failed to write availability", err);
-    return { error: "Couldn't save — the calendar was not changed." };
+    return { error: "Não foi possível guardar — o calendário não mudou." };
   }
 
   await recordAuditOrWarn({
@@ -152,14 +152,14 @@ export async function setAvailability(
   const roster =
     drivers === undefined
       ? ""
-      : `, ${drivers} ${drivers === 1 ? "driver" : "drivers"} each`;
+      : `, ${drivers} ${drivers === 1 ? "condutor" : "condutores"} cada`;
   return {
     ok: true,
     changed: departures,
     message:
       status === "open"
-        ? `${days(written.length)} on sale (${departures} departures)${roster}.`
-        : `${days(written.length)} closed.`,
+        ? `${days(written.length)} à venda (${departures} partidas)${roster}.`
+        : `${days(written.length)} fechados.`,
   };
 }
 
@@ -185,12 +185,12 @@ export async function clearAvailability(
   const actor = await requireAdmin();
 
   const parsed = clearAvailabilitySchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: "Couldn't read which days to clear." };
+  if (!parsed.success) return { error: "Não foi possível perceber que dias limpar." };
 
   const { slots } = parsed.data;
   const dates = addressedDays(parsed.data);
-  if (dates.length === 0) return { error: "No days were selected." };
-  if (slots.length === 0) return { error: "Pick at least one departure." };
+  if (dates.length === 0) return { error: "Não foi selecionado nenhum dia." };
+  if (slots.length === 0) return { error: "Escolha pelo menos uma partida." };
 
   let sold: Set<string>;
   try {
@@ -199,15 +199,19 @@ export async function clearAvailability(
     // Refuse rather than proceed: the check exists to protect a sold day, and
     // a check that fails open is not a check.
     console.error("[admin] couldn't check for bookings before clearing days", err);
-    return { error: "Couldn't check for bookings, so nothing was cleared. Try again." };
+    return {
+      error:
+        "Não foi possível verificar se havia reservas, por isso nada foi limpo. " +
+        "Tente novamente.",
+    };
   }
 
   if (sold.size > 0) {
     const listed = [...sold].sort().join(", ");
     return {
       error:
-        `${listed} ${sold.size === 1 ? "has" : "have"} bookings on ${sold.size === 1 ? "it" : "them"}, ` +
-        "so nothing was cleared. Close the day instead — the bookings stay visible.",
+        `${listed} ${sold.size === 1 ? "tem reservas" : "têm reservas"}, por isso nada ` +
+        "foi limpo. Feche o dia em vez disso — as reservas continuam visíveis.",
     };
   }
 
@@ -216,7 +220,7 @@ export async function clearAvailability(
     removed = await clearDays({ dates, slots });
   } catch (err) {
     console.error("[admin] failed to clear availability", err);
-    return { error: "Couldn't save — the calendar was not changed." };
+    return { error: "Não foi possível guardar — o calendário não mudou." };
   }
 
   await recordAuditOrWarn({
@@ -232,6 +236,9 @@ export async function clearAvailability(
   return {
     ok: true,
     changed: removed,
-    message: `${removed} ${removed === 1 ? "departure" : "departures"} cleared — back to "not decided".`,
+    message:
+      removed === 1
+        ? "1 partida limpa — volta a não estar decidida."
+        : `${removed} partidas limpas — voltam a não estar decididas.`,
   };
 }

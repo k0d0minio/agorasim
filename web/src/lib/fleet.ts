@@ -62,7 +62,12 @@ export function isVehicleClass(value: unknown): value is VehicleClass {
 /** One car on the road, as the team would name it. */
 export type Vehicle = {
   id: string;
-  /** What it is called out loud — the admin calendar's legend reads this. */
+  /**
+   * What it is called out loud — the admin calendar's legend reads this, and
+   * only the admin calendar does, so it is written in Portuguese like the rest
+   * of that console. Four of the five are proper nouns and read the same in
+   * either language.
+   */
   name: string;
   class: VehicleClass;
   /** Guests it carries. Everyone counts, infants included: the cars are small. */
@@ -83,7 +88,7 @@ export const FLEET: readonly Vehicle[] = [
   { id: "renault-4l", name: "Renault 4L", class: "classic-small", seats: 3 },
   { id: "fiat-600", name: "Fiat 600", class: "classic-small", seats: 3 },
   { id: "vw-t3", name: "VW T3", class: "classic-van", seats: 8 },
-  { id: "touring", name: "Touring vehicle", class: "touring", seats: 8 },
+  { id: "touring", name: "Viatura de turismo", class: "touring", seats: 8 },
 ];
 
 /** How many of each class exist. The denominator of every vehicle pool. */
