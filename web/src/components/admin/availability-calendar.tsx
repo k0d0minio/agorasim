@@ -11,7 +11,8 @@ import {
   setAvailability,
   type AvailabilityActionState,
 } from "@/app/admin/calendar/actions";
-import type { AvailabilityDay, DaySlots } from "@/lib/availability";
+import type { DaySlots, SlotAvailability } from "@/lib/availability";
+import { VEHICLE_CLASSES, type VehicleClass } from "@/lib/fleet";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,10 +30,17 @@ import { Label } from "@/components/ui/label";
 /**
  * The availability calendar — Diogo & Rita's morning screen.
  *
- * Since AGORA-002 it manages **two departures a day per tour**: every day cell
- * carries a morning and an afternoon state, the day sheet edits either or
- * both, and the tour being planned is a tab above the grid (the page passes
- * one tour's month at a time — the slug lives in the URL next to the month).
+ * Since AGORA-012 it manages **one shared calendar**, not one per tour: a day
+ * cell carries the morning and afternoon of the whole business, because the
+ * business has two drivers and four cars and a tour that leaves at 10:00 takes
+ * one of each whichever route it is. The tour tabs that used to sit above the
+ * grid are gone, and with them the quiet promise that opening a Saturday for
+ * one tour left the other alone.
+ *
+ * What an operator sets is the **roster**: how many drivers are on a departure.
+ * The fleet is not a field — four cars and a touring vehicle is a fact about
+ * the business, not something to re-enter for every Tuesday — so a car in the
+ * garage is a note and a driver taken off, or a closed departure.
  *
  * Built to the admin mobile spec (`docs/admin-mobile-design-spec.md`) because
  * it is used standing next to a car, one-handed:
@@ -41,15 +49,16 @@ import { Label } from "@/components/ui/label";
  *   still fits the 320px reflow floor (D2).
  * - Editing a day opens the shared responsive dialog — a bottom sheet on a
  *   phone, a centred dialog from `sm` up (S1).
- * - Month and tour paging are `<Link>`s, not client state (V3): the back-swipe
- *   an installed PWA cannot disable stays meaningful, and a reload lands where
+ * - Month paging is `<Link>`s, not client state (V3): the back-swipe an
+ *   installed PWA cannot disable stays meaningful, and a reload lands where
  *   the operator was.
- * - Nothing requires a drag (T6). Capacity is a stepper; the bulk sweeps are
- *   buttons, not a rubber-band selection.
+ * - Nothing requires a drag (T6). The roster is a stepper; the bulk sweeps and
+ *   the seasonal window are buttons and two native date fields.
  *
- * The heavy work is the bulk row. "Open every remaining departure this month"
- * is one tap and one round trip — the alternative is sixty taps on 4G in a
- * courtyard, which is how a calendar stops being kept up to date.
+ * The heavy work is the bulk row and the season card. "Close everything until
+ * April" is one gesture and one round trip — the alternative is two hundred
+ * taps on 4G in a courtyard, which is how a calendar stops being kept up to
+ * date.
  */
 
 /**
@@ -61,13 +70,27 @@ import { Label } from "@/components/ui/label";
  */
 export type CalendarDay = DaySlots & { longLabel: string };
 
-/** A tour tab above the grid. */
-export type CalendarTour = { slug: string; name: string };
+/** One car, as the legend names it. */
+export type CalendarVehicle = { name: string; seats: number };
 
 const SLOT_SHORT: Record<string, string> = { morning: "10h", afternoon: "14h" };
 
+/** "2 classic, 1 T3" — the cars a departure still has free, in words. */
+const CLASS_WORDS: Record<VehicleClass, string> = {
+  "classic-small": "classic",
+  "classic-van": "T3",
+  touring: "touring",
+};
+
+function carsLeft(slot: SlotAvailability): string {
+  const parts = VEHICLE_CLASSES.filter((entry) => slot.vehiclesLeft[entry] > 0).map(
+    (entry) => `${slot.vehiclesLeft[entry]} ${CLASS_WORDS[entry]}`,
+  );
+  return parts.length > 0 ? parts.join(", ") : "no cars";
+}
+
 /** How one departure reads inside a day cell, at arm's length. */
-function slotTone(slot: AvailabilityDay): { className: string; text: string } {
+function slotTone(slot: SlotAvailability): { className: string; text: string } {
   const short = SLOT_SHORT[slot.slot] ?? slot.slot;
   if (slot.status === null) {
     return { className: "text-muted-foreground/50", text: short };
@@ -75,13 +98,21 @@ function slotTone(slot: AvailabilityDay): { className: string; text: string } {
   if (slot.status === "closed") {
     return { className: "text-destructive", text: `${short}×` };
   }
-  if (slot.exclusiveHold) {
-    return { className: "font-semibold text-foreground", text: `${short}P` };
-  }
-  if (slot.seatsLeft === 0) {
+  if (!slot.bookable) {
     return { className: "font-semibold text-foreground", text: `${short}✓` };
   }
-  return { className: "font-semibold text-primary", text: `${short}·${slot.seatsLeft}` };
+  // The number is drivers still free — how many more tours can leave at all.
+  return { className: "font-semibold text-primary", text: `${short}·${slot.driversLeft}` };
+}
+
+/** One departure, spoken for a screen reader and for the day sheet's summary. */
+function slotSentence(slot: SlotAvailability): string {
+  const short = SLOT_SHORT[slot.slot] ?? slot.slot;
+  if (slot.status === null) return `${short} not on sale`;
+  if (slot.status === "closed") return `${short} closed`;
+  if (slot.driversLeft === 0) return `${short} both drivers out`;
+  if (!slot.bookable) return `${short} no cars left`;
+  return `${short} ${slot.driversLeft} of ${slot.drivers} drivers free, ${carsLeft(slot)}`;
 }
 
 /** The whole cell: border from the "best" state, captions from both slots. */
@@ -102,16 +133,6 @@ function cellAppearance(day: CalendarDay): {
 
   const anyOpen = day.slots.some((slot) => slot.status === "open");
   const anyDecided = day.slots.some((slot) => slot.status !== null);
-  const spoken = day.slots
-    .map((slot) => {
-      const short = SLOT_SHORT[slot.slot] ?? slot.slot;
-      if (slot.status === null) return `${short} not on sale`;
-      if (slot.status === "closed") return `${short} closed`;
-      if (slot.exclusiveHold) return `${short} private booking`;
-      if (slot.seatsLeft === 0) return `${short} full`;
-      return `${short} ${slot.seatsLeft} of ${slot.capacity} seats left`;
-    })
-    .join(", ");
 
   return {
     className: anyOpen
@@ -120,7 +141,7 @@ function cellAppearance(day: CalendarDay): {
         ? "border-input bg-muted/40"
         : "border-dashed border-input hover:bg-muted",
     disabled: false,
-    label: `${dayNumber} — ${spoken}`,
+    label: `${dayNumber} — ${day.slots.map(slotSentence).join(", ")}`,
   };
 }
 
@@ -137,34 +158,33 @@ function SubmitButton({
   pendingLabel,
   name,
   value,
+  disabled,
 }: {
   children: React.ReactNode;
   variant?: React.ComponentProps<typeof Button>["variant"];
   pendingLabel: string;
   name?: string;
   value?: string;
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant={variant} name={name} value={value} disabled={pending}>
+    <Button
+      type="submit"
+      variant={variant}
+      name={name}
+      value={value}
+      disabled={pending || disabled}
+    >
       {pending ? pendingLabel : children}
     </Button>
   );
 }
 
-/** The hidden fields every write is addressed with. */
-function WriteFields({
-  experience,
-  dates,
-  slots,
-}: {
-  experience: string;
-  dates: string[];
-  slots: string[];
-}) {
+/** The days and departures a write is addressed to. */
+function WriteFields({ dates, slots }: { dates: string[]; slots: string[] }) {
   return (
     <>
-      <input type="hidden" name="experience" value={experience} />
       {dates.map((date) => (
         <input key={date} type="hidden" name="dates" value={date} />
       ))}
@@ -177,7 +197,7 @@ function WriteFields({
 
 /**
  * One day's editor: pick which departures the change addresses, then open,
- * close, or forget them — plus how many seats, and why.
+ * close, or forget them — plus how many drivers are on, and why.
  *
  * "Clear" is a third choice rather than a delete button in a corner: an
  * operator who opened the wrong month wants the departures back to
@@ -185,17 +205,15 @@ function WriteFields({
  * refusals nobody meant.
  */
 function DayEditor({
-  experience,
   day,
-  defaultCapacity,
-  maxCapacity,
+  defaultDrivers,
+  maxDrivers,
   onDone,
   onOpenChange,
 }: {
-  experience: string;
   day: CalendarDay;
-  defaultCapacity: number;
-  maxCapacity: number;
+  defaultDrivers: number;
+  maxDrivers: number;
   onDone: () => void;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -212,7 +230,7 @@ function DayEditor({
     editable.map((slot) => slot.slot),
   );
   const first = editable.find((slot) => chosenSlots.includes(slot.slot)) ?? editable[0];
-  const [capacity, setCapacity] = useState(first?.capacity || defaultCapacity);
+  const [drivers, setDrivers] = useState(first?.drivers || defaultDrivers);
   const [note, setNote] = useState(first?.note ?? "");
 
   const done = save.ok || clear.ok;
@@ -223,9 +241,9 @@ function DayEditor({
   const error = save.error ?? clear.error;
   const fieldId = `day-${day.date}`;
   const anyDecided = editable.some((slot) => slot.status !== null);
-  const soldInSelection = editable
+  const outInSelection = editable
     .filter((slot) => chosenSlots.includes(slot.slot))
-    .reduce((sum, slot) => sum + slot.booked, 0);
+    .reduce((sum, slot) => sum + slot.driversUsed, 0);
 
   function toggleSlot(slot: string) {
     setChosenSlots((previous) =>
@@ -241,15 +259,7 @@ function DayEditor({
         <DialogHeader>
           <DialogTitle>{day.longLabel}</DialogTitle>
           <DialogDescription>
-            {editable
-              .map((slot) => {
-                const short = SLOT_SHORT[slot.slot] ?? slot.slot;
-                if (slot.status === null) return `${short}: not on sale`;
-                if (slot.status === "closed") return `${short}: closed`;
-                if (slot.exclusiveHold) return `${short}: private booking`;
-                return `${short}: ${slot.booked} of ${slot.capacity} sold`;
-              })
-              .join(" · ")}
+            {editable.map(slotSentence).join(" · ")}
           </DialogDescription>
         </DialogHeader>
 
@@ -286,26 +296,26 @@ function DayEditor({
         </div>
 
         <form action={saveAction} className="flex flex-col gap-4">
-          <WriteFields experience={experience} dates={[day.date]} slots={chosenSlots} />
-          <input type="hidden" name="capacity" value={capacity} />
+          <WriteFields dates={[day.date]} slots={chosenSlots} />
+          <input type="hidden" name="drivers" value={drivers} />
           <input type="hidden" name="note" value={note} />
 
           <div
             role="group"
-            aria-labelledby={`${fieldId}-capacity-label`}
+            aria-labelledby={`${fieldId}-drivers-label`}
             className="flex flex-col gap-1.5"
           >
-            <span id={`${fieldId}-capacity-label`} className="text-sm font-medium">
-              Seats per departure
+            <span id={`${fieldId}-drivers-label`} className="text-sm font-medium">
+              Drivers on each departure
             </span>
             <div className="flex items-center gap-4">
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                aria-label="One seat fewer"
-                disabled={capacity <= 1}
-                onClick={() => setCapacity((n) => Math.max(1, n - 1))}
+                aria-label="One driver fewer"
+                disabled={drivers <= 1}
+                onClick={() => setDrivers((n) => Math.max(1, n - 1))}
               >
                 <Minus className="size-4" />
               </Button>
@@ -313,24 +323,28 @@ function DayEditor({
                 aria-live="polite"
                 className="min-w-10 text-center font-heading text-2xl font-semibold"
               >
-                {capacity}
+                {drivers}
               </output>
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                aria-label="One seat more"
-                disabled={capacity >= maxCapacity}
-                onClick={() => setCapacity((n) => Math.min(maxCapacity, n + 1))}
+                aria-label="One driver more"
+                disabled={drivers >= maxDrivers}
+                onClick={() => setDrivers((n) => Math.min(maxDrivers, n + 1))}
               >
                 <Plus className="size-4" />
               </Button>
-              {soldInSelection > 0 ? (
+              {outInSelection > 0 ? (
                 <span className="text-xs text-muted-foreground">
-                  {soldInSelection} already sold
+                  {outInSelection} already out
                 </span>
               ) : null}
             </div>
+            <p className="text-xs text-muted-foreground">
+              How many tours can leave at once — across every route. Two is the
+              roster; drop it to one when somebody is away.
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -368,7 +382,7 @@ function DayEditor({
 
         {anyDecided ? (
           <form action={clearAction} className="border-t pt-3">
-            <WriteFields experience={experience} dates={[day.date]} slots={chosenSlots} />
+            <WriteFields dates={[day.date]} slots={chosenSlots} />
             <SubmitButton variant="ghost" pendingLabel="Clearing…">
               Clear these departures
             </SubmitButton>
@@ -399,14 +413,12 @@ const BOTH_SLOTS = ["morning", "afternoon"];
  * exceptions. Sweeps address both departures of every remaining day.
  */
 function BulkActions({
-  experience,
   days,
-  defaultCapacity,
+  defaultDrivers,
   onDone,
 }: {
-  experience: string;
   days: CalendarDay[];
-  defaultCapacity: number;
+  defaultDrivers: number;
   onDone: () => void;
 }) {
   const [state, formAction] = useActionState<AvailabilityActionState, FormData>(
@@ -435,12 +447,8 @@ function BulkActions({
       <p className="text-sm font-medium">Set the whole month</p>
       <div className="flex flex-wrap gap-2">
         <form action={formAction}>
-          <WriteFields
-            experience={experience}
-            dates={remaining.map((day) => day.date)}
-            slots={BOTH_SLOTS}
-          />
-          <input type="hidden" name="capacity" value={defaultCapacity} />
+          <WriteFields dates={remaining.map((day) => day.date)} slots={BOTH_SLOTS} />
+          <input type="hidden" name="drivers" value={defaultDrivers} />
           <input type="hidden" name="status" value="open" />
           <SubmitButton variant="outline" pendingLabel="Opening…">
             Open all {remaining.length}
@@ -448,12 +456,8 @@ function BulkActions({
         </form>
 
         <form action={formAction}>
-          <WriteFields
-            experience={experience}
-            dates={weekends.map((day) => day.date)}
-            slots={BOTH_SLOTS}
-          />
-          <input type="hidden" name="capacity" value={defaultCapacity} />
+          <WriteFields dates={weekends.map((day) => day.date)} slots={BOTH_SLOTS} />
+          <input type="hidden" name="drivers" value={defaultDrivers} />
           <input type="hidden" name="status" value="open" />
           <SubmitButton variant="outline" pendingLabel="Opening…">
             Open weekends ({weekends.length})
@@ -461,12 +465,8 @@ function BulkActions({
         </form>
 
         <form action={formAction}>
-          <WriteFields
-            experience={experience}
-            dates={remaining.map((day) => day.date)}
-            slots={BOTH_SLOTS}
-          />
-          <input type="hidden" name="capacity" value={defaultCapacity} />
+          <WriteFields dates={remaining.map((day) => day.date)} slots={BOTH_SLOTS} />
+          <input type="hidden" name="drivers" value={defaultDrivers} />
           <input type="hidden" name="status" value="closed" />
           <SubmitButton variant="outline" pendingLabel="Closing…">
             Close all
@@ -486,31 +486,131 @@ function BulkActions({
       ) : null}
       <p className="text-xs text-muted-foreground">
         Sweeps touch both departures of every day from today onwards, and they
-        overwrite whatever those departures said before. Seats default to{" "}
-        {defaultCapacity} per departure; open a day to adjust one.
+        overwrite whatever those departures said before. Drivers default to{" "}
+        {defaultDrivers} per departure; open a day to adjust one.
       </p>
     </div>
   );
 }
 
+/**
+ * The seasonal window: open or close a stretch of dates in one gesture.
+ *
+ * The business has a season (§1.5), and a season is not a month — "closed from
+ * the 3rd of November until the 20th of March" spans five month pages and four
+ * hundred taps if the only tool is a grid. Two native date fields post `from`
+ * and `to` and the server expands them, capped, so this is one round trip
+ * whatever the range.
+ *
+ * Deliberately outside the month pager: it is not a fact about the month on
+ * screen, and putting it there would suggest it was.
+ */
+function SeasonWindow({ today, defaultDrivers, onDone }: {
+  today: string;
+  defaultDrivers: number;
+  onDone: () => void;
+}) {
+  const [state, formAction] = useActionState<AvailabilityActionState, FormData>(
+    setAvailability,
+    {},
+  );
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  const ok = state.ok;
+  useEffect(() => {
+    if (ok) onDone();
+  }, [ok, onDone]);
+
+  // Backwards ranges are refused here as well as server-side: the server's
+  // answer would be "no days were selected", which is true and unhelpful.
+  const usable = from !== "" && to !== "" && from <= to;
+
+  return (
+    <form action={formAction} className="flex flex-col gap-3">
+      <div>
+        <p className="text-sm font-medium">A whole stretch of dates</p>
+        <p className="text-xs text-muted-foreground">
+          The season, a holiday, a fortnight the cars are away — both departures of
+          every day between these two, inclusive.
+        </p>
+      </div>
+
+      <input type="hidden" name="drivers" value={defaultDrivers} />
+      {BOTH_SLOTS.map((slot) => (
+        <input key={slot} type="hidden" name="slots" value={slot} />
+      ))}
+
+      <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="season-from">From</Label>
+          <Input
+            id="season-from"
+            name="from"
+            type="date"
+            min={today}
+            value={from}
+            onChange={(event) => setFrom(event.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="season-to">To</Label>
+          <Input
+            id="season-to"
+            name="to"
+            type="date"
+            min={from || today}
+            value={to}
+            onChange={(event) => setTo(event.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <SubmitButton
+          variant="outline"
+          name="status"
+          value="closed"
+          pendingLabel="Closing…"
+          disabled={!usable}
+        >
+          Close this range
+        </SubmitButton>
+        <SubmitButton name="status" value="open" pendingLabel="Opening…" disabled={!usable}>
+          Open this range
+        </SubmitButton>
+      </div>
+
+      {state.error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {state.error}
+        </p>
+      ) : null}
+      {state.message ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          {state.message}
+        </p>
+      ) : null}
+      <p className="text-xs text-muted-foreground">
+        Up to a year at a time. Days already sold keep their bookings — closing a
+        day stops new ones, it never cancels an old one.
+      </p>
+    </form>
+  );
+}
+
 export function AvailabilityCalendar({
-  experience,
-  tours,
-  month,
   monthLabel,
   weekdays,
   grid,
   days,
   previousMonth,
   nextMonth,
-  defaultCapacity,
-  maxCapacity,
+  defaultDrivers,
+  maxDrivers,
+  fleet,
+  today,
 }: {
-  /** The tour whose calendar is on screen. */
-  experience: string;
-  /** Every bookable tour, for the tabs. */
-  tours: CalendarTour[];
-  month: string;
   monthLabel: string;
   weekdays: readonly string[];
   /** Month grid with leading `null`s for the blank cells before the 1st. */
@@ -519,8 +619,12 @@ export function AvailabilityCalendar({
   /** `null` at the ends of the window — the arrow renders disabled. */
   previousMonth: string | null;
   nextMonth: string | null;
-  defaultCapacity: number;
-  maxCapacity: number;
+  defaultDrivers: number;
+  maxDrivers: number;
+  /** The cars, for the legend — why a departure can be full with a driver free. */
+  fleet: CalendarVehicle[];
+  /** Today in Lisbon, as the floor of the season fields. */
+  today: string;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
@@ -531,35 +635,17 @@ export function AvailabilityCalendar({
   const openSlots = days.flatMap((day) =>
     day.slots.filter((slot) => slot.status === "open"),
   );
-  const seatsOnSale = openSlots.reduce((sum, slot) => sum + slot.seatsLeft, 0);
+  const toursLeft = openSlots.reduce((sum, slot) => sum + slot.driversLeft, 0);
 
   function refresh() {
     setSelected(null);
     router.refresh();
   }
 
-  const calendarHref = (slug: string, monthKey: string) =>
-    `/admin/calendar?experience=${slug}&month=${monthKey}`;
+  const calendarHref = (monthKey: string) => `/admin/calendar?month=${monthKey}`;
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Which tour is being planned. Links, so the URL says. */}
-      <div role="tablist" aria-label="Tour" className="flex flex-wrap gap-2">
-        {tours.map((tour) => {
-          const active = tour.slug === experience;
-          return (
-            <Button
-              key={tour.slug}
-              asChild
-              variant={active ? "default" : "outline"}
-              aria-current={active ? "page" : undefined}
-            >
-              <Link href={calendarHref(tour.slug, month)}>{tour.name}</Link>
-            </Button>
-          );
-        })}
-      </div>
-
       <Card className="gap-3 p-3 sm:p-4">
         <div className="flex items-center justify-between gap-2">
           <Button
@@ -570,7 +656,7 @@ export function AvailabilityCalendar({
             aria-label="Previous month"
           >
             {previousMonth ? (
-              <Link href={calendarHref(experience, previousMonth)}>
+              <Link href={calendarHref(previousMonth)}>
                 <ChevronLeft className="size-5" />
               </Link>
             ) : (
@@ -588,7 +674,7 @@ export function AvailabilityCalendar({
             aria-label="Next month"
           >
             {nextMonth ? (
-              <Link href={calendarHref(experience, nextMonth)}>
+              <Link href={calendarHref(nextMonth)}>
                 <ChevronRight className="size-5" />
               </Link>
             ) : (
@@ -647,30 +733,25 @@ export function AvailabilityCalendar({
 
       <p className="text-sm text-muted-foreground">
         {openSlots.length} {openSlots.length === 1 ? "departure" : "departures"} on sale
-        this month · {seatsOnSale} {seatsOnSale === 1 ? "seat" : "seats"} still available
+        this month · {toursLeft} {toursLeft === 1 ? "tour" : "tours"} could still be sold
       </p>
 
       <Card className="p-4">
-        <BulkActions
-          experience={experience}
-          days={days}
-          defaultCapacity={defaultCapacity}
-          onDone={refresh}
-        />
+        <BulkActions days={days} defaultDrivers={defaultDrivers} onDone={refresh} />
+      </Card>
+
+      <Card className="p-4">
+        <SeasonWindow today={today} defaultDrivers={defaultDrivers} onDone={refresh} />
       </Card>
 
       <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-primary">10h·3</span>
-          <span>on sale, seats left</span>
+          <span className="font-semibold text-primary">10h·2</span>
+          <span>on sale, drivers still free</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="font-semibold text-foreground">10h✓</span>
-          <span>full</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-foreground">10hP</span>
-          <span>private booking</span>
+          <span>fully committed</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-destructive">10h×</span>
@@ -682,13 +763,18 @@ export function AvailabilityCalendar({
         </div>
       </dl>
 
+      <p className="text-xs text-muted-foreground">
+        A departure can be full with a driver still free — the group needs a car
+        somebody else already has. The fleet:{" "}
+        {fleet.map((vehicle) => `${vehicle.name} (${vehicle.seats})`).join(" · ")}.
+      </p>
+
       {selectedDay ? (
         <DayEditor
           key={selectedDay.date}
-          experience={experience}
           day={selectedDay}
-          defaultCapacity={defaultCapacity}
-          maxCapacity={maxCapacity}
+          defaultDrivers={defaultDrivers}
+          maxDrivers={maxDrivers}
           onDone={refresh}
           onOpenChange={(open) => {
             if (!open) setSelected(null);

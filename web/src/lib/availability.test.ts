@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   addMonths,
-  defaultCapacityFor,
-  describeDay,
+  DEFAULT_DRIVERS,
   describeMonth,
+  describeSlot,
   dateKey,
+  expandDateRange,
   fitsParty,
   formatDay,
   formatMonth,
@@ -25,6 +26,8 @@ import {
   TOUR_SLOTS,
   weekdayIndex,
 } from "@/lib/availability";
+import { FLEET_SIZE, noVehicles, type VehicleClass } from "@/lib/fleet";
+import type { SlotOccupancy } from "@/lib/bookings";
 import type { AvailabilityRow } from "@/db";
 
 /**
@@ -32,27 +35,36 @@ import type { AvailabilityRow } from "@/db";
  *
  * Everything here is a wrong answer that would not throw: a February that
  * grows a 30th, a grid whose first column is Sunday, a departure in the past
- * offered for sale, a "seats left" that goes negative when capacity is
- * lowered under a paid booking, a slot with a live private booking sold as if
- * it were shared. The reads and writes are not here — they are typed queries
- * covered by the build, per the convention in `sales.test.ts`.
+ * offered for sale, a "drivers left" that goes negative when the roster is cut
+ * under a paid booking — and, since AGORA-012, the two the old per-tour model
+ * got wrong outright: a departure selling a driver Óbidos has already taken,
+ * and a second party of five being offered a T3 that is out with the first.
+ * The reads and writes are not here — they are typed queries covered by the
+ * build, per the convention in `sales.test.ts`.
  */
 
-const CAPACITY = defaultCapacityFor("rural-saloia");
+const CLASSIC_TOUR = "rural-saloia";
+const TOURING_TOUR = "obidos-medieval-villages";
 
 function row(overrides: Partial<AvailabilityRow> = {}): AvailabilityRow {
   return {
     id: "11111111-2222-3333-4444-555555555555",
-    experienceSlug: "rural-saloia",
     date: "2026-08-15",
     slot: "morning",
-    capacity: CAPACITY,
+    drivers: DEFAULT_DRIVERS,
     status: "open",
     note: null,
     createdAt: new Date("2026-08-01T10:00:00Z"),
     updatedAt: new Date("2026-08-01T10:00:00Z"),
     ...overrides,
   };
+}
+
+/** Occupancy as a list of "this class of car went out", one driver each. */
+function committed(...classes: VehicleClass[]): SlotOccupancy {
+  const vehicles = noVehicles();
+  for (const entry of classes) vehicles[entry] += 1;
+  return { drivers: classes.length, vehicles };
 }
 
 describe("isDateKey", () => {
@@ -196,160 +208,175 @@ describe("monthWindow", () => {
   });
 });
 
-describe("describeDay", () => {
+describe("describeSlot", () => {
   const today = "2026-08-10";
 
   it("is not bookable when nobody has opened the departure", () => {
-    const day = describeDay({ date: "2026-08-15", slot: "morning", row: null, today });
-    expect(day).toMatchObject({
+    const slot = describeSlot({ date: "2026-08-15", slot: "morning", row: null, today });
+    expect(slot).toMatchObject({
       status: null,
-      capacity: 0,
-      seatsLeft: 0,
+      drivers: 0,
+      driversLeft: 0,
+      onSale: false,
       bookable: false,
-      privateBookable: false,
       past: false,
     });
   });
 
-  it("is bookable when a row says open and seats remain", () => {
-    const day = describeDay({
+  it("is bookable when a row says open and a driver and a car are free", () => {
+    const slot = describeSlot({
       date: "2026-08-15",
       slot: "morning",
       row: row(),
-      occupancy: { seats: 1, exclusive: false },
+      occupancy: committed("classic-small"),
       today,
     });
-    expect(day.bookable).toBe(true);
-    expect(day.seatsLeft).toBe(CAPACITY - 1);
-    // One seat sold: the slot can no longer be taken privately.
-    expect(day.privateBookable).toBe(false);
+    expect(slot.bookable).toBe(true);
+    expect(slot.driversUsed).toBe(1);
+    expect(slot.driversLeft).toBe(DEFAULT_DRIVERS - 1);
+    expect(slot.vehiclesLeft["classic-small"]).toBe(FLEET_SIZE["classic-small"] - 1);
+    // The car that went out is the only one the count touches.
+    expect(slot.vehiclesLeft["classic-van"]).toBe(FLEET_SIZE["classic-van"]);
   });
 
-  it("can be taken privately only while nothing is sold into it", () => {
-    const untouched = describeDay({ date: "2026-08-15", slot: "morning", row: row(), today });
-    expect(untouched.privateBookable).toBe(true);
-  });
-
-  it("answers sold out while a private booking owns the slot", () => {
-    // The whole point of `exclusive`: two seats of arithmetic would say ten
-    // seats remain, and every one of them belongs to the private group.
-    const day = describeDay({
+  it("counts a booking on the other tour against the same drivers", () => {
+    // The whole of AGORA-012 in one assertion. Óbidos took the touring
+    // vehicle, which the classics never share — but it took a *driver*, and
+    // the old per-tour calendars could not see that at all.
+    const slot = describeSlot({
       date: "2026-08-15",
       slot: "morning",
-      row: row(),
-      occupancy: { seats: 2, exclusive: true },
+      row: row({ drivers: 2 }),
+      occupancy: committed("touring", "classic-small"),
       today,
     });
-    expect(day.exclusiveHold).toBe(true);
-    expect(day.bookable).toBe(false);
-    expect(day.privateBookable).toBe(false);
+    expect(slot.driversLeft).toBe(0);
+    expect(slot.bookable).toBe(false);
+    // Cars to spare, and nobody to drive them.
+    expect(slot.vehiclesLeft["classic-van"]).toBe(FLEET_SIZE["classic-van"]);
   });
 
   it("is not bookable when the team closed it", () => {
-    const day = describeDay({
+    const slot = describeSlot({
       date: "2026-08-15",
       slot: "morning",
       row: row({ status: "closed", note: "Diogo em casamento" }),
       today,
     });
-    expect(day.bookable).toBe(false);
-    expect(day.privateBookable).toBe(false);
+    expect(slot.onSale).toBe(false);
+    expect(slot.bookable).toBe(false);
     // The note stays on the record — the admin renders it, the guest never does.
-    expect(day.note).toBe("Diogo em casamento");
+    expect(slot.note).toBe("Diogo em casamento");
   });
 
-  it("is not bookable once the seats are gone", () => {
-    const day = describeDay({
+  it("never reports negative drivers when the roster is cut under a booking", () => {
+    const slot = describeSlot({
       date: "2026-08-15",
       slot: "morning",
-      row: row(),
-      occupancy: { seats: CAPACITY, exclusive: false },
+      row: row({ drivers: 1 }),
+      occupancy: committed("classic-small", "classic-van"),
       today,
     });
-    expect(day.seatsLeft).toBe(0);
-    expect(day.bookable).toBe(false);
-  });
-
-  it("never reports negative seats when capacity is cut under a paid booking", () => {
-    const day = describeDay({
-      date: "2026-08-15",
-      slot: "morning",
-      row: row({ capacity: 1 }),
-      occupancy: { seats: 3, exclusive: false },
-      today,
-    });
-    expect(day.seatsLeft).toBe(0);
-    expect(day.bookable).toBe(false);
+    expect(slot.driversLeft).toBe(0);
+    expect(slot.bookable).toBe(false);
   });
 
   it("refuses the past, however open the row is", () => {
-    const day = describeDay({
+    const slot = describeSlot({
       date: "2026-08-09",
       slot: "morning",
       row: row({ date: "2026-08-09" }),
       today,
     });
-    expect(day.past).toBe(true);
-    expect(day.bookable).toBe(false);
-    expect(day.privateBookable).toBe(false);
+    expect(slot.past).toBe(true);
+    expect(slot.bookable).toBe(false);
   });
 
   it("still sells today", () => {
     // The day itself is not the past. Whether a same-day booking is *wise* is
     // the team's call, and they make it by closing the day.
-    const day = describeDay({ date: today, slot: "morning", row: row({ date: today }), today });
-    expect(day.past).toBe(false);
-    expect(day.bookable).toBe(true);
+    const slot = describeSlot({
+      date: today,
+      slot: "morning",
+      row: row({ date: today }),
+      today,
+    });
+    expect(slot.past).toBe(false);
+    expect(slot.bookable).toBe(true);
   });
 });
 
 describe("fitsParty", () => {
   const today = "2026-08-10";
-  const day = describeDay({
-    date: "2026-08-15",
-    slot: "morning",
-    row: row({ capacity: 3 }),
-    occupancy: { seats: 2, exclusive: false },
-    today,
+  const open = (occupancy?: SlotOccupancy) =>
+    describeSlot({ date: "2026-08-15", slot: "morning", row: row(), occupancy, today });
+
+  it("puts a small party in a small classic and a bigger one in the T3", () => {
+    expect(fitsParty(open(), CLASSIC_TOUR, 3)).toEqual({
+      ok: true,
+      vehicleClass: "classic-small",
+    });
+    expect(fitsParty(open(), CLASSIC_TOUR, 4)).toEqual({
+      ok: true,
+      vehicleClass: "classic-van",
+    });
   });
 
-  it("takes a party that fits in what is left", () => {
-    expect(fitsParty(day, 1)).toBe(true);
+  it("puts Óbidos in the touring vehicle, whatever the party", () => {
+    // §2.6: the classic cars stay on the Saloia routes. A party of two going to
+    // Óbidos must not take a 2CV off them.
+    for (const size of [2, 5, 8]) {
+      expect(fitsParty(open(), TOURING_TOUR, size)).toEqual({
+        ok: true,
+        vehicleClass: "touring",
+      });
+    }
   });
 
-  it("refuses a party larger than the remaining seats", () => {
-    // The slot is bookable and still a "no" to this group — two different
-    // messages for the guest, which is why this is not folded into `bookable`.
-    expect(day.bookable).toBe(true);
-    expect(fitsParty(day, 2)).toBe(false);
+  it("refuses a second party that needs a car already out", () => {
+    // A driver is free and the day is open — and the only T3 is on the road.
+    const slot = open(committed("classic-van"));
+    expect(slot.bookable).toBe(true);
+    expect(fitsParty(slot, CLASSIC_TOUR, 5)).toEqual({ ok: false, reason: "no-vehicle" });
+    // The same departure will still take a couple: the small classics are free.
+    expect(fitsParty(slot, CLASSIC_TOUR, 2).ok).toBe(true);
+  });
+
+  it("refuses everyone once both drivers are out", () => {
+    const slot = open(committed("classic-small", "classic-small"));
+    expect(fitsParty(slot, CLASSIC_TOUR, 2)).toEqual({ ok: false, reason: "no-driver" });
+  });
+
+  it("refuses a group above the biggest car, pending AGORA-019", () => {
+    // Nine needs two cars and therefore two drivers. Who drives the third car
+    // for their stated maximum of 14 is an open question with the client, and
+    // guessing it here would guess a person into existence.
+    expect(fitsParty(open(), CLASSIC_TOUR, 9)).toEqual({
+      ok: false,
+      reason: "party-too-large",
+    });
+    expect(fitsParty(open(), TOURING_TOUR, 14)).toEqual({
+      ok: false,
+      reason: "party-too-large",
+    });
   });
 
   it("refuses nonsense party sizes", () => {
-    expect(fitsParty(day, 0)).toBe(false);
-    expect(fitsParty(day, -1)).toBe(false);
+    expect(fitsParty(open(), CLASSIC_TOUR, 0)).toEqual({ ok: false, reason: "bad-party" });
+    expect(fitsParty(open(), CLASSIC_TOUR, -1)).toEqual({ ok: false, reason: "bad-party" });
   });
 
-  it("refuses any party on a departure that cannot be booked at all", () => {
-    const closed = describeDay({
+  it("refuses any party on a departure that is not on sale", () => {
+    const closed = describeSlot({
       date: "2026-08-15",
       slot: "morning",
       row: row({ status: "closed" }),
       today,
     });
-    expect(fitsParty(closed, 1)).toBe(false);
-  });
-
-  it("judges a private party against the whole slot, not the seats left", () => {
-    const untouched = describeDay({
-      date: "2026-08-15",
-      slot: "morning",
-      row: row({ capacity: 8 }),
-      today,
+    expect(fitsParty(closed, CLASSIC_TOUR, 2)).toEqual({
+      ok: false,
+      reason: "unavailable",
     });
-    expect(fitsParty(untouched, 8, "private")).toBe(true);
-    expect(fitsParty(untouched, 9, "private")).toBe(false);
-    // One seat sold and the slot can no longer be private at all.
-    expect(fitsParty(day, 1, "private")).toBe(false);
   });
 });
 
@@ -391,7 +418,10 @@ describe("describeMonth", () => {
       month: "2026-08",
       rows: [row({ date: "2026-08-15" }), row({ date: "2026-08-15", slot: "afternoon" })],
       occupancy: new Map([
-        [occupancySlotKey("2026-08-15", "morning"), { seats: CAPACITY, exclusive: false }],
+        [
+          occupancySlotKey("2026-08-15", "morning"),
+          committed("classic-small", "touring"),
+        ],
       ]),
       today,
     });
@@ -399,27 +429,26 @@ describe("describeMonth", () => {
     const fifteenth = days.find((day) => day.date === "2026-08-15")!;
     const morning = fifteenth.slots.find((slot) => slot.slot === "morning")!;
     const afternoon = fifteenth.slots.find((slot) => slot.slot === "afternoon")!;
-    expect(morning.booked).toBe(CAPACITY);
+    expect(morning.driversUsed).toBe(2);
     expect(morning.bookable).toBe(false);
+    // The afternoon is a different pool entirely.
     expect(afternoon.bookable).toBe(true);
   });
 });
 
 describe("toPublicDay", () => {
-  const today = "2026-08-10";
-
   it("tells a guest only what they may know about each departure", () => {
     const [day] = describeMonth({
       month: "2026-08",
       rows: [row({ date: "2026-08-01", note: "Diogo em casamento" })],
       occupancy: new Map([
-        [occupancySlotKey("2026-08-01", "morning"), { seats: 1, exclusive: false }],
+        [occupancySlotKey("2026-08-01", "morning"), committed("classic-small")],
       ]),
       today: "2026-07-01",
     });
 
     // The exact shape is the assertion. The stored row also carries the note,
-    // the status and the capacity — between them a fair sketch of the family's
+    // the status and the roster — between them a fair sketch of the family's
     // diary — and the way to guarantee a guest is never told *why* a day is
     // unavailable is for the reason not to be in the payload at all.
     expect(toPublicDay(day)).toEqual({
@@ -428,30 +457,64 @@ describe("toPublicDay", () => {
       slots: [
         {
           slot: "morning",
-          bookable: true,
-          seatsLeft: CAPACITY - 1,
-          privateBookable: false,
-          capacity: 0,
+          driversLeft: DEFAULT_DRIVERS - 1,
+          vehiclesLeft: {
+            ...FLEET_SIZE,
+            "classic-small": FLEET_SIZE["classic-small"] - 1,
+          },
         },
-        {
-          slot: "afternoon",
-          bookable: false,
-          seatsLeft: 0,
-          privateBookable: false,
-          capacity: 0,
-        },
+        // Never opened, so nothing is advertised on it.
+        { slot: "afternoon", driversLeft: 0, vehiclesLeft: noVehicles() },
       ],
     });
   });
 
   it("advertises nothing on a departure that cannot be booked", () => {
-    // A closed slot with empty seats must not advertise them.
+    // A closed departure with a full fleet must not advertise it.
     const [day] = describeMonth({
       month: "2026-08",
       rows: [row({ date: "2026-08-01", status: "closed" })],
       today: "2026-07-01",
     });
     expect(toPublicDay(day).bookable).toBe(false);
-    expect(toPublicDay(day).slots.every((slot) => slot.seatsLeft === 0)).toBe(true);
+    expect(
+      toPublicDay(day).slots.every(
+        (slot) =>
+          slot.driversLeft === 0 &&
+          Object.values(slot.vehiclesLeft).every((free) => free === 0),
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("expandDateRange", () => {
+  it("lists every day of the window, both ends included", () => {
+    expect(expandDateRange("2026-08-30", "2026-09-02")).toEqual([
+      "2026-08-30",
+      "2026-08-31",
+      "2026-09-01",
+      "2026-09-02",
+    ]);
+  });
+
+  it("gives one day for a range that starts and ends the same day", () => {
+    expect(expandDateRange("2026-08-15", "2026-08-15")).toEqual(["2026-08-15"]);
+  });
+
+  it("gives nothing for a backwards or unparseable range", () => {
+    // A mis-tap, not an attack — nothing written beats an error page.
+    expect(expandDateRange("2026-09-02", "2026-08-30")).toEqual([]);
+    expect(expandDateRange("late August", "2026-08-30")).toEqual([]);
+  });
+
+  it("stops at the cap, so a crafted end date cannot write a century", () => {
+    expect(expandDateRange("2026-01-01", "2999-12-31")).toHaveLength(366);
+    expect(expandDateRange("2026-01-01", "2026-12-31", 5)).toEqual([
+      "2026-01-01",
+      "2026-01-02",
+      "2026-01-03",
+      "2026-01-04",
+      "2026-01-05",
+    ]);
   });
 });
