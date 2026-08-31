@@ -71,20 +71,20 @@ export default async function AdminDashboardPage() {
 
   const STATS = [
     {
-      label: "New leads",
+      label: "Pedidos novos",
       value: String(tally(requests, ["new"])),
-      hint: "Awaiting first contact",
+      hint: "À espera do primeiro contacto",
     },
     {
-      label: "Drafts to review",
+      label: "Rascunhos por rever",
       value: String(draftsToReview),
-      hint: "Across all content pipelines",
+      hint: "De todas as áreas de conteúdo",
     },
-    { label: "Published", value: String(publishedCount), hint: "Content pushed live" },
+    { label: "Publicados", value: String(publishedCount), hint: "Já publicado no site" },
     {
-      label: "Open feature requests",
+      label: "Sugestões em aberto",
       value: String(tally(features, OPEN_FEATURE)),
-      hint: "In the toolkit backlog",
+      hint: "Na lista de melhorias",
     },
   ];
 
@@ -92,7 +92,7 @@ export default async function AdminDashboardPage() {
     <AdminShell>
       <div className="flex flex-col gap-8">
         <section>
-          <h2 className="sr-only">Overview</h2>
+          <h2 className="sr-only">Resumo</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {STATS.map((stat) => (
               <Card key={stat.label} size="sm">
@@ -110,7 +110,7 @@ export default async function AdminDashboardPage() {
 
         <section className="flex flex-col gap-4">
           <h2 className="font-heading text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            Areas
+            Áreas
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {adminAreas(viewer.role).map(({ href, icon: Icon, label, cardTitle, description, dev }) => (

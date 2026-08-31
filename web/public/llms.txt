@@ -1,24 +1,32 @@
 # Agorasim
 
-> Agorasim runs guided rural experiences in classic cars through the Saloia region of Portugal — the countryside between Sintra, Mafra and Ericeira. Small-group and private tours combine vineyards, gastronomy, villages, natural monuments and the Atlantic coast.
+> Agorasim runs guided countryside experiences in the Saloia region of Portugal — the countryside between Sintra, Mafra and Ericeira — most of them aboard restored classic cars. Small-group and private tours combine vineyards, gastronomy, villages, natural monuments and the Atlantic coast. A second route runs from Lisbon to the walled town of Óbidos and the medieval villages around it.
 
 ## Key facts
-- Location: Saloia region (Sintra · Mafra · Ericeira), Portugal
-- Classic cars used: Citroën 2CV, Renault 4L, Fiat 600, Volkswagen T3
+- Location: Saloia region (Sintra · Mafra · Ericeira), Portugal. The Óbidos route departs from Lisbon.
+- Classic cars used: Citroën 2CV (1986), Renault 4L (1989), Fiat 600 (1970), Volkswagen T3 (1988). The Óbidos route is driven in a touring vehicle, not a classic car.
 - Languages: Portuguese, English
-- Booking: through the request form on the website; enquiries by phone or email
+- Departures: two a day, morning and afternoon. Rural Saloia leaves at 10:00 and 14:00; the Óbidos departure time is confirmed with the booking.
+- Booking: online and instant at https://agorasim.pt/en/reservar — pick the tour, the date, the departure, the group and any add-ons, and pay by card. Confirmation is immediate; no waiting for a reply. Parties of more than 8 guests use the enquiry form on the same page, which is also the fallback for anything the calendar cannot sell. Enquiries by phone or email are always welcome.
+- Cancellation: free up to 48 hours before the experience, with a full refund. In bad weather the team reschedules by email; in extreme conditions it refunds.
+- Children: aged 4–12 pay a reduced rate; infants under 4 are free. Everyone counts towards the seats in the car.
 - Contacts: Diogo +351 926 210 707 · Rita +351 919 272 077 · info@agorasim.pt
 
-## Experiences
-- [Rural Saloia](https://agorasim.pt/en/experiencias/rural-saloia): flagship classic-car tour (~4.5h) from Sintra and Mafra to Ericeira, with natural monuments, the National Palace of Mafra, vineyards, villages and regional sweets.
-- [Óbidos & Medieval Villages](https://agorasim.pt/en/experiencias/obidos-medieval-villages): guided tour (~5h) departing from central Lisbon, through the walled town of Óbidos and lesser-known medieval villages, with a traditional food and wine break along the way. Not driven in the classic cars.
-- [Tasco Galapito](https://agorasim.pt/en/experiencias/tasco-galapito): private family-style meal of traditional Saloia cuisine (~2h).
-- [Manzwine](https://agorasim.pt/en/experiencias/manzwine): wine tasting with historical context in the Mafra region (~1.5h).
-- [Ramilo Wines](https://agorasim.pt/en/experiencias/ramilo-wines): organic vineyard visit with tasting (~1.5h).
+## Tours
+- [Rural Saloia](https://agorasim.pt/en/experiencias/rural-saloia): the flagship classic-car tour, about 4h30, from Sintra and Mafra to Ericeira, taking in natural monuments, the National Palace of Mafra, vineyards, villages, regional sweets and the Atlantic coast. A local host drives; guests never drive the classic car. Meeting point: Av. Mário Firmino Miguel, Sintra (Portela de Sintra). Public departures from €62 per adult, €58 per adult from four adults, €35 per child. Private departures from €220 for up to three adults, rising by group size to €700 for twelve, €30 per child.
+- [Óbidos & Medieval Villages](https://agorasim.pt/en/experiencias/obidos-medieval-villages): a guided food tour of about 5h from central Lisbon, through the walled town of Óbidos and lesser-known medieval villages, with a traditional food and wine break along the way. Not driven in the classic cars — those stay with the Saloia-region experiences. Meeting point: Alameda Cardeal Cerejeira, Lisboa. Public departures €100 per adult with a minimum of two adults, €40 per child. Private departures €360 for up to three adults, then €110 per adult, €40 per child.
+
+## Add-ons
+These join a **private** Rural Saloia tour; they are not sold on their own.
+- [Tasco Galapito](https://agorasim.pt/en/experiencias/tasco-galapito): private family-style meal of traditional Saloia cuisine, about 2h. €60 per adult, €25 per child, minimum two guests. Dietary requirements are adapted on request.
+- [Manzwine](https://agorasim.pt/en/experiencias/manzwine): wine tasting with historical context in the Mafra region, about 1h30. €35 per adult, minimum two adults. Closed on Mondays.
+- [Ramilo Wines](https://agorasim.pt/en/experiencias/ramilo-wines): organic vineyard visit with tasting near the Atlantic, about 1h30. €45 per adult, minimum three adults.
 
 ## Pages
 - [Home](https://agorasim.pt/en)
 - [About](https://agorasim.pt/en/sobre)
 - [Experiences](https://agorasim.pt/en/experiencias)
+- [Book](https://agorasim.pt/en/reservar)
 - [Events](https://agorasim.pt/en/eventos)
 - [Contact](https://agorasim.pt/en/contactos)
+- [Privacy](https://agorasim.pt/en/privacy)

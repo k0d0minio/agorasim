@@ -36,8 +36,8 @@ export const home = {
     en: "The journey and what makes it special",
   } as Localized,
   experiencesIntro: {
-    pt: "Comece pelo passeio Rural Saloia e complemente-o com uma refeição de família, provas de vinho ou um workshop de cerâmica.",
-    en: "Start with the Rural Saloia tour and complement it with a family meal, wine tastings or a ceramics workshop.",
+    pt: "Comece pelo passeio Rural Saloia e complemente-o com uma refeição de família ou provas de vinho.",
+    en: "Start with the Rural Saloia tour and complement it with a family meal or wine tastings.",
   } as Localized,
 } as const;
 

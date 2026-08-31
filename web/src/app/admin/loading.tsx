@@ -11,7 +11,7 @@ function Bar({ className }: { className?: string }) {
 
 export default function AdminLoading() {
   return (
-    <div className="flex min-h-dvh" role="status" aria-label="Loading">
+    <div className="flex min-h-dvh" role="status" aria-label="A carregar">
       <aside className="hidden w-60 shrink-0 flex-col border-r bg-muted/30 p-4 md:flex">
         <div className="px-2 py-3">
           <Bar className="h-5 w-28" />

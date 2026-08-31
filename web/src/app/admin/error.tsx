@@ -50,7 +50,7 @@ export default function AdminError({
           </div>
           {error.digest ? (
             <p className="text-xs text-muted-foreground/70">
-              Reference: {error.digest}
+              Referência: {error.digest}
             </p>
           ) : null}
         </CardContent>

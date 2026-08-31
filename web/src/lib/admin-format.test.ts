@@ -13,13 +13,13 @@ import {
 } from "./admin-format";
 
 describe("formatDate", () => {
-  it("formats a Date as day, short month, year", () => {
+  it("formats a Date the pt-PT way — day, month, year", () => {
     // Constructed from local parts, so the assertion holds in any timezone.
-    expect(formatDate(new Date(2026, 6, 31))).toBe("31 Jul 2026");
+    expect(formatDate(new Date(2026, 6, 31))).toBe("31/07/2026");
   });
 
-  it("zero-pads single-digit days", () => {
-    expect(formatDate(new Date(2026, 0, 5))).toBe("05 Jan 2026");
+  it("zero-pads single-digit days and months", () => {
+    expect(formatDate(new Date(2026, 0, 5))).toBe("05/01/2026");
   });
 
   it("accepts a timestamp string and a Date interchangeably", () => {
@@ -47,27 +47,32 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 describe("formatRelativeTime", () => {
-  it("collapses the last minute to 'just now'", () => {
-    expect(formatRelativeTime(ago(5 * SECOND), now)).toBe("just now");
-    expect(formatRelativeTime(ago(59 * SECOND), now)).toBe("just now");
+  it("collapses the last minute to 'agora mesmo'", () => {
+    expect(formatRelativeTime(ago(5 * SECOND), now)).toBe("agora mesmo");
+    expect(formatRelativeTime(ago(59 * SECOND), now)).toBe("agora mesmo");
   });
 
   it("counts down in the largest unit that still reads naturally", () => {
-    expect(formatRelativeTime(ago(MINUTE), now)).toBe("1m ago");
-    expect(formatRelativeTime(ago(59 * MINUTE), now)).toBe("59m ago");
-    expect(formatRelativeTime(ago(3 * HOUR), now)).toBe("3h ago");
-    expect(formatRelativeTime(ago(2 * DAY), now)).toBe("2d ago");
-    expect(formatRelativeTime(ago(10 * DAY), now)).toBe("1w ago");
-    expect(formatRelativeTime(ago(45 * DAY), now)).toBe("1mo ago");
-    expect(formatRelativeTime(ago(400 * DAY), now)).toBe("1y ago");
+    expect(formatRelativeTime(ago(MINUTE), now)).toBe("há 1 min");
+    expect(formatRelativeTime(ago(59 * MINUTE), now)).toBe("há 59 min");
+    expect(formatRelativeTime(ago(3 * HOUR), now)).toBe("há 3 h");
+    expect(formatRelativeTime(ago(2 * DAY), now)).toBe("há 2 d");
+    expect(formatRelativeTime(ago(10 * DAY), now)).toBe("há 1 sem.");
+    expect(formatRelativeTime(ago(45 * DAY), now)).toBe("há 1 mês");
+    expect(formatRelativeTime(ago(400 * DAY), now)).toBe("há 1 ano");
+  });
+
+  it("gives months and years a plural once there is more than one", () => {
+    expect(formatRelativeTime(ago(100 * DAY), now)).toBe("há 3 meses");
+    expect(formatRelativeTime(ago(800 * DAY), now)).toBe("há 2 anos");
   });
 
   it("does not claim a future timestamp already happened", () => {
-    expect(formatRelativeTime(new Date(now.getTime() + HOUR), now)).toBe("just now");
+    expect(formatRelativeTime(new Date(now.getTime() + HOUR), now)).toBe("agora mesmo");
   });
 
   it("accepts an ISO string and rejects nonsense", () => {
-    expect(formatRelativeTime("2026-07-31T09:00:00Z", now)).toBe("3h ago");
+    expect(formatRelativeTime("2026-07-31T09:00:00Z", now)).toBe("há 3 h");
     expect(formatRelativeTime(null, now)).toBe("—");
     expect(formatRelativeTime("not a date", now)).toBe("—");
   });
