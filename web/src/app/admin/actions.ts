@@ -9,6 +9,7 @@ import {
   requireOwner,
   startSession,
 } from "@/lib/admin-auth";
+import { DELETE_CONFIRMATION } from "@/lib/admin-format";
 import {
   countActiveOwners,
   createAdminUser,
@@ -461,8 +462,9 @@ export async function submitFeatureRequest(
 export type DataRightsState = { ok?: boolean; error?: string; message?: string };
 
 /**
- * Erase one enquiry (GDPR Art. 17). Owner-only, confirmed by typing DELETE, and
- * a genuine hard delete — the row goes, not a flag on it.
+ * Erase one enquiry (GDPR Art. 17). Owner-only, confirmed by typing the word
+ * {@link DELETE_CONFIRMATION} names, and a genuine hard delete — the row goes,
+ * not a flag on it.
  *
  * The audit entry is written **first**, and with `recordAudit`, which throws.
  * If the trail cannot record that an erasure happened, the erasure does not
@@ -480,7 +482,7 @@ export async function deleteTourRequest(
 
   const parsed = deleteTourRequestSchema.safeParse(formValues(formData));
   if (!parsed.success) {
-    return { error: "Escreva DELETE para confirmar a eliminação." };
+    return { error: `Escreva ${DELETE_CONFIRMATION} para confirmar a eliminação.` };
   }
 
   const [subject] = await db

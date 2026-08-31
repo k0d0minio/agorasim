@@ -224,7 +224,7 @@ describe("a collaborator cannot reach owner-only data actions", () => {
 
     expect(
       await redirectedTo(() =>
-        deleteTourRequest({}, form({ id: REQUEST_ID, confirm: "DELETE" })),
+        deleteTourRequest({}, form({ id: REQUEST_ID, confirm: "APAGAR" })),
       ),
     ).toBe(ADMIN_FORBIDDEN_PATH);
 
@@ -284,7 +284,7 @@ describe("erasing a submission", () => {
 
     const result = await deleteTourRequest(
       {},
-      form({ id: REQUEST_ID, confirm: "DELETE" }),
+      form({ id: REQUEST_ID, confirm: "APAGAR" }),
     );
 
     expect(result.ok).toBe(true);
@@ -313,7 +313,7 @@ describe("erasing a submission", () => {
 
     const result = await deleteTourRequest(
       {},
-      form({ id: REQUEST_ID, confirm: "DELETE" }),
+      form({ id: REQUEST_ID, confirm: "APAGAR" }),
     );
 
     expect(result.error).toBeTruthy();
@@ -324,6 +324,16 @@ describe("erasing a submission", () => {
     await signInAs("owner");
 
     const result = await deleteTourRequest({}, form({ id: REQUEST_ID, confirm: "yes" }));
+
+    expect(result.error).toBeTruthy();
+    expect(called("delete")).toBe(false);
+    expect(called("select")).toBe(false);
+  });
+
+  it("no longer accepts the English word the confirmation used to ask for", async () => {
+    await signInAs("owner");
+
+    const result = await deleteTourRequest({}, form({ id: REQUEST_ID, confirm: "DELETE" }));
 
     expect(result.error).toBeTruthy();
     expect(called("delete")).toBe(false);
@@ -578,7 +588,7 @@ describe("the experience catalogue", () => {
 
     expect(
       await redirectedTo(() =>
-        deleteExperience({}, form({ id: EXPERIENCE_ID, confirm: "DELETE" })),
+        deleteExperience({}, form({ id: EXPERIENCE_ID, confirm: "APAGAR" })),
       ),
     ).toBe(ADMIN_FORBIDDEN_PATH);
 
