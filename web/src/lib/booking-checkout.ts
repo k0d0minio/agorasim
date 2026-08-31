@@ -42,6 +42,7 @@ import { t, type Locale } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
 import { formatDay, type DateKey } from "@/lib/availability";
 import { bookingRef, holdExpiryFrom } from "@/lib/bookings";
+import { CANCEL_RETURN_PARAM, CANCEL_RETURN_VALUE } from "@/lib/checkout-draft";
 import { BOOKING_CURRENCY, formatPrice } from "@/lib/money";
 import type { VehicleClass } from "@/lib/fleet";
 import type { BookingMode, PartyCount, PricedLine } from "@/lib/pricing";
@@ -208,7 +209,13 @@ export async function startBookingCheckout(options: {
       success_url: `${base}/${locale}/reservar/confirmacao?session_id={CHECKOUT_SESSION_ID}`,
       // Back to the form, not to an error: a guest who changed their mind about
       // the card has not changed their mind about the tour.
-      cancel_url: `${base}/${locale}/reservar`,
+      //
+      // The flag is what tells the form this is a return rather than a fresh
+      // visit, so it puts their basket back from the draft their own browser
+      // kept (`lib/checkout-draft.ts`). Deliberately the *only* thing on this
+      // URL: a `cancel_url` carrying their name, email and party would put all
+      // of it into browser history, proxy logs and the next page's referrer.
+      cancel_url: `${base}/${locale}/reservar?${CANCEL_RETURN_PARAM}=${CANCEL_RETURN_VALUE}`,
     });
 
     if (!session.url) throw new Error("Stripe returned a session with no URL");

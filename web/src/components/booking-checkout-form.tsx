@@ -1,14 +1,14 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
-import { Check, Lock, Minus, Plus, ShieldCheck } from "lucide-react";
+import { Check, Lock, MapPin, Minus, Plus, ShieldCheck } from "lucide-react";
 
 import { t, type Locale, type Localized } from "@/i18n/config";
 import { bookingContent } from "@/content/booking";
 import { privacyContent } from "@/content/privacy";
-import { departureLabel } from "@/content/logistics";
+import { departureLabel, meetingPoints } from "@/content/logistics";
 import type { Experience } from "@/content/experiences";
 import type { PublicMonth } from "@/lib/availability";
 import { MAX_PARTY_ONLINE } from "@/lib/fleet";
@@ -24,10 +24,18 @@ import { formatPrice } from "@/lib/money";
 import { href } from "@/lib/routes";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import {
+  draftFromFormData,
+  noCheckoutEntry,
+  readCheckoutEntry,
+  saveCheckoutDraft,
+  subscribeToCheckoutEntry,
+  type CheckoutDraft,
+} from "@/lib/checkout-draft";
+import {
   startCheckout,
   type CheckoutState,
 } from "@/app/[locale]/reservar/checkout-actions";
-import { BookingDatePicker } from "@/components/booking-date-picker";
+import { BookingDatePicker, departureUsable } from "@/components/booking-date-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -63,6 +71,86 @@ import { cn } from "@/lib/utils";
  * refuses the same number, from the same constant.
  */
 const MAX_SEATS = MAX_PARTY_ONLINE;
+
+/** Two people is the shape of almost every enquiry the team gets. */
+const DEFAULT_ADULTS = 2;
+
+/**
+ * Everything about a booking that a guest can change, in one value.
+ *
+ * One object rather than a dozen `useState` calls, because the form has two
+ * starting points — a fresh visit and a basket coming back from a cancelled
+ * payment — and the second is not known until after hydration. Held as
+ * "what the guest has edited, or nothing yet", the whole thing falls back to
+ * {@link startingBasket} until they touch something, so a draft that arrives
+ * on the second render simply *is* the form's contents. Seeding state from it
+ * in an effect would mean a first paint that disagrees with the prerendered
+ * HTML, and a cascade of renders to correct it.
+ */
+type Basket = {
+  tour: string;
+  mode: BookingMode;
+  adults: number;
+  children: number;
+  infants: number;
+  addOns: string[];
+  date: string | null;
+  slot: "morning" | "afternoon" | null;
+  name: string;
+  email: string;
+  phone: string;
+  message: string;
+};
+
+/**
+ * Where the form starts: a restored draft, else the tour the URL named, else
+ * the plain defaults — with what a rejected submit echoed back underneath.
+ *
+ * Every value is checked against the live catalogue on the way in. A draft is
+ * guest-writable storage and a query string is whatever was typed, so a tour
+ * that has since been retired or an add-on that never existed simply does not
+ * appear here.
+ */
+function startingBasket(options: {
+  tours: Experience[];
+  complements: Experience[];
+  tour: string | null;
+  draft: CheckoutDraft | null;
+  echoed: CheckoutState["values"];
+}): Basket {
+  const { tours, complements, draft, echoed } = options;
+  /** A tour slug the catalogue still sells, or nothing at all. */
+  const sellable = (slug: string | null | undefined): string | undefined =>
+    slug != null && tours.some((entry) => entry.slug === slug) ? slug : undefined;
+
+  // The draft is the more specific answer: a guest coming back from Stripe
+  // chose their tour long before they landed on whatever URL brought them here.
+  const wanted = sellable(draft?.tour) ?? sellable(options.tour);
+
+  // Clamped as a group, not one band at a time: each is already bounded on the
+  // way out of storage, but three valid numbers can still add up to more people
+  // than the biggest car holds.
+  const adults = Math.min(Math.max(draft?.adults ?? DEFAULT_ADULTS, 1), MAX_SEATS);
+  const children = Math.min(draft?.children ?? 0, MAX_SEATS - adults);
+  const infants = Math.min(draft?.infants ?? 0, MAX_SEATS - adults - children);
+
+  return {
+    tour: wanted ?? tours[0]?.slug ?? "",
+    mode: draft?.mode ?? "public",
+    adults,
+    children,
+    infants,
+    addOns: (draft?.addOns ?? []).filter((slug) =>
+      complements.some((entry) => entry.slug === slug),
+    ),
+    date: draft?.date ?? null,
+    slot: draft?.slot ?? null,
+    name: draft?.name ?? echoed?.name ?? "",
+    email: draft?.email ?? echoed?.email ?? "",
+    phone: draft?.phone ?? echoed?.phone ?? "",
+    message: draft?.message ?? echoed?.message ?? "",
+  };
+}
 
 function PayButton({ locale }: { locale: Locale }) {
   const { pending } = useFormStatus();
@@ -170,15 +258,45 @@ export function BookingCheckoutForm({
     (entry) => entry.kind === "complement" && entry.pricing?.type === "addon",
   );
 
-  const [tourSlug, setTourSlug] = useState(tours[0]?.slug ?? "");
-  const [mode, setMode] = useState<BookingMode>("public");
-  const [adults, setAdults] = useState(2);
-  const [children, setChildren] = useState(0);
-  const [infants, setInfants] = useState(0);
-  const [addOns, setAddOns] = useState<Set<string>>(new Set());
-  const [date, setDate] = useState<string | null>(null);
+  /*
+   * What the URL and the tab's storage have to say about this arrival — the
+   * `?tour=` an experience page named, and the basket of a payment they backed
+   * out of. Both are external systems the prerendered HTML cannot know about,
+   * so they are subscribed to rather than copied into state: `/reservar` is
+   * cached and served for every query string alike, and reading `searchParams`
+   * on the server would make the whole page per-request to preselect a card.
+   */
+  const arrival = useSyncExternalStore(
+    subscribeToCheckoutEntry,
+    readCheckoutEntry,
+    noCheckoutEntry,
+  );
 
-  const tour = tours.find((entry) => entry.slug === tourSlug) ?? tours[0];
+  /*
+   * The form's contents: what the guest has edited, or where it started.
+   *
+   * `edited` stays null until they touch something, which is what lets a draft
+   * arriving after hydration simply *be* the form — no effect, no second set of
+   * renders to correct the first. The updater is functional so two patches in
+   * one handler compose (picking a day also picks its only departure) instead
+   * of the second overwriting the first.
+   */
+  const starting = startingBasket({
+    tours,
+    complements,
+    tour: arrival.tour,
+    draft: arrival.draft,
+    echoed: state.values,
+  });
+  const [edited, setEdited] = useState<Basket | null>(null);
+  const basket = edited ?? starting;
+  const update = (patch: Partial<Basket>) =>
+    setEdited((previous) => ({ ...(previous ?? starting), ...patch }));
+
+  const { mode, adults, children, infants } = basket;
+  const addOns = basket.addOns;
+
+  const tour = tours.find((entry) => entry.slug === basket.tour) ?? tours[0];
   const pricing = tour?.pricing?.type === "tour" ? tour.pricing : null;
   const allowsAddOns = Boolean(pricing?.private?.allowsAddOns);
   const addOnsOffered = allowsAddOns && complements.length > 0;
@@ -187,6 +305,32 @@ export function BookingCheckoutForm({
   // not an offer.
   const maxAdults = Math.max(1, Math.min(maxAdultsOf(tour?.pricing) || MAX_SEATS, MAX_SEATS));
   const seats = adults + children + infants;
+
+  /*
+   * Does the chosen day still stand?
+   *
+   * Asked here, every render, of the same calendar the picker draws its grid
+   * from and by the same rule (`departureUsable`). This is the fix for the
+   * defect that made the form and the picker disagree: the picker used to be
+   * restarted by a `key` whenever the tour or the party changed, which cleared
+   * its grid but left this form holding a day the guest could no longer see —
+   * and posting it. Now a day that no longer has the right car free simply
+   * stops being the chosen day, everywhere at once, and the picker is told to
+   * say so out loud rather than let it vanish in silence.
+   */
+  const chosenDay = basket.date
+    ? availability.flatMap((month) => month.days).find((day) => day.date === basket.date)
+    : undefined;
+  const usableDepartures = (chosenDay?.slots ?? []).filter((entry) =>
+    departureUsable(entry, tour?.slug, seats),
+  );
+  const date = usableDepartures.length > 0 ? basket.date : null;
+  const slot =
+    date && basket.slot && usableDepartures.some((entry) => entry.slot === basket.slot)
+      ? basket.slot
+      : null;
+  /** The guest had a day, and the party they have just become cannot have it. */
+  const dayDropped = Boolean(basket.date) && date === null;
 
   /** Why one add-on cannot join this basket right now, or null when it can. */
   const addOnBlocked = (entry: Experience): string | null => {
@@ -210,7 +354,7 @@ export function BookingCheckoutForm({
   };
 
   const chosenAddOns = complements.filter(
-    (entry) => addOns.has(entry.slug) && mode === "private" && !addOnBlocked(entry),
+    (entry) => addOns.includes(entry.slug) && mode === "private" && !addOnBlocked(entry),
   );
 
   /**
@@ -262,11 +406,10 @@ export function BookingCheckoutForm({
   })();
 
   function toggleAddOn(slug: string) {
-    setAddOns((previous) => {
-      const next = new Set(previous);
-      if (next.has(slug)) next.delete(slug);
-      else next.add(slug);
-      return next;
+    update({
+      addOns: addOns.includes(slug)
+        ? addOns.filter((entry) => entry !== slug)
+        : [...addOns, slug],
     });
   }
 
@@ -278,7 +421,18 @@ export function BookingCheckoutForm({
   };
 
   return (
-    <form action={formAction} className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-start">
+    <form
+      action={formAction}
+      /*
+       * The basket, saved at the last possible moment before the guest leaves
+       * for Stripe — and read from the `FormData` rather than from state, so
+       * what is stored is precisely what was submitted. React runs this before
+       * the action; a throw inside it would take the payment with it, which is
+       * why every call in `saveCheckoutDraft` swallows its own failure.
+       */
+      onSubmit={(event) => saveCheckoutDraft(draftFromFormData(new FormData(event.currentTarget)))}
+      className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-start"
+    >
       <input type="hidden" name="locale" value={locale} />
       <input type="hidden" name="experience" value={tour.slug} />
       <input type="hidden" name="mode" value={mode} />
@@ -307,6 +461,20 @@ export function BookingCheckoutForm({
       </div>
 
       <div className="flex flex-col gap-10">
+        {/*
+          Back from Stripe with everything still here. Said plainly, because a
+          guest who expects to start again and finds the form already filled in
+          should be told why rather than left wondering what the site knows.
+        */}
+        {arrival.draft ? (
+          <p
+            role="status"
+            className="rounded-xl border border-dashed border-input px-4 py-3 text-sm text-muted-foreground"
+          >
+            {t(c.labels.resumed, l)}
+          </p>
+        ) : null}
+
         {/* Which tour. Two cards; the choice resets day and departure. */}
         <section aria-labelledby="bk-tour">
           <h2 id="bk-tour" className="text-xl font-semibold sm:text-2xl">
@@ -316,14 +484,20 @@ export function BookingCheckoutForm({
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {tours.map((entry) => {
               const active = entry.slug === tour.slug;
+              // Only for a route the logistics map names — a guest is never
+              // shown a starting point that was guessed for them.
+              const meetingPoint = meetingPoints[entry.slug];
               return (
                 <button
                   key={entry.slug}
                   type="button"
                   onClick={() => {
-                    setTourSlug(entry.slug);
-                    setDate(null);
-                    setAddOns(new Set());
+                    update({
+                      tour: entry.slug,
+                      date: null,
+                      slot: null,
+                      addOns: [],
+                    });
                   }}
                   aria-pressed={active}
                   className={cn(
@@ -336,6 +510,21 @@ export function BookingCheckoutForm({
                   <span className="font-medium">{t(entry.title, l)}</span>
                   <span className="text-sm text-muted-foreground">{t(entry.tagline, l)}</span>
                   <span className="text-sm text-muted-foreground">{t(entry.duration, l)}</span>
+                  {/*
+                    Where the day starts. The two routes leave from different
+                    towns — Sintra and Lisbon — and a guest choosing between
+                    them was being asked to pay before being told which, when
+                    it is often the fact that decides it.
+                  */}
+                  {meetingPoint ? (
+                    <span className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                      <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                      <span>
+                        <span className="sr-only">{t(c.labels.meetingPoint, l)}: </span>
+                        {meetingPoint.address}
+                      </span>
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -360,7 +549,7 @@ export function BookingCheckoutForm({
                   type="button"
                   disabled={!offered}
                   aria-pressed={active}
-                  onClick={() => setMode(option)}
+                  onClick={() => update({ mode: option })}
                   className={cn(
                     "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all",
                     active
@@ -391,7 +580,7 @@ export function BookingCheckoutForm({
               value={adults}
               min={1}
               max={Math.min(maxAdults, MAX_SEATS - children - infants)}
-              onChange={setAdults}
+              onChange={(next) => update({ adults: next })}
               locale={l}
             />
             <Stepper
@@ -401,7 +590,7 @@ export function BookingCheckoutForm({
               value={children}
               min={0}
               max={MAX_SEATS - adults - infants}
-              onChange={setChildren}
+              onChange={(next) => update({ children: next })}
               locale={l}
             />
             <Stepper
@@ -411,7 +600,7 @@ export function BookingCheckoutForm({
               value={infants}
               min={0}
               max={MAX_SEATS - adults - children}
-              onChange={setInfants}
+              onChange={(next) => update({ infants: next })}
               locale={l}
             />
             <p className="pt-3 text-center text-sm text-muted-foreground">
@@ -442,28 +631,46 @@ export function BookingCheckoutForm({
           The calendar. One calendar for the whole business (AGORA-012) — what
           changes with the tour and the party is not *which* days exist but
           which of them have the right car free, which is why both are passed
-          down rather than a pre-filtered month list. The `key` restarts the
-          picker when either changes: a day that fitted a couple in a 2CV may
-          not fit the five people they have just become.
+          down rather than a pre-filtered month list.
+
+          It is a step like the others and now says so: every sibling section
+          has an `h2`, and a guest skipping through the form by heading used to
+          fall straight from "who's coming" into "your details" with the whole
+          calendar in between.
+
+          There is deliberately no `key` here. Restarting the picker on a party
+          change cleared the grid and left this form holding the day the guest
+          could no longer see; the picker re-asks the question instead, keeps a
+          day that still fits, and says so when one does not.
         */}
-        <BookingDatePicker
-          key={`${tour.slug}-${seats}`}
-          locale={l}
-          // The checkout's field, not the enquiry's. A card cannot be charged
-          // for "late August", so the free-text escape becomes a link out.
-          name="date"
-          slotName="slot"
-          slotHeading={t(c.labels.slot, l)}
-          slotLabels={slotLabels}
-          experienceSlug={tour.slug}
-          partySize={seats}
-          allowFlexible={false}
-          contactHref={href(l, "contactos")}
-          months={availability}
-          defaultValue={state.values?.date}
-          error={state.fieldErrors?.date}
-          onDateChange={setDate}
-        />
+        <section aria-labelledby="bk-when" className="flex flex-col gap-4">
+          <h2 id="bk-when" className="text-xl font-semibold sm:text-2xl">
+            {t(c.labels.when, l)}
+          </h2>
+          <BookingDatePicker
+            locale={l}
+            // The checkout's field, not the enquiry's. A card cannot be charged
+            // for "late August", so the free-text escape becomes a link out.
+            name="date"
+            slotName="slot"
+            slotHeading={t(c.labels.slot, l)}
+            slotLabels={slotLabels}
+            experienceSlug={tour.slug}
+            partySize={seats}
+            allowFlexible={false}
+            contactHref={href(l, "contactos")}
+            months={availability}
+            error={state.fieldErrors?.date}
+            // Controlled: this form owns the day and the departure, so a
+            // rejected submit and a cancelled payment both keep them, and the
+            // two copies can no longer drift apart.
+            value={date}
+            slotValue={slot}
+            dropped={dayDropped}
+            onDateChange={(next) => update({ date: next, slot: null })}
+            onSlotChange={(next) => update({ slot: next })}
+          />
+        </section>
 
         {/* Add-ons — a private countryside privilege, and the form says so. */}
         {addOnsOffered ? (
@@ -481,7 +688,7 @@ export function BookingCheckoutForm({
               {complements.map((entry) => {
                 const blocked = mode !== "private" ? "" : addOnBlocked(entry);
                 const usable = mode === "private" && !blocked;
-                const active = usable && addOns.has(entry.slug);
+                const active = usable && addOns.includes(entry.slug);
                 const perAdult =
                   entry.pricing?.type === "addon" ? entry.pricing.perAdultCents : 0;
                 return (
@@ -553,7 +760,8 @@ export function BookingCheckoutForm({
                 required
                 autoComplete="name"
                 enterKeyHint="next"
-                defaultValue={state.values?.name}
+                value={basket.name}
+                onChange={(event) => update({ name: event.target.value })}
               />
               {state.fieldErrors?.name ? (
                 <p className="text-sm text-destructive" role="alert">
@@ -571,7 +779,8 @@ export function BookingCheckoutForm({
                 required
                 autoComplete="email"
                 enterKeyHint="next"
-                defaultValue={state.values?.email}
+                value={basket.email}
+                onChange={(event) => update({ email: event.target.value })}
               />
               {state.fieldErrors?.email ? (
                 <p className="text-sm text-destructive" role="alert">
@@ -587,7 +796,8 @@ export function BookingCheckoutForm({
                 name="phone"
                 type="tel"
                 autoComplete="tel"
-                defaultValue={state.values?.phone}
+                value={basket.phone}
+                onChange={(event) => update({ phone: event.target.value })}
               />
             </div>
           </div>
@@ -599,7 +809,8 @@ export function BookingCheckoutForm({
               name="message"
               rows={3}
               placeholder={t(c.labels.messagePlaceholder, l)}
-              defaultValue={state.values?.message}
+              value={basket.message}
+              onChange={(event) => update({ message: event.target.value })}
             />
           </div>
 
