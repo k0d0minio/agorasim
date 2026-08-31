@@ -1,8 +1,8 @@
 /**
  * Example data for the admin design-preview pages: blog studio, social studio,
- * referrals, notifications. Each renders its final layout with this data until
- * the feature behind it is wired up, and every one of them carries an
- * `AdminInDevBanner` saying so.
+ * notifications. Each renders its final layout with this data until the feature
+ * behind it is wired up, and every one of them carries an `AdminInDevBanner`
+ * saying so.
  *
  * Nothing here touches the database; delete entries freely as features go live.
  *
@@ -46,34 +46,6 @@ export const previewSocialPosts: PreviewSocialPost[] = [
   { platform: "Facebook", caption: "New on the blog: a perfect day in Ericeira, away from the crowds — the route we take with first-time visitors.", slot: "Thu 6 Aug · 12:30", status: "Scheduled" },
   { platform: "Instagram", caption: "Some entrances are never forgotten. Wedding season in the Fiat 600 has begun. 💐", slot: "Sat 8 Aug · 10:00", status: "Needs approval" },
   { platform: "Instagram", caption: "Bread still warm from the wood-fired oven — the Saloia breakfast our guests talk about for weeks.", slot: "Fri 31 Jul · 09:00", status: "Posted" },
-];
-
-// ---------------------------------------------------------------------------
-// Referrals (Feature 6)
-// ---------------------------------------------------------------------------
-
-export const previewReferralStats = [
-  { label: "Active links", value: "37", hint: "Guests with a personal link" },
-  { label: "Referred bookings", value: "9", hint: "Since launch" },
-  { label: "Referral revenue", value: "€2,610", hint: "From referred bookings" },
-  { label: "Rewards to fulfil", value: "3", hint: "Tastings & discounts owed" },
-];
-
-export type PreviewReferrer = {
-  name: string;
-  link: string;
-  shares: number;
-  bookings: number;
-  reward: string;
-  rewardDue: boolean;
-};
-
-export const previewReferrers: PreviewReferrer[] = [
-  { name: "Maria Fernandes", link: "agorasim.pt/r/maria-2cv", shares: 14, bookings: 3, reward: "Manzwine tasting", rewardDue: true },
-  { name: "Hans Weber", link: "agorasim.pt/r/hans-t3", shares: 8, bookings: 2, reward: "10% next tour", rewardDue: true },
-  { name: "Claire Dubois", link: "agorasim.pt/r/claire-r4l", shares: 6, bookings: 2, reward: "10% next tour", rewardDue: false },
-  { name: "Laura Bianchi", link: "agorasim.pt/r/laura-600", shares: 5, bookings: 1, reward: "Manzwine tasting", rewardDue: true },
-  { name: "Pedro Santos", link: "agorasim.pt/r/pedro-2cv", shares: 3, bookings: 1, reward: "10% next tour", rewardDue: false },
 ];
 
 // ---------------------------------------------------------------------------

@@ -48,7 +48,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
           {/* A footer link list is a column of tap targets, so each link is a
               44px row rather than a 20px line of text (spec §2 T1). */}
           <ul className="mt-2 text-sm">
-            {[...navOrder, "recomendar" as const].map((key) => (
+            {navOrder.map((key) => (
               <li key={key}>
                 <Link
                   href={href(locale, key)}
