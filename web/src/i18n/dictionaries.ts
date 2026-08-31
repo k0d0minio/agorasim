@@ -47,7 +47,7 @@ const dictionaries: Record<Locale, Dict> = {
       privacidade: "Privacidade",
     },
     cta: {
-      book: "Reservas",
+      book: "Reserve agora",
       learnMore: "Saber mais",
       bookExperience: "Reservar experiência",
       viewExperiences: "Ver experiências",
@@ -79,15 +79,15 @@ const dictionaries: Record<Locale, Dict> = {
       casamentos: "Weddings",
       blog: "Blog",
       contactos: "Contact",
-      reservar: "Book a tour",
+      reservar: "Book",
       privacidade: "Privacy",
     },
     cta: {
       book: "Book now",
       learnMore: "Learn more",
-      bookExperience: "Book this experience",
+      bookExperience: "Book an experience",
       viewExperiences: "View experiences",
-      contactUs: "Get in touch",
+      contactUs: "Talk to us",
     },
     labels: {
       duration: "Duration",

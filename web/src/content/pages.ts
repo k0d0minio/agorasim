@@ -77,7 +77,7 @@ export const events = {
   title: { pt: "Eventos", en: "Events" } as Localized,
   lead: {
     pt: "Organizamos experiências à medida para grupos, empresas e ocasiões especiais — casamentos, celebrações e team buildings com o toque clássico da Agorasim.",
-    en: "We organise tailor-made experiences for groups, companies and special occasions — weddings, celebrations and team buildings with the classic Agorasim touch.",
+    en: "We organise tailor-made experiences for groups, companies and special occasions — weddings, celebrations and team-building days with the classic Agorasim touch.",
   } as Localized,
   body: {
     pt: [
