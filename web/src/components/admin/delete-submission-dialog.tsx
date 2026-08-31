@@ -31,7 +31,7 @@ function ConfirmButton({ armed }: { armed: boolean }) {
  * Right to erasure (GDPR Art. 17) for one enquiry. Owner-only — the action
  * refuses anyone else regardless of what this renders.
  *
- * The confirmation asks the operator to type DELETE rather than click "yes".
+ * The confirmation asks the operator to type APAGAR rather than click "yes".
  * There is no undo and no soft-delete flag: the row goes. A one-click version of
  * this button sitting in a table row would eventually be pressed by accident.
  */

@@ -1185,13 +1185,14 @@ Of those, roughly 35 are idiom that must be rewritten rather than translated
    adjective series with `Novo`/`Contactado`/`Reservado`/`Arquivado`.
 5. **`Mensagens automáticas` vs `Notificações`** for the notifications area
    (§3.3). The first says what it does; the second is the shorter nav label.
-6. **The typed confirmation token.** `DELETE_CONFIRMATION = "DELETE"`
-   (`lib/admin-format.ts:27`) is what an operator must type to erase a guest
-   record or a catalogue entry. In a Portuguese console, asking Rita to type an
-   English word is exactly the friction this epic removes. Proposal: **`APAGAR`**.
-   It is a two-module change (`admin-format.ts` + the `server-only`
-   `form-schemas.ts` that validates it) plus `actions.test.ts`, so it belongs in
-   stub 3, not as a drive-by. Needs a tick because it is a safety control.
+6. **The typed confirmation token.** *Decided (Jamie, 2026-08-31) and shipped by
+   `delete-token-apagar`: `DELETE_CONFIRMATION = "APAGAR"`.* It is what an
+   operator must type to erase a guest record or a catalogue entry, and in a
+   Portuguese console asking Rita to type an English word was exactly the
+   friction this epic removes. It shipped as its own stub rather than a drive-by,
+   because it is a behaviour change to a safety control: `admin-format.ts`, the
+   `server-only` `form-schemas.ts` that validates it, the two action-level
+   messages that repeated the word, and `actions.test.ts`.
 7. **`Extras` vs `Complementos`.** `content/emails.ts` says *Extras*;
    `content/tour-request.ts:31` says *Complementos* for the same list on the
    guest form. The admin should say one of them — proposal *Extras* (shorter on a
