@@ -1,3 +1,11 @@
+> Dropped: superseded by the 2026-08-31 recut, which splits this stub in two and
+> carves out the surfaces other epics delete or rewrite. Its catalogue half became
+> `translate-experiences`, its settings/auth half became `translate-settings-and-auth`,
+> and the preview studios it scoped in (blog, social, notifications, referrals, e-mail
+> marketing) left the epic — see the breakdown's out-of-scope list for who owns each.
+> The `DELETE` → `APAGAR` token it carried became `delete-token-apagar`. No work was
+> done against this slug.
+
 # Stub: Traduzir o resto — experiências, definições, utilizadores, auditoria
 
 - feature-slug: translate-admin-rest
