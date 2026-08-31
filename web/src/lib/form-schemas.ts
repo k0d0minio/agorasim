@@ -364,7 +364,7 @@ export const moveExperienceSchema = z.object({
 
 export const deleteExperienceSchema = z.object({
   id: z.uuid(),
-  confirm: z.literal(DELETE_CONFIRMATION, "Type DELETE to confirm."),
+  confirm: z.literal(DELETE_CONFIRMATION, `Escreva ${DELETE_CONFIRMATION} para confirmar.`),
 });
 
 // ---------------------------------------------------------------------------
@@ -507,7 +507,7 @@ export const adminUserIdSchema = z.object({ id: z.uuid() });
  */
 export const deleteTourRequestSchema = z.object({
   id: z.uuid(),
-  confirm: z.literal(DELETE_CONFIRMATION, "Type DELETE to confirm."),
+  confirm: z.literal(DELETE_CONFIRMATION, `Escreva ${DELETE_CONFIRMATION} para confirmar.`),
 });
 
 export const exportSubjectSchema = z.object({

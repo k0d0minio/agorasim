@@ -24,7 +24,7 @@ export { MIN_PASSWORD_LENGTH_HINT } from "@/lib/password-policy";
  * dialog to render the instruction and arm its button, the schema to validate
  * the submission — and `form-schemas.ts` is `server-only`.
  */
-export const DELETE_CONFIRMATION = "DELETE";
+export const DELETE_CONFIRMATION = "APAGAR";
 
 /**
  * Badge variant, taken straight from `ui/badge.tsx`. The hand-written mirror
