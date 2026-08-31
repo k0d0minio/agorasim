@@ -29,11 +29,11 @@ import type { AdminRole } from "@/db/schema";
 
 /** Groups, in the order they appear in both navs. Named for jobs, not tables. */
 export const ADMIN_NAV_GROUP_ORDER = [
-  "Overview",
-  "Sales",
+  "Resumo",
+  "Vendas",
   "Marketing",
-  "System",
-  "Settings",
+  "Sistema",
+  "Definições",
 ] as const;
 
 export type AdminNavGroup = (typeof ADMIN_NAV_GROUP_ORDER)[number];
@@ -59,7 +59,7 @@ export type AdminNavItem = {
    * Earns one of the fixed slots in the mobile bottom toolbar. Reserved for
    * the areas an operator reaches for daily — the toolbar once spent two of
    * its four slots on design previews while the screens with real data sat
-   * behind "More", and this flag is what keeps that from happening again.
+   * behind "Mais", and this flag is what keeps that from happening again.
    */
   primary: boolean;
   /**
@@ -79,62 +79,62 @@ export const ADMIN_HOME_HREF = "/admin";
 export const ADMIN_NAV: AdminNavItem[] = [
   {
     href: ADMIN_HOME_HREF,
-    label: "Dashboard",
+    label: "Início",
     icon: LayoutDashboard,
-    group: "Overview",
-    description: "Today's numbers and a way into every other area.",
+    group: "Resumo",
+    description: "Os números de hoje e a porta de entrada para todas as áreas.",
     dev: false,
     primary: true,
   },
   {
     href: "/admin/sales",
-    label: "Sales",
-    cardTitle: "Enquiries & bookings",
-    shortLabel: "Sales",
+    label: "Vendas",
+    cardTitle: "Pedidos e reservas",
+    shortLabel: "Vendas",
     icon: Inbox,
-    group: "Sales",
+    group: "Vendas",
     description:
-      "Every enquiry and booking on one board — New → Contacted → Quoted → Booked.",
+      "Todos os pedidos e reservas num quadro — Novo → Contactado → Orçamentado → Reservado.",
     dev: false,
     primary: true,
   },
   {
     href: "/admin/calendar",
-    label: "Calendar",
-    cardTitle: "Availability",
-    shortLabel: "Calendar",
+    label: "Calendário",
+    cardTitle: "Disponibilidade",
+    shortLabel: "Calendário",
     icon: CalendarDays,
-    group: "Sales",
+    group: "Vendas",
     description:
-      "Which days are on sale, how many seats each one has, and the days you're keeping for yourselves.",
+      "Que dias estão à venda, quantos lugares tem cada um e os dias que guarda para si.",
     dev: false,
     /*
      * Takes the toolbar slot the Blog studio was holding. The flag's whole
      * purpose (see its doc comment) is to keep design previews out of the four
-     * slots while screens with real data sit behind "More" — and this is the
+     * slots while screens with real data sit behind "Mais" — and this is the
      * screen Diogo & Rita open every morning to say what the week looks like.
      */
     primary: true,
   },
   {
     href: "/admin/experiences",
-    label: "Experiences",
-    cardTitle: "The catalogue",
-    shortLabel: "Catalogue",
+    label: "Experiências",
+    cardTitle: "O catálogo",
+    shortLabel: "Catálogo",
     icon: CarFront,
-    group: "Sales",
+    group: "Vendas",
     description:
-      "The experiences and add-ons you sell: names, descriptions, durations and what shows on the site.",
+      "As experiências e os extras que vende: nomes, descrições, durações e o que aparece no site.",
     dev: false,
     primary: false,
   },
   {
     href: "/admin/blog",
-    label: "Blog studio",
+    label: "Blog",
     icon: Newspaper,
     group: "Marketing",
     description:
-      "AI-drafted articles in your voice, waiting for a one-click review before publishing.",
+      "Artigos escritos pela IA no seu tom, à espera de uma revisão rápida antes de irem para o site.",
     dev: true,
     /*
      * Gave its bottom-toolbar slot to the availability calendar. It inherited
@@ -146,11 +146,11 @@ export const ADMIN_NAV: AdminNavItem[] = [
   },
   {
     href: "/admin/social",
-    label: "Social studio",
+    label: "Redes sociais",
     icon: Share2,
     group: "Marketing",
     description:
-      "A generated posting calendar for Instagram & Facebook — approve, and it posts itself.",
+      "Um calendário de publicações gerado para o Instagram e o Facebook — aprove e sai sozinho.",
     dev: true,
     primary: false,
   },
@@ -166,57 +166,57 @@ export const ADMIN_NAV: AdminNavItem[] = [
   },
   {
     href: "/admin/notifications",
-    label: "Notifications",
+    label: "Mensagens automáticas",
     icon: MessageSquareShare,
-    group: "System",
+    group: "Sistema",
     description:
-      "Automatic confirmations, reminders and thank-yous for guests — instant alerts for you.",
+      "Confirmações, lembretes e agradecimentos automáticos para os clientes — avisos imediatos para si.",
     dev: true,
     primary: false,
   },
   {
     href: "/admin/feature-requests",
-    label: "Feature requests",
-    shortLabel: "Requests",
+    label: "Sugestões",
+    shortLabel: "Sugestões",
     icon: Lightbulb,
-    group: "System",
+    group: "Sistema",
     description:
-      "Capture and triage ideas and asks for the toolkit — a free-form backlog for the team.",
+      "Onde escrever e organizar ideias e melhorias para o painel — uma lista livre para a equipa.",
     dev: false,
     primary: true,
   },
   {
     href: "/admin/settings/account",
-    label: "My account",
-    cardTitle: "My account",
-    shortLabel: "Account",
+    label: "A minha conta",
+    cardTitle: "A minha conta",
+    shortLabel: "Conta",
     icon: UserCog,
-    group: "Settings",
-    description: "Change your own password and sign out of every device at once.",
+    group: "Definições",
+    description: "Mude a sua palavra-passe e saia de todos os dispositivos de uma vez.",
     dev: false,
     primary: false,
   },
   {
     href: "/admin/settings/users",
-    label: "Team accounts",
-    cardTitle: "Team accounts",
-    shortLabel: "Team",
+    label: "Equipa",
+    cardTitle: "Contas da equipa",
+    shortLabel: "Equipa",
     icon: ShieldCheck,
-    group: "Settings",
+    group: "Definições",
     description:
-      "Who can sign in to this admin, what they're allowed to do, and how to disable an account.",
+      "Quem pode entrar no painel, o que cada pessoa pode fazer e como desativar uma conta.",
     dev: false,
     primary: false,
     role: "owner",
   },
   {
     href: "/admin/settings/audit",
-    label: "Audit log",
-    cardTitle: "Audit log",
-    shortLabel: "Audit",
+    label: "Registo de atividade",
+    cardTitle: "Registo de atividade",
+    shortLabel: "Registo",
     icon: ScrollText,
-    group: "Settings",
-    description: "Every change made in this admin, who made it and when.",
+    group: "Definições",
+    description: "Todas as alterações feitas no painel, quem as fez e quando.",
     dev: false,
     primary: false,
     role: "owner",
@@ -276,7 +276,7 @@ export function findAdminNavItem(pathname: string): AdminNavItem | undefined {
 
 /** Heading for the admin page at `pathname`. */
 export function adminPageTitle(pathname: string): string {
-  return findAdminNavItem(pathname)?.label ?? "Admin";
+  return findAdminNavItem(pathname)?.label ?? "Painel";
 }
 
 /**

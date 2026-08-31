@@ -32,6 +32,6 @@ describe("findAdminNavItem", () => {
     // /admin/settings/users and /admin/settings/audit are siblings; each page
     // must resolve to its own entry, not whichever sorts first.
     expect(findAdminNavItem("/admin/settings/audit")?.href).toBe("/admin/settings/audit");
-    expect(adminPageTitle("/admin/settings/audit")).toBe("Audit log");
+    expect(adminPageTitle("/admin/settings/audit")).toBe("Registo de atividade");
   });
 });
