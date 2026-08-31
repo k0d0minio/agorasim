@@ -21,7 +21,7 @@ the client tests it.
 3. price-tables-public — real tables + Offer JSON-LD on experience pages — depends-on: none
 4. obidos-truth — honest imagery + departure-time copy — depends-on: none
 5. remove-referral-surface — the dropped feature actually leaves — depends-on: none
-6. wedding-fleet-photos — the missing T3/4L photos land — depends-on: none *(blocked: client)*
+6. wedding-fleet-photos — the missing T3 photo lands (4L already wired) — depends-on: none *(blocked: client)*
 7. copy-micro-polish — PT/EN voice consistency tail — depends-on: purge-olaria-refresh-llms
 
 ## Out of scope (whole epic)
