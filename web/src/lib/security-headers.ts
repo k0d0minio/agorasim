@@ -10,13 +10,20 @@
  *
  * **Public site — `'unsafe-inline'` scripts, and why.** Nonce-based CSP requires
  * dynamic rendering: Next injects the nonce during SSR by reading it off the
- * request's own CSP header, and a page prerendered at build time has no request
- * to read. The public site is deliberately, entirely static (see `AGENTS.md`),
- * so a nonce there would mean making every marketing page dynamic to harden a
- * surface that renders no user input at all. That is the wrong trade, so the
- * public policy keeps `'unsafe-inline'` for scripts and earns its keep through
- * the directives that do not depend on it — `object-src 'none'`, `base-uri`,
- * `form-action`, `frame-ancestors`, and a closed list of third-party origins.
+ * request's own CSP header, and a page served from the prerender cache has no
+ * request of its own to read. The public site is prerendered and revalidated
+ * hourly rather than rendered per request (ISR — see `AGENTS.md`), so one piece
+ * of HTML is written once and served to everyone; a nonce there would mean
+ * making every marketing page dynamic to harden a surface that renders no user
+ * input at all. That is the wrong trade, so the public policy keeps
+ * `'unsafe-inline'` for scripts and earns its keep through the directives that
+ * do not depend on it — `object-src 'none'`, `base-uri`, `form-action`,
+ * `frame-ancestors`, and a closed list of third-party origins.
+ *
+ * `/reservar/confirmacao` is the one public route that *is* dynamic, and it
+ * could carry a nonce. It does not, because the public policy is a single
+ * `next.config.ts` header over every non-admin path: one page's worth of
+ * hardening is not worth a second public policy to keep in step with this one.
  *
  * **Admin area — nonced, because it can be.** Every `/admin` route is already
  * dynamic (the layout reads cookies), so the nonce costs nothing there. It is
@@ -64,7 +71,7 @@ function policy(directives: Record<string, string[] | null>): string {
 }
 
 /**
- * CSP for the public, static site.
+ * CSP for the public site.
  *
  * `frame-ancestors 'none'` and `frame-src 'none'` both: nothing on agorasim.pt
  * is meant to be embedded anywhere, and the site embeds nothing in return —
