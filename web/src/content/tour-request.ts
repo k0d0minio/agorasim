@@ -77,6 +77,16 @@ export const tourRequestContent = {
       pt: "último carro disponível",
       en: "last car available",
     } as Localized,
+    /**
+     * The chosen day stopped fitting because the guest changed the tour or the
+     * size of their party — a car that took two does not take five. Said where
+     * the calendar is, not next to the stepper they touched, because the
+     * calendar is where the loss is.
+     */
+    partyChanged: {
+      pt: "O dia que tinha escolhido já não tem carro livre para este grupo — escolha outro, por favor.",
+      en: "The day you had chosen no longer has a car free for this group — please pick another.",
+    } as Localized,
     previousMonth: { pt: "Mês anterior", en: "Previous month" } as Localized,
     nextMonth: { pt: "Mês seguinte", en: "Next month" } as Localized,
     weekdays: {

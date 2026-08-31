@@ -8,7 +8,6 @@ import { href } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { Section } from "@/components/section";
 import { Media } from "@/components/media";
-import { BookingButton } from "@/components/booking-button";
 import { buttonVariants } from "@/components/ui/button";
 import { alternates } from "@/lib/seo";
 
@@ -44,7 +43,20 @@ export default async function EventsPage({ params }: { params: Promise<{ locale:
             ))}
           </div>
           <div className="mt-8 flex flex-wrap gap-3">
-            <BookingButton locale={l} label={dict.cta.contactUs} />
+            {/*
+              Contact, not checkout. This was a `BookingButton`, which dropped
+              somebody asking about a corporate day or a birthday straight into
+              the per-person tour checkout — the wrong prices, the wrong
+              product, and no way to describe what they actually wanted. Events
+              are quoted by hand until the quote flow ships (see the
+              `quote-flow` epic), so the honest destination is the contact page.
+            */}
+            <Link
+              href={href(l, "contactos")}
+              className={cn(buttonVariants({ size: "lg" }))}
+            >
+              {dict.cta.contactUs}
+            </Link>
             <Link
               href={href(l, "casamentos")}
               className={cn(buttonVariants({ variant: "outline", size: "lg" }))}

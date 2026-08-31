@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { isLocale, t, type Locale } from "@/i18n/config";
@@ -33,6 +34,36 @@ import { alternates } from "@/lib/seo";
  */
 export const revalidate = 3600;
 
+/**
+ * Everything both the metadata and the page need, read once.
+ *
+ * `cache` is what makes that true: Next runs `generateMetadata` and the page
+ * component in the same render, and without it each would open the catalogue
+ * and count the calendar for itself. It also means the title can never
+ * describe a different branch from the one that renders — the two now decide
+ * from the same answer rather than from two reads that could disagree.
+ */
+const bookingPage = cache(async (locale: Locale) => {
+  const experiences = await listExperiences();
+  const tours = experiences.filter(
+    (entry) => entry.kind === "signature" && isPriced(entry.pricing),
+  );
+
+  // One calendar for every tour, with what is already committed folded in.
+  const availability = await readPublicCalendar({
+    locale,
+    occupancy: await committedCapacity(),
+  });
+
+  const anyOpenings = availability.some((month) => month.hasOpenings);
+
+  return {
+    experiences,
+    availability,
+    canCheckout: isStripeConfigured() && tours.length > 0 && anyOpenings,
+  };
+});
+
 export async function generateMetadata({
   params,
 }: {
@@ -40,9 +71,20 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   if (!isLocale(locale)) return {};
+  /*
+   * The same branch the page renders, not a guess about it.
+   *
+   * This used to say "Request an experience" unconditionally, which is the
+   * title of the *fallback*. With payments on, the search result, the browser
+   * tab and every social card promised an enquiry form to people the page then
+   * asked for a card — the one description a booking page cannot afford to get
+   * wrong. `bookingPage` is `cache`d, so asking here costs no second read.
+   */
+  const { canCheckout } = await bookingPage(locale);
+  const c = canCheckout ? bookingContent : tourRequestContent;
   return {
-    title: t(tourRequestContent.title, locale),
-    description: t(tourRequestContent.lead, locale),
+    title: t(c.title, locale),
+    description: t(c.lead, locale),
     alternates: alternates(locale, "reservar"),
   };
 }
@@ -102,19 +144,7 @@ export default async function BookingPage({
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
 
-  const experiences = await listExperiences();
-  const tours = experiences.filter(
-    (entry) => entry.kind === "signature" && isPriced(entry.pricing),
-  );
-
-  // One calendar for every tour, with what is already committed folded in.
-  const availability = await readPublicCalendar({
-    locale: l,
-    occupancy: await committedCapacity(),
-  });
-
-  const anyOpenings = availability.some((month) => month.hasOpenings);
-  const canCheckout = isStripeConfigured() && tours.length > 0 && anyOpenings;
+  const { experiences, availability, canCheckout } = await bookingPage(l);
 
   const c = canCheckout ? bookingContent : tourRequestContent;
 

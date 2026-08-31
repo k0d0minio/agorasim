@@ -86,6 +86,23 @@ export const bookingContent = {
     fewer: { pt: "Menos um", en: "One fewer" } as Localized,
     more: { pt: "Mais um", en: "One more" } as Localized,
 
+    /**
+     * The calendar step's own heading. Every other step on this form has one;
+     * without it a guest moving by headings fell from "who's coming" straight
+     * into "your details", with the whole calendar in between.
+     */
+    when: { pt: "Quando querem vir?", en: "When would you like to come?" } as Localized,
+
+    /**
+     * Shown to a guest Stripe has sent back after they cancelled: their basket
+     * has been put back from the draft their own browser kept, and saying so is
+     * what makes a pre-filled form read as helpful rather than uncanny.
+     */
+    resumed: {
+      pt: "Bem-vindo de volta — guardámos a sua escolha. Reveja os dados e conclua quando quiser.",
+      en: "Welcome back — we kept your choices. Check them over and finish whenever you're ready.",
+    } as Localized,
+
     slot: { pt: "Escolha a partida", en: "Pick your departure" } as Localized,
     slotHint: {
       pt: "Cada dia tem até duas partidas. Escolha o dia e depois a hora.",
