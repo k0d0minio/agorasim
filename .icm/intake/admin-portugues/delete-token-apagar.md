@@ -6,7 +6,7 @@
 - size: S
 - depends-on: translate-sales, translate-experiences
 - sequence: 6 of 7
-- sources: `.icm/docs/admin-pt-inventory.md` §9.6 (proposal, and the reason it is not a drive-by); Jamie's tick 2026-08-31 (own stub, change to `APAGAR`); `web/src/lib/admin-format.ts:27`, `web/src/lib/form-schemas.ts:344,463`, `delete-submission-dialog.tsx:103,118`, `experience-row-actions.tsx:206,221`
+- sources: `.icm/docs/admin-pt-inventory.md` §9.6 (proposal, and the reason it is not a drive-by); Jamie's tick 2026-08-31 (own stub, change to `APAGAR`); `web/src/lib/admin-format.ts:27`, `web/src/lib/form-schemas.ts:345,483`, `delete-submission-dialog.tsx:103,118`, `experience-row-actions.tsx:206,221`
 
 ## Problem
 
@@ -25,7 +25,7 @@ large copy diff where nobody reads it.
 `DELETE_CONFIRMATION = "APAGAR"`, and follow it everywhere:
 
 - `lib/admin-format.ts:27` — the constant.
-- `lib/form-schemas.ts:344,463` — both `z.literal(DELETE_CONFIRMATION, …)` calls carry
+- `lib/form-schemas.ts:345,483` — both `z.literal(DELETE_CONFIRMATION, …)` calls carry
   a hardcoded English message ("Type DELETE to confirm.") that does not interpolate
   the constant. Translate the message and make it read from the constant so the two
   can never drift again.

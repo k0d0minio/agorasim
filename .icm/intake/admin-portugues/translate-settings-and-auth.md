@@ -5,7 +5,7 @@
 - priority: P1
 - size: M
 - depends-on: translate-shell-and-nav
-- sequence: 4 of 7
+- sequence: 5 of 7
 - sources: D4; `.icm/docs/admin-pt-inventory.md` §2 (feature requests → *sugestão*, and the gender agreement it forces), §3.5, §5.1 (`settings/*`, `login`, `forbidden`, `feature-requests`), §5.2 (the eight account/auth components), §5.3 (`lib/password-policy.ts:16`), §9 defect 3
 
 ## Problem

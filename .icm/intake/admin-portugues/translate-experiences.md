@@ -5,7 +5,7 @@
 - priority: P1
 - size: M
 - depends-on: translate-shell-and-nav
-- sequence: 3 of 7
+- sequence: 4 of 7
 - sources: D4; `.icm/docs/admin-pt-inventory.md` §5.1 (`experiences/*`, `experiences/actions.ts` — 13 messages), §5.2 (`experience-form.tsx` 29, `experience-image-field.tsx` 7, `experience-row-actions.tsx` 8), §9 defects 1 and 2; `web/src/lib/pricing.ts:320–322` (the "English only, like the rest of the admin" comment this epic retires)
 
 ## Problem
