@@ -17,10 +17,11 @@ export const dynamic = "force-dynamic";
  *
  * This screen replaces three: Submissions (a table of website enquiries), the
  * CRM pipeline (a board of example leads) and Bookings (a table of example
- * bookings). For a while it kept a table view and a row of filters as well,
- * and the result was one screen wearing three toolbars. The board won: the
- * columns *are* the status filter, triage is the daily job, and everything the
- * table did that the board doesn't lives on a card's own detail page.
+ * bookings). All three mocks are gone with them — every card here is a lead
+ * somebody actually sent. For a while it kept a table view and a row of filters
+ * as well, and the result was one screen wearing three toolbars. The board won:
+ * the columns *are* the status filter, triage is the daily job, and everything
+ * the table did that the board doesn't lives on a card's own detail page.
  *
  * Each column holds its newest records up to a bound (see `SALES_STAGE_LIMIT`)
  * while its header shows the true total — a full column is visibly capped, not
@@ -31,14 +32,14 @@ export default async function AdminSalesPage() {
   const viewer = await requireAdmin();
   const isOwner = viewer.role === "owner";
 
-  const [{ records, totalEnquiries, exampleCount, countsByStatus }, catalogue] =
+  const [{ records, totalEnquiries, countsByStatus }, catalogue] =
     await Promise.all([listSalesBoard(), listCatalogue()]);
 
   const [lastChanged, pendingRetention] = await Promise.all([
     // One query for the whole page's "last changed by" lines, not one per row.
     lastAuditByEntity(
       "tour_request",
-      records.filter((record) => !record.example).map((record) => record.id),
+      records.map((record) => record.id),
     ),
     countPendingRetention(),
   ]);
@@ -64,14 +65,6 @@ export default async function AdminSalesPage() {
           now={now}
         />
       )}
-
-      {exampleCount > 0 ? (
-        <p className="mt-4 text-xs text-muted-foreground">
-          {exampleCount} card{exampleCount === 1 ? "" : "s"} marked{" "}
-          <span className="font-medium">Example</span> are placeholder bookings — real ones
-          appear here the moment instant booking and payments go live.
-        </p>
-      ) : null}
 
       <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">

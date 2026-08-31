@@ -8,10 +8,11 @@
  * "what is actually happening this week?" without visiting all three.
  *
  * This module is the join: {@link SalesRecord} is the row shape the board
- * renders, whether it came from the `tour_requests` table or — until the payment
- * engine ships — from the example bookings in `admin-preview.ts`. Everything
- * example-shaped carries `example: true` and is labelled as such in the UI;
- * nothing here silently mixes real money with imagined money.
+ * renders, over the `tour_requests` table and the `bookings` rows behind it.
+ * Nothing invented rides along. Four example bookings did, while checkout was
+ * being built and the board had no real money to show; they went the day it
+ * could, because a placeholder total sitting beside a real one is how a real
+ * one gets ignored.
  *
  * There is deliberately no enquiry/booking split in this shape. An instant
  * booking is just a record that arrives already in the `booked` stage, so
@@ -36,19 +37,27 @@ import {
   type RequestStatus,
   type TourRequest,
 } from "@/db";
-import { previewBookings, type PreviewBooking } from "@/lib/admin-preview";
 import { REQUEST_STATUSES } from "@/lib/admin-format";
 import { holdsCapacity } from "@/lib/bookings";
 import { formatPrice } from "@/lib/money";
 
+/**
+ * How far along the money is, as a card says it.
+ *
+ * Only two states, because only two are true of a `bookings` row: the guest has
+ * paid, or a live hold is waiting on them. Deposits are not modelled — when
+ * they are, this is where the third state goes.
+ */
+export type PaymentState = "Paid in full" | "Awaiting payment";
+
 /** The one row shape the board renders. */
 export type SalesRecord = {
-  /** Row identity. A `tour_requests` uuid, or the booking reference. */
+  /** Row identity: the `tour_requests` uuid. */
   id: string;
   /** Short human handle, shown on detail surfaces. */
   ref: string;
-  /** Detail page, where there is one. Example bookings have none yet. */
-  href: string | null;
+  /** The lead's own page. */
+  href: string;
   name: string;
   email: string | null;
   phone: string | null;
@@ -62,15 +71,13 @@ export type SalesRecord = {
   partySize: number | null;
   /** The date in play: the guest's preferred day, or the booked one. */
   when: string | null;
-  /** Money, where any is known — from a real `bookings` row, or an example. */
+  /** Money, where any is known — from the `bookings` row behind the lead. */
   value: string | null;
-  payment: PreviewBooking["payment"] | null;
+  payment: PaymentState | null;
   createdAt: Date;
   lastContactedAt: Date | null;
   marketingConsent: boolean;
   anonymisedAt: Date | null;
-  /** True for the placeholder bookings — never presented as real. */
-  example: boolean;
 };
 
 /** The reference an enquiry wears: short, stable, greppable. */
@@ -89,7 +96,7 @@ export function enquiryRef(id: string): string {
 export type BookingSummary = {
   /** Already formatted, e.g. "€340". */
   value: string;
-  payment: PreviewBooking["payment"];
+  payment: PaymentState;
   /** The day sold, `YYYY-MM-DD`, which beats the guest's free-text guess. */
   date: string;
 };
@@ -121,41 +128,7 @@ export function recordFromRequest(
     lastContactedAt: row.lastContactedAt,
     marketingConsent: row.marketingConsent,
     anonymisedAt: row.anonymisedAt,
-    example: false,
   };
-}
-
-/**
- * The example bookings as sales records.
- *
- * They are all `booked`: that is what a paid booking is, and putting them in the
- * board's last column is the honest place for them. `createdAt` is not invented
- * — these rows have no history, so they sort last within their column by virtue
- * of the epoch date rather than by pretending to be recent.
- */
-export function exampleBookingRecords(): SalesRecord[] {
-  return previewBookings.map((booking) => ({
-    id: booking.ref,
-    ref: booking.ref,
-    href: null,
-    name: booking.name,
-    email: null,
-    phone: null,
-    locale: null,
-    kind: booking.kind,
-    status: "booked",
-    experienceSlug: booking.experienceSlug,
-    addOns: booking.addOns,
-    partySize: booking.party,
-    when: booking.date,
-    value: booking.total,
-    payment: booking.payment,
-    createdAt: new Date(0),
-    lastContactedAt: null,
-    marketingConsent: false,
-    anonymisedAt: null,
-    example: true,
-  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -174,12 +147,10 @@ export function exampleBookingRecords(): SalesRecord[] {
 export const SALES_STAGE_LIMIT = 50;
 
 export type SalesBoardData = {
-  /** Up to {@link SALES_STAGE_LIMIT} per stage, plus the example bookings. */
+  /** Up to {@link SALES_STAGE_LIMIT} per stage. */
   records: SalesRecord[];
   /** Every enquiry in the database, whatever its stage. */
   totalEnquiries: number;
-  /** Example bookings included in `records`, so the UI can say so. */
-  exampleCount: number;
   /** Enquiries per stage, uncapped — the true counts on the board's columns. */
   countsByStatus: Record<RequestStatus, number>;
 };
@@ -193,8 +164,7 @@ const EMPTY_COUNTS = (): Record<RequestStatus, number> =>
 /**
  * Everything the Sales board renders, in one round trip: the newest
  * {@link SALES_STAGE_LIMIT} enquiries of each stage, and the uncapped per-stage
- * tallies for the column headers. The example bookings ride along until real
- * bookings exist.
+ * tallies for the column headers.
  */
 export async function listSalesBoard(): Promise<SalesBoardData> {
   // One bounded SELECT per stage plus the tallies — six statements, one
@@ -220,10 +190,7 @@ export async function listSalesBoard(): Promise<SalesBoardData> {
   const leads = perStage.flat();
   const money = await bookingSummaries(leads.map((lead) => lead.id));
 
-  const records = [
-    ...leads.map((lead) => recordFromRequest(lead, money.get(lead.id))),
-    ...exampleBookingRecords(),
-  ];
+  const records = leads.map((lead) => recordFromRequest(lead, money.get(lead.id)));
 
   return {
     records,
@@ -231,7 +198,6 @@ export async function listSalesBoard(): Promise<SalesBoardData> {
       (sum, status) => sum + countsByStatus[status],
       0,
     ),
-    exampleCount: records.filter((record) => record.example).length,
     countsByStatus,
   };
 }
