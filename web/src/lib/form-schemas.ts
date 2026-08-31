@@ -29,7 +29,12 @@ import {
   requestStatusEnum,
 } from "@/db/schema";
 import { DELETE_CONFIRMATION } from "@/lib/admin-format";
-import { DEFAULT_DRIVERS, isDateKey, MAX_DRIVERS } from "@/lib/availability";
+import {
+  DEFAULT_DRIVERS,
+  isDateKey,
+  MAX_DRIVERS,
+  MAX_RANGE_DAYS,
+} from "@/lib/availability";
 import { MAX_PARTY_ONLINE } from "@/lib/fleet";
 import { parsePriceInput } from "@/lib/money";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
@@ -63,6 +68,23 @@ const optionalText = z
   .trim()
   .catch("")
   .transform((value) => value || null);
+
+/**
+ * A free-text column a form may address *or leave alone*.
+ *
+ * Three states, not two: the field was posted with something in it (write it),
+ * posted empty (clear it — the operator emptied the box), or not posted at all
+ * (`undefined`, and the column keeps whatever it had). {@link optionalText}
+ * collapses the last two, which is right for a form that always renders the
+ * field and wrong for one that does not: the calendar's month sweeps post no
+ * `note`, and they must not therefore erase one.
+ */
+const preservedText = z
+  .string()
+  .trim()
+  .optional()
+  .catch(undefined)
+  .transform((value) => (value === undefined ? undefined : value || null));
 
 /** Rough shape check only — deliverability is the mail server's problem. */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -362,7 +384,7 @@ export const deleteExperienceSchema = z.object({
  * naming more days than that is not the admin calendar talking.
  */
 const dateKeys = repeated.transform((values) =>
-  Array.from(new Set(values.filter(isDateKey))).sort().slice(0, 366),
+  Array.from(new Set(values.filter(isDateKey))).sort().slice(0, MAX_RANGE_DAYS),
 );
 
 /**
@@ -416,11 +438,16 @@ export const setAvailabilitySchema = z.object({
     .trim()
     .catch("")
     .transform((value) => {
+      // Not posted at all: the write is not about the roster. A month sweep
+      // knows nothing about who is driving on the 14th and must leave Rita's
+      // answer where it is — see `upsertDays`.
+      if (value === "") return undefined;
       const n = Number.parseInt(value, 10);
       if (!Number.isFinite(n)) return DEFAULT_DRIVERS;
       return Math.min(MAX_DRIVERS, Math.max(1, n));
     }),
-  note: optionalText,
+  /** Absent leaves the note alone; posted-and-empty clears it. */
+  note: preservedText,
 });
 
 /** Remove rows outright — "nobody has decided about these departures". */

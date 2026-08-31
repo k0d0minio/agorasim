@@ -170,9 +170,47 @@ describe("setAvailabilitySchema", () => {
       MAX_DRIVERS,
     );
     expect(setAvailabilitySchema.parse(write({ dates: "2026-08-15", drivers: "0" })).drivers).toBe(1);
+    // Posted, but not a number anyone typed: the nearest legal answer is the
+    // roster, not silence.
     expect(
-      setAvailabilitySchema.parse(write({ dates: "2026-08-15", drivers: "" })).drivers,
+      setAvailabilitySchema.parse(write({ dates: "2026-08-15", drivers: "two" })).drivers,
     ).toBe(DEFAULT_DRIVERS);
+  });
+
+  /**
+   * The sweep-safety half: a form that does not carry a field must not be read
+   * as one that carries the default.
+   *
+   * This is the parse half of the fix for the bulk sweeps — `upsertDays` is
+   * where the `undefined` turns into "leave the column alone", and it can only
+   * do that if the schema stops helpfully inventing a value here. A regression
+   * would be invisible on screen and would quietly empty every note in the
+   * range the next time somebody closed a month.
+   */
+  it("leaves the roster and the note alone when the form does not post them", () => {
+    const sweep = setAvailabilitySchema.parse({
+      dates: ["2026-08-15", "2026-08-16"],
+      slots: ["morning", "afternoon"],
+      status: "closed",
+    });
+    expect(sweep.drivers).toBeUndefined();
+    expect(sweep.note).toBeUndefined();
+  });
+
+  it("clears the note when the day sheet posts an empty one", () => {
+    // The day sheet always renders the field, so an empty one is the operator
+    // having deleted what was in it — that is an edit, not an absence.
+    const parsed = setAvailabilitySchema.parse(
+      write({ dates: "2026-08-15", note: "  " }),
+    );
+    expect(parsed.note).toBeNull();
+  });
+
+  it("keeps a note the day sheet did post", () => {
+    const parsed = setAvailabilitySchema.parse(
+      write({ dates: "2026-08-15", note: "  Casamento  " }),
+    );
+    expect(parsed.note).toBe("Casamento");
   });
 
   it("keeps `full_day` out, whatever a form posts", () => {

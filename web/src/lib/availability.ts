@@ -761,6 +761,17 @@ export async function checkDayBookable(options: {
 // ---------------------------------------------------------------------------
 
 /**
+ * The longest stretch one gesture may write — a leap year, to the day.
+ *
+ * Exported because the season card has to be able to *say* it: a confirmation
+ * that promises four hundred days when the write stops at three hundred and
+ * sixty-six is worse than no confirmation at all. The page reads it and hands
+ * it to the client component, the way it already hands down the roster
+ * numbers, because this module is `server-only`.
+ */
+export const MAX_RANGE_DAYS = 366;
+
+/**
  * Every day from `from` to `to`, inclusive — the seasonal window as a list.
  *
  * Rita's "we are closed until April" is one gesture, and it has to reach the
@@ -774,7 +785,7 @@ export async function checkDayBookable(options: {
 export function expandDateRange(
   from: DateKey,
   to: DateKey,
-  limit = 366,
+  limit = MAX_RANGE_DAYS,
 ): DateKey[] {
   const start = parseDateKey(from);
   const end = parseDateKey(to);
@@ -801,6 +812,20 @@ export function expandDateRange(
  * `availability_date_slot_key`, which is the index that makes
  * one-row-per-day-per-departure true.
  *
+ * **`status` is the only field a write always sets.** `drivers` and `note`
+ * change only when the caller passes them, and are otherwise left exactly as
+ * the row already had them. This is the difference between "close August" and
+ * "close August and forget everything anybody wrote about it": the note is
+ * *why* a day is shut — "Casamento", "carro na revisão" — and the roster is
+ * Rita's answer to who is actually driving. A sweep across a hundred days
+ * knows neither of those things, so it must not have an opinion about them,
+ * and passing the defaults would be exactly such an opinion. Rows that do not
+ * exist yet still get the column defaults (`DRIVERS_PER_SLOT`, no note),
+ * because there is nothing there to preserve.
+ *
+ * Passing `note: null` *is* explicit, and clears it — that is the day sheet
+ * emptying the field. Only leaving the key out preserves.
+ *
  * Returns the rows as they now stand, so the caller can audit what actually
  * changed rather than what it asked for.
  */
@@ -808,23 +833,30 @@ export async function upsertDays(options: {
   dates: DateKey[];
   slots: AvailabilitySlot[];
   status: AvailabilityStatus;
+  /** Left alone when absent. A number replaces the roster on every row named. */
   drivers?: number;
+  /** Left alone when absent; `null` clears it. */
   note?: string | null;
 }): Promise<AvailabilityRow[]> {
-  const { dates, slots, status, note = null } = options;
-  const drivers = options.drivers ?? DRIVERS_PER_SLOT;
+  const { dates, slots, status } = options;
   if (dates.length === 0 || slots.length === 0) return [];
+
+  // Built once and used for both halves of the upsert, so the insert and the
+  // update cannot disagree about which fields this write is addressed to.
+  const edits: { drivers?: number; note?: string | null } = {};
+  if (options.drivers !== undefined) edits.drivers = options.drivers;
+  if (options.note !== undefined) edits.note = options.note;
 
   const now = new Date();
 
   return db
     .insert(availability)
     .values(
-      dates.flatMap((date) => slots.map((slot) => ({ date, slot, status, drivers, note }))),
+      dates.flatMap((date) => slots.map((slot) => ({ date, slot, status, ...edits }))),
     )
     .onConflictDoUpdate({
       target: [availability.date, availability.slot],
-      set: { status, drivers, note, updatedAt: now },
+      set: { status, ...edits, updatedAt: now },
     })
     .returning();
 }

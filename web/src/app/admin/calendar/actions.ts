@@ -81,12 +81,20 @@ function addressedDays(input: {
 }
 
 /**
- * Open or close departures, and set how many drivers they have.
+ * Open or close departures, and — when the form says so — set how many drivers
+ * they have and why.
  *
  * `drivers` and `note` are written on a close as well as an open: closing the
  * 20th because there is a wedding, then reopening it, should not silently
  * reset the roster — and the note is *why*, which is the part the team will
  * want next month.
+ *
+ * **A form that does not post them does not change them.** The day sheet
+ * renders both fields and always posts both, so it can set a roster and clear
+ * a note; the month sweeps and the season window post neither, and so leave
+ * every note and every adjusted roster in the range exactly as they were.
+ * `upsertDays` is where that distinction is enforced — the schema's job is only
+ * to turn "not posted" into `undefined` rather than into a default.
  */
 export async function setAvailability(
   _prevState: AvailabilityActionState,
@@ -122,8 +130,12 @@ export async function setAvailability(
       dates: written,
       slots,
       status,
-      drivers,
-      hasNote: Boolean(note),
+      // Only recorded when the write actually set them. A sweep leaves both
+      // alone, and an audit line reading `drivers: 2` would be asserting a
+      // change that never happened — which is the sort of entry somebody
+      // reconstructs a bug from six months later.
+      ...(drivers === undefined ? {} : { drivers }),
+      ...(note === undefined ? {} : { hasNote: note !== null }),
       // A season closed in one gesture reads back as one, rather than as three
       // hundred loose days somebody has to reconstruct.
       ...(parsed.data.from && parsed.data.to
@@ -135,12 +147,18 @@ export async function setAvailability(
   revalidatePublicSite();
 
   const departures = written.length * slots.length;
+  // The roster clause only when the write set one — a sweep that left the
+  // rosters alone must not report a number it did not write.
+  const roster =
+    drivers === undefined
+      ? ""
+      : `, ${drivers} ${drivers === 1 ? "driver" : "drivers"} each`;
   return {
     ok: true,
     changed: departures,
     message:
       status === "open"
-        ? `${days(written.length)} on sale (${departures} departures), ${drivers} ${drivers === 1 ? "driver" : "drivers"} each.`
+        ? `${days(written.length)} on sale (${departures} departures)${roster}.`
         : `${days(written.length)} closed.`,
   };
 }

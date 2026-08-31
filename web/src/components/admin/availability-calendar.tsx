@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
@@ -54,11 +54,16 @@ import { Label } from "@/components/ui/label";
  *   the operator was.
  * - Nothing requires a drag (T6). The roster is a stepper; the bulk sweeps and
  *   the seasonal window are buttons and two native date fields.
+ * - Day-cell captions are 12px, the floor the spec sets (F2), which is why the
+ *   two departures in a cell stack instead of sitting side by side.
  *
  * The heavy work is the bulk row and the season card. "Close everything until
  * April" is one gesture and one round trip — the alternative is two hundred
  * taps on 4G in a courtyard, which is how a calendar stops being kept up to
- * date.
+ * date. Both of them ask first: the gesture is cheap to make and expensive to
+ * make by accident, so it goes through a confirmation that names the range
+ * (see {@link SweepConfirmation}), and the write it performs leaves every note
+ * and every adjusted roster in that range alone (see `upsertDays`).
  */
 
 /**
@@ -87,6 +92,41 @@ function carsLeft(slot: SlotAvailability): string {
     (entry) => `${slot.vehiclesLeft[entry]} ${CLASS_WORDS[entry]}`,
   );
   return parts.length > 0 ? parts.join(", ") : "no cars";
+}
+
+/**
+ * "3 Nov 2026" — a date the operator can check against the one they meant.
+ *
+ * The rest of this screen takes its date labels from the server (`longLabel`),
+ * because `lib/availability.ts` is `server-only` and because a date rendered
+ * during hydration has to match what the server wrote. These strings are built
+ * only inside a confirmation the operator has already opened, so there is no
+ * server render for them to disagree with. Fixed to UTC for the same reason
+ * the keys are: a day key is a day, not an instant, and a browser in Auckland
+ * must not read `2026-11-03` back as the 4th.
+ */
+const dayFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "UTC",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+function readableDay(date: string): string {
+  return dayFormatter.format(new Date(`${date}T00:00:00Z`));
+}
+
+/** "23 days" / "1 day" — a confirmation counts what it is about to write. */
+function dayCount(n: number): string {
+  return `${n} ${n === 1 ? "day" : "days"}`;
+}
+
+/** Both ends of what a sweep addresses, named so a mis-tap is visible. */
+function rangeWords(list: CalendarDay[]): string {
+  if (list.length === 0) return "no days";
+  const first = readableDay(list[0].date);
+  if (list.length === 1) return first;
+  return `${first} to ${readableDay(list[list.length - 1].date)}`;
 }
 
 /** How one departure reads inside a day cell, at arm's length. */
@@ -233,10 +273,12 @@ function DayEditor({
   const [drivers, setDrivers] = useState(first?.drivers || defaultDrivers);
   const [note, setNote] = useState(first?.note ?? "");
 
-  const done = save.ok || clear.ok;
+  // On the state objects, not on a `done` boolean: `useActionState` returns a
+  // fresh object per result, and a boolean that has already flipped to `true`
+  // never announces the next success.
   useEffect(() => {
-    if (done) onDone();
-  }, [done, onDone]);
+    if (save.ok || clear.ok) onDone();
+  }, [save, clear, onDone]);
 
   const error = save.error ?? clear.error;
   const fieldId = `day-${day.date}`;
@@ -397,6 +439,105 @@ function DayEditor({
   );
 }
 
+/**
+ * A confirmation the operator has opened, and the action result it was opened
+ * after.
+ *
+ * The second half is what makes closing the dialog a *derived* fact rather
+ * than a second copy of the truth. `useActionState` hands back a fresh object
+ * for every result and keeps the last one forever, so "has the server answered
+ * since this dialog opened?" is an identity comparison and nothing else — no
+ * effect that closes the dialog, no `ok` flag that is stuck `true` and quietly
+ * stops the *next* sweep from ever opening.
+ */
+type Confirming<T> = { what: T; after: AvailabilityActionState } | null;
+
+/**
+ * What is still being confirmed — `null` once the server has answered.
+ *
+ * Any answer closes the dialog, success or failure: the write either happened,
+ * and the card reads back what it did, or it did not, and the card says why in
+ * the same place the buttons are. Neither is something to keep a modal open
+ * over.
+ */
+function stillAsking<T>(
+  confirming: Confirming<T>,
+  state: AvailabilityActionState,
+): T | null {
+  return confirming !== null && confirming.after === state ? confirming.what : null;
+}
+
+/**
+ * The step between a tap and three hundred rows.
+ *
+ * Same shape as the erasure confirmation in `delete-submission-dialog.tsx`,
+ * and for the same reason: a control that rewrites a season on one touch will
+ * eventually be touched by a pocket. The destructive path is spelled out —
+ * which days, how many departures, what is *not* touched — and the safe path
+ * is the default and sits nearest the thumb (T5: the footer paints in reverse
+ * on a phone, so Cancel is first in the DOM and last on screen).
+ *
+ * It stops short of that dialog's "type DELETE". Erasing an enquiry has no
+ * undo; a range closed by mistake is reopened with the same control a moment
+ * later, and a keyboard between Rita and "open August" is how a calendar stops
+ * being kept up to date. What this insists on is that the range be *named*,
+ * because the mistake being guarded against is not "I did not mean to press
+ * this" so much as "I did not realise it meant that many days".
+ *
+ * The hidden fields are `children` so the caller stays the one place that says
+ * what its own sweep addresses.
+ */
+function SweepConfirmation({
+  open,
+  onOpenChange,
+  formAction,
+  title,
+  description,
+  confirmLabel,
+  pendingLabel,
+  destructive,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  formAction: (formData: FormData) => void;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  pendingLabel: string;
+  destructive?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <form action={formAction} className="flex flex-col gap-4">
+          {children}
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <SubmitButton
+              variant={destructive ? "destructive" : undefined}
+              pendingLabel={pendingLabel}
+            >
+              {confirmLabel}
+            </SubmitButton>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /** A month's worth of days a bulk sweep can address: everything not past. */
 function sweepable(days: CalendarDay[]): CalendarDay[] {
   return days.filter((day) => day.slots.some((slot) => !slot.past));
@@ -404,20 +545,47 @@ function sweepable(days: CalendarDay[]): CalendarDay[] {
 
 const BOTH_SLOTS = ["morning", "afternoon"];
 
+/** What one sweep button means, so the button and its confirmation agree. */
+type Sweep = {
+  id: string;
+  /** The button on the card. */
+  label: string;
+  days: CalendarDay[];
+  status: "open" | "closed";
+  title: string;
+  description: string;
+  confirmLabel: string;
+  pendingLabel: string;
+  destructive?: boolean;
+};
+
 /**
- * The bulk row: set up a whole month in one tap.
+ * The bulk row: set up a whole month in two taps.
  *
  * Deliberately only three sweeps. "Open every day", "open weekends" and "close
  * everything" cover how the season is actually planned; anything more
  * expressive is a query builder, and the per-day sheet is right there for the
  * exceptions. Sweeps address both departures of every remaining day.
+ *
+ * Two taps rather than one: the button now opens a {@link SweepConfirmation}
+ * naming the range, and the write happens from inside it. Each sweep is
+ * described once, in `sweeps`, so the words on the button and the words in the
+ * dialog cannot drift apart.
+ *
+ * What a sweep does *not* do is touch notes and rosters — see `upsertDays`.
+ * "Close all" now means the month goes off sale with every "Casamento" and
+ * every one-driver Tuesday still on it, which is what the operator pressing it
+ * has always meant.
  */
 function BulkActions({
   days,
+  monthLabel,
   defaultDrivers,
   onDone,
 }: {
   days: CalendarDay[];
+  /** "August 2026", formatted by the server — the sweeps say which month. */
+  monthLabel: string;
   defaultDrivers: number;
   onDone: () => void;
 }) {
@@ -425,11 +593,11 @@ function BulkActions({
     setAvailability,
     {},
   );
+  const [confirming, setConfirming] = useState<Confirming<string>>(null);
 
-  const ok = state.ok;
   useEffect(() => {
-    if (ok) onDone();
-  }, [ok, onDone]);
+    if (state.ok) onDone();
+  }, [state, onDone]);
 
   const remaining = sweepable(days);
   const weekends = remaining.filter((day) => day.slots.some((slot) => slot.weekend));
@@ -442,36 +610,71 @@ function BulkActions({
     );
   }
 
+  const kept =
+    "Notes and driver rosters already on those days are left exactly as they are.";
+
+  const sweeps: Sweep[] = [
+    {
+      id: "open-all",
+      label: `Open all ${remaining.length}`,
+      days: remaining,
+      status: "open",
+      title: `Put ${dayCount(remaining.length)} on sale?`,
+      description:
+        `Both departures of every day from ${rangeWords(remaining)} go on sale — ` +
+        `${remaining.length * 2} departures in ${monthLabel}. ${kept}`,
+      confirmLabel: "Put them on sale",
+      pendingLabel: "Opening…",
+    },
+    {
+      id: "open-weekends",
+      label: `Open weekends (${weekends.length})`,
+      days: weekends,
+      status: "open",
+      title: `Put ${weekends.length} weekend ${weekends.length === 1 ? "day" : "days"} on sale?`,
+      description:
+        `Both departures of every Saturday and Sunday from ${rangeWords(weekends)} ` +
+        `go on sale — ${weekends.length * 2} departures. Weekdays are not touched. ${kept}`,
+      confirmLabel: "Put them on sale",
+      pendingLabel: "Opening…",
+    },
+    {
+      id: "close-all",
+      label: "Close all",
+      days: remaining,
+      status: "closed",
+      title: `Close ${dayCount(remaining.length)}?`,
+      description:
+        `Both departures of every day from ${rangeWords(remaining)} come off sale — ` +
+        `${remaining.length * 2} departures in ${monthLabel}. Bookings already taken ` +
+        `are not cancelled. ${kept}`,
+      confirmLabel: "Close them",
+      pendingLabel: "Closing…",
+      destructive: true,
+    },
+  ];
+
+  const asked = stillAsking(confirming, state);
+  const active = asked ? (sweeps.find((sweep) => sweep.id === asked) ?? null) : null;
+
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm font-medium">Set the whole month</p>
       <div className="flex flex-wrap gap-2">
-        <form action={formAction}>
-          <WriteFields dates={remaining.map((day) => day.date)} slots={BOTH_SLOTS} />
-          <input type="hidden" name="drivers" value={defaultDrivers} />
-          <input type="hidden" name="status" value="open" />
-          <SubmitButton variant="outline" pendingLabel="Opening…">
-            Open all {remaining.length}
-          </SubmitButton>
-        </form>
-
-        <form action={formAction}>
-          <WriteFields dates={weekends.map((day) => day.date)} slots={BOTH_SLOTS} />
-          <input type="hidden" name="drivers" value={defaultDrivers} />
-          <input type="hidden" name="status" value="open" />
-          <SubmitButton variant="outline" pendingLabel="Opening…">
-            Open weekends ({weekends.length})
-          </SubmitButton>
-        </form>
-
-        <form action={formAction}>
-          <WriteFields dates={remaining.map((day) => day.date)} slots={BOTH_SLOTS} />
-          <input type="hidden" name="drivers" value={defaultDrivers} />
-          <input type="hidden" name="status" value="closed" />
-          <SubmitButton variant="outline" pendingLabel="Closing…">
-            Close all
-          </SubmitButton>
-        </form>
+        {sweeps.map((sweep) => (
+          <Button
+            key={sweep.id}
+            type="button"
+            variant="outline"
+            // A sweep with nothing in it can only produce "no days were
+            // selected" — better to be visibly unavailable than to open a
+            // dialog whose only outcome is an error.
+            disabled={sweep.days.length === 0}
+            onClick={() => setConfirming({ what: sweep.id, after: state })}
+          >
+            {sweep.label}
+          </Button>
+        ))}
       </div>
 
       {state.error ? (
@@ -485,12 +688,54 @@ function BulkActions({
         </p>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        Sweeps touch both departures of every day from today onwards, and they
-        overwrite whatever those departures said before. Drivers default to{" "}
-        {defaultDrivers} per departure; open a day to adjust one.
+        Sweeps touch both departures of every day from today onwards, and each
+        one asks before it writes. Days already on the calendar keep their notes
+        and their rosters; days new to it start with {defaultDrivers} drivers.
       </p>
+
+      {active ? (
+        <SweepConfirmation
+          key={active.id}
+          open
+          onOpenChange={(open) => {
+            if (!open) setConfirming(null);
+          }}
+          formAction={formAction}
+          title={active.title}
+          description={active.description}
+          confirmLabel={active.confirmLabel}
+          pendingLabel={active.pendingLabel}
+          destructive={active.destructive}
+        >
+          <WriteFields
+            dates={active.days.map((day) => day.date)}
+            slots={BOTH_SLOTS}
+          />
+          <input type="hidden" name="status" value={active.status} />
+        </SweepConfirmation>
+      ) : null}
     </div>
   );
+}
+
+/**
+ * How many days a range covers, inclusive — `0` if it is not a range at all.
+ *
+ * A date-only string parses as UTC midnight, so the subtraction never meets a
+ * daylight-saving hour. Empty, unparseable and backwards ranges all come back
+ * as `0`, which is the one answer the season card can safely treat as "there
+ * is nothing here to confirm yet".
+ */
+function spanOfDays(from: string, to: string): number {
+  const start = Date.parse(from);
+  const end = Date.parse(to);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 0;
+  return Math.round((end - start) / 86_400_000) + 1;
+}
+
+/** `from` plus `n` days, as a key — where a capped range actually stops. */
+function addDays(from: string, n: number): string {
+  return new Date(Date.parse(from) + n * 86_400_000).toISOString().slice(0, 10);
 }
 
 /**
@@ -504,10 +749,18 @@ function BulkActions({
  *
  * Deliberately outside the month pager: it is not a fact about the month on
  * screen, and putting it there would suggest it was.
+ *
+ * It is also the most destructive control in the admin — one press can rewrite
+ * a year — so it is the one that most needs a {@link SweepConfirmation}. The
+ * date fields sit outside the form now and are posted as hidden inputs from
+ * inside the dialog, so the confirmation is holding the same two dates it just
+ * read back to the operator.
  */
-function SeasonWindow({ today, defaultDrivers, onDone }: {
+function SeasonWindow({ today, defaultDrivers, maxRangeDays, onDone }: {
   today: string;
   defaultDrivers: number;
+  /** `MAX_RANGE_DAYS` — where the server stops, so the dialog can say so. */
+  maxRangeDays: number;
   onDone: () => void;
 }) {
   const [state, formAction] = useActionState<AvailabilityActionState, FormData>(
@@ -516,18 +769,53 @@ function SeasonWindow({ today, defaultDrivers, onDone }: {
   );
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [confirming, setConfirming] = useState<Confirming<"open" | "closed">>(null);
+  const asked = stillAsking(confirming, state);
 
-  const ok = state.ok;
   useEffect(() => {
-    if (ok) onDone();
-  }, [ok, onDone]);
+    if (state.ok) onDone();
+  }, [state, onDone]);
 
-  // Backwards ranges are refused here as well as server-side: the server's
-  // answer would be "no days were selected", which is true and unhelpful.
-  const usable = from !== "" && to !== "" && from <= to;
+  // Half-filled and backwards ranges are refused here as well as server-side:
+  // the server's answer would be "no days were selected", which is true and
+  // unhelpful.
+  const span = spanOfDays(from, to);
+  const usable = span > 0;
+
+  // What the write will actually cover. The server expands the range with a
+  // cap, so a fortnight and a decade both arrive as at most `maxRangeDays`
+  // rows — and a confirmation that promised the decade would be lying about
+  // the one thing it exists to state.
+  const capped = span > maxRangeDays;
+  const writing = capped ? maxRangeDays : span;
+  const lastWritten = capped ? addDays(from, maxRangeDays - 1) : to;
+
+  const confirmation = asked
+    ? {
+        status: asked,
+        title:
+          asked === "closed"
+            ? `Close ${dayCount(writing)}?`
+            : `Put ${dayCount(writing)} on sale?`,
+        description:
+          (asked === "closed"
+            ? `Both departures of every day from ${readableDay(from)} to ` +
+              `${readableDay(lastWritten)} come off sale — ${writing * 2} departures. ` +
+              "Bookings already taken are not cancelled. "
+            : `Both departures of every day from ${readableDay(from)} to ` +
+              `${readableDay(lastWritten)} go on sale — ${writing * 2} departures. `) +
+          "Notes and driver rosters already on those days are left exactly as they are." +
+          (capped
+            ? ` One gesture writes at most ${maxRangeDays} days, so this one stops at ` +
+              `${readableDay(lastWritten)} — run it again from there for the rest.`
+            : ""),
+        confirmLabel: asked === "closed" ? "Close them" : "Put them on sale",
+        pendingLabel: asked === "closed" ? "Closing…" : "Opening…",
+      }
+    : null;
 
   return (
-    <form action={formAction} className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
       <div>
         <p className="text-sm font-medium">A whole stretch of dates</p>
         <p className="text-xs text-muted-foreground">
@@ -536,17 +824,11 @@ function SeasonWindow({ today, defaultDrivers, onDone }: {
         </p>
       </div>
 
-      <input type="hidden" name="drivers" value={defaultDrivers} />
-      {BOTH_SLOTS.map((slot) => (
-        <input key={slot} type="hidden" name="slots" value={slot} />
-      ))}
-
       <div className="flex flex-wrap gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="season-from">From</Label>
           <Input
             id="season-from"
-            name="from"
             type="date"
             min={today}
             value={from}
@@ -557,7 +839,6 @@ function SeasonWindow({ today, defaultDrivers, onDone }: {
           <Label htmlFor="season-to">To</Label>
           <Input
             id="season-to"
-            name="to"
             type="date"
             min={from || today}
             value={to}
@@ -567,18 +848,21 @@ function SeasonWindow({ today, defaultDrivers, onDone }: {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <SubmitButton
+        <Button
+          type="button"
           variant="outline"
-          name="status"
-          value="closed"
-          pendingLabel="Closing…"
           disabled={!usable}
+          onClick={() => setConfirming({ what: "closed", after: state })}
         >
           Close this range
-        </SubmitButton>
-        <SubmitButton name="status" value="open" pendingLabel="Opening…" disabled={!usable}>
+        </Button>
+        <Button
+          type="button"
+          disabled={!usable}
+          onClick={() => setConfirming({ what: "open", after: state })}
+        >
           Open this range
-        </SubmitButton>
+        </Button>
       </div>
 
       {state.error ? (
@@ -592,10 +876,35 @@ function SeasonWindow({ today, defaultDrivers, onDone }: {
         </p>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        Up to a year at a time. Days already sold keep their bookings — closing a
-        day stops new ones, it never cancels an old one.
+        Up to a year at a time, and it asks before it writes. Days already sold
+        keep their bookings — closing a day stops new ones, it never cancels an
+        old one. Days new to the calendar start with {defaultDrivers} drivers;
+        days that already carry a note or an adjusted roster keep both.
       </p>
-    </form>
+
+      {confirmation ? (
+        <SweepConfirmation
+          key={confirmation.status}
+          open
+          onOpenChange={(open) => {
+            if (!open) setConfirming(null);
+          }}
+          formAction={formAction}
+          title={confirmation.title}
+          description={confirmation.description}
+          confirmLabel={confirmation.confirmLabel}
+          pendingLabel={confirmation.pendingLabel}
+          destructive={confirmation.status === "closed"}
+        >
+          <input type="hidden" name="from" value={from} />
+          <input type="hidden" name="to" value={to} />
+          {BOTH_SLOTS.map((slot) => (
+            <input key={slot} type="hidden" name="slots" value={slot} />
+          ))}
+          <input type="hidden" name="status" value={confirmation.status} />
+        </SweepConfirmation>
+      ) : null}
+    </div>
   );
 }
 
@@ -608,6 +917,7 @@ export function AvailabilityCalendar({
   nextMonth,
   defaultDrivers,
   maxDrivers,
+  maxRangeDays,
   fleet,
   today,
 }: {
@@ -621,6 +931,8 @@ export function AvailabilityCalendar({
   nextMonth: string | null;
   defaultDrivers: number;
   maxDrivers: number;
+  /** `MAX_RANGE_DAYS`, so the season confirmation can state where a write stops. */
+  maxRangeDays: number;
   /** The cars, for the legend — why a departure can be full with a driver free. */
   fleet: CalendarVehicle[];
   /** Today in Lisbon, as the floor of the season fields. */
@@ -637,16 +949,29 @@ export function AvailabilityCalendar({
   );
   const toursLeft = openSlots.reduce((sum, slot) => sum + slot.driversLeft, 0);
 
-  function refresh() {
+  // Stable, and it has to be: every card below takes it as `onDone` and calls
+  // it from an effect that lists it as a dependency. A fresh function each
+  // render would re-fire those effects on the render `router.refresh()` itself
+  // causes, and the calendar would refresh in a loop.
+  const refresh = useCallback(() => {
     setSelected(null);
     router.refresh();
-  }
+  }, [router]);
 
   const calendarHref = (monthKey: string) => `/admin/calendar?month=${monthKey}`;
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="gap-3 p-3 sm:p-4">
+      {/* `p-2` on a phone rather than `p-3`, and a half-step grid gap: the day
+          cells carry 12px captions (F2) and seven of them have to fit at the
+          320px reflow floor (D2). Measured, because the margin is small enough
+          that estimating it is guessing — "10h·2" is 31px in Geist and 32px in
+          the metric-matched Arial fallback that paints while Geist is still on
+          the wire, against 32px of cell at `p-3 gap-1` and 35px here. The old
+          padding fits the loaded font and clips the one an operator on rural 4G
+          actually sees first. The card's inset reads the same at 8px; a cell
+          losing a character does not. */}
+      <Card className="gap-3 p-2 sm:p-4">
         <div className="flex items-center justify-between gap-2">
           <Button
             asChild={previousMonth !== null}
@@ -683,7 +1008,7 @@ export function AvailabilityCalendar({
           </Button>
         </div>
 
-        <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground">
+        <div className="grid grid-cols-7 gap-0.5 text-center text-xs font-medium text-muted-foreground sm:gap-1">
           {weekdays.map((initial, i) => (
             <span key={i} className="py-1">
               {initial}
@@ -691,7 +1016,7 @@ export function AvailabilityCalendar({
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
           {grid.map((date, i) => {
             if (date === null) return <span key={`blank-${i}`} />;
             const day = byDate.get(date);
@@ -707,14 +1032,23 @@ export function AvailabilityCalendar({
                 aria-label={label}
                 className={cn(
                   // 44px floor from the primitive scale, and square so the grid
-                  // stays a grid at 320px.
-                  "flex min-h-12 touch-manipulation flex-col items-center justify-center rounded-lg border py-1 text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed",
+                  // stays a grid at 320px. `overflow-hidden` is the guarantee
+                  // that a cell cannot push its neighbour sideways whatever the
+                  // caption ends up being.
+                  "flex min-h-12 touch-manipulation flex-col items-center justify-center overflow-hidden rounded-lg border py-1 text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed",
                   className,
                 )}
               >
                 <span>{Number(date.slice(8))}</span>
                 {!disabled ? (
-                  <span className="flex gap-1 text-[0.55rem] leading-tight font-normal">
+                  // The two departures stack rather than sit side by side. They
+                  // used to be one 8.8px row, which is well under the 12px floor
+                  // this admin is built to (F2) and unreadable on the screen the
+                  // floor was written for — a phone held at arm's length in the
+                  // sun. At 12px two "10h·2" captions do not fit across a cell
+                  // on any phone, so the cell grows downwards instead, where
+                  // there is room.
+                  <span className="flex w-full flex-col items-center text-xs leading-tight font-normal">
                     {day.slots.map((slot) => {
                       const tone = slotTone(slot);
                       return (
@@ -737,11 +1071,21 @@ export function AvailabilityCalendar({
       </p>
 
       <Card className="p-4">
-        <BulkActions days={days} defaultDrivers={defaultDrivers} onDone={refresh} />
+        <BulkActions
+          days={days}
+          monthLabel={monthLabel}
+          defaultDrivers={defaultDrivers}
+          onDone={refresh}
+        />
       </Card>
 
       <Card className="p-4">
-        <SeasonWindow today={today} defaultDrivers={defaultDrivers} onDone={refresh} />
+        <SeasonWindow
+          today={today}
+          defaultDrivers={defaultDrivers}
+          maxRangeDays={maxRangeDays}
+          onDone={refresh}
+        />
       </Card>
 
       <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
