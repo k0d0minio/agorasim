@@ -46,15 +46,15 @@ export default async function AdminSalesPage() {
 
   const now = new Date();
   const index = catalogueIndex(catalogue);
-  const countLabel = `${totalEnquiries} ${totalEnquiries === 1 ? "enquiry" : "enquiries"}`;
+  const countLabel = `${totalEnquiries} ${totalEnquiries === 1 ? "pedido" : "pedidos"}`;
 
   return (
     <AdminShell>
       {records.length === 0 ? (
         <PlaceholderPanel
           icon={Inbox}
-          title="No leads yet"
-          description="Once customers submit the booking form, their enquiries appear here as cards on the board."
+          title="Ainda não há pedidos"
+          description="Quando alguém preencher o formulário do site, o pedido aparece aqui como cartão no quadro."
         />
       ) : (
         <SalesBoard
@@ -74,8 +74,8 @@ export default async function AdminSalesPage() {
         {/* The retention policy, made visible. A scheduled job that quietly
             erases data nobody knew was scheduled to go is how surprises happen. */}
         <span>
-          Unconverted enquiries are anonymised after {retentionDays()} days
-          {pendingRetention > 0 ? ` · ${pendingRetention} due at the next run` : ""}
+          Os pedidos que não deram reserva são anonimizados ao fim de {retentionDays()} dias
+          {pendingRetention > 0 ? ` · ${pendingRetention} na próxima limpeza` : ""}
         </span>
       </div>
 
