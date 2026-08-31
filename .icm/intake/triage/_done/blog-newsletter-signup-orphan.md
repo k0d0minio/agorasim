@@ -1,3 +1,10 @@
+> Resolved by blog-engine/blog-publish-path, 2026-08-31: the **Out** option, because
+> the epic breakdown had already ruled it ("Newsletter capture — not contracted; the
+> disabled input is removed in stub 1"). The block and all five `newsletterX` strings
+> are gone; `web/src` has no surviving newsletter vocabulary. This stub was cut the
+> same day from the other side of the decision and did not see that line. If Jamie
+> wanted **In** or **Parked deliberately**, reopen — the copy is in git.
+
 # Stub: The blog's newsletter signup promises a list nobody sends
 
 - lane: chore
