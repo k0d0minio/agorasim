@@ -6,36 +6,74 @@
 - size: S
 - depends-on: none
 - sequence: 6 of 7
-- blocked: client — photos must be re-sent (the info PDF's WeTransfer links expire; T3 and 4L wedding shots specifically)
-- sources: copy lens: PR #30 keeps `image: null` for Renault 4L and VW T3 → "Fotografias a caminho" tiles; info PDF §2.1 (client already sent WeTransfer links — likely expired: they last days, sent 2026-08-18)
+- blocked: client — **VW T3 only**; a wedding-context T3 frame must be re-sent (the
+  info PDF's WeTransfer links expire; sent 2026-08-18). The Renault 4L is no longer
+  blocked — see the audit below.
+- sources: copy lens: PR #30 keeps `image: null` for Renault 4L and VW T3 → "Fotografias
+  a caminho" tiles (**stale for the 4L** — see audit); info PDF §2.1 (client already sent
+  WeTransfer links — likely expired: they last days, sent 2026-08-18)
 
 ## Problem
 
 The weddings page (landing via booking-live) will still show "photographs on their
-way" for half the fleet. The client's WeTransfer links from August have almost
+way" for part of the fleet. The client's WeTransfer links from August have almost
 certainly expired; the assets may exist on Jamie's disk from the original download —
 check before asking.
 
+## Audit — 2026-08-31
+
+`web/public/images/{weddings,fleet}/` swept against the folder README. Half the
+original premise was already stale:
+
+**Renault 4L — present, already wired. Not blocked.**
+`weddings/renault-4-mafra-palace.jpg` (156 KB, 1015×1024 — garlanded 4L in front of
+Mafra National Palace) is live in the `renault-4l` fleet tile, and has been since
+`af2baef` (2026-08-19), carried through the PR #30 rescue in `768bcc4`. A second
+usable wedding frame sits spare: `weddings/renault-4-rear-name-sign.jpg` (164 KB,
+1024×1015 — rear, garland, couple's name sign). Both are under the 500 KB bar. So the
+4L needs nothing from the client, and the tile is not a `photosSoon` tile.
+
+**VW T3 — genuinely absent. Still blocked.**
+Four T3 frames exist, all in `fleet/`, all tour/brand context, none wedding:
+`vw-t3-van-and-2cv-vineyard-road.jpg`, `vw-t3-van-dog-at-window.jpg`,
+`vw-t3-van-doors-open.jpg`, `vw-t3-van-front.jpg` (plus
+`rural-saloia/guests-at-vw-van-dusk.jpg`). No garland, no couple, no ceremony in any
+of them. Dropping one into "Escolha o vosso clássico" beside three garlanded wedding
+frames would sell an undecorated tour van as a wedding car — the exact "never a wrong
+car" trap the tile comment in `weddings.ts` guards against. So the T3 tile stays
+`photosSoon` and no code changed this pass.
+
+The re-request is on the client pack: `.icm/project.md` → Open questions → Client,
+"Photos re-send … blocks `content-truth/wedding-fleet-photos`", riding
+`workspaces/deals/diogo-rita/open-questions.md` in icm-board (that repo is outside
+this one; the register bullet here is the in-repo record). Both have been narrowed to
+the T3. Pack still unsent — Jamie sends.
+
 ## Proposed change
 
-First look in `web/public/images/{weddings,fleet}/` and Jamie's local downloads for
-usable T3/4L wedding shots (17 + 12 files exist — some may fit). If genuinely
-missing, the re-request rides the open-questions pack (already added). When photos
-land: optimise, place, alt-text, remove the `photosSoon` tiles.
+When the T3 wedding photograph lands: optimise (<500 KB), place in
+`web/public/images/weddings/` under the folder naming rule (`vw-t3-van-…`), add it to
+the `vw-t3` entry in `web/src/content/weddings.ts`, and update the folder README's
+`weddings/` table. That empties the last `photosSoon` tile; the `photosSoon` string
+and its branch in `casamentos/page.tsx` can then go too.
 
 ## Acceptance criteria (rough)
 
-- [ ] All four fleet cars photographed on /casamentos; no "photographs on their way"
-- [ ] Images optimised (<500KB source), real alt text
+- [x] Renault 4L photographed on /casamentos
+- [ ] VW T3 photographed on /casamentos; no "photographs on their way" left
+- [ ] `photosSoon` string and its render branch removed once the last tile is filled
+- [x] Images optimised (<500KB source), real alt text — holds for what is wired today
 - [ ] CI green
 
 ## Prompt
 
-In the agorasim repo (`web/`), complete the wedding fleet imagery per
-`.icm/intake/content-truth/wedding-fleet-photos.md`: first audit
-`web/public/images/weddings/` and `web/public/images/fleet/` for usable Renault 4L
-and VW T3 wedding-context shots before declaring them missing (the README in
-`web/public/images/` documents the set); if present, wire them into
-`web/src/content/weddings.ts` fleet entries and drop the `photosSoon` tiles. If
-absent, confirm the ask is in the icm-board deal-folder question pack and leave this
-stub blocked. PR on a `claude/` branch; no local checks — CI is the source of truth.
+In the agorasim repo (`web/`), finish the wedding fleet imagery per
+`.icm/intake/content-truth/wedding-fleet-photos.md`. Only the **VW T3** is
+outstanding — the Renault 4L is already wired (see the audit in that file). If a
+wedding-context T3 photograph has arrived, optimise it, place it in
+`web/public/images/weddings/`, wire it into the `vw-t3` entry in
+`web/src/content/weddings.ts`, add its row to `web/public/images/README.md`, and
+remove the now-dead `photosSoon` string plus its branch in
+`web/src/app/[locale]/casamentos/page.tsx`. Do not substitute a tour-context T3 shot
+from `fleet/`. If it still has not arrived, leave this stub blocked. PR on a
+`claude/` branch; no local checks — CI is the source of truth.
