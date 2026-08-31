@@ -8,7 +8,6 @@ import { href } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { Section } from "@/components/section";
 import { Media } from "@/components/media";
-import { BookingButton } from "@/components/booking-button";
 import { buttonVariants } from "@/components/ui/button";
 import { alternates } from "@/lib/seo";
 
@@ -44,7 +43,21 @@ export default async function EventsPage({ params }: { params: Promise<{ locale:
             ))}
           </div>
           <div className="mt-8 flex flex-wrap gap-3">
-            <BookingButton locale={l} label={dict.cta.contactUs} />
+            {/*
+              To the contact page, not into the checkout.
+
+              An event is a quote — a date, a fleet, a venue — and this button
+              used to open the tour booking form, where the first thing an
+              event enquirer met was a per-person price for a countryside tour
+              they had not asked about. It goes back to the paid flow when
+              there is a quote flow to go to (see `.icm/intake/quote-flow`).
+            */}
+            <Link
+              href={href(l, "contactos")}
+              className={cn(buttonVariants({ size: "lg" }))}
+            >
+              {dict.cta.contactUs}
+            </Link>
             <Link
               href={href(l, "casamentos")}
               className={cn(buttonVariants({ variant: "outline", size: "lg" }))}

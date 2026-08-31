@@ -77,6 +77,15 @@ export const tourRequestContent = {
       pt: "último carro disponível",
       en: "last car available",
     } as Localized,
+    /**
+     * The day that was chosen and then stopped fitting — the party grew past
+     * the car it had free. Said out loud rather than quietly dropped: a choice
+     * that disappears without a word reads as a page that lost it.
+     */
+    partyOutgrewDay: {
+      pt: "O dia que tinha escolhido já não tem carro para um grupo deste tamanho. Escolha outro, por favor.",
+      en: "The day you had chosen no longer has a car for a group this size. Please pick another one.",
+    } as Localized,
     previousMonth: { pt: "Mês anterior", en: "Previous month" } as Localized,
     nextMonth: { pt: "Mês seguinte", en: "Next month" } as Localized,
     weekdays: {

@@ -42,6 +42,10 @@ import { t, type Locale } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
 import { formatDay, type DateKey } from "@/lib/availability";
 import { bookingRef, holdExpiryFrom } from "@/lib/bookings";
+import {
+  CHECKOUT_CANCELLED_PARAM,
+  CHECKOUT_TOUR_PARAM,
+} from "@/lib/checkout-draft";
 import { BOOKING_CURRENCY, formatPrice } from "@/lib/money";
 import type { VehicleClass } from "@/lib/fleet";
 import type { BookingMode, PartyCount, PricedLine } from "@/lib/pricing";
@@ -208,7 +212,16 @@ export async function startBookingCheckout(options: {
       success_url: `${base}/${locale}/reservar/confirmacao?session_id={CHECKOUT_SESSION_ID}`,
       // Back to the form, not to an error: a guest who changed their mind about
       // the card has not changed their mind about the tour.
-      cancel_url: `${base}/${locale}/reservar`,
+      //
+      // The two parameters are what makes that true rather than merely kind.
+      // `cancelled=1` tells the form this arrival is a return, which is its
+      // signal to restore the draft it saved on the way out; the tour rides
+      // along so that even a browser with no session storage lands on the right
+      // card. Nothing personal travels in the URL — see `lib/checkout-draft.ts`.
+      cancel_url:
+        `${base}/${locale}/reservar` +
+        `?${CHECKOUT_TOUR_PARAM}=${encodeURIComponent(experience.slug)}` +
+        `&${CHECKOUT_CANCELLED_PARAM}=1`,
     });
 
     if (!session.url) throw new Error("Stripe returned a session with no URL");

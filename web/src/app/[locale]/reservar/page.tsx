@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { isLocale, t, type Locale } from "@/i18n/config";
@@ -33,6 +34,43 @@ import { alternates } from "@/lib/seo";
  */
 export const revalidate = 3600;
 
+/**
+ * The whole question this route turns on, asked once per request.
+ *
+ * Both the page and its metadata need the answer, and asking twice would mean
+ * two catalogue reads and two passes over the calendar for one render — so it
+ * is memoised for the render that needs it. See {@link BookingPage} for what
+ * the three conditions mean.
+ */
+const bookingPageState = cache(async (locale: Locale) => {
+  const experiences = await listExperiences();
+  const tours = experiences.filter(
+    (entry) => entry.kind === "signature" && isPriced(entry.pricing),
+  );
+
+  // One calendar for every tour, with what is already committed folded in.
+  const availability = await readPublicCalendar({
+    locale,
+    occupancy: await committedCapacity(),
+  });
+  const anyOpenings = availability.some((month) => month.hasOpenings);
+
+  return {
+    experiences,
+    availability,
+    canCheckout: isStripeConfigured() && tours.length > 0 && anyOpenings,
+  };
+});
+
+/**
+ * The title has to describe the page that actually renders.
+ *
+ * This route is two pages behind one URL — a checkout when everything needed to
+ * take money is in place, an enquiry form otherwise — and the metadata used to
+ * say "request an experience" either way. A search result promising a form to
+ * fill in, opening on a card payment, is the kind of mismatch that reads as the
+ * wrong page and is answered with the back button.
+ */
 export async function generateMetadata({
   params,
 }: {
@@ -40,9 +78,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   if (!isLocale(locale)) return {};
+  const { canCheckout } = await bookingPageState(locale);
+  const c = canCheckout ? bookingContent : tourRequestContent;
   return {
-    title: t(tourRequestContent.title, locale),
-    description: t(tourRequestContent.lead, locale),
+    title: t(c.title, locale),
+    description: t(c.lead, locale),
     alternates: alternates(locale, "reservar"),
   };
 }
@@ -102,19 +142,7 @@ export default async function BookingPage({
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
 
-  const experiences = await listExperiences();
-  const tours = experiences.filter(
-    (entry) => entry.kind === "signature" && isPriced(entry.pricing),
-  );
-
-  // One calendar for every tour, with what is already committed folded in.
-  const availability = await readPublicCalendar({
-    locale: l,
-    occupancy: await committedCapacity(),
-  });
-
-  const anyOpenings = availability.some((month) => month.hasOpenings);
-  const canCheckout = isStripeConfigured() && tours.length > 0 && anyOpenings;
+  const { experiences, availability, canCheckout } = await bookingPageState(l);
 
   const c = canCheckout ? bookingContent : tourRequestContent;
 

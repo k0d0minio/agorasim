@@ -13,6 +13,7 @@ import { listCatalogue } from "@/lib/experience-catalogue";
 import { formatPrice } from "@/lib/money";
 import { href } from "@/lib/routes";
 import { isStripeConfigured, stripe } from "@/lib/stripe";
+import { CheckoutDraftCleanup } from "@/components/checkout-draft-cleanup";
 import { Section } from "@/components/section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -58,6 +59,7 @@ export default async function BookingConfirmationPage({
 
   return (
     <Section>
+      <CheckoutDraftCleanup />
       <div className="mx-auto max-w-xl">
         {state.kind === "confirmed" ? (
           <Panel

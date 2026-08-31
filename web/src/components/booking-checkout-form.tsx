@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
 import { Check, Lock, Minus, Plus, ShieldCheck } from "lucide-react";
@@ -8,7 +8,7 @@ import { Check, Lock, Minus, Plus, ShieldCheck } from "lucide-react";
 import { t, type Locale, type Localized } from "@/i18n/config";
 import { bookingContent } from "@/content/booking";
 import { privacyContent } from "@/content/privacy";
-import { departureLabel } from "@/content/logistics";
+import { departureLabel, meetingPoints } from "@/content/logistics";
 import type { Experience } from "@/content/experiences";
 import type { PublicMonth } from "@/lib/availability";
 import { MAX_PARTY_ONLINE } from "@/lib/fleet";
@@ -22,6 +22,13 @@ import {
 } from "@/lib/pricing";
 import { formatPrice } from "@/lib/money";
 import { href } from "@/lib/routes";
+import {
+  clearDraft,
+  readCheckoutEntry,
+  readDraft,
+  saveDraft,
+  type CheckoutDraft,
+} from "@/lib/checkout-draft";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import {
   startCheckout,
@@ -177,6 +184,44 @@ export function BookingCheckoutForm({
   const [infants, setInfants] = useState(0);
   const [addOns, setAddOns] = useState<Set<string>>(new Set());
   const [date, setDate] = useState<string | null>(null);
+  const [slot, setSlot] = useState<"morning" | "afternoon" | null>(null);
+  /*
+   * The guest's own words, held here rather than left to the DOM.
+   *
+   * They have to be readable to be remembered — the draft written for the walk
+   * to Stripe carries them — and they have to survive a rejected submit, which
+   * an uncontrolled `<form action>` does not: React resets it once the action
+   * returns. The server echoes them back for that same reason, and seeds this
+   * state on the render that carries the failure.
+   */
+  const [guest, setGuest] = useState(() => ({
+    name: state.values?.name ?? "",
+    email: state.values?.email ?? "",
+    phone: state.values?.phone ?? "",
+    message: state.values?.message ?? "",
+  }));
+  const guestField =
+    (field: keyof typeof guest) =>
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setGuest((previous) => ({ ...previous, [field]: event.target.value }));
+
+  /**
+   * Bumped when a restored draft has to reopen the calendar on its saved day.
+   *
+   * The picker takes its opening day as a `defaultValue`, which it reads once,
+   * so putting one back means remounting it — the *only* thing that legitimately
+   * remounts this picker. Party size used to, which is the bug this replaces:
+   * the picker restarted with nothing chosen while the form above it went on
+   * holding the day that had just vanished from the page, and the guest paid
+   * for — or was refused on — a date they could no longer see.
+   */
+  const [restoreToken, setRestoreToken] = useState(0);
+  /**
+   * Whether the arrival pass below has run. Nothing is written to the draft
+   * store before it has, or the form's own defaults would overwrite the draft
+   * this visit came back to restore.
+   */
+  const [arrived, setArrived] = useState(false);
 
   const tour = tours.find((entry) => entry.slug === tourSlug) ?? tours[0];
   const pricing = tour?.pricing?.type === "tour" ? tour.pricing : null;
@@ -261,6 +306,27 @@ export function BookingCheckoutForm({
     }
   })();
 
+  /** Put a saved draft back on the page, calendar included. */
+  function restore(draft: CheckoutDraft) {
+    setTourSlug(draft.tour);
+    setMode(draft.mode);
+    setAdults(draft.adults);
+    setChildren(draft.children);
+    setInfants(draft.infants);
+    setAddOns(new Set(draft.addOns));
+    setDate(draft.date);
+    setSlot(draft.slot);
+    setGuest({
+      name: draft.name,
+      email: draft.email,
+      phone: draft.phone,
+      message: draft.message,
+    });
+    // The calendar reads its opening day once, at mount, so putting one back
+    // means asking for a new one.
+    setRestoreToken((n) => n + 1);
+  }
+
   function toggleAddOn(slug: string) {
     setAddOns((previous) => {
       const next = new Set(previous);
@@ -269,6 +335,63 @@ export function BookingCheckoutForm({
       return next;
     });
   }
+
+  /**
+   * The arrival pass — what the URL asked for, and what the last visit left.
+   *
+   * Both are read from `window.location` after mount rather than from the
+   * page's `searchParams`, on purpose: `/reservar` is statically rendered and
+   * builds itself from the catalogue and the whole public calendar (see the
+   * `revalidate` note on the page), and touching `searchParams` there would
+   * make every view a database round trip to preselect a card.
+   *
+   * It runs once, on arrival. The dependencies it reads — the catalogue and the
+   * setters — cannot change between renders of a mounted form.
+   */
+  useEffect(() => {
+    const { tour: wanted, cancelled } = readCheckoutEntry(window.location.search);
+    const known = (slug: string | null) =>
+      Boolean(slug) && tours.some((entry) => entry.slug === slug);
+
+    // `?tour=` — a guest who pressed "book this experience" on the Óbidos page
+    // has already told us which route they want.
+    if (wanted && known(wanted)) setTourSlug(wanted);
+
+    // `?cancelled=1` — back from Stripe. Everything they had entered goes back
+    // on the page, and the draft is spent: a reload after this is a fresh form.
+    if (cancelled) {
+      const draft = readDraft();
+      clearDraft();
+      if (draft && known(draft.tour)) restore(draft);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    setArrived(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * Everything the guest has entered, kept where a return from Stripe can find
+   * it. Written continuously rather than on submit: by the time the browser is
+   * on Stripe's domain this component is gone, and a draft that is only written
+   * on the way out is a draft that is missing whenever the way out is not the
+   * path taken. Never before the arrival pass above, which would overwrite the
+   * very draft this visit came back for. `lib/checkout-draft.ts` says why the
+   * store is the tab's and not the URL.
+   */
+  useEffect(() => {
+    if (!arrived || !tour) return;
+    saveDraft({
+      tour: tour.slug,
+      mode,
+      adults,
+      children,
+      infants,
+      addOns: [...addOns],
+      date,
+      slot,
+      ...guest,
+    });
+  }, [arrived, tour, mode, adults, children, infants, addOns, date, slot, guest]);
 
   if (!tour) return null;
 
@@ -316,6 +439,7 @@ export function BookingCheckoutForm({
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {tours.map((entry) => {
               const active = entry.slug === tour.slug;
+              const meetingPoint = meetingPoints[entry.slug];
               return (
                 <button
                   key={entry.slug}
@@ -323,6 +447,7 @@ export function BookingCheckoutForm({
                   onClick={() => {
                     setTourSlug(entry.slug);
                     setDate(null);
+                    setSlot(null);
                     setAddOns(new Set());
                   }}
                   aria-pressed={active}
@@ -336,6 +461,18 @@ export function BookingCheckoutForm({
                   <span className="font-medium">{t(entry.title, l)}</span>
                   <span className="text-sm text-muted-foreground">{t(entry.tagline, l)}</span>
                   <span className="text-sm text-muted-foreground">{t(entry.duration, l)}</span>
+                  {/*
+                    Where this one leaves from. The two routes start an hour
+                    apart — Sintra for the countryside, Lisbon for Óbidos — and
+                    a guest could pay without ever being told which, then drive
+                    to the wrong city. A route `content/logistics.ts` does not
+                    name gets no line at all, never a guessed one.
+                  */}
+                  {meetingPoint ? (
+                    <span className="text-sm text-muted-foreground">
+                      {t(c.labels.meetingPoint, l)}: {meetingPoint.address}
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -442,13 +579,23 @@ export function BookingCheckoutForm({
           The calendar. One calendar for the whole business (AGORA-012) — what
           changes with the tour and the party is not *which* days exist but
           which of them have the right car free, which is why both are passed
-          down rather than a pre-filtered month list. The `key` restarts the
-          picker when either changes: a day that fitted a couple in a 2CV may
-          not fit the five people they have just become.
+          down rather than a pre-filtered month list.
+
+          The party is *not* in the `key`. It used to be, and a couple who
+          became five lost the day they had chosen without being told: the
+          picker restarted blank while this form went on holding the vanished
+          date, so the summary, the add-on rules and the hidden field all still
+          described a booking the page no longer showed. The picker now keeps
+          its day across a party change and drops it — out loud — only when the
+          day genuinely stops fitting.
         */}
         <BookingDatePicker
-          key={`${tour.slug}-${seats}`}
+          key={`${tour.slug}-${restoreToken}`}
           locale={l}
+          // The step's own heading, so the calendar is announced like every
+          // other section of this form rather than being the one step a screen
+          // reader meets as a stray paragraph.
+          headingId="bk-when"
           // The checkout's field, not the enquiry's. A card cannot be charged
           // for "late August", so the free-text escape becomes a link out.
           name="date"
@@ -460,9 +607,11 @@ export function BookingCheckoutForm({
           allowFlexible={false}
           contactHref={href(l, "contactos")}
           months={availability}
-          defaultValue={state.values?.date}
+          defaultValue={date ?? state.values?.date}
+          defaultSlot={slot}
           error={state.fieldErrors?.date}
           onDateChange={setDate}
+          onSlotChange={setSlot}
         />
 
         {/* Add-ons — a private countryside privilege, and the form says so. */}
@@ -553,7 +702,8 @@ export function BookingCheckoutForm({
                 required
                 autoComplete="name"
                 enterKeyHint="next"
-                defaultValue={state.values?.name}
+                value={guest.name}
+                onChange={guestField("name")}
               />
               {state.fieldErrors?.name ? (
                 <p className="text-sm text-destructive" role="alert">
@@ -571,7 +721,8 @@ export function BookingCheckoutForm({
                 required
                 autoComplete="email"
                 enterKeyHint="next"
-                defaultValue={state.values?.email}
+                value={guest.email}
+                onChange={guestField("email")}
               />
               {state.fieldErrors?.email ? (
                 <p className="text-sm text-destructive" role="alert">
@@ -587,7 +738,8 @@ export function BookingCheckoutForm({
                 name="phone"
                 type="tel"
                 autoComplete="tel"
-                defaultValue={state.values?.phone}
+                value={guest.phone}
+                onChange={guestField("phone")}
               />
             </div>
           </div>
@@ -599,7 +751,8 @@ export function BookingCheckoutForm({
               name="message"
               rows={3}
               placeholder={t(c.labels.messagePlaceholder, l)}
-              defaultValue={state.values?.message}
+              value={guest.message}
+              onChange={guestField("message")}
             />
           </div>
 

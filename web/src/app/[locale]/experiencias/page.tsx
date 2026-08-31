@@ -80,7 +80,7 @@ export default async function ExperiencesPage({
               ))}
             </ul>
             <div className="mt-8 flex flex-wrap gap-3">
-              <BookingButton locale={l} label={dict.cta.bookExperience} />
+              <BookingButton locale={l} label={dict.cta.bookExperience} tour={sig.slug} />
               <Link
                 href={href(l, "experiencias", sig.slug)}
                 // min-h-11: this sits beside a 48px button and was a 20px-tall

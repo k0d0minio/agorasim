@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type ElementType } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -77,7 +77,9 @@ export function BookingDatePicker({
   contactHref,
   /** Pre-fill after a failed submit, so a rejected day is not silently lost. */
   defaultValue,
+  defaultSlot,
   error,
+  headingId,
   slotName,
   slotHeading,
   slotLabels,
@@ -110,7 +112,21 @@ export function BookingDatePicker({
   /** Where the "none of these days work?" link goes when not flexible. */
   contactHref?: string;
   defaultValue?: string;
+  /**
+   * The departure to open on, paired with {@link defaultValue}.
+   *
+   * Only the checkout has one to restore — a guest coming back from Stripe had
+   * picked a day *and* a time, and handing back the day alone is half the form.
+   */
+  defaultSlot?: "morning" | "afternoon" | null;
   error?: string;
+  /**
+   * Renders "pick a day" as the step's own `h2` under this id, for a form whose
+   * other steps are headed sections — the checkout. Left unset by the enquiry
+   * form, where the calendar is one field among several and a bold line is the
+   * right weight.
+   */
+  headingId?: string;
   /**
    * When set, picking a day reveals its departures as chips and the chosen one
    * posts into this field. The enquiry form leaves it unset — a preference does
@@ -171,7 +187,16 @@ export function BookingDatePicker({
       ? defaultValue
       : null,
   );
-  const [selectedSlot, setSelectedSlot] = useState<"morning" | "afternoon" | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<"morning" | "afternoon" | null>(
+    // A departure without its day is not a departure: when the day handed in is
+    // not on this calendar, the departure that came with it goes too.
+    selected ? (defaultSlot ?? null) : null,
+  );
+  /**
+   * Set when a day was dropped because the party grew past what it had free —
+   * see the effect below. Cleared as soon as another day is chosen.
+   */
+  const [dropped, setDropped] = useState(false);
 
   const chooseSlot = (slot: "morning" | "afternoon" | null) => {
     setSelectedSlot(slot);
@@ -179,6 +204,7 @@ export function BookingDatePicker({
   };
 
   const chooseDay = (date: string | null) => {
+    setDropped(false);
     setSelected(date);
     onDateChange?.(date);
     if (!slotName) return;
@@ -198,6 +224,63 @@ export function BookingDatePicker({
   );
 
   const month = months[monthIndex];
+
+  /**
+   * The departures the chosen day could still sell this party, as a stable
+   * string — the effect below needs to notice the *contents* changing, and a
+   * fresh array every render would only tell it the render happened.
+   */
+  const usableOnChosenDay = (
+    selected ? (months.flatMap((m) => m.days).find((d) => d.date === selected)?.slots ?? []) : []
+  )
+    .filter(slotUsable)
+    .map((s) => s.slot)
+    .join(",");
+
+  /**
+   * On mount, say which day the calendar actually opened on.
+   *
+   * The day handed in is a suggestion: it may have been closed since, or be an
+   * enquiry's free text arriving where a checkout expects a real day, and the
+   * grid then opens blank. A caller left believing in a day this picker never
+   * took is the same stale-date failure as the party change below, from the
+   * other end — so whatever it opened with, including nothing, goes back up.
+   */
+  useEffect(() => {
+    if (defaultValue) onDateChange?.(selected);
+    // Once, on mount: `defaultValue` is by definition only read then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * Keeping the chosen day honest when the party changes underneath it.
+   *
+   * The party is the caller's state, not this component's, and it moves: two
+   * guests become five, and the Saturday that fitted a couple in a 2CV now
+   * needs the T3 that is already out. Restarting the whole picker was the old
+   * answer and it lost the day silently — so the day survives whenever it still
+   * fits, and when it does not it is dropped *and said out loud*, because a
+   * booking page that quietly forgets a choice reads as one that took it.
+   */
+  useEffect(() => {
+    if (!selected) return;
+    const usable = usableOnChosenDay ? usableOnChosenDay.split(",") : [];
+    if (usable.length === 0) {
+      setSelected(null);
+      setSelectedSlot(null);
+      setDropped(true);
+      onDateChange?.(null);
+      onSlotChange?.(null);
+      return;
+    }
+    // The day still works, but the departure they had picked may not: 10:00 is
+    // full for five, 14:00 is not. One left standing is chosen for them.
+    if (selectedSlot && !usable.includes(selectedSlot)) {
+      const next = usable.length === 1 ? (usable[0] as "morning" | "afternoon") : null;
+      setSelectedSlot(next);
+      onSlotChange?.(next);
+    }
+  }, [selected, selectedSlot, usableOnChosenDay, onDateChange, onSlotChange]);
 
   /**
    * The scarcity line under a departure chip.
@@ -240,9 +323,19 @@ export function BookingDatePicker({
 
   const byDate = new Map(month.days.map((day) => [day.date, day]));
 
+  // A form whose steps are headed sections gets one here too; a form where the
+  // calendar is one field among several keeps the lighter label.
+  const Root: ElementType = headingId ? "section" : "div";
+
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-sm font-medium">{t(c.label, l)}</p>
+    <Root className="flex flex-col gap-2" aria-labelledby={headingId}>
+      {headingId ? (
+        <h2 id={headingId} className="text-xl font-semibold sm:text-2xl">
+          {t(c.label, l)}
+        </h2>
+      ) : (
+        <p className="text-sm font-medium">{t(c.label, l)}</p>
+      )}
       <p className="text-sm text-muted-foreground">{t(c.hint, l)}</p>
 
       {/* The values the form actually posts. The grid below is the control. */}
@@ -362,6 +455,12 @@ export function BookingDatePicker({
         </div>
       ) : null}
 
+      {dropped ? (
+        <p className="text-sm text-destructive" role="status">
+          {t(c.partyOutgrewDay, l)}
+        </p>
+      ) : null}
+
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -407,6 +506,6 @@ export function BookingDatePicker({
           <Link href={contactHref}>{t(c.flexible, l)}</Link>
         </Button>
       ) : null}
-    </div>
+    </Root>
   );
 }
