@@ -6,7 +6,7 @@
   ux lens ("the HIG layout pass is substantially already on main… the epic's remaining
   weight is language") + copy lens (idiom inventory); `.icm/docs/admin-pt-inventory.md`
   (the epic's own stub 1, merged 2026-08-29 in PR #32)
-- recut: 2026-08-31 — batch re-read against `main` at `379b053`
+- recut: 2026-08-31 — batch re-read against `main` at `35f7491`
 
 ## What I understood
 
@@ -31,9 +31,9 @@ shape of what is left:
    assert on strings, and nine open questions. `content/system.ts`'s note now names PT
    as the admin language. The stub is in `_done/`.
 2. **The inventory's line numbers still hold.** Between `d8b5a58` (what §5 was written
-   against) and `379b053`, the only changes under `web/src` are `system.ts` — stub 1's
-   own — and `security-headers.ts`. Nothing needs re-inventorying except the calendar,
-   for the reason below. Spot-checking 23 of §5's references found 20 exact and three
+   against) and `379b053`, the only changes under `web/src` were `system.ts` — stub 1's
+   own — and `security-headers.ts`. That held everywhere except the calendar, which
+   PR #31 rewrote mid-recut; see below. Spot-checking 23 of §5's references found 20 exact and three
    off by a line or two (`admin-shell.tsx` 59→60, `experience-form.tsx` 169→165,
    `sales.ts:77` names the function and 78 the literal); the stubs below cite the
    corrected lines. Search for the string, not the line.
@@ -41,11 +41,17 @@ shape of what is left:
    surfaces are being deleted or rewritten in Portuguese by other epics. The
    2026-08-29 cut scoped them in; translating them now is either wasted or a conflict.
    See *Out of scope* — it removes roughly 100 of the ~590 strings §8 counted.
-4. **PR #31 is still stranded, and it lands on the calendar.** Measured against `main`
-   on 2026-08-31, `origin/claude/agorasim-availability-capacity-k0iild` changes
-   `availability-calendar.tsx` by ~390 lines, `calendar/actions.ts` by 87 and
-   `calendar/page.tsx` by 69. The old build order put the calendar in the first
-   translation stub; it now waits for `booking-live/land-availability-pools`.
+4. **PR #31 landed during this recut, and it rewrote the calendar.** The batch was
+   re-read while `origin/claude/agorasim-availability-capacity-k0iild` was still
+   stranded, and the calendar stub was written to wait for it. It merged as `89046bb`
+   (#38) before this commit reached `main`, so the stub was rewritten rather than
+   shipped stale. Two consequences: the gate is lifted, and the inventory's calendar
+   section is now the one part of that document that does not describe the code —
+   `availability-calendar.tsx` went from ~33 strings to ~180 in 786 lines, with driver
+   and vehicle-pool vocabulary the glossary has never seen. `translate-calendar`
+   therefore re-inventories before it translates, and writes the new terms back into
+   §3 and §5.2 so `booking-live`'s remaining stubs and the guest booking form can
+   reuse them.
 
 The 2026-08-29 stubs `translate-admin-core` and `translate-admin-rest` are in `_done/`
 with a `> Dropped:` note — no work was done against either slug; the recut splits them
@@ -77,11 +83,11 @@ singular throughout.
    formats, the system screens — depends-on: none
 2. translate-sales — the board, the pedido detail, the 36 action messages — depends-on:
    translate-shell-and-nav
-3. translate-experiences — the catalogue editor, `describePricing()` — depends-on:
+3. translate-calendar — re-inventory after PR #31, then translate — depends-on:
    translate-shell-and-nav
-4. translate-settings-and-auth — settings, users, audit, login, sugestões — depends-on:
+4. translate-experiences — the catalogue editor, `describePricing()` — depends-on:
    translate-shell-and-nav
-5. translate-calendar — after PR #31 lands, not before — depends-on:
+5. translate-settings-and-auth — settings, users, audit, login, sugestões — depends-on:
    translate-shell-and-nav
 6. delete-token-apagar — `DELETE` → `APAGAR`, a safety control on its own — depends-on:
    translate-sales, translate-experiences
@@ -90,8 +96,8 @@ singular throughout.
 Stub 1 is the gate: it puts the vocabulary in `admin-nav.ts` and `admin-format.ts`
 where every screen reads it. After that, **2, 3, 4 and 5 are independent of each
 other** — the old build order was a strict chain of four, which was an artefact of how
-it was cut, not a real dependency. 5 is sequenced last of the four because it waits on
-PR #31, not because the calendar matters least; it is one of Rita's two daily screens.
+it was cut, not a real dependency. They are ordered by what Rita touches daily: the
+board and the calendar first, the catalogue and settings after.
 
 ## Out of scope (whole epic)
 
