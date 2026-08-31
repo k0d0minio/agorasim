@@ -12,6 +12,8 @@ import {
   remainingVehicles,
   routeKindOf,
   slotFitsParty,
+  usableDepartures,
+  chosenDeparture,
   VEHICLE_CLASSES,
 } from "@/lib/fleet";
 
@@ -166,5 +168,57 @@ describe("slotFitsParty", () => {
 
   it("says no to a group above the fleet even with everything free", () => {
     expect(slotFitsParty(full, CLASSIC, 9)).toBe(false);
+  });
+});
+
+/**
+ * The two derived questions the booking page asks of a day.
+ *
+ * Both the calendar and the form around it run these, on every render, over
+ * the party of the moment — which is what stopped the two disagreeing about a
+ * day after the party grew. A wrong answer here is a guest paying for a
+ * departure the page had stopped showing them.
+ */
+describe("usableDepartures", () => {
+  const day = [
+    { slot: "morning", driversLeft: 1, vehiclesLeft: { ...noVehicles(), "classic-small": 1 } },
+    { slot: "afternoon", driversLeft: 2, vehiclesLeft: FLEET_SIZE },
+  ];
+
+  it("keeps the departures that could still take this party", () => {
+    // A couple fit the small classic in the morning and the yard in the
+    // afternoon; five need the van, which only the afternoon still has.
+    expect(usableDepartures(day, CLASSIC, 2).map((s) => s.slot)).toEqual([
+      "morning",
+      "afternoon",
+    ]);
+    expect(usableDepartures(day, CLASSIC, 5).map((s) => s.slot)).toEqual(["afternoon"]);
+    expect(usableDepartures(day, CLASSIC, 9)).toEqual([]);
+  });
+
+  it("asks the loose question when no route or party is named", () => {
+    // The enquiry form: a day is offered if anything at all is free on it.
+    expect(usableDepartures(day).map((s) => s.slot)).toEqual(["morning", "afternoon"]);
+    const shut = [{ slot: "morning", driversLeft: 0, vehiclesLeft: FLEET_SIZE }];
+    expect(usableDepartures(shut)).toEqual([]);
+  });
+});
+
+describe("chosenDeparture", () => {
+  const both = [{ slot: "morning" }, { slot: "afternoon" }];
+
+  it("keeps the departure the guest picked when it survives", () => {
+    expect(chosenDeparture(both, "afternoon")).toBe("afternoon");
+  });
+
+  it("takes the only one left rather than asking again", () => {
+    expect(chosenDeparture([{ slot: "afternoon" }], null)).toBe("afternoon");
+    expect(chosenDeparture([{ slot: "afternoon" }], "morning")).toBe("afternoon");
+  });
+
+  it("waits to be asked when the choice is still open, and refuses nonsense", () => {
+    expect(chosenDeparture(both, null)).toBeNull();
+    expect(chosenDeparture([], "morning")).toBeNull();
+    expect(chosenDeparture([{ slot: "midnight" }], null)).toBeNull();
   });
 });

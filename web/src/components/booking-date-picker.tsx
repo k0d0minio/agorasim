@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, type ElementType } from "react";
+import { useState, type ElementType } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
 import type { PublicMonth, PublicSlot } from "@/lib/availability";
-import { slotFitsParty, type VehicleCounts } from "@/lib/fleet";
+import { chosenDeparture, slotFitsParty, usableDepartures } from "@/lib/fleet";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -158,20 +158,12 @@ export function BookingDatePicker({
   const l = locale;
 
   /**
-   * Whether one departure could take this party.
-   *
-   * Two questions, and which one is asked depends on what the caller knows. A
-   * checkout names the route and the party, so the answer is exact — the same
-   * `slotFitsParty` the server will run. An enquiry names neither, so the
-   * answer is the loose one: is anything at all still free on it.
+   * The departures of one day this party could still be sold — the shared rule
+   * from `lib/fleet.ts`, which the server decides with and the booking form
+   * asks too, so that no two of the three can disagree about a Saturday.
    */
-  const slotUsable = (slot: { driversLeft: number; vehiclesLeft: VehicleCounts }) => {
-    if (slot.driversLeft < 1) return false;
-    if (!experienceSlug || !partySize) {
-      return Object.values(slot.vehiclesLeft).some((free) => free > 0);
-    }
-    return slotFitsParty(slot, experienceSlug, partySize);
-  };
+  const usableOn = (slots: PublicSlot[]) =>
+    usableDepartures(slots, experienceSlug, partySize);
 
   // Open on the first month that has something to offer, not blankly on this
   // one: in November, a calendar that opens on an empty November reads as
@@ -188,15 +180,8 @@ export function BookingDatePicker({
       : null,
   );
   const [selectedSlot, setSelectedSlot] = useState<"morning" | "afternoon" | null>(
-    // A departure without its day is not a departure: when the day handed in is
-    // not on this calendar, the departure that came with it goes too.
-    selected ? (defaultSlot ?? null) : null,
+    defaultSlot ?? null,
   );
-  /**
-   * Set when a day was dropped because the party grew past what it had free —
-   * see the effect below. Cleared as soon as another day is chosen.
-   */
-  const [dropped, setDropped] = useState(false);
 
   const chooseSlot = (slot: "morning" | "afternoon" | null) => {
     setSelectedSlot(slot);
@@ -204,17 +189,11 @@ export function BookingDatePicker({
   };
 
   const chooseDay = (date: string | null) => {
-    setDropped(false);
     setSelected(date);
     onDateChange?.(date);
-    if (!slotName) return;
-    // A day with one usable departure needs no second tap; a day with two
-    // waits for the guest to say which.
-    const day = date
-      ? months.flatMap((m) => m.days).find((d) => d.date === date)
-      : undefined;
-    const usable = day ? day.slots.filter(slotUsable) : [];
-    chooseSlot(usable.length === 1 ? (usable[0].slot as "morning" | "afternoon") : null);
+    // A day with one usable departure needs no second tap; a day with two waits
+    // for the guest to say which.
+    if (slotName) chooseSlot(null);
   };
   // A guest whose day is not on the calendar types it instead — and one who
   // arrives back here with free text already entered keeps it. Never in a
@@ -226,61 +205,30 @@ export function BookingDatePicker({
   const month = months[monthIndex];
 
   /**
-   * The departures the chosen day could still sell this party, as a stable
-   * string — the effect below needs to notice the *contents* changing, and a
-   * fresh array every render would only tell it the render happened.
-   */
-  const usableOnChosenDay = (
-    selected ? (months.flatMap((m) => m.days).find((d) => d.date === selected)?.slots ?? []) : []
-  )
-    .filter(slotUsable)
-    .map((s) => s.slot)
-    .join(",");
-
-  /**
-   * On mount, say which day the calendar actually opened on.
+   * What is *actually* chosen — derived every render, never stored.
    *
-   * The day handed in is a suggestion: it may have been closed since, or be an
-   * enquiry's free text arriving where a checkout expects a real day, and the
-   * grid then opens blank. A caller left believing in a day this picker never
-   * took is the same stale-date failure as the party change below, from the
-   * other end — so whatever it opened with, including nothing, goes back up.
-   */
-  useEffect(() => {
-    if (defaultValue) onDateChange?.(selected);
-    // Once, on mount: `defaultValue` is by definition only read then.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /**
-   * Keeping the chosen day honest when the party changes underneath it.
+   * The party is the caller's state and it moves: two guests become five, and
+   * the Saturday that fitted a couple in a 2CV now needs the T3 that is
+   * already out. This used to be answered by restarting the whole picker from
+   * the caller's `key`, which lost the day in silence while the form above
+   * went on holding it — the summary, the pricing and the posted field all
+   * describing a booking the page no longer showed.
    *
-   * The party is the caller's state, not this component's, and it moves: two
-   * guests become five, and the Saturday that fitted a couple in a 2CV now
-   * needs the T3 that is already out. Restarting the whole picker was the old
-   * answer and it lost the day silently — so the day survives whenever it still
-   * fits, and when it does not it is dropped *and said out loud*, because a
-   * booking page that quietly forgets a choice reads as one that took it.
+   * Deriving it settles that by construction. The day the guest tapped is kept
+   * as it was; what a day *means* is recomputed against the party of the
+   * moment, so the chip, the hidden field and the caller are reading one
+   * answer. Shrink the party back and the day is simply chosen again — it was
+   * never thrown away, only outgrown. The one thing that has to be said out
+   * loud is the outgrowing, below.
    */
-  useEffect(() => {
-    if (!selected) return;
-    const usable = usableOnChosenDay ? usableOnChosenDay.split(",") : [];
-    if (usable.length === 0) {
-      setSelected(null);
-      setSelectedSlot(null);
-      setDropped(true);
-      onDateChange?.(null);
-      onSlotChange?.(null);
-      return;
-    }
-    // The day still works, but the departure they had picked may not: 10:00 is
-    // full for five, 14:00 is not. One left standing is chosen for them.
-    if (selectedSlot && !usable.includes(selectedSlot)) {
-      const next = usable.length === 1 ? (usable[0] as "morning" | "afternoon") : null;
-      setSelectedSlot(next);
-      onSlotChange?.(next);
-    }
-  }, [selected, selectedSlot, usableOnChosenDay, onDateChange, onSlotChange]);
+  const chosenDay = selected
+    ? (months.flatMap((m) => m.days).find((d) => d.date === selected) ?? null)
+    : null;
+  const usableSlots = usableOn(chosenDay?.slots ?? []);
+  const chosen = usableSlots.length > 0 ? selected : null;
+  const chosenSlot = chosen ? chosenDeparture(usableSlots, selectedSlot) : null;
+  /** A day that was tapped and has since stopped fitting. Say so. */
+  const outgrown = Boolean(selected) && chosen === null;
 
   /**
    * The scarcity line under a departure chip.
@@ -339,8 +287,8 @@ export function BookingDatePicker({
       <p className="text-sm text-muted-foreground">{t(c.hint, l)}</p>
 
       {/* The values the form actually posts. The grid below is the control. */}
-      <input type="hidden" name={name} value={selected ?? ""} />
-      {slotName ? <input type="hidden" name={slotName} value={selectedSlot ?? ""} /> : null}
+      <input type="hidden" name={name} value={chosen ?? ""} />
+      {slotName ? <input type="hidden" name={slotName} value={chosenSlot ?? ""} /> : null}
 
       <Card className="gap-3 p-3">
         <div className="flex items-center justify-between gap-2">
@@ -381,21 +329,21 @@ export function BookingDatePicker({
           {month.grid.map((date, i) => {
             if (date === null) return <span key={`blank-${i}`} />;
             const day = byDate.get(date);
-            const usable = Boolean(day && day.slots.some(slotUsable));
+            const usable = Boolean(day && usableOn(day.slots).length > 0);
             const number = Number(date.slice(8));
-            const chosen = selected === date;
+            const isChosen = chosen === date;
 
             return (
               <button
                 key={date}
                 type="button"
                 disabled={!usable}
-                aria-pressed={chosen}
-                onClick={() => chooseDay(chosen ? null : date)}
+                aria-pressed={isChosen}
+                onClick={() => chooseDay(isChosen ? null : date)}
                 className={cn(
                   // 44px floor, square-ish, still a grid at 320px.
                   "flex min-h-11 touch-manipulation flex-col items-center justify-center rounded-lg border text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-                  chosen
+                  isChosen
                     ? "border-primary bg-primary font-semibold text-primary-foreground"
                     : usable
                       ? "border-primary/40 text-foreground hover:bg-primary/10"
@@ -415,13 +363,13 @@ export function BookingDatePicker({
         the reason, because a missing option reads as a bug and a greyed one
         reads as a fact.
       */}
-      {slotName && selected ? (
+      {slotName && chosen ? (
         <div className="flex flex-col gap-2">
           {slotHeading ? <p className="text-sm font-medium">{slotHeading}</p> : null}
           <div className="flex flex-wrap gap-2" role="group" aria-label={slotHeading}>
-            {(byDate.get(selected)?.slots ?? []).map((slot) => {
-              const usable = slotUsable(slot);
-              const active = selectedSlot === slot.slot;
+            {(chosenDay?.slots ?? []).map((slot) => {
+              const usable = usableSlots.includes(slot);
+              const active = chosenSlot === slot.slot;
               const label =
                 slotLabels?.[slot.slot as "morning" | "afternoon"] ?? slot.slot;
               return (
@@ -455,7 +403,7 @@ export function BookingDatePicker({
         </div>
       ) : null}
 
-      {dropped ? (
+      {outgrown ? (
         <p className="text-sm text-destructive" role="status">
           {t(c.partyOutgrewDay, l)}
         </p>
@@ -467,10 +415,10 @@ export function BookingDatePicker({
         </p>
       ) : null}
 
-      {selected ? (
+      {chosen ? (
         <p className="text-sm">
           <span className="text-muted-foreground">{t(c.chosen, l)}: </span>
-          <span className="font-medium">{formatChosenDay(selected, l)}</span>{" "}
+          <span className="font-medium">{formatChosenDay(chosen, l)}</span>{" "}
           <Button
             type="button"
             variant="ghost"

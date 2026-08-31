@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useState, type ChangeEvent } from "react";
+import {
+  useActionState,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ChangeEvent,
+} from "react";
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
 import { Check, Lock, Minus, Plus, ShieldCheck } from "lucide-react";
@@ -11,7 +17,7 @@ import { privacyContent } from "@/content/privacy";
 import { departureLabel, meetingPoints } from "@/content/logistics";
 import type { Experience } from "@/content/experiences";
 import type { PublicMonth } from "@/lib/availability";
-import { MAX_PARTY_ONLINE } from "@/lib/fleet";
+import { chosenDeparture, usableDepartures, MAX_PARTY_ONLINE } from "@/lib/fleet";
 import {
   isPriced,
   maxAdultsOf,
@@ -23,7 +29,6 @@ import {
 import { formatPrice } from "@/lib/money";
 import { href } from "@/lib/routes";
 import {
-  clearDraft,
   readCheckoutEntry,
   readDraft,
   saveDraft,
@@ -70,6 +75,46 @@ import { cn } from "@/lib/utils";
  * refuses the same number, from the same constant.
  */
 const MAX_SEATS = MAX_PARTY_ONLINE;
+
+/** What the arrival brought with it: a tour to open on, a draft to put back. */
+type CheckoutEntry = { tour: string | null; draft: CheckoutDraft | null };
+
+/**
+ * The arrival, read as what it is: an external store.
+ *
+ * Two things reach this form from outside React — the query string, which an
+ * experience page's "book this" fills in, and the `sessionStorage` draft a
+ * return from Stripe comes back for (`lib/checkout-draft.ts`). Neither exists
+ * where this page is rendered: `/reservar` is statically built, and reading
+ * `searchParams` on the server would make a page that queries the catalogue and
+ * the whole public calendar do it again per view, to preselect a card.
+ *
+ * So it is read through `useSyncExternalStore`, which is the sanctioned way to
+ * read a browser store without lying to hydration: the server snapshot is
+ * `null` — nothing arrived — the first client render matches it exactly, and
+ * React re-renders once with the real answer straight after. The result is
+ * cached per query string so the snapshot is stable between calls, as that hook
+ * requires, and so that navigating back to a bare `/reservar` inside the same
+ * tab is a fresh form rather than yesterday's arrival.
+ */
+let cachedEntry: { search: string; entry: CheckoutEntry } | null = null;
+
+/** Nothing to subscribe to: the arrival is fixed for as long as the URL is. */
+const noSubscribe = () => () => {};
+
+function arrivalEntry(): CheckoutEntry {
+  const search = window.location.search;
+  if (!cachedEntry || cachedEntry.search !== search) {
+    const { tour, cancelled } = readCheckoutEntry(search);
+    cachedEntry = { search, entry: { tour, draft: cancelled ? readDraft() : null } };
+  }
+  return cachedEntry.entry;
+}
+
+/** On the server nothing has arrived yet, and the HTML says so. */
+function noArrival(): CheckoutEntry | null {
+  return null;
+}
 
 function PayButton({ locale }: { locale: Locale }) {
   const { pending } = useFormStatus();
@@ -139,11 +184,28 @@ function Stepper({
   );
 }
 
-export function BookingCheckoutForm({
+export function BookingCheckoutForm(props: {
+  locale: Locale;
+  experiences: Experience[];
+  availability: PublicMonth[];
+  testMode: boolean;
+}) {
+  const entry = useSyncExternalStore(noSubscribe, arrivalEntry, noArrival);
+  // A form that has something to open with is a *different* form, and the
+  // honest way to seed a pile of `useState` from something read after mount is
+  // to mount it again with the seed in hand. It happens once, on hydration,
+  // before there is anything on the page to lose — and only when the arrival
+  // actually brought something, so an ordinary visit mounts once.
+  const seeded = Boolean(entry && (entry.tour || entry.draft));
+  return <CheckoutForm {...props} key={seeded ? "seeded" : "fresh"} arrival={entry} />;
+}
+
+function CheckoutForm({
   locale,
   experiences,
   availability,
   testMode,
+  arrival,
 }: {
   locale: Locale;
   /** The live catalogue — tours and add-ons, with their price lists. */
@@ -158,6 +220,11 @@ export function BookingCheckoutForm({
   availability: PublicMonth[];
   /** Running against Stripe test keys — say so, loudly. */
   testMode: boolean;
+  /**
+   * What this visit arrived with, or `null` until hydration has answered.
+   * Everything below is seeded from it, so the answer arriving is a remount.
+   */
+  arrival: CheckoutEntry | null;
 }) {
   const c = bookingContent;
   const l = locale;
@@ -177,14 +244,29 @@ export function BookingCheckoutForm({
     (entry) => entry.kind === "complement" && entry.pricing?.type === "addon",
   );
 
-  const [tourSlug, setTourSlug] = useState(tours[0]?.slug ?? "");
-  const [mode, setMode] = useState<BookingMode>("public");
-  const [adults, setAdults] = useState(2);
-  const [children, setChildren] = useState(0);
-  const [infants, setInfants] = useState(0);
-  const [addOns, setAddOns] = useState<Set<string>>(new Set());
-  const [date, setDate] = useState<string | null>(null);
-  const [slot, setSlot] = useState<"morning" | "afternoon" | null>(null);
+  /** A slug this form still sells, or nothing. Arrivals are not trusted. */
+  const known = (slug: string | null | undefined) =>
+    slug && tours.some((entry) => entry.slug === slug) ? slug : null;
+  /*
+   * A draft naming a tour the catalogue no longer sells is not restorable:
+   * its day, its add-ons and its price all belonged to that route.
+   */
+  const draft = arrival?.draft && known(arrival.draft.tour) ? arrival.draft : null;
+
+  const [tourSlug, setTourSlug] = useState(
+    draft?.tour ?? known(arrival?.tour) ?? tours[0]?.slug ?? "",
+  );
+  const [mode, setMode] = useState<BookingMode>(draft?.mode ?? "public");
+  const [adults, setAdults] = useState(draft?.adults ?? 2);
+  const [children, setChildren] = useState(draft?.children ?? 0);
+  const [infants, setInfants] = useState(draft?.infants ?? 0);
+  const [addOns, setAddOns] = useState<Set<string>>(new Set(draft?.addOns ?? []));
+  // The server's echo of a rejected day matters here rather than on the picker:
+  // both must open on the same day or the form prices one the guest cannot see.
+  const [date, setDate] = useState<string | null>(
+    draft?.date ?? state.values?.date ?? null,
+  );
+  const [slot, setSlot] = useState<"morning" | "afternoon" | null>(draft?.slot ?? null);
   /*
    * The guest's own words, held here rather than left to the DOM.
    *
@@ -195,33 +277,15 @@ export function BookingCheckoutForm({
    * state on the render that carries the failure.
    */
   const [guest, setGuest] = useState(() => ({
-    name: state.values?.name ?? "",
-    email: state.values?.email ?? "",
-    phone: state.values?.phone ?? "",
-    message: state.values?.message ?? "",
+    name: draft?.name || state.values?.name || "",
+    email: draft?.email || state.values?.email || "",
+    phone: draft?.phone || state.values?.phone || "",
+    message: draft?.message || state.values?.message || "",
   }));
   const guestField =
     (field: keyof typeof guest) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setGuest((previous) => ({ ...previous, [field]: event.target.value }));
-
-  /**
-   * Bumped when a restored draft has to reopen the calendar on its saved day.
-   *
-   * The picker takes its opening day as a `defaultValue`, which it reads once,
-   * so putting one back means remounting it — the *only* thing that legitimately
-   * remounts this picker. Party size used to, which is the bug this replaces:
-   * the picker restarted with nothing chosen while the form above it went on
-   * holding the day that had just vanished from the page, and the guest paid
-   * for — or was refused on — a date they could no longer see.
-   */
-  const [restoreToken, setRestoreToken] = useState(0);
-  /**
-   * Whether the arrival pass below has run. Nothing is written to the draft
-   * store before it has, or the form's own defaults would overwrite the draft
-   * this visit came back to restore.
-   */
-  const [arrived, setArrived] = useState(false);
 
   const tour = tours.find((entry) => entry.slug === tourSlug) ?? tours[0];
   const pricing = tour?.pricing?.type === "tour" ? tour.pricing : null;
@@ -232,6 +296,24 @@ export function BookingCheckoutForm({
   // not an offer.
   const maxAdults = Math.max(1, Math.min(maxAdultsOf(tour?.pricing) || MAX_SEATS, MAX_SEATS));
   const seats = adults + children + infants;
+
+  /**
+   * The day and departure that are *actually* chosen, as against the ones the
+   * guest tapped before the party changed shape.
+   *
+   * The picker asks the same question of the same calendar with the same
+   * function from `lib/fleet.ts`, so the two cannot disagree: what it shows as
+   * chosen and posts is what this form prices, checks the add-on rules
+   * against, and remembers. It used to be kept in step by remounting the
+   * picker whenever the party changed, which cleared its day and left this
+   * form holding one nobody could see any more.
+   */
+  const chosenDayRow = date
+    ? availability.flatMap((month) => month.days).find((day) => day.date === date)
+    : undefined;
+  const usableSlots = usableDepartures(chosenDayRow?.slots ?? [], tour?.slug, seats);
+  const chosenDate = usableSlots.length > 0 ? date : null;
+  const chosenSlot = chosenDate ? chosenDeparture(usableSlots, slot) : null;
 
   /** Why one add-on cannot join this basket right now, or null when it can. */
   const addOnBlocked = (entry: Experience): string | null => {
@@ -245,8 +327,8 @@ export function BookingCheckoutForm({
     if (p.minGuests && adults + children < p.minGuests) {
       return fillIn(c.labels.addOnMinGuests, p.minGuests);
     }
-    if (date && p.closedWeekdays?.length) {
-      const weekday = weekdayOf(date);
+    if (chosenDate && p.closedWeekdays?.length) {
+      const weekday = weekdayOf(chosenDate);
       if (weekday !== null && p.closedWeekdays.includes(weekday)) {
         return t(c.labels.addOnClosedMonday, l);
       }
@@ -270,7 +352,7 @@ export function BookingCheckoutForm({
         addOns: chosenAddOns.map((entry) => ({ slug: entry.slug, pricing: entry.pricing })),
         mode,
         party: { adults, children, infants },
-        date: date ?? undefined,
+        date: chosenDate ?? undefined,
       })
     : null;
 
@@ -306,27 +388,6 @@ export function BookingCheckoutForm({
     }
   })();
 
-  /** Put a saved draft back on the page, calendar included. */
-  function restore(draft: CheckoutDraft) {
-    setTourSlug(draft.tour);
-    setMode(draft.mode);
-    setAdults(draft.adults);
-    setChildren(draft.children);
-    setInfants(draft.infants);
-    setAddOns(new Set(draft.addOns));
-    setDate(draft.date);
-    setSlot(draft.slot);
-    setGuest({
-      name: draft.name,
-      email: draft.email,
-      phone: draft.phone,
-      message: draft.message,
-    });
-    // The calendar reads its opening day once, at mount, so putting one back
-    // means asking for a new one.
-    setRestoreToken((n) => n + 1);
-  }
-
   function toggleAddOn(slug: string) {
     setAddOns((previous) => {
       const next = new Set(previous);
@@ -337,49 +398,16 @@ export function BookingCheckoutForm({
   }
 
   /**
-   * The arrival pass — what the URL asked for, and what the last visit left.
-   *
-   * Both are read from `window.location` after mount rather than from the
-   * page's `searchParams`, on purpose: `/reservar` is statically rendered and
-   * builds itself from the catalogue and the whole public calendar (see the
-   * `revalidate` note on the page), and touching `searchParams` there would
-   * make every view a database round trip to preselect a card.
-   *
-   * It runs once, on arrival. The dependencies it reads — the catalogue and the
-   * setters — cannot change between renders of a mounted form.
-   */
-  useEffect(() => {
-    const { tour: wanted, cancelled } = readCheckoutEntry(window.location.search);
-    const known = (slug: string | null) =>
-      Boolean(slug) && tours.some((entry) => entry.slug === slug);
-
-    // `?tour=` — a guest who pressed "book this experience" on the Óbidos page
-    // has already told us which route they want.
-    if (wanted && known(wanted)) setTourSlug(wanted);
-
-    // `?cancelled=1` — back from Stripe. Everything they had entered goes back
-    // on the page, and the draft is spent: a reload after this is a fresh form.
-    if (cancelled) {
-      const draft = readDraft();
-      clearDraft();
-      if (draft && known(draft.tour)) restore(draft);
-      window.history.replaceState(null, "", window.location.pathname);
-    }
-    setArrived(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /**
    * Everything the guest has entered, kept where a return from Stripe can find
    * it. Written continuously rather than on submit: by the time the browser is
-   * on Stripe's domain this component is gone, and a draft that is only written
-   * on the way out is a draft that is missing whenever the way out is not the
-   * path taken. Never before the arrival pass above, which would overwrite the
-   * very draft this visit came back for. `lib/checkout-draft.ts` says why the
-   * store is the tab's and not the URL.
+   * on Stripe's domain this component is gone, and a draft written only on the
+   * way out is a draft that is missing whenever the way out is not the path
+   * taken. Never before hydration has answered what this visit arrived with, or
+   * the form's defaults would overwrite the very draft it came back for.
+   * `lib/checkout-draft.ts` says why the store is the tab's and not the URL.
    */
   useEffect(() => {
-    if (!arrived || !tour) return;
+    if (!arrival || !tour) return;
     saveDraft({
       tour: tour.slug,
       mode,
@@ -387,11 +415,23 @@ export function BookingCheckoutForm({
       children,
       infants,
       addOns: [...addOns],
-      date,
-      slot,
+      // What is actually chosen, not what was tapped before the party grew.
+      date: chosenDate,
+      slot: chosenSlot,
       ...guest,
     });
-  }, [arrived, tour, mode, adults, children, infants, addOns, date, slot, guest]);
+  }, [
+    arrival,
+    tour,
+    mode,
+    adults,
+    children,
+    infants,
+    addOns,
+    chosenDate,
+    chosenSlot,
+    guest,
+  ]);
 
   if (!tour) return null;
 
@@ -590,7 +630,7 @@ export function BookingCheckoutForm({
           day genuinely stops fitting.
         */}
         <BookingDatePicker
-          key={`${tour.slug}-${restoreToken}`}
+          key={tour.slug}
           locale={l}
           // The step's own heading, so the calendar is announced like every
           // other section of this form rather than being the one step a screen
@@ -607,7 +647,7 @@ export function BookingCheckoutForm({
           allowFlexible={false}
           contactHref={href(l, "contactos")}
           months={availability}
-          defaultValue={date ?? state.values?.date}
+          defaultValue={date ?? undefined}
           defaultSlot={slot}
           error={state.fieldErrors?.date}
           onDateChange={setDate}

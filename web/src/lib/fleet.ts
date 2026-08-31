@@ -241,3 +241,49 @@ export function slotFitsParty(
   const assignment = assignVehicle(experienceSlug, partySize);
   return assignment.ok && free.vehiclesLeft[assignment.vehicleClass] > 0;
 }
+
+/** The shape of one public departure, as far as these two need to know. */
+type FreeSlot = { slot: string; driversLeft: number; vehiclesLeft: VehicleCounts };
+
+/**
+ * The departures of one day that could still take this party.
+ *
+ * Two questions, and which one is asked depends on what the caller knows. A
+ * checkout names the route and the party, so the answer is exact — the same
+ * {@link slotFitsParty} the server decides with. An enquiry names neither, so
+ * the answer is the loose one: is anything at all still free on it.
+ *
+ * It lives here rather than in the picker because the booking form asks it too.
+ * The picker draws the calendar; the form prices the basket and remembers the
+ * draft — and when the party grows past the car a chosen day had free, the two
+ * have to reach the same verdict about that day or one of them is describing a
+ * booking the guest cannot see. One function, one verdict.
+ */
+export function usableDepartures<S extends FreeSlot>(
+  slots: S[],
+  experienceSlug?: string,
+  partySize?: number,
+): S[] {
+  return slots.filter((slot) => {
+    if (slot.driversLeft < 1) return false;
+    if (!experienceSlug || !partySize) return anyVehicleFree(slot.vehiclesLeft);
+    return slotFitsParty(slot, experienceSlug, partySize);
+  });
+}
+
+/**
+ * Which departure is actually chosen, given the ones still usable.
+ *
+ * The one the guest picked when it survived; the only one left when there is
+ * just one — a day with a single usable departure needs no second tap, and a
+ * party that has just grown out of the 10:00 has not thereby un-chosen the
+ * 14:00. Otherwise none, and the chips wait to be asked again.
+ */
+export function chosenDeparture(
+  usable: { slot: string }[],
+  wanted: string | null | undefined,
+): "morning" | "afternoon" | null {
+  const slots = usable.map((entry) => entry.slot);
+  const pick = wanted && slots.includes(wanted) ? wanted : slots.length === 1 ? slots[0] : null;
+  return pick === "morning" || pick === "afternoon" ? pick : null;
+}
