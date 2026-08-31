@@ -1,8 +1,10 @@
 # Stub: The blog's newsletter signup promises a list nobody sends
 
 - lane: chore
-- found-by: admin-email-marketing-orphan resolution, 2026-08-31
+- found-by: `admin-email-marketing-orphan` resolution · 2026-08-31
 - priority: P2
+- size: S
+- blocked: decision — three live options and none is Claude's to pick; needs Jamie
 - sources: `web/src/app/[locale]/blog/page.tsx:131-149` (disabled input + button);
   `web/src/content/blog.ts:41-54` (`newsletterTitle`/`newsletterBody`/`newsletterSoon`);
   `.icm/intake/triage/_done/admin-email-marketing-orphan.md` (the sending side went out)

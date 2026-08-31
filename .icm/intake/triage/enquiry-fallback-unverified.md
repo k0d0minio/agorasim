@@ -1,9 +1,14 @@
-# Stub: Nothing verifies the enquiry fallback the launch plan depends on
+# Stub: The launch plan's Stripe-unset fallback has no test anywhere
 
 - lane: chore
-- found-by: sandbox-e2e-handover pass (`.icm/intake/booking-live/sandbox-e2e-handover.md`) · 2026-08-31
-- priority: P2
+- found-by: `booking-live/sandbox-e2e-handover` pass · 2026-08-31
+- priority: P1
 - size: S
+- sources: `web/src/lib/stripe.ts` (the contingency, in its own words: "not a branch
+  or a revert — simply this deployment with no `STRIPE_SECRET_KEY` set");
+  `reservar/page.tsx:63`, `checkout-actions.ts:144`, `confirmacao/page.tsx:143` (the
+  three surfaces that branch on it); `grep isStripeConfigured src/**/*.test.ts*` →
+  nothing
 
 ## Problem
 

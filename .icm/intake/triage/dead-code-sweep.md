@@ -3,6 +3,12 @@
 - lane: chore
 - found-by: /project code map + tech lens · 2026-08-29
 - priority: P2
+- size: S
+- depends-on: `triage/admin-pricing-editor.md` for the `price_cents` drop only —
+  everything else in the sweep is independent of it
+- sources: `web/public/{file,globe,next,vercel,window}.svg` (Next.js starter,
+  confirmed still present 2026-08-31); the `full_day` value surviving in the
+  `availability_slot` enum; `@types/node ^20` against Node 22 CI
 
 ## Problem
 

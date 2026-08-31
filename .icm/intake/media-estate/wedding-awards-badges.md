@@ -1,8 +1,17 @@
-# Stub: The Wedding Awards badges — verify the claim, then publish it
+# Stub: The Wedding Awards badges — verify the claim, then publish exactly it
 
-- lane: chore
-- found-by: booking-live/rescue-weddings-content · 2026-08-31
+- feature-slug: wedding-awards-badges
+- epic: media-estate
 - priority: P2
+- size: S
+- depends-on: none
+- sequence: 2 of 3
+- blocked: client — the awarding body and years behind the 2022–2026 badges are an
+  open question in the client pack (`.icm/project.md`); nothing publishes until it
+  is answered
+- sources: found by `booking-live/rescue-weddings-content`, 2026-08-31; PR #30 (the
+  badge row it built and then left out); `web/public/images/wedding-awards/` (five
+  badges, unreferenced)
 
 ## Problem
 
@@ -25,7 +34,7 @@ the image audit.
 ## Prompt
 
 In the agorasim repo (`web/`), publish the Wedding Awards badges per
-`.icm/intake/triage/wedding-awards-badges.md` — but **only** if the client's answer on
+`.icm/intake/media-estate/wedding-awards-badges.md` — but **only** if the client's answer on
 the awards claim has arrived (check the deal-folder open-questions pack; the badges are
 in `web/public/images/wedding-awards/`, 2022–2026). Add the badge row to
 `/[locale]/casamentos` under the hero with copy naming the actual award, PT/EN, and real

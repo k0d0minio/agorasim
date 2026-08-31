@@ -1,9 +1,14 @@
-# Stub: No way to find a named lead — the Sales board has nothing to search with
+# Stub: Lead search on the Sales board — name, e-mail or phone
 
-- lane: tweak
-- found-by: admin-audit harvest (PR #6 `docs/admin-audit-2026-07.md` §3.3) · 2026-08-31
-- priority: P2
+- feature-slug: sales-board-search
+- epic: admin-answers
+- priority: P1
 - size: S
+- depends-on: none
+- sequence: 1 of 5
+- sources: admin audit §3.3 ("find the Carter enquiry"), harvested 2026-08-31;
+  `web/src/lib/sales.ts:174`, `:213` (`SALES_STAGE_LIMIT = 50` a column while the chip
+  shows the true total); #12 (Submissions, CRM and Bookings folded into this one board)
 
 ## Problem
 
@@ -27,7 +32,7 @@ per-stage "load more" is the alternative, and it answers the everyday question
 ## Prompt
 
 In the agorasim repo (`web/`), add lead search to the Sales board per
-`.icm/intake/triage/sales-board-search.md`: a `q` search param on
+`.icm/intake/admin-answers/sales-board-search.md`: a `q` search param on
 `web/src/app/admin/sales/page.tsx`, matched in `listSalesBoard`
 (`web/src/lib/sales.ts`) against name, e-mail and phone, with the board rendering
 the matches and a result count, and an empty-result state. Keep the stage-capped
