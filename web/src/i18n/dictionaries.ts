@@ -10,7 +10,6 @@ type Dict = {
     blog: string;
     contactos: string;
     reservar: string;
-    recomendar: string;
     privacidade: string;
   };
   cta: {
@@ -45,7 +44,6 @@ const dictionaries: Record<Locale, Dict> = {
       blog: "Blog",
       contactos: "Contactos",
       reservar: "Reservar",
-      recomendar: "Recomendar amigos",
       privacidade: "Privacidade",
     },
     cta: {
@@ -82,7 +80,6 @@ const dictionaries: Record<Locale, Dict> = {
       blog: "Blog",
       contactos: "Contact",
       reservar: "Book a tour",
-      recomendar: "Refer a friend",
       privacidade: "Privacy",
     },
     cta: {
