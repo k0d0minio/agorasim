@@ -4,6 +4,7 @@ import { isLocale, t, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
 import { home } from "@/content/pages";
 import { classicCars } from "@/content/site";
+import { testimonials, testimonialsHeading } from "@/content/testimonials";
 import { listExperiences, signatureOf } from "@/lib/experience-catalogue";
 import { Hero } from "@/components/hero";
 import { Section, SectionHeading } from "@/components/section";
@@ -76,7 +77,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       <div className="border-b border-border bg-secondary/40">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-4 py-4 text-sm font-medium text-muted-foreground sm:px-6">
           {classicCars.map((car) => (
-            <span key={car}>{car}</span>
+            <span key={car.id}>
+              {car.model} · {car.year}
+            </span>
           ))}
         </div>
       </div>
@@ -102,6 +105,31 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {experiences.map((exp) => (
             <ExperienceCard key={exp.slug} experience={exp} locale={l} learnMore={dict.cta.learnMore} />
+          ))}
+        </div>
+      </Section>
+
+      {/* Testimonials — real guests, in their own words (the photos land with
+          `content-truth/testimonials-section`). */}
+      <Section>
+        <SectionHeading
+          eyebrow={t(testimonialsHeading.eyebrow, l)}
+          title={t(testimonialsHeading.title, l)}
+        />
+        <div className="mt-10 grid gap-6 lg:grid-cols-3">
+          {testimonials.map((entry) => (
+            <figure
+              key={entry.names}
+              className="flex flex-col justify-between rounded-2xl border border-border bg-card p-6"
+            >
+              <blockquote className="text-muted-foreground">“{t(entry.quote, l)}”</blockquote>
+              <figcaption className="mt-6 text-sm font-medium">
+                {entry.names}
+                <span className="ml-1.5 font-normal text-muted-foreground">
+                  · {t(entry.origin, l)}
+                </span>
+              </figcaption>
+            </figure>
           ))}
         </div>
       </Section>
