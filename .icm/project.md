@@ -125,7 +125,8 @@ updated this run, still unsent; Jamie sends):**
 - IG/FB admin access + Business account — blocks `social-engine/meta-autoposter`.
 - RNAAT nº, insurance provider + policy, self-invoicing — blocks dropping the privacy
   draft banner and the terms-of-sale page's seller identity (launch-gating).
-- Photos re-send (WeTransfer links expired/expiring; T3 + 4L wedding shots) — blocks
+- Photos re-send (WeTransfer links expired/expiring; **T3 wedding shot only** — the 4L
+  wedding frames were found already in the repo, 2026-08-31 audit) — blocks
   `content-truth/wedding-fleet-photos`.
 - Wedding-awards claim source (2022–2026 badges) · photo-session coverage area.
 - Domain recovery status (theirs to drive).
