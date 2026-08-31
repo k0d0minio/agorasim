@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
 import { Check, Lock, MapPin, Minus, Plus, ShieldCheck } from "lucide-react";
@@ -24,18 +24,18 @@ import { formatPrice } from "@/lib/money";
 import { href } from "@/lib/routes";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import {
-  clearCheckoutDraft,
   draftFromFormData,
-  isCancelReturn,
-  readCheckoutDraft,
+  noCheckoutEntry,
+  readCheckoutEntry,
   saveCheckoutDraft,
-  tourFromSearch,
+  subscribeToCheckoutEntry,
+  type CheckoutDraft,
 } from "@/lib/checkout-draft";
 import {
   startCheckout,
   type CheckoutState,
 } from "@/app/[locale]/reservar/checkout-actions";
-import { BookingDatePicker } from "@/components/booking-date-picker";
+import { BookingDatePicker, departureUsable } from "@/components/booking-date-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -74,6 +74,83 @@ const MAX_SEATS = MAX_PARTY_ONLINE;
 
 /** Two people is the shape of almost every enquiry the team gets. */
 const DEFAULT_ADULTS = 2;
+
+/**
+ * Everything about a booking that a guest can change, in one value.
+ *
+ * One object rather than a dozen `useState` calls, because the form has two
+ * starting points — a fresh visit and a basket coming back from a cancelled
+ * payment — and the second is not known until after hydration. Held as
+ * "what the guest has edited, or nothing yet", the whole thing falls back to
+ * {@link startingBasket} until they touch something, so a draft that arrives
+ * on the second render simply *is* the form's contents. Seeding state from it
+ * in an effect would mean a first paint that disagrees with the prerendered
+ * HTML, and a cascade of renders to correct it.
+ */
+type Basket = {
+  tour: string;
+  mode: BookingMode;
+  adults: number;
+  children: number;
+  infants: number;
+  addOns: string[];
+  date: string | null;
+  slot: "morning" | "afternoon" | null;
+  name: string;
+  email: string;
+  phone: string;
+  message: string;
+};
+
+/**
+ * Where the form starts: a restored draft, else the tour the URL named, else
+ * the plain defaults — with what a rejected submit echoed back underneath.
+ *
+ * Every value is checked against the live catalogue on the way in. A draft is
+ * guest-writable storage and a query string is whatever was typed, so a tour
+ * that has since been retired or an add-on that never existed simply does not
+ * appear here.
+ */
+function startingBasket(options: {
+  tours: Experience[];
+  complements: Experience[];
+  tour: string | null;
+  draft: CheckoutDraft | null;
+  echoed: CheckoutState["values"];
+}): Basket {
+  const { tours, complements, draft, echoed } = options;
+  /** A tour slug the catalogue still sells, or nothing at all. */
+  const sellable = (slug: string | null | undefined): string | undefined =>
+    slug != null && tours.some((entry) => entry.slug === slug) ? slug : undefined;
+
+  // The draft is the more specific answer: a guest coming back from Stripe
+  // chose their tour long before they landed on whatever URL brought them here.
+  const wanted = sellable(draft?.tour) ?? sellable(options.tour);
+
+  // Clamped as a group, not one band at a time: each is already bounded on the
+  // way out of storage, but three valid numbers can still add up to more people
+  // than the biggest car holds.
+  const adults = Math.min(Math.max(draft?.adults ?? DEFAULT_ADULTS, 1), MAX_SEATS);
+  const children = Math.min(draft?.children ?? 0, MAX_SEATS - adults);
+  const infants = Math.min(draft?.infants ?? 0, MAX_SEATS - adults - children);
+
+  return {
+    tour: wanted ?? tours[0]?.slug ?? "",
+    mode: draft?.mode ?? "public",
+    adults,
+    children,
+    infants,
+    addOns: (draft?.addOns ?? []).filter((slug) =>
+      complements.some((entry) => entry.slug === slug),
+    ),
+    date: draft?.date ?? null,
+    slot: draft?.slot ?? null,
+    name: draft?.name ?? echoed?.name ?? "",
+    email: draft?.email ?? echoed?.email ?? "",
+    phone: draft?.phone ?? echoed?.phone ?? "",
+    message: draft?.message ?? echoed?.message ?? "",
+  };
+}
 
 function PayButton({ locale }: { locale: Locale }) {
   const { pending } = useFormStatus();
@@ -181,39 +258,45 @@ export function BookingCheckoutForm({
     (entry) => entry.kind === "complement" && entry.pricing?.type === "addon",
   );
 
-  const [tourSlug, setTourSlug] = useState(tours[0]?.slug ?? "");
-  const [mode, setMode] = useState<BookingMode>("public");
-  const [adults, setAdults] = useState(DEFAULT_ADULTS);
-  const [children, setChildren] = useState(0);
-  const [infants, setInfants] = useState(0);
-  const [addOns, setAddOns] = useState<Set<string>>(new Set());
   /*
-   * The day and the departure live here rather than inside the picker, because
-   * two things outside the picker have to be able to move them: the party
-   * steppers, which can make a chosen day unbuyable, and the cancel-return
-   * below, which puts a whole basket back. The picker used to own both and the
-   * form kept a copy, which is exactly how the two came to disagree.
+   * What the URL and the tab's storage have to say about this arrival — the
+   * `?tour=` an experience page named, and the basket of a payment they backed
+   * out of. Both are external systems the prerendered HTML cannot know about,
+   * so they are subscribed to rather than copied into state: `/reservar` is
+   * cached and served for every query string alike, and reading `searchParams`
+   * on the server would make the whole page per-request to preselect a card.
    */
-  const [date, setDate] = useState<string | null>(null);
-  const [slot, setSlot] = useState<"morning" | "afternoon" | null>(null);
-  /*
-   * The typed details, controlled rather than left to the DOM — a draft
-   * restored after a cancelled payment has to be able to put them back, and an
-   * uncontrolled input only reads its `defaultValue` once, on the render that
-   * happens before any of this is known.
-   */
-  const [guest, setGuest] = useState({
-    name: state.values?.name ?? "",
-    email: state.values?.email ?? "",
-    phone: state.values?.phone ?? "",
-    message: state.values?.message ?? "",
-  });
-  /** Whether this render is a guest coming back from Stripe with a basket. */
-  const [resumed, setResumed] = useState(false);
-  /** Guards the one-shot read of the URL and the stored draft, below. */
-  const restored = useRef(false);
+  const arrival = useSyncExternalStore(
+    subscribeToCheckoutEntry,
+    readCheckoutEntry,
+    noCheckoutEntry,
+  );
 
-  const tour = tours.find((entry) => entry.slug === tourSlug) ?? tours[0];
+  /*
+   * The form's contents: what the guest has edited, or where it started.
+   *
+   * `edited` stays null until they touch something, which is what lets a draft
+   * arriving after hydration simply *be* the form — no effect, no second set of
+   * renders to correct the first. The updater is functional so two patches in
+   * one handler compose (picking a day also picks its only departure) instead
+   * of the second overwriting the first.
+   */
+  const starting = startingBasket({
+    tours,
+    complements,
+    tour: arrival.tour,
+    draft: arrival.draft,
+    echoed: state.values,
+  });
+  const [edited, setEdited] = useState<Basket | null>(null);
+  const basket = edited ?? starting;
+  const update = (patch: Partial<Basket>) =>
+    setEdited((previous) => ({ ...(previous ?? starting), ...patch }));
+
+  const { mode, adults, children, infants } = basket;
+  const addOns = basket.addOns;
+
+  const tour = tours.find((entry) => entry.slug === basket.tour) ?? tours[0];
   const pricing = tour?.pricing?.type === "tour" ? tour.pricing : null;
   const allowsAddOns = Boolean(pricing?.private?.allowsAddOns);
   const addOnsOffered = allowsAddOns && complements.length > 0;
@@ -224,82 +307,30 @@ export function BookingCheckoutForm({
   const seats = adults + children + infants;
 
   /*
-   * The two things the URL can say, both read in the browser rather than on
-   * the server.
+   * Does the chosen day still stand?
    *
-   * `/reservar` is prerendered and revalidated hourly, and the cache does not
-   * key on the query string — so a server component reading `searchParams`
-   * would have to make the whole page per-request to answer either question.
-   * Neither is worth that: one preselects a card, the other refills a form.
-   *
-   * - **`?tour=`** — an experience page saying which tour its "book this"
-   *   button was under. Without it, the Óbidos page sold Rural Saloia.
-   * - **`?checkout=cancelled`** — Stripe returning a guest who backed out.
-   *   Their basket is in `sessionStorage` (never in the URL: see
-   *   `lib/checkout-draft.ts`), and this is the one moment it is put back.
+   * Asked here, every render, of the same calendar the picker draws its grid
+   * from and by the same rule (`departureUsable`). This is the fix for the
+   * defect that made the form and the picker disagree: the picker used to be
+   * restarted by a `key` whenever the tour or the party changed, which cleared
+   * its grid but left this form holding a day the guest could no longer see —
+   * and posting it. Now a day that no longer has the right car free simply
+   * stops being the chosen day, everywhere at once, and the picker is told to
+   * say so out loud rather than let it vanish in silence.
    */
-  useEffect(() => {
-    // Once per mount, and once only — React re-runs effects in development's
-    // StrictMode, and a second pass would re-read a draft this one cleared.
-    if (restored.current) return;
-    restored.current = true;
-
-    const search = window.location.search;
-    const sellable = experiences.filter(
-      (entry) => entry.kind === "signature" && isPriced(entry.pricing),
-    );
-    const knownTour = (slug: string) => sellable.some((entry) => entry.slug === slug);
-
-    const asked = tourFromSearch(search);
-    if (asked && knownTour(asked)) setTourSlug(asked);
-
-    if (!isCancelReturn(search)) return;
-    const draft = readCheckoutDraft();
-    // One restore per abandoned checkout: a draft that has been put back has
-    // done its job, and a stale basket resurfacing on a later visit would be
-    // a surprise rather than a kindness.
-    clearCheckoutDraft();
-    if (!draft) return;
-
-    if (draft.tour && knownTour(draft.tour)) setTourSlug(draft.tour);
-    if (draft.mode) setMode(draft.mode);
-
-    // Clamped as a group, not one at a time: each band is already bounded on
-    // the way out of storage, but three valid numbers can still add up to more
-    // people than the biggest car holds.
-    const a = Math.min(Math.max(draft.adults ?? DEFAULT_ADULTS, 1), MAX_SEATS);
-    const ch = Math.min(draft.children ?? 0, MAX_SEATS - a);
-    const inf = Math.min(draft.infants ?? 0, MAX_SEATS - a - ch);
-    setAdults(a);
-    setChildren(ch);
-    setInfants(inf);
-
-    const extras = new Set(
-      (draft.addOns ?? []).filter((slug) =>
-        experiences.some(
-          (entry) =>
-            entry.slug === slug &&
-            entry.kind === "complement" &&
-            entry.pricing?.type === "addon",
-        ),
-      ),
-    );
-    setAddOns(extras);
-
-    // The picker checks the day against the live calendar and the party as it
-    // mounts, so a departure that sold out while they were on Stripe is
-    // dropped there — with the sentence that says so — rather than restored.
-    setDate(draft.date ?? null);
-    setSlot(draft.slot ?? null);
-
-    setGuest({
-      name: draft.name ?? "",
-      email: draft.email ?? "",
-      phone: draft.phone ?? "",
-      message: draft.message ?? "",
-    });
-    setResumed(true);
-  }, [experiences]);
+  const chosenDay = basket.date
+    ? availability.flatMap((month) => month.days).find((day) => day.date === basket.date)
+    : undefined;
+  const usableDepartures = (chosenDay?.slots ?? []).filter((entry) =>
+    departureUsable(entry, tour?.slug, seats),
+  );
+  const date = usableDepartures.length > 0 ? basket.date : null;
+  const slot =
+    date && basket.slot && usableDepartures.some((entry) => entry.slot === basket.slot)
+      ? basket.slot
+      : null;
+  /** The guest had a day, and the party they have just become cannot have it. */
+  const dayDropped = Boolean(basket.date) && date === null;
 
   /** Why one add-on cannot join this basket right now, or null when it can. */
   const addOnBlocked = (entry: Experience): string | null => {
@@ -323,7 +354,7 @@ export function BookingCheckoutForm({
   };
 
   const chosenAddOns = complements.filter(
-    (entry) => addOns.has(entry.slug) && mode === "private" && !addOnBlocked(entry),
+    (entry) => addOns.includes(entry.slug) && mode === "private" && !addOnBlocked(entry),
   );
 
   /**
@@ -375,11 +406,10 @@ export function BookingCheckoutForm({
   })();
 
   function toggleAddOn(slug: string) {
-    setAddOns((previous) => {
-      const next = new Set(previous);
-      if (next.has(slug)) next.delete(slug);
-      else next.add(slug);
-      return next;
+    update({
+      addOns: addOns.includes(slug)
+        ? addOns.filter((entry) => entry !== slug)
+        : [...addOns, slug],
     });
   }
 
@@ -436,7 +466,7 @@ export function BookingCheckoutForm({
           guest who expects to start again and finds the form already filled in
           should be told why rather than left wondering what the site knows.
         */}
-        {resumed ? (
+        {arrival.draft ? (
           <p
             role="status"
             className="rounded-xl border border-dashed border-input px-4 py-3 text-sm text-muted-foreground"
@@ -462,10 +492,12 @@ export function BookingCheckoutForm({
                   key={entry.slug}
                   type="button"
                   onClick={() => {
-                    setTourSlug(entry.slug);
-                    setDate(null);
-                    setSlot(null);
-                    setAddOns(new Set());
+                    update({
+                      tour: entry.slug,
+                      date: null,
+                      slot: null,
+                      addOns: [],
+                    });
                   }}
                   aria-pressed={active}
                   className={cn(
@@ -517,7 +549,7 @@ export function BookingCheckoutForm({
                   type="button"
                   disabled={!offered}
                   aria-pressed={active}
-                  onClick={() => setMode(option)}
+                  onClick={() => update({ mode: option })}
                   className={cn(
                     "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all",
                     active
@@ -548,7 +580,7 @@ export function BookingCheckoutForm({
               value={adults}
               min={1}
               max={Math.min(maxAdults, MAX_SEATS - children - infants)}
-              onChange={setAdults}
+              onChange={(next) => update({ adults: next })}
               locale={l}
             />
             <Stepper
@@ -558,7 +590,7 @@ export function BookingCheckoutForm({
               value={children}
               min={0}
               max={MAX_SEATS - adults - infants}
-              onChange={setChildren}
+              onChange={(next) => update({ children: next })}
               locale={l}
             />
             <Stepper
@@ -568,7 +600,7 @@ export function BookingCheckoutForm({
               value={infants}
               min={0}
               max={MAX_SEATS - adults - children}
-              onChange={setInfants}
+              onChange={(next) => update({ infants: next })}
               locale={l}
             />
             <p className="pt-3 text-center text-sm text-muted-foreground">
@@ -634,8 +666,9 @@ export function BookingCheckoutForm({
             // two copies can no longer drift apart.
             value={date}
             slotValue={slot}
-            onDateChange={setDate}
-            onSlotChange={setSlot}
+            dropped={dayDropped}
+            onDateChange={(next) => update({ date: next, slot: null })}
+            onSlotChange={(next) => update({ slot: next })}
           />
         </section>
 
@@ -655,7 +688,7 @@ export function BookingCheckoutForm({
               {complements.map((entry) => {
                 const blocked = mode !== "private" ? "" : addOnBlocked(entry);
                 const usable = mode === "private" && !blocked;
-                const active = usable && addOns.has(entry.slug);
+                const active = usable && addOns.includes(entry.slug);
                 const perAdult =
                   entry.pricing?.type === "addon" ? entry.pricing.perAdultCents : 0;
                 return (
@@ -727,10 +760,8 @@ export function BookingCheckoutForm({
                 required
                 autoComplete="name"
                 enterKeyHint="next"
-                value={guest.name}
-                onChange={(event) =>
-                  setGuest((previous) => ({ ...previous, name: event.target.value }))
-                }
+                value={basket.name}
+                onChange={(event) => update({ name: event.target.value })}
               />
               {state.fieldErrors?.name ? (
                 <p className="text-sm text-destructive" role="alert">
@@ -748,10 +779,8 @@ export function BookingCheckoutForm({
                 required
                 autoComplete="email"
                 enterKeyHint="next"
-                value={guest.email}
-                onChange={(event) =>
-                  setGuest((previous) => ({ ...previous, email: event.target.value }))
-                }
+                value={basket.email}
+                onChange={(event) => update({ email: event.target.value })}
               />
               {state.fieldErrors?.email ? (
                 <p className="text-sm text-destructive" role="alert">
@@ -767,10 +796,8 @@ export function BookingCheckoutForm({
                 name="phone"
                 type="tel"
                 autoComplete="tel"
-                value={guest.phone}
-                onChange={(event) =>
-                  setGuest((previous) => ({ ...previous, phone: event.target.value }))
-                }
+                value={basket.phone}
+                onChange={(event) => update({ phone: event.target.value })}
               />
             </div>
           </div>
@@ -782,10 +809,8 @@ export function BookingCheckoutForm({
               name="message"
               rows={3}
               placeholder={t(c.labels.messagePlaceholder, l)}
-              value={guest.message}
-              onChange={(event) =>
-                setGuest((previous) => ({ ...previous, message: event.target.value }))
-              }
+              value={basket.message}
+              onChange={(event) => update({ message: event.target.value })}
             />
           </div>
 

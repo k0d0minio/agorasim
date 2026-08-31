@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -69,6 +69,31 @@ function formatChosenDay(key: string, locale: Locale): string {
   }).format(new Date(Date.UTC(year, month - 1, day)));
 }
 
+/**
+ * Whether one departure could take this party.
+ *
+ * Two questions, and which one is asked depends on what the caller knows. A
+ * checkout names the route and the party, so the answer is exact — the same
+ * `slotFitsParty` the server will run. An enquiry names neither, so the answer
+ * is the loose one: is anything at all still free on it.
+ *
+ * Exported because the checkout form has to ask it too. It owns the chosen day
+ * (so that a party change cannot leave the two holding different ones), which
+ * means it — not this component — decides whether that day still stands, and
+ * the two must decide it by the same rule or the grid and the form disagree.
+ */
+export function departureUsable(
+  slot: { driversLeft: number; vehiclesLeft: VehicleCounts },
+  experienceSlug?: string,
+  partySize?: number,
+): boolean {
+  if (slot.driversLeft < 1) return false;
+  if (!experienceSlug || !partySize) {
+    return Object.values(slot.vehiclesLeft).some((free) => free > 0);
+  }
+  return slotFitsParty(slot, experienceSlug, partySize);
+}
+
 export function BookingDatePicker({
   locale,
   months,
@@ -85,6 +110,7 @@ export function BookingDatePicker({
   partySize,
   value,
   slotValue,
+  dropped = false,
   onSlotChange,
   onDateChange,
 }: {
@@ -140,15 +166,22 @@ export function BookingDatePicker({
    *
    * Pass it (with {@link onDateChange}) to drive the picker from outside, the
    * way the checkout does: it has to be able to *put* a day back — the one a
-   * guest picked before they left for Stripe — and it has to still hold the
-   * right day after this component decides the old one no longer fits. Leave
-   * both unset and the picker keeps the selection to itself, which is all the
-   * enquiry form needs. `undefined` means uncontrolled; `null` means "nothing
-   * chosen", and the two are not the same answer.
+   * guest picked before they left for Stripe — and it is the one that knows
+   * whether a day still fits the party it is holding. Leave both unset and the
+   * picker keeps the selection to itself, which is all the enquiry form needs.
+   * `undefined` means uncontrolled; `null` means "nothing chosen", and the two
+   * are not the same answer.
    */
   value?: string | null;
   /** The chosen departure, on the same terms as {@link value}. */
   slotValue?: "morning" | "afternoon" | null;
+  /**
+   * Say so when the day the guest had chosen was dropped rather than cleared by
+   * them — the party grew and the car that fitted them no longer does. Decided
+   * by whoever owns {@link value}, because only they can tell the difference
+   * between a day taken away and a day nobody has picked yet.
+   */
+  dropped?: boolean;
   /** Tells the form which slot is chosen, for its live summary. */
   onSlotChange?: (slot: "morning" | "afternoon" | null) => void;
   /** Tells the form which day is chosen — the add-on rules read the weekday. */
@@ -157,31 +190,9 @@ export function BookingDatePicker({
   const c = tourRequestContent.calendar;
   const l = locale;
 
-  /**
-   * Whether one departure could take this party.
-   *
-   * Two questions, and which one is asked depends on what the caller knows. A
-   * checkout names the route and the party, so the answer is exact — the same
-   * `slotFitsParty` the server will run. An enquiry names neither, so the
-   * answer is the loose one: is anything at all still free on it.
-   */
-  const slotUsable = (slot: { driversLeft: number; vehiclesLeft: VehicleCounts }) => {
-    if (slot.driversLeft < 1) return false;
-    if (!experienceSlug || !partySize) {
-      return Object.values(slot.vehiclesLeft).some((free) => free > 0);
-    }
-    return slotFitsParty(slot, experienceSlug, partySize);
-  };
+  const slotUsable = (slot: { driversLeft: number; vehiclesLeft: VehicleCounts }) =>
+    departureUsable(slot, experienceSlug, partySize);
 
-  // Open on the first month that has something to offer, not blankly on this
-  // one: in November, a calendar that opens on an empty November reads as
-  // "closed" when the answer is "not until April".
-  const initialMonth = Math.max(
-    0,
-    months.findIndex((month) => month.hasOpenings),
-  );
-
-  const [monthIndex, setMonthIndex] = useState(initialMonth);
   const [ownDay, setOwnDay] = useState<string | null>(
     defaultValue && months.some((m) => m.days.some((d) => d.date === defaultValue))
       ? defaultValue
@@ -195,8 +206,30 @@ export function BookingDatePicker({
   const selected = value !== undefined ? value : ownDay;
   const selectedSlot = slotValue !== undefined ? slotValue : ownSlot;
 
-  /** Set when a day was dropped for the guest rather than by them. */
-  const [dropped, setDropped] = useState(false);
+  /*
+   * Which month is on screen — derived, with the arrows as an override.
+   *
+   * Open on the first month that has something to offer, not blankly on this
+   * one: in November, a calendar that opens on an empty November reads as
+   * "closed" when the answer is "not until April". But follow the selection
+   * when there is one, because a day restored from a cancelled checkout is
+   * usually not in that first month, and a calendar showing April while
+   * claiming a day in June is chosen is a calendar nobody believes.
+   *
+   * Deriving it rather than syncing it in an effect is what lets the restored
+   * day land in the right month on the render it arrives — and `pagedTo` is
+   * pinned on every choice, so clearing a day leaves the guest looking at the
+   * month they were in rather than snapping back to the first open one.
+   */
+  const firstOpen = Math.max(
+    0,
+    months.findIndex((month) => month.hasOpenings),
+  );
+  const monthOfSelected = selected
+    ? months.findIndex((m) => m.days.some((d) => d.date === selected))
+    : -1;
+  const [pagedTo, setPagedTo] = useState<number | null>(null);
+  const monthIndex = pagedTo ?? (monthOfSelected >= 0 ? monthOfSelected : firstOpen);
 
   const chooseSlot = (slot: "morning" | "afternoon" | null) => {
     setOwnSlot(slot);
@@ -204,7 +237,7 @@ export function BookingDatePicker({
   };
 
   const chooseDay = (date: string | null) => {
-    setDropped(false);
+    setPagedTo(monthIndex);
     setOwnDay(date);
     onDateChange?.(date);
     if (!slotName) return;
@@ -216,56 +249,6 @@ export function BookingDatePicker({
     const usable = day ? day.slots.filter(slotUsable) : [];
     chooseSlot(usable.length === 1 ? (usable[0].slot as "morning" | "afternoon") : null);
   };
-
-  /** The departures of the chosen day that could still take this party. */
-  const usableOnChosenDay = selected
-    ? (months.flatMap((m) => m.days).find((d) => d.date === selected)?.slots ?? []).filter(
-        slotUsable,
-      )
-    : [];
-
-  /*
-   * What a change of tour or party size does to a day already chosen.
-   *
-   * This used to be a `key` on the component in the checkout form, which
-   * restarted the picker whenever either changed. That cleared the grid but not
-   * the parent's copy of the date — so adding a guest emptied the calendar and
-   * left the form holding a day the guest could no longer see, which it happily
-   * posted. Re-asking the question is the honest version: a day that still has
-   * the right car free is kept, and one that does not is dropped *and said out
-   * loud*, because a selection that vanishes in silence reads as a bug.
-   */
-  const dayNoLongerFits = Boolean(selected) && usableOnChosenDay.length === 0;
-  const slotNoLongerFits =
-    Boolean(slotName && selectedSlot) &&
-    !usableOnChosenDay.some((entry) => entry.slot === selectedSlot);
-
-  useEffect(() => {
-    if (!dayNoLongerFits) return;
-    setDropped(true);
-    setOwnDay(null);
-    onDateChange?.(null);
-    setOwnSlot(null);
-    onSlotChange?.(null);
-  }, [dayNoLongerFits, onDateChange, onSlotChange]);
-
-  useEffect(() => {
-    if (dayNoLongerFits || !slotNoLongerFits) return;
-    setOwnSlot(null);
-    onSlotChange?.(null);
-  }, [dayNoLongerFits, slotNoLongerFits, onSlotChange]);
-
-  /*
-   * Follow the selection to its month. A day restored from a cancelled checkout
-   * is usually not in the month the picker opens on, and a calendar showing
-   * April while claiming a day in June is chosen is a calendar nobody believes.
-   * Keyed on the day alone, so paging away from a chosen month stays paged away.
-   */
-  useEffect(() => {
-    if (!selected) return;
-    const index = months.findIndex((m) => m.days.some((d) => d.date === selected));
-    if (index >= 0) setMonthIndex(index);
-  }, [selected, months]);
   // A guest whose day is not on the calendar types it instead — and one who
   // arrives back here with free text already entered keeps it. Never in a
   // checkout, which has no way to charge for "late August".
@@ -333,7 +316,7 @@ export function BookingDatePicker({
             size="icon"
             aria-label={t(c.previousMonth, l)}
             disabled={monthIndex === 0}
-            onClick={() => setMonthIndex((i) => Math.max(0, i - 1))}
+            onClick={() => setPagedTo(Math.max(0, monthIndex - 1))}
           >
             <ChevronLeft className="size-5" />
           </Button>
@@ -346,7 +329,7 @@ export function BookingDatePicker({
             size="icon"
             aria-label={t(c.nextMonth, l)}
             disabled={monthIndex === months.length - 1}
-            onClick={() => setMonthIndex((i) => Math.min(months.length - 1, i + 1))}
+            onClick={() => setPagedTo(Math.min(months.length - 1, monthIndex + 1))}
           >
             <ChevronRight className="size-5" />
           </Button>

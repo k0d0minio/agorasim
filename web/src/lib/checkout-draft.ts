@@ -11,15 +11,25 @@
  * is to hang the whole basket off `cancel_url` as query params, and it would
  * put the guest's name and email into a URL — which is logged by every proxy
  * in the path, kept in browser history and handed to analytics as a referrer.
- * A draft in the guest's own tab is read by nobody else, dies with the tab, and
- * is cleared the moment it has been used. The `cancel_url` therefore carries
- * one flag ({@link CANCEL_RETURN_PARAM}) and no personal data at all.
+ * A draft in the guest's own tab is read by nobody else and dies with the tab.
+ * The `cancel_url` therefore carries one flag ({@link CANCEL_RETURN_PARAM}) and
+ * no personal data at all.
  *
  * **Nothing here is trusted.** A draft is guest-writable storage, so every
  * value is re-validated on the way out — and even then it only decides what the
  * form shows. The server prices the basket from the catalogue and re-checks the
  * departure against the live calendar before a card is charged; see
  * `startCheckout`.
+ *
+ * **Reading it is a subscription, not an effect.** `sessionStorage` and the
+ * query string are external systems the server render cannot see, so the form
+ * reads both through `useSyncExternalStore` — one snapshot, cached so the
+ * reference is stable — and *derives* its fields from what comes back. It never
+ * copies the draft into state in an effect, which is what would make the first
+ * paint disagree with the prerendered HTML and turn a restore into a cascade of
+ * renders. Nothing here writes to storage except {@link saveCheckoutDraft}, on
+ * the way out: a restored draft is overwritten by the next submit, and dies
+ * with the tab regardless.
  *
  * One thing is deliberately *not* restored: the marketing opt-in. Consent has
  * to be a fresh, unticked, affirmative act every time (GDPR Art. 4(11)), and a
@@ -187,20 +197,63 @@ export function saveCheckoutDraft(draft: CheckoutDraft): void {
   }
 }
 
-export function readCheckoutDraft(): CheckoutDraft | null {
-  try {
-    return parseCheckoutDraft(window.sessionStorage.getItem(CHECKOUT_DRAFT_KEY));
-  } catch {
-    return null;
-  }
+/**
+ * Everything the URL and the tab's storage have to say about this arrival.
+ *
+ * One value rather than two, so the form takes a single snapshot.
+ */
+export type CheckoutEntry = {
+  /** The tour an experience page asked for, via `?tour=`. */
+  tour: string | null;
+  /** The basket to put back, when Stripe sent them here by way of "cancel". */
+  draft: CheckoutDraft | null;
+};
+
+const NOTHING: CheckoutEntry = { tour: null, draft: null };
+
+/*
+ * `useSyncExternalStore` calls the snapshot on every render and re-renders
+ * whenever the reference changes, so an entry rebuilt each time would loop for
+ * ever. These hold the last one, keyed on the raw inputs it was built from.
+ */
+let lastKey: string | null = null;
+let lastEntry: CheckoutEntry = NOTHING;
+
+/** What the server render knows: nothing, because it has neither of them. */
+export function noCheckoutEntry(): CheckoutEntry {
+  return NOTHING;
 }
 
-export function clearCheckoutDraft(): void {
-  try {
-    window.sessionStorage.removeItem(CHECKOUT_DRAFT_KEY);
-  } catch {
-    // Nothing to clear if nothing could be stored.
+/**
+ * Nothing to subscribe to. The draft is written once, by the submit handler
+ * that navigates away, so it cannot change under a mounted form — and a
+ * `storage` event would only ever be another tab's checkout, which is none of
+ * this one's business.
+ */
+export function subscribeToCheckoutEntry(): () => void {
+  return () => {};
+}
+
+/** The live entry, cached so the reference is stable between renders. */
+export function readCheckoutEntry(): CheckoutEntry {
+  if (typeof window === "undefined") return NOTHING;
+  const search = window.location.search;
+
+  let raw: string | null = null;
+  if (isCancelReturn(search)) {
+    try {
+      raw = window.sessionStorage.getItem(CHECKOUT_DRAFT_KEY);
+    } catch {
+      // Storage blocked or absent — they retype, which is the old behaviour.
+    }
   }
+
+  const key = `${search}\u0000${raw ?? ""}`;
+  if (key !== lastKey) {
+    lastKey = key;
+    lastEntry = { tour: tourFromSearch(search), draft: parseCheckoutDraft(raw) };
+  }
+  return lastEntry;
 }
 
 /** Did Stripe send this guest back here by way of "cancel"? */
