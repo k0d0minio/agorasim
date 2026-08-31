@@ -133,13 +133,13 @@ export const ADMIN_NAV: AdminNavItem[] = [
     icon: Newspaper,
     group: "Marketing",
     description:
-      "Artigos escritos pela IA no seu tom, à espera de uma revisão rápida antes de irem para o site.",
-    dev: true,
+      "Artigos escritos no seu tom, à espera de uma leitura sua antes de irem para o site.",
+    dev: false,
     /*
-     * Gave its bottom-toolbar slot to the availability calendar. It inherited
-     * the slot from the retired Content screen, but it is still a design
-     * preview, and the calendar is a daily tool with real data behind it —
-     * which is the trade the `primary` flag exists to keep making correctly.
+     * Gave its bottom-toolbar slot to the availability calendar, and keeps it
+     * given now that it has real data behind it: publishing an article is a
+     * once-a-fortnight act, and the calendar is opened every morning — which is
+     * the trade the `primary` flag exists to keep making correctly.
      */
     primary: false,
   },

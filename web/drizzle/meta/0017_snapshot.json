@@ -1,6 +1,6 @@
 {
-  "id": "47095513-892c-4ec6-981a-d54818fcdd13",
-  "prevId": "3f6a1c58-24d7-4b1e-9a03-6d5b7c2e91af",
+  "id": "5c1d0a37-9b62-4f8e-9d41-2a7c3e6b8f10",
+  "prevId": "47095513-892c-4ec6-981a-d54818fcdd13",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -645,6 +645,25 @@
         "cancellation_token_hash": {
           "name": "cancellation_token_hash",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refunded_amount_cents": {
+          "name": "refunded_amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "stripe_refund_id": {
+          "name": "stripe_refund_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refunded_at": {
+          "name": "refunded_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
