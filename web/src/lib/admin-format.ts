@@ -1,6 +1,7 @@
 import type { VariantProps } from "class-variance-authority";
 import type {
   AdminRole,
+  ContentStatus,
   EnquiryKind,
   ExperienceKind,
   FeatureRequestPriority,
@@ -153,6 +154,9 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "availability.cleared": "limpou dias do calendário",
   "booking.confirmed": "uma reserva foi paga e confirmada",
   "booking.expired": "uma reserva não foi paga a tempo",
+  "blog_post.updated": "editou um artigo do blog",
+  "blog_post.published": "publicou um artigo no blog",
+  "blog_post.unpublished": "retirou um artigo do blog",
 };
 
 /**
@@ -185,6 +189,41 @@ export const experienceKindMeta: Record<
 };
 
 export const EXPERIENCE_KINDS = Object.keys(experienceKindMeta) as ExperienceKind[];
+
+/**
+ * Where an article is in its review, as the Blog studio words it.
+ *
+ * The database enum is shared by every generated-content table
+ * (`content_status`), so all four values have to render — but only two of them
+ * are reachable from this screen: the loader writes `draft`, the studio writes
+ * `published`, and unpublishing goes back to `draft`. `in_review` and
+ * `approved` are the pipeline's own vocabulary and are shown, not offered.
+ */
+export const blogStatusMeta: Record<
+  ContentStatus,
+  { label: string; variant: BadgeVariant; hint: string }
+> = {
+  draft: {
+    label: "Rascunho",
+    variant: "secondary",
+    hint: "Escrito e à sua espera — ninguém o vê no site",
+  },
+  in_review: {
+    label: "Em revisão",
+    variant: "secondary",
+    hint: "A ser revisto antes de lhe chegar",
+  },
+  approved: {
+    label: "Aprovado",
+    variant: "secondary",
+    hint: "Revisto e pronto a publicar",
+  },
+  published: {
+    label: "Publicado",
+    variant: "default",
+    hint: "No site, em português e em inglês",
+  },
+};
 
 /**
  * Labels for actions nothing writes any more, still present in old rows. The

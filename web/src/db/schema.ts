@@ -854,9 +854,15 @@ export type GeoContentDraft = typeof geoContentDrafts.$inferSelect;
 export type NewGeoContentDraft = typeof geoContentDrafts.$inferInsert;
 
 /**
- * Blog post drafts (future `blog/` pipeline). Localized title/excerpt plus a
- * body modelled as `Localized<string[]>` (paragraphs), matching how long-form
- * copy is stored in `src/content/pages.ts`.
+ * Blog posts. Localized title/excerpt plus a body modelled as
+ * `Localized<string[]>` (paragraphs), matching how long-form copy is stored in
+ * `src/content/pages.ts`.
+ *
+ * Named `_drafts` because a row arrives as one: `scripts/load-blog-drafts.ts`
+ * upserts reviewed pipeline markdown here as `draft`, and the row only reaches
+ * the public site when someone taps **Publicar** in `/admin/blog`. So this is
+ * both the review queue and the published corpus — `status` says which, and
+ * `lib/blog-posts.ts` is the only reader the website has.
  */
 export const blogPostDrafts = pgTable("blog_post_drafts", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -864,10 +870,30 @@ export const blogPostDrafts = pgTable("blog_post_drafts", {
   title: jsonb("title").$type<Localized>().notNull(),
   excerpt: jsonb("excerpt").$type<Localized>().notNull(),
   body: jsonb("body").$type<Localized<string[]>>().notNull(),
+  /**
+   * Language-neutral keywords — places, themes ("Ericeira", "Colares"). Not
+   * `Localized`, deliberately: they are shown to both audiences and fed to
+   * `Article.keywords`, and a tag that needs translating is a section, not a tag.
+   */
   tags: jsonb("tags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   heroImage: text("hero_image"),
+  /**
+   * Alt text for {@link heroImage}, per locale. Nullable because a row may not
+   * carry a photograph at all; when there is one, the public page refuses to
+   * render it without this (WCAG 2.2 AA — D14).
+   */
+  heroImageAlt: jsonb("hero_image_alt").$type<Localized>(),
 
   status: contentStatusEnum("status").notNull().default("draft"),
+  /**
+   * The moment someone tapped **Publicar** — `datePublished` in the article's
+   * JSON-LD, and the sort key of the public index. Cleared on unpublish, so a
+   * post that goes back and comes out again is dated by its second outing.
+   * Distinct from `status` only in that it answers *when*, but that is the
+   * whole difference between an ordered blog and an arbitrary one.
+   */
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  /** The article's own freshness date — `dateModified` in its JSON-LD. */
   dateModified: date("date_modified"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -875,6 +901,8 @@ export const blogPostDrafts = pgTable("blog_post_drafts", {
 }, (table) => [
   index("blog_post_drafts_status_idx").on(table.status),
   index("blog_post_drafts_updated_at_idx").on(table.updatedAt),
+  // The public index reads exactly this: published rows, newest first.
+  index("blog_post_drafts_published_at_idx").on(table.publishedAt),
 ]);
 
 export type BlogPostDraft = typeof blogPostDrafts.$inferSelect;

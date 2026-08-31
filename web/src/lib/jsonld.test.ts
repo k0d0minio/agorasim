@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { experienceJsonLd, serializeJsonLd } from "./jsonld";
+import { articleJsonLd, blogJsonLd, experienceJsonLd, serializeJsonLd } from "./jsonld";
 import { experiences, type Experience } from "@/content/experiences";
+import type { BlogPost } from "@/lib/blog-posts";
 import { site } from "@/content/site";
 
 /**
@@ -91,5 +92,65 @@ describe("experienceJsonLd offers", () => {
   it("says nothing at all about an experience with no price list", () => {
     const unpriced: Experience = { ...bySlug("rural-saloia"), pricing: null };
     expect(experienceJsonLd(unpriced, "pt")).not.toHaveProperty("offers");
+  });
+});
+
+/**
+ * The article blocks. Same emphasis as the offers above: the assertions are
+ * about the claims the markup makes — dates, and an image the page might not
+ * actually be rendering — rather than about schema.org's vocabulary.
+ */
+describe("articleJsonLd", () => {
+  const post: BlogPost = {
+    slug: "um-dia-perfeito-na-ericeira",
+    title: { pt: "Um dia perfeito na Ericeira", en: "A perfect day in Ericeira" },
+    excerpt: { pt: "Da bica ao pôr do sol.", en: "From espresso to sunset." },
+    body: { pt: ["Parágrafo."], en: ["Paragraph."] },
+    tags: ["Ericeira", "Roteiros"],
+    heroImage: "/images/rural-saloia/guests-under-olive-tree-hero.webp",
+    heroImageAlt: { pt: "A costa da Ericeira", en: "The Ericeira coastline" },
+    publishedOn: "2026-07-14",
+    updatedOn: "2026-08-02",
+    readingMinutes: 6,
+  };
+
+  it("carries both dates, and the locale's own URL", () => {
+    const article = articleJsonLd(post, "en");
+    expect(article).toMatchObject({
+      "@type": "Article",
+      headline: "A perfect day in Ericeira",
+      url: `${site.domain}/en/blog/um-dia-perfeito-na-ericeira`,
+      datePublished: "2026-07-14",
+      dateModified: "2026-08-02",
+      keywords: ["Ericeira", "Roteiros"],
+      inLanguage: "en-GB",
+    });
+  });
+
+  it("credits the business, not a person", () => {
+    const article = articleJsonLd(post, "pt");
+    expect(article.author).toEqual({ "@id": `${site.domain}/#organization` });
+    expect(article.publisher).toEqual({ "@id": `${site.domain}/#organization` });
+  });
+
+  it("claims no image when the page will not render one", () => {
+    // A photograph nobody described is dropped by the page (WCAG 2.2 AA), so
+    // the structured data must not go on advertising it to Google.
+    const undescribed: BlogPost = { ...post, heroImageAlt: null };
+    expect(articleJsonLd(undescribed, "pt")).not.toHaveProperty("image");
+    expect(articleJsonLd({ ...post, heroImage: null }, "pt")).not.toHaveProperty("image");
+  });
+
+  it("says nothing about tags a post does not have", () => {
+    expect(articleJsonLd({ ...post, tags: [] }, "pt")).not.toHaveProperty("keywords");
+  });
+
+  it("lists every post on the blog entity, each at its own URL", () => {
+    const blog = blogJsonLd([post, { ...post, slug: "das-vinhas-a-mafra" }], "pt");
+    expect(blog["@type"]).toBe("Blog");
+    expect(blog.blogPost).toEqual([
+      expect.objectContaining({ url: `${site.domain}/pt/blog/um-dia-perfeito-na-ericeira` }),
+      expect.objectContaining({ url: `${site.domain}/pt/blog/das-vinhas-a-mafra` }),
+    ]);
   });
 });
