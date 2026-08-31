@@ -1,49 +1,16 @@
 /**
- * Example data for the admin design-preview pages (blog studio, social studio,
- * referrals, notifications) and for the paid bookings the Sales screen shows
- * next to real enquiries. Each preview page renders its final layout with this
- * data until the feature behind it is wired up — every one of them carries an
- * `AdminInDevBanner` saying so, and every example booking is marked as an
- * example on the row itself.
+ * Example data for the admin design-preview pages: blog studio, social studio,
+ * referrals, notifications. Each renders its final layout with this data until
+ * the feature behind it is wired up, and every one of them carries an
+ * `AdminInDevBanner` saying so.
  *
  * Nothing here touches the database; delete entries freely as features go live.
  *
- * The CRM pipeline's example leads used to live here too. They don't any more:
- * the board is fed by the `tour_requests` table, so its columns are the real
- * lead lifecycle rather than a mock of it.
+ * The CRM pipeline's example leads used to live here, and so did four example
+ * bookings the Sales screen merged in beside real enquiries. Neither does now:
+ * Sales is fed by `tour_requests` and `bookings`, so what it shows is what
+ * happened.
  */
-
-// ---------------------------------------------------------------------------
-// Bookings & payments (Features 3 + 4)
-// ---------------------------------------------------------------------------
-
-/**
- * A confirmed, paid booking. Example data until Stripe ships — the Sales screen
- * renders these alongside real enquiries so the merged list can be seen working,
- * and marks every one of them as an example.
- *
- * `experienceSlug`/`addOns` are catalogue slugs, not prose, so a booking draws
- * the same icons as an enquiry for the same experience.
- */
-export type PreviewBooking = {
-  ref: string;
-  name: string;
-  /** The booked day, as it reads on the card. */
-  date: string;
-  experienceSlug: string;
-  addOns: string[];
-  party: number;
-  total: string;
-  payment: "Paid in full" | "Deposit paid" | "Awaiting payment";
-  kind: "tour" | "wedding";
-};
-
-export const previewBookings: PreviewBooking[] = [
-  { ref: "AG-2041", name: "Laura Bianchi", date: "Sat 15 Aug", experienceSlug: "rural-saloia", addOns: [], party: 2, total: "€290", payment: "Paid in full", kind: "tour" },
-  { ref: "AG-2042", name: "The Nakamura family", date: "Sat 22 Aug", experienceSlug: "rural-saloia", addOns: ["tasco-galapito"], party: 4, total: "€720", payment: "Deposit paid", kind: "tour" },
-  { ref: "AG-2043", name: "Carter wedding", date: "Sat 5 Sep", experienceSlug: "rural-saloia", addOns: [], party: 2, total: "€650", payment: "Deposit paid", kind: "wedding" },
-  { ref: "AG-2044", name: "Anna Keller", date: "Sun 30 Aug", experienceSlug: "rural-saloia", addOns: ["manzwine"], party: 2, total: "€340", payment: "Awaiting payment", kind: "tour" },
-];
 
 // ---------------------------------------------------------------------------
 // Blog studio (Feature 2)

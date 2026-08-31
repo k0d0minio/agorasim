@@ -15,9 +15,12 @@ export function AdminInDevBanner({ note }: { note: string }) {
         <Hammer className="size-4" />
       </div>
       <div className="space-y-1 text-sm">
-        <p className="font-semibold text-accent-foreground">In development — design preview</p>
+        <p className="font-semibold text-accent-foreground">
+          Em construção — pré-visualização do desenho
+        </p>
         <p className="text-accent-foreground/80">
-          {note} The data shown is example data so you can see exactly how this will look and work.
+          {note} Os dados mostrados são de exemplo, para ver exatamente como isto vai ficar e
+          funcionar.
         </p>
       </div>
     </div>

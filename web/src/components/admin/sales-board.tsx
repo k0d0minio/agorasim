@@ -73,23 +73,14 @@ export function SalesBoard({
                 key={record.id}
                 className="rounded-lg border bg-card p-3 shadow-xs"
               >
-                <div className="flex items-start justify-between gap-2">
-                  {record.href ? (
-                    <Link
-                      href={record.href}
-                      // The card's way in — a full-height touch row, not a
-                      // text-sized sliver (spec §2 T1).
-                      className="inline-flex min-h-11 items-center text-sm font-medium hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-                    >
-                      {record.name}
-                    </Link>
-                  ) : (
-                    <p className="inline-flex min-h-11 items-center text-sm font-medium">
-                      {record.name}
-                    </p>
-                  )}
-                  {record.example ? <Badge variant="outline">Example</Badge> : null}
-                </div>
+                <Link
+                  href={record.href}
+                  // The card's way in — a full-height touch row, not a
+                  // text-sized sliver (spec §2 T1).
+                  className="inline-flex min-h-11 items-center text-sm font-medium hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+                >
+                  {record.name}
+                </Link>
 
                 {/*
                   The reference the guest is holding. Theirs comes from the
@@ -122,22 +113,18 @@ export function SalesBoard({
                   {record.when ? (
                     <span className="text-muted-foreground">{record.when}</span>
                   ) : null}
-                  {record.example ? null : (
-                    <span className="inline-flex items-center gap-1 text-muted-foreground">
-                      <Clock className="size-3" aria-hidden />
-                      {formatRelativeTime(record.createdAt, now)}
-                    </span>
-                  )}
+                  <span className="inline-flex items-center gap-1 text-muted-foreground">
+                    <Clock className="size-3" aria-hidden />
+                    {formatRelativeTime(record.createdAt, now)}
+                  </span>
                 </div>
 
-                {record.example ? null : (
-                  <RequestStatusSelect
-                    id={record.id}
-                    status={record.status}
-                    name={record.name}
-                    className="mt-1"
-                  />
-                )}
+                <RequestStatusSelect
+                  id={record.id}
+                  status={record.status}
+                  name={record.name}
+                  className="mt-1"
+                />
 
                 {lastChanged.get(record.id) ? (
                   <p className="mt-1 text-xs text-muted-foreground">

@@ -7,6 +7,7 @@ import {
   isMonthInWindow,
   isMonthKey,
   MAX_DRIVERS,
+  MAX_RANGE_DAYS,
   monthBounds,
   monthGrid,
   monthOf,
@@ -96,6 +97,7 @@ export default async function AdminCalendarPage({
         nextMonth={nextMonth}
         defaultDrivers={DEFAULT_DRIVERS}
         maxDrivers={MAX_DRIVERS}
+        maxRangeDays={MAX_RANGE_DAYS}
         fleet={FLEET.map((vehicle) => ({ name: vehicle.name, seats: vehicle.seats }))}
         today={today}
       />

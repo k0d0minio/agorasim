@@ -42,11 +42,23 @@ export const requestStatusMeta: Record<
   RequestStatus,
   { label: string; variant: BadgeVariant; hint: string }
 > = {
-  new: { label: "New", variant: "default", hint: "Untouched — nobody has replied yet" },
-  contacted: { label: "Contacted", variant: "secondary", hint: "Waiting on their answer" },
-  quoted: { label: "Quoted", variant: "secondary", hint: "Proposal sent" },
-  booked: { label: "Booked", variant: "outline", hint: "Confirmed" },
-  archived: { label: "Archived", variant: "outline", hint: "Done, or gone quiet" },
+  new: {
+    label: "Novo",
+    variant: "default",
+    hint: "Sem resposta — ainda ninguém respondeu",
+  },
+  contacted: {
+    label: "Contactado",
+    variant: "secondary",
+    hint: "À espera da resposta do cliente",
+  },
+  quoted: { label: "Orçamentado", variant: "secondary", hint: "Orçamento enviado" },
+  booked: { label: "Reservado", variant: "outline", hint: "Confirmado" },
+  archived: {
+    label: "Arquivado",
+    variant: "outline",
+    hint: "Fechado, ou deixou de responder",
+  },
 };
 
 /**
@@ -60,11 +72,11 @@ export const featureRequestStatusMeta: Record<
   FeatureRequestStatus,
   { label: string; variant: BadgeVariant }
 > = {
-  new: { label: "New", variant: "default" },
-  planned: { label: "Planned", variant: "secondary" },
-  in_progress: { label: "In progress", variant: "secondary" },
-  completed: { label: "Completed", variant: "outline" },
-  declined: { label: "Declined", variant: "outline" },
+  new: { label: "Nova", variant: "default" },
+  planned: { label: "Planeada", variant: "secondary" },
+  in_progress: { label: "Em curso", variant: "secondary" },
+  completed: { label: "Concluída", variant: "outline" },
+  declined: { label: "Recusada", variant: "outline" },
 };
 
 export const FEATURE_REQUEST_STATUSES = Object.keys(
@@ -75,10 +87,10 @@ export const featureRequestPriorityMeta: Record<
   FeatureRequestPriority,
   { label: string; variant: BadgeVariant }
 > = {
-  low: { label: "Low", variant: "outline" },
-  medium: { label: "Medium", variant: "secondary" },
-  high: { label: "High", variant: "secondary" },
-  urgent: { label: "Urgent", variant: "destructive" },
+  low: { label: "Baixa", variant: "outline" },
+  medium: { label: "Média", variant: "secondary" },
+  high: { label: "Alta", variant: "secondary" },
+  urgent: { label: "Urgente", variant: "destructive" },
 };
 
 export const FEATURE_REQUEST_PRIORITIES = Object.keys(
@@ -90,16 +102,16 @@ export const adminRoleMeta: Record<
   { label: string; variant: BadgeVariant; description: string }
 > = {
   owner: {
-    label: "Owner",
+    label: "Responsável",
     variant: "default",
     description:
-      "Full access, including team accounts, the audit log, and exporting or erasing guest data.",
+      "Acesso total, incluindo as contas da equipa, o registo de atividade e exportar ou eliminar dados de clientes.",
   },
   collaborator: {
-    label: "Collaborator",
+    label: "Colaborador",
     variant: "secondary",
     description:
-      "Everything operational. No team accounts, and no exporting or erasing guest data.",
+      "Tudo o que é operação. Sem contas da equipa e sem exportar ou eliminar dados de clientes.",
   },
 };
 
@@ -107,40 +119,40 @@ export const adminRoleMeta: Record<
 export const ADMIN_ROLES = Object.keys(adminRoleMeta) as AdminRole[];
 
 /**
- * Plain-English labels for audit actions.
+ * Plain-language labels for audit actions, read as "{who} {label}, {when}".
  *
  * `Record<AuditAction, …>` on purpose: adding an action to `AUDIT_ACTIONS`
  * without giving it a label stops the build, rather than shipping an audit view
  * that renders a raw `tour_request.bulk_deleted` at an operator.
  */
 export const auditActionLabels: Record<AuditAction, string> = {
-  "admin_user.signed_in": "signed in",
-  "admin_user.signed_out": "signed out",
-  "admin_user.sessions_revoked": "signed out everywhere",
-  "admin_user.created": "created an account",
-  "admin_user.disabled": "disabled an account",
-  "admin_user.enabled": "re-enabled an account",
-  "admin_user.password_changed": "changed their password",
-  "tour_request.status_changed": "changed a lead's status",
-  "tour_request.updated": "edited a lead's details",
-  "tour_request.contact_logged": "logged reaching out",
-  "tour_request.deleted": "erased a submission",
-  "tour_request.exported": "exported a person's data",
-  "tour_request.anonymised_by_retention": "anonymised expired submissions",
-  "feature_request.created": "raised a feature request",
-  "feature_request.status_changed": "changed a feature request's status",
-  "experience.created": "added an experience",
-  "experience.updated": "edited an experience",
-  "experience.image_uploaded": "uploaded an experience photo",
-  "experience.archived": "archived an experience",
-  "experience.restored": "restored an experience",
-  "experience.reordered": "reordered the catalogue",
-  "experience.deleted": "deleted an experience",
-  "availability.opened": "opened days for booking",
-  "availability.closed": "closed days",
-  "availability.cleared": "cleared days from the calendar",
-  "booking.confirmed": "a booking was paid and confirmed",
-  "booking.expired": "a booking was not paid in time",
+  "admin_user.signed_in": "entrou",
+  "admin_user.signed_out": "saiu",
+  "admin_user.sessions_revoked": "saiu de todos os dispositivos",
+  "admin_user.created": "criou uma conta",
+  "admin_user.disabled": "desativou uma conta",
+  "admin_user.enabled": "reativou uma conta",
+  "admin_user.password_changed": "mudou a palavra-passe",
+  "tour_request.status_changed": "mudou o estado de um pedido",
+  "tour_request.updated": "editou os dados de um pedido",
+  "tour_request.contact_logged": "registou um contacto",
+  "tour_request.deleted": "eliminou um pedido",
+  "tour_request.exported": "exportou os dados de um cliente",
+  "tour_request.anonymised_by_retention": "anonimizou pedidos expirados",
+  "feature_request.created": "escreveu uma sugestão",
+  "feature_request.status_changed": "mudou o estado de uma sugestão",
+  "experience.created": "adicionou uma experiência",
+  "experience.updated": "editou uma experiência",
+  "experience.image_uploaded": "enviou a fotografia de uma experiência",
+  "experience.archived": "arquivou uma experiência",
+  "experience.restored": "restaurou uma experiência",
+  "experience.reordered": "reordenou o catálogo",
+  "experience.deleted": "eliminou uma experiência",
+  "availability.opened": "pôs dias à venda",
+  "availability.closed": "fechou dias",
+  "availability.cleared": "limpou dias do calendário",
+  "booking.confirmed": "uma reserva foi paga e confirmada",
+  "booking.expired": "uma reserva não foi paga a tempo",
 };
 
 /**
@@ -148,9 +160,9 @@ export const auditActionLabels: Record<AuditAction, string> = {
  * `enquiryKindEnum`; the icons live in `lib/experience-icons.ts`.
  */
 export const enquiryKindMeta: Record<EnquiryKind, { label: string }> = {
-  tour: { label: "Tour" },
-  wedding: { label: "Wedding" },
-  event: { label: "Event" },
+  tour: { label: "Passeio" },
+  wedding: { label: "Casamento" },
+  event: { label: "Evento" },
 };
 
 export const ENQUIRY_KINDS = Object.keys(enquiryKindMeta) as EnquiryKind[];
@@ -161,13 +173,13 @@ export const experienceKindMeta: Record<
   { label: string; hint: string; variant: BadgeVariant }
 > = {
   signature: {
-    label: "Signature",
-    hint: "The main tour, featured on the homepage and the experiences page.",
+    label: "Principal",
+    hint: "O passeio principal, em destaque na página inicial e na página de experiências.",
     variant: "default",
   },
   complement: {
-    label: "Add-on",
-    hint: "A complement guests can add to the signature experience.",
+    label: "Extra",
+    hint: "Um extra que o cliente pode juntar à experiência principal.",
     variant: "secondary",
   },
 };
@@ -180,8 +192,8 @@ export const EXPERIENCE_KINDS = Object.keys(experienceKindMeta) as ExperienceKin
  * append-only, so their entries are history that must keep rendering.
  */
 const retiredAuditActionLabels: Record<string, string> = {
-  "tour_request.bulk_status_changed": "bulk-changed lead statuses",
-  "tour_request.bulk_deleted": "bulk-erased submissions",
+  "tour_request.bulk_status_changed": "mudou o estado de vários pedidos",
+  "tour_request.bulk_deleted": "eliminou vários pedidos",
 };
 
 /** Label for an action string read back from the database. */
@@ -191,13 +203,13 @@ export function auditActionLabel(action: string): string {
   );
 }
 
-const dateFormatter = new Intl.DateTimeFormat("en-GB", {
+const dateFormatter = new Intl.DateTimeFormat("pt-PT", {
   day: "2-digit",
   month: "short",
   year: "numeric",
 });
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+const dateTimeFormatter = new Intl.DateTimeFormat("pt-PT", {
   day: "2-digit",
   month: "short",
   year: "numeric",
@@ -232,7 +244,8 @@ const YEAR = 365 * DAY;
 
 /**
  * How long ago something happened, in the largest unit that still reads
- * naturally: "just now", "12m ago", "3h ago", "2d ago", "5w ago", "3mo ago".
+ * naturally: "agora mesmo", "há 12 min", "há 3 h", "há 2 d", "há 5 sem.",
+ * "há 3 meses".
  *
  * Triage is the job on Submissions and Feature requests, and for triage the age
  * of a lead matters far more than its calendar date — so this is the primary
@@ -247,12 +260,17 @@ export function formatRelativeTime(
 
   const diff = now.getTime() - date.getTime();
   // Clock skew, or a date in the future: don't claim it happened in the past.
-  if (diff < 0) return "just now";
-  if (diff < MINUTE) return "just now";
-  if (diff < HOUR) return `${Math.floor(diff / MINUTE)}m ago`;
-  if (diff < DAY) return `${Math.floor(diff / HOUR)}h ago`;
-  if (diff < WEEK) return `${Math.floor(diff / DAY)}d ago`;
-  if (diff < MONTH) return `${Math.floor(diff / WEEK)}w ago`;
-  if (diff < YEAR) return `${Math.floor(diff / MONTH)}mo ago`;
-  return `${Math.floor(diff / YEAR)}y ago`;
+  if (diff < 0) return "agora mesmo";
+  if (diff < MINUTE) return "agora mesmo";
+  if (diff < HOUR) return `há ${Math.floor(diff / MINUTE)} min`;
+  if (diff < DAY) return `há ${Math.floor(diff / HOUR)} h`;
+  if (diff < WEEK) return `há ${Math.floor(diff / DAY)} d`;
+  if (diff < MONTH) return `há ${Math.floor(diff / WEEK)} sem.`;
+  // Months and years are spelled out, so they take a singular: "há 1 mês".
+  if (diff < YEAR) {
+    const months = Math.floor(diff / MONTH);
+    return `há ${months} ${months === 1 ? "mês" : "meses"}`;
+  }
+  const years = Math.floor(diff / YEAR);
+  return `há ${years} ${years === 1 ? "ano" : "anos"}`;
 }
