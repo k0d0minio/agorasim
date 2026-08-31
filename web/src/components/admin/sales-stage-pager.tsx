@@ -79,7 +79,7 @@ export function SalesStagePager({ stages }: { stages: StageSlide[] }) {
         mid-triage. Phone only — the desktop rail shows the columns themselves.
       */}
       <nav
-        aria-label="Pipeline stages"
+        aria-label="Fases"
         className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 -mx-4 flex gap-2 overflow-x-auto bg-background/95 px-4 py-2 backdrop-blur supports-backdrop-filter:bg-background/85 md:hidden"
       >
         {stages.map((stage, index) => (
@@ -98,7 +98,7 @@ export function SalesStagePager({ stages }: { stages: StageSlide[] }) {
             {stage.label}
             <Badge
               variant={index === active ? "secondary" : "outline"}
-              aria-label={`${stage.count} ${stage.count === 1 ? "record" : "records"}`}
+              aria-label={`${stage.count} ${stage.count === 1 ? "registo" : "registos"}`}
             >
               {stage.count}
             </Badge>

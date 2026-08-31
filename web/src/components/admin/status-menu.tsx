@@ -50,7 +50,7 @@ export function StatusMenu<T extends string>({
   options: readonly StatusOption<T>[];
   /** Server action performing the write. Returns an error to render on failure. */
   update: (next: T) => Promise<StatusUpdateState>;
-  /** Accessible name for the trigger, e.g. "Status for Sofia Almeida". */
+  /** Accessible name for the trigger, e.g. "Estado de Sofia Almeida". */
   triggerLabel: string;
   className?: string;
 }) {
@@ -91,7 +91,7 @@ export function StatusMenu<T extends string>({
           <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <DropdownMenuLabel>Set status</DropdownMenuLabel>
+          <DropdownMenuLabel>Mudar o estado</DropdownMenuLabel>
           <DropdownMenuRadioGroup value={optimistic} onValueChange={onValueChange}>
             {options.map((option) => (
               <DropdownMenuRadioItem key={option.value} value={option.value}>

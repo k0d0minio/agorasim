@@ -62,26 +62,26 @@ export type IconChoice = {
  * Adding one is a one-line change here and it appears in the picker.
  */
 export const EXPERIENCE_ICONS = {
-  car: { label: "Classic car", icon: CarFront },
-  route: { label: "Route & itinerary", icon: Route },
-  meal: { label: "Meal at the table", icon: UtensilsCrossed },
-  picnic: { label: "Picnic & snacks", icon: Sandwich },
-  bakery: { label: "Bakery & sweets", icon: Croissant },
-  coffee: { label: "Café stop", icon: Coffee },
-  wine: { label: "Wine tasting", icon: Wine },
-  vineyard: { label: "Vineyard visit", icon: Wheat },
-  pottery: { label: "Pottery & crafts", icon: Amphora },
-  workshop: { label: "Hands-on workshop", icon: Hammer },
-  heritage: { label: "Palace & heritage", icon: Landmark },
-  coast: { label: "Coast & sea", icon: Sailboat },
-  nature: { label: "Nature & countryside", icon: TreePine },
-  viewpoint: { label: "Viewpoint", icon: MapPin },
-  sunset: { label: "Sunset", icon: Sunset },
-  photo: { label: "Photo stop", icon: Camera },
-  music: { label: "Music & folklore", icon: Music },
-  wedding: { label: "Wedding", icon: Heart },
-  gift: { label: "Gift experience", icon: Gift },
-  sparkles: { label: "Something special", icon: Sparkles },
+  car: { label: "Carro clássico", icon: CarFront },
+  route: { label: "Rota e itinerário", icon: Route },
+  meal: { label: "Refeição à mesa", icon: UtensilsCrossed },
+  picnic: { label: "Piquenique e petiscos", icon: Sandwich },
+  bakery: { label: "Padaria e doces", icon: Croissant },
+  coffee: { label: "Paragem para café", icon: Coffee },
+  wine: { label: "Prova de vinhos", icon: Wine },
+  vineyard: { label: "Visita a uma vinha", icon: Wheat },
+  pottery: { label: "Olaria e artesanato", icon: Amphora },
+  workshop: { label: "Oficina prática", icon: Hammer },
+  heritage: { label: "Palácio e património", icon: Landmark },
+  coast: { label: "Costa e mar", icon: Sailboat },
+  nature: { label: "Natureza e campo", icon: TreePine },
+  viewpoint: { label: "Miradouro", icon: MapPin },
+  sunset: { label: "Pôr do sol", icon: Sunset },
+  photo: { label: "Paragem para fotografias", icon: Camera },
+  music: { label: "Música e folclore", icon: Music },
+  wedding: { label: "Casamento", icon: Heart },
+  gift: { label: "Experiência para oferecer", icon: Gift },
+  sparkles: { label: "Algo especial", icon: Sparkles },
 } as const satisfies Record<string, IconChoice>;
 
 export type ExperienceIconKey = keyof typeof EXPERIENCE_ICONS;
@@ -115,7 +115,7 @@ export const ENQUIRY_KIND_ICONS: Record<
   "tour" | "wedding" | "event",
   { label: string; icon: LucideIcon }
 > = {
-  tour: { label: "Tour", icon: CarFront },
-  wedding: { label: "Wedding", icon: Heart },
-  event: { label: "Event", icon: PartyPopper },
+  tour: { label: "Passeio", icon: CarFront },
+  wedding: { label: "Casamento", icon: Heart },
+  event: { label: "Evento", icon: PartyPopper },
 };

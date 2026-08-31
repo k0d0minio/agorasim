@@ -64,7 +64,7 @@ export default async function AdminLeadPage({
   const now = new Date();
 
   const experienceName = lead.experienceSlug
-    ? (index.get(lead.experienceSlug) && t(index.get(lead.experienceSlug)!.title, "en")) ??
+    ? (index.get(lead.experienceSlug) && t(index.get(lead.experienceSlug)!.title, "pt")) ??
       lead.experienceSlug
     : null;
 
@@ -79,7 +79,7 @@ export default async function AdminLeadPage({
 
   const options: CatalogueOption[] = catalogue.map((entry) => ({
     slug: entry.slug,
-    label: t(entry.title, "en"),
+    label: t(entry.title, "pt"),
     icon: entry.icon,
     kind: entry.kind,
     active: entry.active,
@@ -104,7 +104,7 @@ export default async function AdminLeadPage({
                   <span className="font-mono">{enquiryRef(lead.id)}</span>
                   <span aria-hidden>·</span>
                   <span>
-                    Received <Received at={lead.createdAt} /> ({formatDateTime(lead.createdAt)})
+                    Recebido <Received at={lead.createdAt} /> ({formatDateTime(lead.createdAt)})
                   </span>
                   <span aria-hidden>·</span>
                   <span className="uppercase">{lead.locale}</span>
@@ -134,7 +134,7 @@ export default async function AdminLeadPage({
                 <Button asChild variant="outline">
                   <a href={tel}>
                     <Phone className="size-4" />
-                    Call
+                    Telefonar
                   </a>
                 </Button>
               ) : null}
@@ -174,11 +174,11 @@ export default async function AdminLeadPage({
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Phone</dt>
+                <dt className="text-muted-foreground">Telefone</dt>
                 <dd>{lead.phone ?? "—"}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Experience</dt>
+                <dt className="text-muted-foreground">Experiência</dt>
                 <dd className="flex flex-wrap items-center gap-2">
                   <ExperienceIconRow
                     experienceSlug={lead.experienceSlug}
@@ -193,15 +193,15 @@ export default async function AdminLeadPage({
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Party</dt>
+                <dt className="text-muted-foreground">Pessoas</dt>
                 <dd>{lead.partySize ?? "—"}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Preferred date</dt>
+                <dt className="text-muted-foreground">Data preferida</dt>
                 <dd>{lead.preferredDate ?? "—"}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Stage</dt>
+                <dt className="text-muted-foreground">Fase</dt>
                 <dd>
                   <Badge variant={requestStatusMeta[record.status].variant}>
                     {requestStatusMeta[record.status].label}
@@ -222,19 +222,20 @@ export default async function AdminLeadPage({
               />
             ) : (
               <p className="text-xs text-muted-foreground">
-                No marketing opt-in — this address is for answering the enquiry only.
+                Sem autorização de marketing — este endereço serve apenas para responder ao
+                pedido.
               </p>
             )}
 
             {lead.anonymisedAt ? (
               <p className="text-xs text-muted-foreground">
-                Anonymised by the retention job on {formatDateTime(lead.anonymisedAt)}.
+                Anonimizado pela limpeza automática a {formatDateTime(lead.anonymisedAt)}.
               </p>
             ) : null}
 
             {lead.message ? (
               <div>
-                <p className="mb-1 text-sm text-muted-foreground">In their words</p>
+                <p className="mb-1 text-sm text-muted-foreground">Nas palavras do cliente</p>
                 <p className="rounded-lg bg-muted/60 px-3 py-2 text-sm whitespace-pre-wrap">
                   {lead.message}
                 </p>
@@ -264,20 +265,24 @@ export default async function AdminLeadPage({
             simply nowhere on a lead to read it. */}
         <Card>
           <CardHeader>
-            <CardTitle>History</CardTitle>
-            <CardDescription>Every change made to this lead, newest first.</CardDescription>
+            <CardTitle>Histórico</CardTitle>
+            <CardDescription>
+              Todas as alterações a este pedido, da mais recente para a mais antiga.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {history.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Nothing yet — this lead has not been touched since it arrived.
+                Ainda nada — ninguém mexeu neste pedido desde que chegou.
               </p>
             ) : (
               <ol className="flex flex-col gap-3">
                 {history.map((entry) => (
                   <li key={entry.id} className="flex flex-col gap-0.5 border-l-2 pl-3 text-sm">
                     <span>
-                      <span className="font-medium">{entry.actorName ?? "Scheduled job"}</span>{" "}
+                      <span className="font-medium">
+                        {entry.actorName ?? "Tarefa automática"}
+                      </span>{" "}
                       {auditActionLabel(entry.action)}
                     </span>
                     <time

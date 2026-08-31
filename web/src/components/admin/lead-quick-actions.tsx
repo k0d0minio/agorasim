@@ -34,7 +34,7 @@ function PendingButton({
   return (
     <Button type="submit" variant={variant} disabled={pending}>
       {children}
-      {pending ? "Saving…" : idleLabel}
+      {pending ? "A guardar…" : idleLabel}
     </Button>
   );
 }
@@ -63,7 +63,7 @@ export function LogContactButton({
     <div className="flex flex-col gap-1">
       <form action={formAction}>
         <input type="hidden" name="id" value={id} />
-        <PendingButton idleLabel="Log contact" variant="outline">
+        <PendingButton idleLabel="Registar contacto" variant="outline">
           <PhoneCall className="size-4" />
         </PendingButton>
       </form>
@@ -74,10 +74,12 @@ export function LogContactButton({
         </p>
       ) : lastContactedAt ? (
         <p className="text-xs text-muted-foreground">
-          Last reached out {formatRelativeTime(new Date(lastContactedAt))}
+          Último contacto {formatRelativeTime(new Date(lastContactedAt))}
         </p>
       ) : (
-        <p className="text-xs text-muted-foreground">Nobody has logged reaching out yet</p>
+        <p className="text-xs text-muted-foreground">
+          Ainda ninguém registou nenhum contacto
+        </p>
       )}
     </div>
   );
@@ -103,7 +105,7 @@ export function ArchiveLeadButton({ id, archived }: { id: string; archived: bool
   return (
     <div className="flex flex-col gap-1">
       <form action={formAction}>
-        <PendingButton idleLabel={archived ? "Reopen" : "Archive"} variant="outline">
+        <PendingButton idleLabel={archived ? "Reabrir" : "Arquivar"} variant="outline">
           <Archive className="size-4" />
         </PendingButton>
       </form>
