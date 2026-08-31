@@ -44,7 +44,7 @@ function SubmitButton() {
   return (
     <Button type="submit" size="lg" disabled={pending}>
       <Save />
-      {pending ? "Saving…" : "Save changes"}
+      {pending ? "A guardar…" : "Guardar alterações"}
     </Button>
   );
 }
@@ -85,10 +85,10 @@ export function LeadEditForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Details</CardTitle>
+        <CardTitle>Detalhes</CardTitle>
         <CardDescription>
-          Correct what the form got wrong, and keep the team&apos;s notes with the lead
-          rather than in a phone.
+          Corrija o que o formulário trouxe errado e guarde aqui as notas da equipa, em
+          vez de as ter no telemóvel.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -97,7 +97,7 @@ export function LeadEditForm({
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">Nome</Label>
               {/* This form edits the *guest's* record, so the operator's own
                   autofill (their name, their email) would only ever be wrong. */}
               <Input
@@ -134,7 +134,7 @@ export function LeadEditForm({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="phone">Phone</Label>
+              <Label htmlFor="phone">Telefone</Label>
               <Input
                 id="phone"
                 name="phone"
@@ -146,7 +146,7 @@ export function LeadEditForm({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="kind">Kind</Label>
+              <Label htmlFor="kind">Tipo</Label>
               <Select id="kind" name="kind" defaultValue={lead.kind}>
                 {ENQUIRY_KINDS.map((kind) => (
                   <option key={kind} value={kind}>
@@ -157,24 +157,24 @@ export function LeadEditForm({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="experienceSlug">Experience</Label>
+              <Label htmlFor="experienceSlug">Experiência</Label>
               <Select
                 id="experienceSlug"
                 name="experienceSlug"
                 defaultValue={lead.experienceSlug ?? ""}
               >
-                <option value="">Not decided</option>
+                <option value="">Por decidir</option>
                 {experiences.map((option) => (
                   <option key={option.slug} value={option.slug}>
                     {option.label}
-                    {option.active ? "" : " (archived)"}
+                    {option.active ? "" : " (arquivada)"}
                   </option>
                 ))}
               </Select>
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="partySize">Party size</Label>
+              <Label htmlFor="partySize">Número de pessoas</Label>
               <Input
                 id="partySize"
                 name="partySize"
@@ -187,21 +187,21 @@ export function LeadEditForm({
             </div>
 
             <div className="flex flex-col gap-1.5 sm:col-span-2">
-              <Label htmlFor="preferredDate">Preferred date</Label>
-              {/* Deliberately prose, not a date input — "late summer, flexible"
+              <Label htmlFor="preferredDate">Data preferida</Label>
+              {/* Deliberately prose, not a date input — "fim do verão, flexível"
                   is a real answer here, so no date keyboard (spec §8 E2). */}
               <Input
                 id="preferredDate"
                 name="preferredDate"
                 defaultValue={lead.preferredDate ?? ""}
                 enterKeyHint="done"
-                placeholder="15 August, late summer, flexible…"
+                placeholder="15 de agosto, fim do verão, flexível…"
               />
             </div>
           </div>
 
           <fieldset className="flex flex-col gap-2">
-            <legend className="text-sm font-medium">Add-ons</legend>
+            <legend className="text-sm font-medium">Extras</legend>
             <div className="grid gap-2 sm:grid-cols-2">
               {addOns.map((option) => {
                 const Icon = experienceIcon(option.icon).icon;
@@ -220,7 +220,7 @@ export function LeadEditForm({
                     <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                     {option.label}
                     {option.active ? null : (
-                      <span className="text-xs text-muted-foreground">(archived)</span>
+                      <span className="text-xs text-muted-foreground">(arquivada)</span>
                     )}
                   </label>
                 );
@@ -229,20 +229,21 @@ export function LeadEditForm({
           </fieldset>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="message">What they wrote</Label>
+            <Label htmlFor="message">O que o cliente escreveu</Label>
             <Textarea id="message" name="message" rows={4} defaultValue={lead.message ?? ""} />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="internalNotes">
-              Team notes <span className="text-muted-foreground">(never shown to the guest)</span>
+              Notas da equipa{" "}
+              <span className="text-muted-foreground">(nunca são mostradas ao cliente)</span>
             </Label>
             <Textarea
               id="internalNotes"
               name="internalNotes"
               rows={4}
               defaultValue={lead.internalNotes ?? ""}
-              placeholder="Which car was promised, what was agreed on the phone, why it went quiet…"
+              placeholder="Que carro foi prometido, o que ficou combinado ao telefone, porque é que o cliente deixou de responder…"
             />
           </div>
 
@@ -253,7 +254,7 @@ export function LeadEditForm({
           ) : null}
           {state.ok ? (
             <p className="text-sm text-primary" role="status">
-              {state.message ?? "Saved."}
+              {state.message ?? "Guardado."}
             </p>
           ) : null}
 

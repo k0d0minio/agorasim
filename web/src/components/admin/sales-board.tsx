@@ -64,7 +64,9 @@ export function SalesBoard({
           <div className="flex flex-col gap-2 p-3">
             {column.records.length === 0 ? (
               <p className="px-1 pb-2 text-sm text-muted-foreground">
-                Nothing in {meta.label.toLowerCase()} right now.
+                {/* The stage name keeps its capital: `Novo`, `Orçamentado` and the
+                    rest are the column's name here, not adjectives in a sentence. */}
+                Nada em {meta.label} de momento.
               </p>
             ) : null}
 
@@ -107,7 +109,7 @@ export function SalesBoard({
                   ) : null}
                   {record.partySize ? (
                     <span className="text-muted-foreground">
-                      {record.partySize} {record.partySize === 1 ? "person" : "people"}
+                      {record.partySize} {record.partySize === 1 ? "pessoa" : "pessoas"}
                     </span>
                   ) : null}
                   {record.when ? (
@@ -128,7 +130,7 @@ export function SalesBoard({
 
                 {lastChanged.get(record.id) ? (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {lastChanged.get(record.id)?.actorName ?? "Scheduled job"} ·{" "}
+                    {lastChanged.get(record.id)?.actorName ?? "Tarefa automática"} ·{" "}
                     {formatRelativeTime(lastChanged.get(record.id)!.createdAt, now)}
                   </p>
                 ) : null}

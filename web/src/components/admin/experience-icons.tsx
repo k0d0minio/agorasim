@@ -62,7 +62,7 @@ export function EnquiryKindIcon({
 /** The name a slug goes by, for the chip's label. Unknown slugs speak for themselves. */
 function labelFor(slug: string, catalogue: Map<string, CatalogueEntry>): string {
   const entry = catalogue.get(slug);
-  return entry ? t(entry.title, "en") : slug;
+  return entry ? t(entry.title, "pt") : slug;
 }
 
 /**
