@@ -73,7 +73,6 @@ export function DeleteSubmissionDialog({
         variant="ghost"
         onClick={() => setOpen(true)}
         aria-label={`Eliminar o registo de ${name}`}
-       
       >
         <Trash2 className="size-4" />
         Eliminar

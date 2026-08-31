@@ -28,7 +28,13 @@ export default async function AdminBlogPage() {
 
   return (
     <AdminShell>
-      <AdminInDevBanner note="The AI pipeline will draft articles in your voice on a schedule (2–4 a month) — each waits here for your one-click approval before going live, in both languages." />
+      {/*
+        The banner note only. The rest of this screen is
+        `blog-engine/blog-publish-path`'s to write, in Portuguese, when it
+        rewrites the page — but a Portuguese nav must not lead to an English
+        paragraph in the meantime (inventory §5.1).
+      */}
+      <AdminInDevBanner note="A IA escreve artigos no seu tom com regularidade (2 a 4 por mês) — cada um espera aqui pela sua aprovação antes de ir para o site, nas duas línguas." />
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">

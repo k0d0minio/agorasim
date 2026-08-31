@@ -53,9 +53,15 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  // Every consumer of this primitive is the admin, which is hardcoded
+  // Portuguese (D4) — so the close button's accessible name is Portuguese by
+  // default rather than by each caller remembering to pass it. It stays a prop
+  // so a future public, bilingual consumer can hand in its own word.
+  closeLabel = "Fechar",
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  closeLabel?: string
 }) {
   return (
     <DialogPrimitive.Portal data-slot="dialog-portal">
@@ -77,7 +83,7 @@ function DialogContent({
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
             <Button variant="ghost" className="absolute top-2 right-2" size="icon">
               <XIcon />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">{closeLabel}</span>
             </Button>
           </DialogPrimitive.Close>
         )}

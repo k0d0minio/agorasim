@@ -12,6 +12,14 @@
  *
  * Server-only — it reaches into `@/db/schema` for those enums, which has no
  * business in a client bundle.
+ *
+ * **Language.** The messages below are UI copy, not diagnostics: the admin
+ * actions hand them straight to a field's `role="alert"` paragraph (spec §8
+ * E6), so an untranslated one is an English sentence on a Portuguese screen.
+ * Everything down to the *Public tour-request form* heading is admin, and is
+ * therefore Portuguese (D4). The two public schemas below it carry no messages
+ * at all — the guest forms word their own errors, bilingually, from
+ * `content/` — and must stay that way.
  */
 import "server-only";
 
@@ -167,8 +175,8 @@ export const updateFeatureRequestStatusSchema = z.object({
 });
 
 export const featureRequestSchema = z.object({
-  title: text.min(1, "Give the request a short title."),
-  description: text.min(1, "Describe what you'd like to see."),
+  title: text.min(1, "Dê um título curto à sugestão."),
+  description: text.min(1, "Descreva o que gostaria de ver."),
   category: optionalText,
   // Free-form field with a sane default — an unknown value is not worth an error.
   priority: featureRequestPrioritySchema.catch("medium"),
@@ -192,8 +200,8 @@ export type FeatureRequestField = "title" | "description";
  */
 export const updateTourRequestSchema = z.object({
   id: z.uuid(),
-  name: text.min(1, "A lead needs a name."),
-  email: z.string().trim().toLowerCase().regex(EMAIL_RE, "Enter a valid email address."),
+  name: text.min(1, "O pedido precisa de um nome."),
+  email: z.string().trim().toLowerCase().regex(EMAIL_RE, "Escreva um endereço de email válido."),
   phone: optionalText,
   kind: enquiryKindSchema.catch("tour"),
   experienceSlug: optionalText.transform((slug) =>
@@ -242,7 +250,7 @@ export const experienceSchema = z
       .string()
       .trim()
       .toLowerCase()
-      .regex(SLUG_RE, "Use lowercase words joined by hyphens, e.g. rural-saloia."),
+      .regex(SLUG_RE, "Use palavras minúsculas ligadas por hífenes, por exemplo rural-saloia."),
     kind: experienceKindSchema.catch("complement"),
     icon: z.enum(EXPERIENCE_ICON_KEYS).catch(FALLBACK_EXPERIENCE_ICON),
     /*
@@ -255,7 +263,7 @@ export const experienceSchema = z
       .string()
       .trim()
       .refine((value) => isExperienceBlobUrl(value) || isLegacyImagePath(value), {
-        message: "This entry has no photo yet — choose one to upload before saving.",
+        message: "Esta entrada ainda não tem fotografia — escolha uma antes de guardar.",
       }),
     /**
      * Price per person, as euros in a text box. Blank means unpriced, which is
@@ -278,16 +286,16 @@ export const experienceSchema = z
         return Number.isFinite(n) ? n : 0;
       }),
 
-    titlePt: text.min(1, "Add the Portuguese title."),
-    titleEn: text.min(1, "Add the English title."),
-    taglinePt: text.min(1, "Add the Portuguese tagline."),
-    taglineEn: text.min(1, "Add the English tagline."),
-    summaryPt: text.min(1, "Add the Portuguese summary."),
-    summaryEn: text.min(1, "Add the English summary."),
-    durationPt: text.min(1, "Add the Portuguese duration."),
-    durationEn: text.min(1, "Add the English duration."),
-    imageAltPt: text.min(1, "Describe the image in Portuguese."),
-    imageAltEn: text.min(1, "Describe the image in English."),
+    titlePt: text.min(1, "Falta o nome em português."),
+    titleEn: text.min(1, "Falta o nome em inglês."),
+    taglinePt: text.min(1, "Falta a frase de apresentação em português."),
+    taglineEn: text.min(1, "Falta a frase de apresentação em inglês."),
+    summaryPt: text.min(1, "Falta o resumo em português."),
+    summaryEn: text.min(1, "Falta o resumo em inglês."),
+    durationPt: text.min(1, "Falta a duração em português."),
+    durationEn: text.min(1, "Falta a duração em inglês."),
+    imageAltPt: text.min(1, "Descreva a fotografia em português."),
+    imageAltEn: text.min(1, "Descreva a fotografia em inglês."),
 
     descriptionPt: paragraphs,
     descriptionEn: paragraphs,
@@ -468,11 +476,11 @@ export const clearAvailabilitySchema = z.object({
  */
 const password = z
   .string()
-  .min(MIN_PASSWORD_LENGTH, `Use at least ${MIN_PASSWORD_LENGTH} characters.`);
+  .min(MIN_PASSWORD_LENGTH, `Use pelo menos ${MIN_PASSWORD_LENGTH} caracteres.`);
 
 export const inviteUserSchema = z.object({
-  email: z.string().trim().toLowerCase().regex(EMAIL_RE, "Enter a valid email address."),
-  name: text.min(1, "Give the person a name."),
+  email: z.string().trim().toLowerCase().regex(EMAIL_RE, "Escreva um endereço de email válido."),
+  name: text.min(1, "Indique o nome da pessoa."),
   password,
   role: adminRoleSchema,
 });
@@ -482,13 +490,13 @@ export type InviteUserField = "email" | "name" | "password";
 
 export const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(1, "Enter your current password."),
+    currentPassword: z.string().min(1, "Escreva a sua palavra-passe atual."),
     newPassword: password,
     confirmPassword: z.string(),
   })
   .refine((value) => value.newPassword === value.confirmPassword, {
     path: ["confirmPassword"],
-    message: "The two passwords do not match.",
+    message: "As duas palavras-passe não coincidem.",
   });
 
 /** Field names `changeOwnPassword` can report an inline error against. */
