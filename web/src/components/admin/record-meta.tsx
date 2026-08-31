@@ -11,7 +11,7 @@ import { auditActionLabel, formatDateTime, formatRelativeTime } from "@/lib/admi
  * callers.
  */
 
-/** "3h ago", with the exact timestamp behind it. */
+/** "há 3 h", with the exact timestamp behind it. */
 export function Received({ at }: { at: Date | string | null }) {
   const date = at instanceof Date ? at : at ? new Date(at) : null;
   const iso = date && !Number.isNaN(date.getTime()) ? date.toISOString() : undefined;
@@ -23,8 +23,8 @@ export function Received({ at }: { at: Date | string | null }) {
 }
 
 /**
- * "Rita changed a lead's status, 3h ago" — who last touched this row. With a
- * shared password this line had nothing to say.
+ * "Rita mudou o estado de um pedido, há 3 h" — who last touched this row. With
+ * a shared password this line had nothing to say.
  */
 export function LastChangedBy({
   audit,
@@ -37,7 +37,7 @@ export function LastChangedBy({
   return (
     <p className="text-xs text-muted-foreground">
       {/* A null actor is the retention cron, not an unknown person. */}
-      {audit.actorName ?? "Scheduled job"} {auditActionLabel(audit.action)},{" "}
+      {audit.actorName ?? "Tarefa automática"} {auditActionLabel(audit.action)},{" "}
       <time dateTime={audit.createdAt.toISOString()} title={formatDateTime(audit.createdAt)}>
         {formatRelativeTime(audit.createdAt, now)}
       </time>
@@ -56,10 +56,10 @@ export function MarketingConsent({
   return (
     <span
       className="inline-flex items-center gap-1 text-xs text-primary"
-      title={`Consented ${formatDateTime(at)} · text version ${version ?? "unknown"}`}
+      title={`Consentimento a ${formatDateTime(at)} · versão do texto ${version ?? "desconhecida"}`}
     >
       <MailCheck className="size-3.5 shrink-0" aria-hidden />
-      Marketing opt-in
+      Autorização de marketing
     </span>
   );
 }

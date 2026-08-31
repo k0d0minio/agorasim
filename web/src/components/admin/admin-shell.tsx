@@ -14,6 +14,7 @@ import {
   type AdminNavGroup,
   type AdminNavItem,
 } from "@/lib/admin-nav";
+import { adminRoleMeta } from "@/lib/admin-format";
 import { useAdminViewer } from "@/components/admin/admin-user-context";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,7 +47,7 @@ function SidebarLink({ item, pathname }: { item: AdminNavItem; pathname: string 
 
 /**
  * Who is signed in, and the way out. One component, two homes: the sidebar
- * footer on desktop and the "More" sheet on the phone — the header does not
+ * footer on desktop and the "Mais" sheet on the phone — the header does not
  * carry either any more, because sign-out is a rare deliberate act and the
  * page's own action deserves that space more (spec §6 N5).
  */
@@ -57,13 +58,15 @@ function ViewerFooter({ className }: { className?: string }) {
       {viewer ? (
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{viewer.name}</p>
-          <p className="truncate text-xs text-muted-foreground">{viewer.role}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {adminRoleMeta[viewer.role].label}
+          </p>
         </div>
       ) : null}
       <form action={logout}>
         <Button type="submit" variant="outline">
           <LogOut className="size-4" />
-          Sign out
+          Sair
         </Button>
       </form>
     </div>
@@ -118,7 +121,7 @@ function ToolbarTab({
 
 /**
  * Mobile navigation: a fixed bottom toolbar with the everyday destinations,
- * plus "More" opening a bottom sheet with the full grouped map — and, at its
+ * plus "Mais" opening a bottom sheet with the full grouped map — and, at its
  * foot, who is signed in and the sign-out that used to crowd the header.
  */
 function MobileBottomNav({
@@ -134,7 +137,7 @@ function MobileBottomNav({
 
   return (
     <nav
-      aria-label="Admin"
+      aria-label="Painel"
       className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-backdrop-filter:bg-background/85 md:hidden"
     >
       <div className="flex items-stretch gap-1 px-2 py-1">
@@ -153,7 +156,7 @@ function MobileBottomNav({
           // announcing "expanded" on every non-primary page was a lie.
           active={moreOpen || !primaryActive}
           icon={LayoutGrid}
-          label="More"
+          label="Mais"
           onClick={() => setMoreOpen(true)}
           buttonProps={{
             "aria-expanded": moreOpen,
@@ -169,7 +172,7 @@ function MobileBottomNav({
             className="rounded-t-2xl pb-[max(env(safe-area-inset-bottom),1rem)]"
           >
             <SheetHeader className="pb-0">
-              <SheetTitle>All areas</SheetTitle>
+              <SheetTitle>Todas as áreas</SheetTitle>
             </SheetHeader>
             <div className="grid grid-cols-2 gap-x-2 gap-y-4 px-4 pt-1">
               {groups.map((group) => (
@@ -242,7 +245,7 @@ export function AdminShell({
       <aside className="hidden w-60 shrink-0 flex-col border-r bg-muted/30 p-4 md:flex">
         <div className="px-2 py-3">
           <p className="font-heading text-lg font-semibold">Agorasim</p>
-          <p className="text-xs text-muted-foreground">Operations</p>
+          <p className="text-xs text-muted-foreground">Painel</p>
         </div>
         <nav className="mt-2 flex flex-col gap-5">
           {groups.map((group) => (
@@ -269,8 +272,8 @@ export function AdminShell({
           {upHref ? (
             <Button asChild variant="ghost" size="icon" className="shrink-0">
               {/* No browser back button in the installed PWA — this is the way
-                  up. A symbol, not the word "Back" (HIG toolbars). */}
-              <Link href={upHref} aria-label="Back">
+                  up. A symbol, not the word "Voltar" (HIG toolbars). */}
+              <Link href={upHref} aria-label="Voltar">
                 <ArrowLeft />
               </Link>
             </Button>

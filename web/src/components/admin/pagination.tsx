@@ -20,7 +20,7 @@ export function AdminPagination({
   page: number;
   total: number;
   hrefFor: (page: number) => string;
-  /** Names the list for screen readers, e.g. "Submissions pages". */
+  /** Names the list for screen readers, e.g. "Páginas de pedidos". */
   label: string;
   pageSize?: number;
 }) {
@@ -33,20 +33,20 @@ export function AdminPagination({
   return (
     <nav aria-label={label} className="mt-4 flex items-center justify-between gap-3">
       <p className="text-xs text-muted-foreground">
-        {first}–{last} of {total}
+        {first}–{last} de {total}
       </p>
       <div className="flex items-center gap-2">
         {page > 1 ? (
           <Button asChild variant="outline">
             <Link href={hrefFor(page - 1)} rel="prev">
               <ChevronLeft />
-              Previous
+              Anterior
             </Link>
           </Button>
         ) : (
           <Button variant="outline" disabled>
             <ChevronLeft />
-            Previous
+            Anterior
           </Button>
         )}
         <span className="text-xs text-muted-foreground tabular-nums">
@@ -55,13 +55,13 @@ export function AdminPagination({
         {page < pages ? (
           <Button asChild variant="outline">
             <Link href={hrefFor(page + 1)} rel="next">
-              Next
+              Seguinte
               <ChevronRight />
             </Link>
           </Button>
         ) : (
           <Button variant="outline" disabled>
-            Next
+            Seguinte
             <ChevronRight />
           </Button>
         )}

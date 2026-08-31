@@ -13,14 +13,14 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Agorasim Admin",
+  title: "Agorasim · Painel",
   // The admin area is private: keep it out of every crawler's index.
   robots: { index: false, follow: false },
   // Installable PWA. The manifest lives outside /admin so the auth proxy never
   // gates it (manifest fetches are credential-less); start_url/scope point back
   // at /admin.
   manifest: "/admin-manifest.webmanifest",
-  appleWebApp: { capable: true, title: "Agorasim Ops", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Agorasim · Painel", statusBarStyle: "default" },
   icons: { apple: "/icons/admin-apple-touch-icon.png" },
 };
 
@@ -37,8 +37,9 @@ export const viewport: Viewport = {
 };
 
 /**
- * Root shell for the admin area. Deliberately monolingual and stripped of the
- * public site chrome — this sits outside `[locale]` and is gated by `proxy.ts`.
+ * Root shell for the admin area. Deliberately monolingual — Portuguese, per D4
+ * — and stripped of the public site chrome: it sits outside `[locale]` and is
+ * gated by `proxy.ts`.
  * The per-page dashboard chrome (sidebar/topbar) lives in `AdminShell`, so the
  * login screen can opt out of it.
  *
@@ -56,7 +57,7 @@ export default async function AdminLayout({
 
   return (
     <html
-      lang="en"
+      lang="pt"
       // The scroll padding keeps a focused or anchored element from being
       // scrolled underneath the sticky header or the bottom toolbar
       // (WCAG 2.4.11 Focus Not Obscured).
