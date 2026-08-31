@@ -38,7 +38,7 @@ import {
   type TourRequest,
 } from "@/db";
 import { REQUEST_STATUSES } from "@/lib/admin-format";
-import { holdsCapacity } from "@/lib/bookings";
+import { bookingRef, holdsCapacity } from "@/lib/bookings";
 import { formatPrice } from "@/lib/money";
 
 /**
@@ -71,6 +71,18 @@ export type SalesRecord = {
   partySize: number | null;
   /** The date in play: the guest's preferred day, or the booked one. */
   when: string | null;
+  /**
+   * The reference the *guest* was given, where a real booking exists.
+   *
+   * Deliberately separate from {@link SalesRecord.ref}: that one is derived
+   * from the `tour_requests` id and is the handle the team has always used,
+   * while this is derived from the `bookings` id and is the only string the
+   * guest ever sees — it is on their confirmation page and in their email. The
+   * two are different uuids, so without this the team is shown one reference
+   * and quoted another, and "my booking is BK-ABD1AE" matches nothing on the
+   * board.
+   */
+  bookingRef: string | null;
   /** Money, where any is known — from the `bookings` row behind the lead. */
   value: string | null;
   payment: PaymentState | null;
@@ -86,7 +98,8 @@ export function enquiryRef(id: string): string {
 }
 
 /**
- * What a real, paid booking adds to the lead it belongs to: the money.
+ * What a real, paid booking adds to the lead it belongs to: its reference
+ * and the money.
  *
  * Kept as a separate argument rather than folded into {@link TourRequest}
  * because it comes from a different table — `bookings` holds the commercial
@@ -94,6 +107,8 @@ export function enquiryRef(id: string): string {
  * as one card.
  */
 export type BookingSummary = {
+  /** What the guest was told to quote — `bookingRef` of the `bookings` row. */
+  ref: string;
   /** Already formatted, e.g. "€340". */
   value: string;
   payment: PaymentState;
@@ -122,6 +137,7 @@ export function recordFromRequest(
     // The booked day where there is one: it is the day that was actually sold,
     // not the day the guest hoped for before anyone confirmed it.
     when: booking?.date ?? row.preferredDate,
+    bookingRef: booking?.ref ?? null,
     value: booking?.value ?? null,
     payment: booking?.payment ?? null,
     createdAt: row.createdAt,
@@ -130,6 +146,7 @@ export function recordFromRequest(
     anonymisedAt: row.anonymisedAt,
   };
 }
+
 
 // ---------------------------------------------------------------------------
 // Reads
@@ -213,7 +230,7 @@ export async function listSalesBoard(): Promise<SalesBoardData> {
  * A lead with several attempts (they came back and paid the second time) keeps
  * the last one, which is the one that matters.
  */
-async function bookingSummaries(
+export async function bookingSummaries(
   leadIds: string[],
 ): Promise<Map<string, BookingSummary>> {
   const summaries = new Map<string, BookingSummary>();
@@ -229,6 +246,7 @@ async function bookingSummaries(
   for (const row of rows) {
     if (!row.tourRequestId || !holdsCapacity(row, now)) continue;
     summaries.set(row.tourRequestId, {
+      ref: bookingRef(row.id),
       value: formatPrice(row.amountCents, "en", row.currency),
       payment: row.status === "confirmed" ? "Paid in full" : "Awaiting payment",
       date: row.date,
