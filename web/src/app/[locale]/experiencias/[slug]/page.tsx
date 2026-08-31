@@ -93,7 +93,16 @@ export default async function ExperienceDetailPage({
             {/* Answer-first summary for GEO */}
             <p className="mt-6 text-lg text-muted-foreground">{t(exp.summary, l)}</p>
             <div className="mt-8">
-              <BookingButton locale={l} label={dict.cta.bookExperience} />
+              {/*
+                Carries this page's tour into the checkout. Only for a tour:
+                an add-on is bought as part of a private departure, not on its
+                own, so its page still opens the booking form on the default.
+              */}
+              <BookingButton
+                locale={l}
+                label={dict.cta.bookExperience}
+                tour={exp.kind === "signature" ? exp.slug : undefined}
+              />
             </div>
           </div>
           <Media src={exp.image} label={t(exp.imageAlt, l)} priority className="aspect-4/3 w-full" />
