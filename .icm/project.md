@@ -69,7 +69,7 @@ One job: **take paid bookings on their own site**, replacing the third party tha
 | Admin console — CRM, calendar, catalogue, auth, audit, GDPR | shipped | — |
 | Admin em português + HIG polish | ticketed | admin-portugues/ (4 stubs) |
 | Launch cutover (runbook, terms, compliance, observability, DNS) | ticketed | launch-cutover/ (8 stubs) |
-| Referral programme | out | — dropped 2026-08-29, never contracted; removal: content-truth/remove-referral-surface |
+| Referral programme | out | — dropped 2026-08-29, never contracted; removal: content-truth/_done/remove-referral-surface |
 | Gift vouchers | out | — dead-proposal add-on; client interest logged 2026-08-18, revisit post-launch |
 
 ## Constraints

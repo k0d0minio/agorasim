@@ -20,7 +20,6 @@ export const segments = {
   blog: "blog",
   contactos: "contactos",
   reservar: "reservar",
-  recomendar: "recomendar",
   privacidade: { pt: "privacidade", en: "privacy" } as Localized,
 } as const;
 
