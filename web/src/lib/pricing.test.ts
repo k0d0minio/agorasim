@@ -5,6 +5,7 @@ import {
   fromPrice,
   isPriced,
   maxAdultsOf,
+  parseExperiencePricing,
   priceBooking,
   weekdayOf,
   type ExperiencePricing,
@@ -331,5 +332,120 @@ describe("display helpers", () => {
     expect(weekdayOf(A_MONDAY)).toBe(0);
     expect(weekdayOf("2026-08-30")).toBe(6);
     expect(weekdayOf("not-a-day")).toBeNull();
+  });
+});
+
+describe("parseExperiencePricing", () => {
+  /** What the driver hands back for a `jsonb` column: a plain parsed value. */
+  const asStored = (pricing: ExperiencePricing) =>
+    JSON.parse(JSON.stringify(pricing)) as unknown;
+
+  it("reads every shipped price list back unchanged", () => {
+    for (const experience of experiences) {
+      const pricing = experience.pricing ?? null;
+      if (!pricing) continue;
+      expect(parseExperiencePricing(asStored(pricing))).toEqual(pricing);
+    }
+  });
+
+  it("keeps `allowsAddOns` only where it is explicitly true", () => {
+    const tiers = [{ minAdults: 1, maxAdults: 3, groupCents: 22000 }];
+    const withFlag = parseExperiencePricing({
+      type: "tour",
+      private: { tiers, childCents: 3000, allowsAddOns: true },
+    });
+    const without = parseExperiencePricing({
+      type: "tour",
+      private: { tiers, childCents: 3000, allowsAddOns: "yes" },
+    });
+
+    expect(withFlag).toMatchObject({ private: { allowsAddOns: true } });
+    // Anything short of `true` is a no: an add-on attached to a tour that does
+    // not pass the partner is a stop nobody can drive to.
+    expect(without?.type === "tour" && without.private?.allowsAddOns).toBeUndefined();
+  });
+
+  it("treats an absent optional as absent, however it was written", () => {
+    expect(
+      parseExperiencePricing({
+        type: "addon",
+        perAdultCents: 3500,
+        childCents: null,
+        minAdults: null,
+        closedWeekdays: undefined,
+      }),
+    ).toEqual({ type: "addon", perAdultCents: 3500, childCents: null });
+  });
+
+  it("drops whatever else the column happens to hold", () => {
+    // Normalised, not passed through: only the fields the arithmetic reads
+    // come out, so a stray key cannot reach a price line or a summary.
+    expect(
+      parseExperiencePricing({
+        type: "addon",
+        perAdultCents: 3500,
+        childCents: null,
+        notes: "ask Rita",
+      }),
+    ).toEqual({ type: "addon", perAdultCents: 3500, childCents: null });
+  });
+
+  it.each([
+    ["not an object", "62 euros"],
+    ["null", null],
+    ["an array", [{ type: "tour" }]],
+    ["an unknown type", { type: "wedding", perAdultCents: 6200 }],
+    ["a tour with neither mode", { type: "tour" }],
+    ["a mode with no tiers", { type: "tour", public: { tiers: [], childCents: 3500 } }],
+    [
+      "a mode with no child rate",
+      { type: "tour", public: { tiers: [{ minAdults: 1, maxAdults: 3, perAdultCents: 6200 }] } },
+    ],
+    [
+      "a tier that prices neither the head nor the group",
+      { type: "tour", public: { tiers: [{ minAdults: 1, maxAdults: 3 }], childCents: 3500 } },
+    ],
+    [
+      "a tier band that ends before it starts",
+      {
+        type: "tour",
+        public: { tiers: [{ minAdults: 4, maxAdults: 2, perAdultCents: 6200 }], childCents: 3500 },
+      },
+    ],
+    [
+      "cents that are not whole",
+      {
+        type: "tour",
+        public: { tiers: [{ minAdults: 1, maxAdults: 3, perAdultCents: 62.5 }], childCents: 3500 },
+      },
+    ],
+    [
+      "cents that are negative",
+      {
+        type: "tour",
+        public: { tiers: [{ minAdults: 1, maxAdults: 3, perAdultCents: -6200 }], childCents: 3500 },
+      },
+    ],
+    ["an add-on with no adult rate", { type: "addon", childCents: 2500 }],
+    [
+      "a closed-weekday that is not a weekday",
+      { type: "addon", perAdultCents: 3500, childCents: null, closedWeekdays: [9] },
+    ],
+  ])("refuses %s", (_label, stored) => {
+    // Refusing means unpriced, which the site already knows how to be: the
+    // tour renders, the checkout stands down, the enquiry form takes the lead.
+    expect(parseExperiencePricing(stored)).toBeNull();
+  });
+
+  it("refuses the whole list when one mode of it is broken", () => {
+    // Half a price list is worse than none: it would sell the public departure
+    // and quietly misprice — or crash on — the private one.
+    expect(
+      parseExperiencePricing({
+        type: "tour",
+        public: { tiers: [{ minAdults: 1, maxAdults: 3, perAdultCents: 6200 }], childCents: 3500 },
+        private: { tiers: "the whole car", childCents: 3000 },
+      }),
+    ).toBeNull();
   });
 });

@@ -27,15 +27,45 @@ import {
   type Faq,
 } from "@/content/experiences";
 import { FALLBACK_EXPERIENCE_ICON, isExperienceIconKey } from "@/lib/experience-icons";
+import { parseExperiencePricing, type ExperiencePricing } from "@/lib/pricing";
 
-/** A catalogue entry with the two columns only the admin cares about. */
+/** A catalogue entry with the columns only the admin and the checkout care about. */
 export type CatalogueEntry = Experience & {
   /** Archived entries keep their slug resolvable but leave the website. */
   active: boolean;
   sortOrder: number;
   /** Always present here, unlike on the shipped array where it is optional. */
   priceCents: number | null;
+  /**
+   * Always present here too, and always readable: a stored price list is
+   * validated on the way out of the database, and anything malformed arrives
+   * as `null` — unpriced, which the checkout already stands down for.
+   */
+  pricing: ExperiencePricing | null;
 };
+
+/**
+ * Slugs whose stored price list could not be read — said once each, for the
+ * same reason {@link warnFallbackOnce} says its piece once.
+ *
+ * Worth saying at all: an unreadable price list is indistinguishable from an
+ * unpriced one on the website (both offer the enquiry form), and silently
+ * losing the ability to take money is exactly the failure this resolver is
+ * supposed to make loud.
+ */
+const warnedAboutPricing = new Set<string>();
+
+function pricingOf(row: ExperienceRow): ExperiencePricing | null {
+  const pricing = parseExperiencePricing(row.pricing);
+  if (pricing === null && row.pricing !== null && !warnedAboutPricing.has(row.slug)) {
+    warnedAboutPricing.add(row.slug);
+    console.warn(
+      `[catalogue] "${row.slug}" has a price list this build cannot read; ` +
+        "treating it as unpriced — the enquiry form takes over.",
+    );
+  }
+  return pricing;
+}
 
 /** Map a database row onto the shape the site already renders. */
 function toEntry(row: ExperienceRow): CatalogueEntry {
@@ -55,6 +85,11 @@ function toEntry(row: ExperienceRow): CatalogueEntry {
     imageAlt: row.imageAlt,
     faqs: row.faqs as Faq[],
     priceCents: row.priceCents,
+    // The column is `jsonb`: Drizzle types it, nothing enforces it. Validate,
+    // and let a malformed list read as unpriced rather than reaching the
+    // checkout arithmetic — without it, no database-backed entry is sellable
+    // at all, which is the bug this line exists to prevent recurring.
+    pricing: pricingOf(row),
     active: row.active,
     sortOrder: row.sortOrder,
   };
@@ -81,17 +116,16 @@ function warnFallbackOnce(context: string, err: unknown): void {
 /**
  * The shipped array, in the same shape — signature first, then the add-ons.
  *
- * Everything in it is `priceCents: null`, and stays that way: the fallback
- * exists so an unreachable database costs the site its newest catalogue rather
- * than the whole page, and a hardcoded price surviving into that scenario would
- * mean the one copy of the offer nobody can edit is also the one that can take
- * money. Unpriced entries are unsellable, so the fallback shows the tours and
- * offers the enquiry form.
+ * It carries the real `pricing`, deliberately (see `content/experiences.ts`):
+ * an unreachable database should cost the site its *newest* price list, not
+ * the ability to price at all. The superseded `priceCents` stays `null`
+ * throughout — nothing prices a sale from one flat number any more.
  */
 function shippedCatalogue(): CatalogueEntry[] {
   return shippedExperiences.map((experience, index) => ({
     ...experience,
     priceCents: experience.priceCents ?? null,
+    pricing: experience.pricing ?? null,
     active: true,
     sortOrder: index,
   }));
