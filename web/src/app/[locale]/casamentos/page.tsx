@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { CarFront, Heart } from "lucide-react";
+import { CarFront, Check, Heart } from "lucide-react";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { weddingsContent } from "@/content/weddings";
+import { classicCars } from "@/content/site";
+import { todayKey } from "@/lib/availability";
 import { Section, SectionHeading } from "@/components/section";
 import { InDevBanner } from "@/components/in-dev-banner";
 import { FaqList } from "@/components/faq";
@@ -36,7 +38,20 @@ export async function generateMetadata({
   };
 }
 
-/** Wedding-car-hire landing (proposal Feature 4) — design preview. */
+/**
+ * The page is otherwise static, but the wedding-date field's `min` is *today in
+ * Portugal* — baked at build time it would drift a day further out of date with
+ * every day the site is not redeployed. Re-rendering hourly keeps the floor
+ * honest, exactly as `/reservar` does with the same clock.
+ */
+export const revalidate = 3600;
+
+/**
+ * Wedding-car-hire landing (proposal Feature 4) — Diogo & Rita's real offer,
+ * with each car introduced by the name it answers to. The quote form is still
+ * a disabled preview and the page stays out of the index until sending works
+ * (`quote-flow/enable-wedding-event-forms`).
+ */
 export default async function WeddingsPage({
   params,
 }: {
@@ -46,6 +61,11 @@ export default async function WeddingsPage({
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
   const c = weddingsContent;
+
+  /** The car biographies, keyed the way the fleet tiles and the picker ask. */
+  const carById = new Map(classicCars.map((car) => [car.id, car]));
+  /** No wedding was ever in the past — the field says so, even while disabled. */
+  const today = todayKey();
 
   return (
     <>
@@ -91,8 +111,24 @@ export default async function WeddingsPage({
         <InDevBanner locale={l} body={c.inDev} className="mt-10" />
       </Section>
 
-      {/* How it works */}
+      {/* What's included */}
       <Section>
+        <SectionHeading title={t(c.offer.title, l)} />
+        <ul className="mt-8 grid gap-3 sm:grid-cols-2">
+          {c.offer.items.map((item, i) => (
+            <li
+              key={i}
+              className="flex items-start gap-3 rounded-xl border border-border bg-card p-4"
+            >
+              <Check className="mt-0.5 size-5 shrink-0 text-primary" />
+              <span>{t(item, l)}</span>
+            </li>
+          ))}
+        </ul>
+      </Section>
+
+      {/* How it works */}
+      <Section muted>
         <SectionHeading title={t(c.howItWorks.title, l)} />
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
           {c.howItWorks.steps.map((step, i) => (
@@ -109,39 +145,49 @@ export default async function WeddingsPage({
         </div>
       </Section>
 
-      {/* Fleet */}
-      <Section muted>
+      {/* Fleet — the cars by name, with their stories. */}
+      <Section>
         <SectionHeading title={t(c.fleet.title, l)} intro={t(c.fleet.intro, l)} />
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {c.fleet.cars.map((car) => (
-            <div key={car.name} className="group overflow-hidden rounded-2xl border border-border bg-card">
-              {car.image ? (
-                <div className="relative aspect-4/3">
-                  <Image
-                    src={car.image}
-                    alt={car.name}
-                    fill
-                    sizes="(max-width: 640px) 100vw, 320px"
-                    className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                  />
+        <div className="mt-8 grid gap-6 sm:grid-cols-2">
+          {c.fleet.cars.map((tile) => {
+            const car = carById.get(tile.id);
+            if (!car) return null;
+            return (
+              <div
+                key={tile.id}
+                className="group overflow-hidden rounded-2xl border border-border bg-card"
+              >
+                {tile.image ? (
+                  <div className="relative aspect-4/3">
+                    <Image
+                      src={tile.image}
+                      alt={`${car.name} — ${car.model}`}
+                      fill
+                      sizes="(max-width: 640px) 100vw, 480px"
+                      className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex aspect-4/3 flex-col items-center justify-center gap-2 bg-secondary/50 text-muted-foreground">
+                    <CarFront className="size-8" strokeWidth={1.5} />
+                    <p className="text-xs">{t(c.fleet.photosSoon, l)}</p>
+                  </div>
+                )}
+                <div className="p-5">
+                  <p className="font-heading text-lg font-semibold">{car.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {car.model} · {car.year}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">{t(car.story, l)}</p>
                 </div>
-              ) : (
-                <div className="flex aspect-4/3 flex-col items-center justify-center gap-2 bg-secondary/50 text-muted-foreground">
-                  <CarFront className="size-8" strokeWidth={1.5} />
-                  <p className="text-xs">{t(c.fleet.photosSoon, l)}</p>
-                </div>
-              )}
-              <div className="p-4">
-                <p className="font-heading text-lg font-semibold">{car.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{t(car.note, l)}</p>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Section>
 
       {/* Quote request — design preview, submit disabled until the engine ships */}
-      <Section>
+      <Section muted>
         <div className="scroll-mt-24" id="orcamento" />
         <div className="mx-auto max-w-2xl">
           <SectionHeading title={t(c.quote.title, l)} intro={t(c.quote.lead, l)} />
@@ -161,7 +207,7 @@ export default async function WeddingsPage({
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="wd-date">{t(c.quote.labels.date, l)}</Label>
-                <Input id="wd-date" type="date" disabled className={disabledClass} />
+                <Input id="wd-date" type="date" min={today} disabled className={disabledClass} />
               </div>
               <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <Label htmlFor="wd-venue">{t(c.quote.labels.venue, l)}</Label>
@@ -184,8 +230,8 @@ export default async function WeddingsPage({
                 <Label htmlFor="wd-car">{t(c.quote.labels.car, l)}</Label>
                 <Select id="wd-car" disabled className={disabledClass}>
                   <option>{t(c.quote.labels.carNone, l)}</option>
-                  {c.fleet.cars.map((car) => (
-                    <option key={car.name}>{car.name}</option>
+                  {classicCars.map((car) => (
+                    <option key={car.id}>{`${car.name} — ${car.model} (${car.year})`}</option>
                   ))}
                 </Select>
               </div>
@@ -211,7 +257,7 @@ export default async function WeddingsPage({
       </Section>
 
       {/* FAQ */}
-      <Section muted>
+      <Section>
         <div className="max-w-3xl">
           <FaqList faqs={[...c.faqs]} locale={l} heading={t(c.faqTitle, l)} />
         </div>
