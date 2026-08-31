@@ -18,6 +18,18 @@ branch (the document's value is the surviving findings, not the file). Also dele
 `origin/claude/icm-intake-sweep` (obsolete ticket-status commit superseded by the
 D14 purge) and the other long-merged `claude/*` remote branches in the same pass.
 
+## Progress
+
+- 2026-08-31 — the document was read against today's `main`. Most of it has been
+  built out since: `requireAdmin()` in every action, per-user accounts, the audit
+  log, rate limiting, honeypot, zod schemas, `ui/` primitives, `admin-nav.ts`,
+  error/loading/not-found boundaries, indexes, the optimistic status menu, mobile
+  card layouts, the a11y fixes and CI. Five findings survived and were cut:
+  `sales-board-search.md`, `admin-dashboard-what-needs-me.md`,
+  `admin-offline-and-manifest.md`, `admin-money-view.md`,
+  `lead-source-attribution.md`. What remains of this stub is the branch cleanup —
+  awaiting Jamie's go-ahead on the list.
+
 ## Prompt
 
 In the agorasim repo: `git show origin/claude/admin-audit-product-review-pe92tb:docs/admin-audit-2026-07.md`,
