@@ -77,20 +77,21 @@ export default async function AdminCalendarPage({
     ...day,
     // Formatted here because the date helpers are server-only; the client
     // component renders the string it is given.
-    longLabel: formatDay(day.date, "en"),
+    longLabel: formatDay(day.date, "pt"),
   }));
 
   return (
     <AdminShell>
       <p className="mb-4 text-sm text-muted-foreground">
-        Two departures a day — 10:00 and 14:00 — shared by every tour. Tap a day to
-        put its departures on sale, close them, or say how many drivers are on.
-        Departures that aren&apos;t on the calendar can&apos;t be booked at all.
+        Duas partidas por dia — 10:00 e 14:00 — partilhadas por todos os passeios.
+        Toque num dia para pôr as partidas à venda, fechá-las ou dizer quantos
+        condutores estão ao serviço. As partidas que não estão no calendário não
+        podem ser reservadas.
       </p>
 
       <AvailabilityCalendar
-        monthLabel={formatMonth(month, "en")}
-        weekdays={WEEKDAY_INITIALS.en}
+        monthLabel={formatMonth(month, "pt")}
+        weekdays={WEEKDAY_INITIALS.pt}
         grid={monthGrid(month)}
         days={calendarDays}
         previousMonth={previousMonth}
