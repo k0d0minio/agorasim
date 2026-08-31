@@ -17,6 +17,9 @@ Workspace mail. Rotation is not optional.
 
 1. rotate-registrar-credential — change the controlpanel.pro password with the client — depends-on: none
 2. untrack-credential-pdfs — redact/untrack the info PDF; decide the history purge — depends-on: rotate-registrar-credential
+   *(Dropped 2026-08-31 on Jamie's call — the PDF stays tracked for now and the
+   history purge is declined for now. The stub is in `_done/` with the reason; the
+   underlying exposure is unchanged and step 1 still carries it.)*
 
 *(The third action of this intent — flipping the repo private — was executed during the
 2026-08-29 run itself, D15; no stub needed.)*

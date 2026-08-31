@@ -1,3 +1,13 @@
+> Dropped: 2026-08-31 — Jamie's call. The info PDF stays tracked in the repo for now;
+> no redaction, no `git rm --cached`, no history purge was done. Nothing in the Problem
+> section has changed: `.icm/docs/agorasim-info.pdf` is still tracked and still carries
+> the controlpanel.pro password and the client's IBAN, `.gitignore:3-5` still contradicts
+> that (an ignore rule does not apply to an already-tracked file), and the public history
+> up to 2026-08-29 still holds every past revision of it. The history question is
+> therefore recorded as **declined for now**, not resolved. The exposure this epic exists
+> for is still live under `rotate-registrar-credential` (P0, open). Re-cut this stub when
+> the redaction is wanted — do not read this folder move as "the PDF was secured".
+
 # Stub: Untrack and redact the credential-bearing info PDF
 
 - feature-slug: untrack-credential-pdfs
