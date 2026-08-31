@@ -61,23 +61,6 @@ export function stripe(): Stripe {
 }
 
 /**
- * Where Stripe sends the guest back to.
- *
- * `NEXT_PUBLIC_SITE_URL` in production; the Vercel-provided URL on a preview
- * deployment, so a preview's checkout returns to that preview rather than to
- * production. Localhost last, which is what a developer gets.
- */
-export function siteUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (configured) return configured.replace(/\/$/, "");
-
-  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
-  if (vercel) return `https://${vercel}`;
-
-  return "http://localhost:3000";
-}
-
-/**
  * Whether a key is a test-mode key.
  *
  * Used to label the checkout screen, so nobody demonstrates the flow on a phone
