@@ -4,12 +4,18 @@ import Link from "next/link";
 import { Clock, ChevronRight } from "lucide-react";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
-import { getCatalogueEntry, listExperiences } from "@/lib/experience-catalogue";
+import {
+  complementsOf,
+  getCatalogueEntry,
+  listExperiences,
+  signatureOf,
+} from "@/lib/experience-catalogue";
 import { site } from "@/content/site";
 import { Section, Container } from "@/components/section";
 import { Media } from "@/components/media";
 import { Badge } from "@/components/ui/badge";
 import { FaqList } from "@/components/faq";
+import { ExperiencePrices } from "@/components/experience-pricing";
 import { BookingButton } from "@/components/booking-button";
 import { JsonLd } from "@/components/json-ld";
 import { experienceJsonLd, faqJsonLd, breadcrumbJsonLd } from "@/lib/jsonld";
@@ -58,6 +64,18 @@ export default async function ExperienceDetailPage({
   const exp = await getCatalogueEntry(slug);
   if (!exp || !exp.active) notFound();
   const dict = getDictionary(l);
+
+  /*
+   * The pricing section needs the rest of the catalogue twice over: a tour
+   * whose private departures take add-ons lists them with their prices, and an
+   * add-on names the tour it can only be bought with. Nothing else on this page
+   * does, so the read only happens for the entries that use it.
+   */
+  const needsCatalogue =
+    exp.pricing?.type === "addon" ||
+    (exp.pricing?.type === "tour" && exp.pricing.private?.allowsAddOns === true);
+  const catalogue = needsCatalogue ? await listExperiences() : [];
+  const signature = signatureOf(catalogue);
 
   const breadcrumb = breadcrumbJsonLd(l, [
     { name: site.name, url: `${site.domain}${href(l, "home")}` },
@@ -127,6 +145,16 @@ export default async function ExperienceDetailPage({
               ))}
             </ul>
           </aside>
+        </div>
+
+        {/* The real price list, from the same data the checkout charges from. */}
+        <div className="mt-16">
+          <ExperiencePrices
+            experience={exp}
+            addOns={complementsOf(catalogue)}
+            signatureTitle={signature ? t(signature.title, l) : undefined}
+            locale={l}
+          />
         </div>
 
         {exp.faqs.length > 0 && (

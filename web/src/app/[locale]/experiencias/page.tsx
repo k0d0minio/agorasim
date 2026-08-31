@@ -9,6 +9,7 @@ import {
   listExperiences,
   signatureOf,
 } from "@/lib/experience-catalogue";
+import { fromPriceLabel } from "@/content/pricing";
 import { Section, SectionHeading, Container } from "@/components/section";
 import { ExperienceCard } from "@/components/experience-card";
 import { Media } from "@/components/media";
@@ -55,6 +56,10 @@ export default async function ExperiencesPage({
   // hero with no title in it.
   if (!sig) notFound();
 
+  // The same honest "from" the cards carry, on the tour that leads the page —
+  // read from the catalogue, so it moves when the price list does.
+  const sigPrice = fromPriceLabel(sig.pricing, l);
+
   return (
     <>
       <JsonLd data={experienceJsonLd(sig, l)} />
@@ -79,6 +84,9 @@ export default async function ExperiencesPage({
                 </li>
               ))}
             </ul>
+            {sigPrice ? (
+              <p className="mt-6 text-lg font-medium text-foreground">{sigPrice}</p>
+            ) : null}
             <div className="mt-8 flex flex-wrap gap-3">
               {/* The signature tour is the default today; naming it anyway
                   means this button keeps selling *this* block's tour if the

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { serializeJsonLd } from "./jsonld";
+import { experienceJsonLd, serializeJsonLd } from "./jsonld";
+import { experiences, type Experience } from "@/content/experiences";
+import { site } from "@/content/site";
 
 /**
  * These are about the *injection* boundary, not about schema.org correctness.
@@ -47,5 +49,47 @@ describe("serializeJsonLd", () => {
     // Portuguese copy is the common case; nothing here should be touched.
     const item = { name: "Sintra · Mafra · Ericeira", desc: "Passeios de carro clássico" };
     expect(serializeJsonLd(item)).toBe(JSON.stringify(item));
+  });
+});
+
+/**
+ * The `offers` block is the one part of a page's structured data that makes a
+ * *commercial* claim, so it is asserted against the same figures the prices PDF
+ * (Aug 2026) carries — the tables on the page and this block read the same
+ * catalogue field, and this is where that stops being a comment and becomes a
+ * test.
+ */
+describe("experienceJsonLd offers", () => {
+  const bySlug = (slug: string): Experience => {
+    const experience = experiences.find((entry) => entry.slug === slug);
+    if (!experience) throw new Error(`no shipped entry for "${slug}"`);
+    return experience;
+  };
+
+  it("publishes the tour's real range, in euros", () => {
+    expect(experienceJsonLd(bySlug("rural-saloia"), "pt").offers).toEqual({
+      "@type": "AggregateOffer",
+      priceCurrency: "EUR",
+      // €58 a head at the top per-person tier … €700 for twelve adults private.
+      lowPrice: 58,
+      highPrice: 700,
+      availability: "https://schema.org/InStock",
+      url: `${site.domain}/pt/reservar`,
+    });
+  });
+
+  it("points each locale at its own booking page", () => {
+    const offers = experienceJsonLd(bySlug("obidos-medieval-villages"), "en").offers as Record<
+      string,
+      unknown
+    >;
+    expect(offers.lowPrice).toBe(100);
+    expect(offers.highPrice).toBe(360);
+    expect(offers.url).toBe(`${site.domain}/en/reservar`);
+  });
+
+  it("says nothing at all about an experience with no price list", () => {
+    const unpriced: Experience = { ...bySlug("rural-saloia"), pricing: null };
+    expect(experienceJsonLd(unpriced, "pt")).not.toHaveProperty("offers");
   });
 });
