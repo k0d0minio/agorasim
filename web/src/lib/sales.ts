@@ -38,7 +38,7 @@ import {
 } from "@/db";
 import { previewBookings, type PreviewBooking } from "@/lib/admin-preview";
 import { REQUEST_STATUSES } from "@/lib/admin-format";
-import { occupiesSeat } from "@/lib/bookings";
+import { holdsCapacity } from "@/lib/bookings";
 import { formatPrice } from "@/lib/money";
 
 /** The one row shape the board renders. */
@@ -261,7 +261,7 @@ async function bookingSummaries(
 
   const now = new Date();
   for (const row of rows) {
-    if (!row.tourRequestId || !occupiesSeat(row, now)) continue;
+    if (!row.tourRequestId || !holdsCapacity(row, now)) continue;
     summaries.set(row.tourRequestId, {
       value: formatPrice(row.amountCents, "en", row.currency),
       payment: row.status === "confirmed" ? "Paid in full" : "Awaiting payment",

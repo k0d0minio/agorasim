@@ -15,8 +15,9 @@ This repository is a **toolkit for operating the Agorasim business**, structured
 Guided **classic-car** countryside tours of the **Saloia** region (Sintra · Mafra · Ericeira),
 Portugal. Signature experience **Rural Saloia** (~4h30); second tour **Óbidos & Medieval
 Villages** (~5h); add-ons Tasco Galapito, Manzwine, Ramilo Wines. (Olaria MZ is retired —
-do not reintroduce it.) Contacts: Diogo +351 926 210 707 · Rita +351 919 272 077 ·
-info@agorasim.pt.
+do not reintroduce it.) Capacity is **2 drivers across 4 cars**, so at most two tours leave
+at once, in two daily slots (10:00 / 14:00) shared by every route. Contacts:
+Diogo +351 926 210 707 · Rita +351 919 272 077 · info@agorasim.pt.
 
 ## Where do I go?
 - Changing the website (pages, design, content) → work in `web/` (`web/AGENTS.md` has Next.js
