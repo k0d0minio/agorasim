@@ -129,7 +129,7 @@ export default async function BlogIndexPage({
         </div>
       </div>
 
-      {/* Newsletter signup — design only until email marketing ships */}
+      {/* Newsletter signup — design only; nothing is wired to send it yet */}
       <div className="mt-16 rounded-2xl bg-secondary/40 p-6 sm:p-10">
         <div className="mx-auto max-w-xl text-center">
           <h2 className="text-2xl font-semibold sm:text-3xl">{t(c.labels.newsletterTitle, l)}</h2>

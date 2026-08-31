@@ -117,15 +117,18 @@ board and the calendar first, the catalogue and settings after.
   | `admin/notifications/page.tsx` | 7 | rewritten in PT by `lifecycle-messages/notifications-page-real` |
   | `admin/blog/page.tsx` | 10 | rewritten in PT by `blog-engine/blog-publish-path` |
   | `admin/social/page.tsx` | 10 | rewritten in PT by `social-engine/social-generator-path` |
-  | `admin/email/page.tsx` | 8 | nobody — see below |
+  | `admin/email/page.tsx` | 8 | deleted by `triage/admin-email-marketing-orphan` — see below |
   | `lib/admin-preview.ts` | ~60 | fixtures for the four above, plus the example bookings D3 removes |
 
   Their **nav entries** are still this epic's (stub 1 translates `admin-nav.ts`), and
   their in-dev banner notes are swept by stub 7 if their owning epic has not landed by
   then — a Portuguese nav must not lead to an English paragraph.
 
-- **The e-mail-marketing preview** has no epic and is not one of the six contracted
-  features. Parked as `.icm/intake/triage/admin-email-marketing-orphan.md` rather than
-  translated on spec.
+- **The e-mail-marketing preview** had no epic and was not one of the six contracted
+  features. Jamie ruled it **out** on 2026-08-31 and the surface is gone — page, nav
+  entry and fixtures — the way D2 took referrals out. Nothing here to translate; the
+  `admin-nav.ts` row it had is no longer in stub 1's scope, and §3.3 / §5.1 of the
+  inventory carry it only as a snapshot of the pre-removal tree. Resolution recorded in
+  `.icm/intake/triage/_done/admin-email-marketing-orphan.md`.
 - **The pricing editor.** `describePricing()` becomes Portuguese in stub 3; building an
   actual editor is `.icm/intake/triage/admin-pricing-editor.md`.
