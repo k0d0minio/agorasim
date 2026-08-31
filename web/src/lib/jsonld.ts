@@ -2,6 +2,7 @@ import type { Locale } from "@/i18n/config";
 import { t } from "@/i18n/config";
 import { site } from "@/content/site";
 import type { Experience, Faq } from "@/content/experiences";
+import { priceRange } from "@/lib/pricing";
 import { href } from "@/lib/routes";
 
 type Json = Record<string, unknown>;
@@ -75,6 +76,34 @@ export function experienceJsonLd(exp: Experience, locale: Locale): Json {
       "@type": "TouristAttraction",
       name,
     })),
+    ...offersOf(exp, locale),
+  };
+}
+
+/**
+ * The price range, as structured data — the same figures the page's tables
+ * render, from the same catalogue field.
+ *
+ * An `AggregateOffer` rather than a single `Offer` because the tour genuinely
+ * has many: the countryside route runs from €58 a head on a per-person booking
+ * to €700 for twelve adults in private, and quoting either end alone would
+ * misstate the offer. An experience with no price list contributes no `offers`
+ * key at all — an empty or zeroed offer would be a claim, and silence is the
+ * honest answer while the enquiry form is what sells it.
+ */
+function offersOf(exp: Experience, locale: Locale): Json {
+  const range = priceRange(exp.pricing);
+  if (!range) return {};
+
+  return {
+    offers: {
+      "@type": "AggregateOffer",
+      priceCurrency: "EUR",
+      lowPrice: range.lowCents / 100,
+      highPrice: range.highCents / 100,
+      availability: "https://schema.org/InStock",
+      url: `${site.domain}${href(locale, "reservar")}`,
+    },
   };
 }
 

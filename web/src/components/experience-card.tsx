@@ -6,6 +6,7 @@ import { Media } from "@/components/media";
 import type { Locale } from "@/i18n/config";
 import { t } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
+import { fromPriceLabel } from "@/content/pricing";
 import { href } from "@/lib/routes";
 
 export function ExperienceCard({
@@ -18,6 +19,10 @@ export function ExperienceCard({
   learnMore: string;
 }) {
   const link = href(locale, "experiencias", experience.slug);
+  // The cheapest way in, or nothing at all: an experience with no price list is
+  // one the checkout cannot sell either, and a card that said "from —" would be
+  // worse than a card that says nothing.
+  const price = fromPriceLabel(experience.pricing, locale);
   return (
     <Card className="group relative overflow-hidden pt-0 transition-shadow hover:shadow-md">
       <Link href={link} aria-label={t(experience.title, locale)}>
@@ -43,6 +48,7 @@ export function ExperienceCard({
           </Link>
         </h3>
         <p className="mt-2 flex-1 text-sm text-muted-foreground">{t(experience.tagline, locale)}</p>
+        {price ? <p className="mt-3 text-sm font-medium text-foreground">{price}</p> : null}
         <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary">
           {learnMore}
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
