@@ -57,7 +57,7 @@ One job: **take paid bookings on their own site**, replacing the third party tha
 |---|---|---|
 | Client-data security (repo private, credentials out) | ticketed | secure-client-data/ (2 stubs — the privacy flip itself was done in-run, D15) |
 | ① Website PT/EN + GEO — core pages, JSON-LD, hreflang | shipped | — content completion below |
-| ① Content truth (Olaria purge, llms.txt, testimonials, public prices, Óbidos truth) | ticketed | content-truth/ (7 stubs) |
+| ① Content truth (Olaria purge, llms.txt, testimonials, public prices, Óbidos truth) | shipped | _done/content-truth/ (7 of 7, epic archived 2026-08-31) |
 | ③ Instant booking (engine + PR #31 pools + sandbox handover) | ticketed | booking-live/ (8 stubs) |
 | Commission engine (Stripe Connect application fees) | ticketed | commission-engine/ (3 stubs) |
 | Guest self-serve cancellation (48h) + refunds | ticketed | cancellation-selfserve/ (4 stubs) |
@@ -125,9 +125,10 @@ updated this run, still unsent; Jamie sends):**
 - IG/FB admin access + Business account — blocks `social-engine/meta-autoposter`.
 - RNAAT nº, insurance provider + policy, self-invoicing — blocks dropping the privacy
   draft banner and the terms-of-sale page's seller identity (launch-gating).
-- Photos re-send (WeTransfer links expired/expiring; **T3 wedding shot only** — the 4L
-  wedding frames were found already in the repo, 2026-08-31 audit) — blocks
-  `content-truth/wedding-fleet-photos`.
+- Photos re-send (WeTransfer links expired; **T3 wedding shot only** — the 4L wedding
+  frames were found already in the repo, 2026-08-31 audit). No longer blocking:
+  `content-truth/wedding-fleet-photos` closed 2026-08-31 with a tour-context T3 frame
+  standing in, so this is a content upgrade now — a garlanded T3 replaces it on arrival.
 - Wedding-awards claim source (2022–2026 badges) · photo-session coverage area.
 - Domain recovery status (theirs to drive).
 - Retention: sign off 24 months for unconverted enquiries (or name a number).

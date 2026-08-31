@@ -98,19 +98,20 @@ export const weddingsContent = {
     /**
      * Only the wedding photograph lives here: `id` joins each tile to
      * `classicCars` in `content/site.ts`, where the car's name, year and story
-     * are written once. `image: null` renders a "photographs on their way"
-     * tile — never a wrong car (`content-truth/wedding-fleet-photos`).
+     * are written once. Every tile now carries a frame, so there is no
+     * "photographs on their way" fallback left to render.
+     *
+     * One caveat for whoever comes next: the T3 frame is a tour-context shot
+     * (cobbled square, no garland, no couple) — the client's wedding
+     * photograph of the van never arrived. The other three are real wedding
+     * frames. Swap the T3 the day a garlanded one lands.
      */
     cars: [
       { id: "citroen-2cv", image: "/images/weddings/2cv-rear-floral-garland-square.webp" },
       { id: "fiat-600", image: "/images/weddings/fiat-600-front-with-bride-square.webp" },
       { id: "renault-4l", image: "/images/weddings/renault-4-mafra-palace.jpg" },
-      { id: "vw-t3", image: null },
-    ] as { id: string; image: string | null }[],
-    photosSoon: {
-      pt: "Fotografias a caminho",
-      en: "Photographs on their way",
-    } as Localized,
+      { id: "vw-t3", image: "/images/weddings/vw-t3-van-front-square.webp" },
+    ] as { id: string; image: string }[],
   },
 
   quote: {

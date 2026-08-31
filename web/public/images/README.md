@@ -12,7 +12,7 @@ photos without a lookup table.
 | `tasco-galapito/` | experience slug `tasco-galapito` | 24 |
 | `manzwine/` | experience slug `manzwine` | 3 |
 | `ramilo-wines/` | experience slug `ramilo-wines` | 4 |
-| `weddings/` | `/casamentos` | 17 |
+| `weddings/` | `/casamentos` | 18 |
 | `testimonials/` | guest testimonial portraits, named after the guests | 3 |
 | `wedding-awards/` | casamentos.pt award badges, one per year | 5 |
 
@@ -131,6 +131,7 @@ These six arrived as iPhone HEIC and were converted to full-resolution JPEG (qua
 | `fiat-600-rear-name-sign.jpg` | rear with garland and "Daniela & Pedro" sign | 767×1024 |
 | `renault-4-mafra-palace.jpg` | Renault 4 with garland in front of Mafra National Palace | 1015×1024 |
 | `renault-4-rear-name-sign.jpg` | rear with garland and couple's name sign | 1024×1015 |
+| `vw-t3-van-front-square.webp` | square crop of `fleet/vw-t3-van-front.jpg` — **tour context, no garland**; stands in as the T3 tile in the fleet picker until the client sends a wedding frame | 1024×1024 |
 
 ## testimonials/
 `brian-and-elizabeth.jpg` · `jacob-and-danita.jpg` · `madeline-and-elliot.jpg` — named after

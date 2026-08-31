@@ -6,9 +6,6 @@
 - size: S
 - depends-on: none
 - sequence: 6 of 7
-- blocked: client — **VW T3 only**; a wedding-context T3 frame must be re-sent (the
-  info PDF's WeTransfer links expire; sent 2026-08-18). The Renault 4L is no longer
-  blocked — see the audit below.
 - sources: copy lens: PR #30 keeps `image: null` for Renault 4L and VW T3 → "Fotografias
   a caminho" tiles (**stale for the 4L** — see audit); info PDF §2.1 (client already sent
   WeTransfer links — likely expired: they last days, sent 2026-08-18)
@@ -64,6 +61,38 @@ and its branch in `casamentos/page.tsx` can then go too.
 - [ ] `photosSoon` string and its render branch removed once the last tile is filled
 - [x] Images optimised (<500KB source), real alt text — holds for what is wired today
 - [ ] CI green
+
+## Resolution — 2026-08-31
+
+Closed by substitution, on Jamie's explicit call after the block was re-confirmed.
+
+The client's wedding-context T3 frame never arrived: the 2026-08-18 WeTransfer links
+are long expired, the re-request pack was still unsent, and a fresh sweep this session
+found nothing new in `weddings/`, nothing untracked, and nothing on disk. All four
+`fleet/` T3 frames were opened and confirmed tour context — van alone on cobbles, rear
+hatch open in a car park, drone shot with the 2CV on a vineyard lane, the dog at the
+window at dusk. No garland, no couple, no ceremony in any of them.
+
+Rather than ship a fourth tile reading "Fotografias a caminho" indefinitely, the
+least-misleading frame was used: `fleet/vw-t3-van-front.jpg`, cropped square on the van
+and optimised to `weddings/vw-t3-van-front-square.webp` (1024×1024, 229 KB). It is a
+clean three-quarter portrait — no guests, no tour paraphernalia, no second car — so it
+reads as "this is the vehicle", which is what a fleet-choice tile has to do. The
+section's own copy already promises the car arrives decorated ("todos chegam impecáveis
+e decorados a rigor"), so the tile identifies the car and the copy carries the garland.
+
+**The trade-off, stated plainly:** this is the substitution the stub above argued
+against, and that argument was not wrong. Beside three garlanded wedding frames the
+undecorated van is the weakest tile on the page, and a couple could read it as the car
+arriving as-is. The risk was accepted deliberately in exchange for retiring the
+placeholder. The caveat is recorded where the next maintainer will meet it — the `cars`
+doc comment in `web/src/content/weddings.ts` and the `weddings/` row in
+`web/public/images/README.md` — both saying to swap the frame the day a garlanded one
+lands.
+
+**Still worth chasing, no longer blocking:** a real wedding photograph of the T3. It is
+a content upgrade now rather than a ticket dependency, so it rides the client pack as a
+plain request — `.icm/project.md` → Open questions → Client.
 
 ## Prompt
 
