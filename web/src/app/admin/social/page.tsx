@@ -28,7 +28,11 @@ export default async function AdminSocialPage() {
 
   return (
     <AdminShell>
-      <AdminInDevBanner note="Captions and a posting calendar are generated for you; once you approve, posts publish automatically through Instagram's and Facebook's official APIs." />
+      {/*
+        The banner note only — the rest of this screen belongs to
+        `social-engine/social-generator-path` (inventory §5.1).
+      */}
+      <AdminInDevBanner note="As legendas e o calendário de publicações são gerados para si; depois de aprovar, as publicações saem automaticamente pelas vias oficiais do Instagram e do Facebook." />
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">

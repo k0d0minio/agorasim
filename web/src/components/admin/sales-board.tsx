@@ -56,7 +56,16 @@ export function SalesBoard({
           <header className="flex items-center justify-between gap-2 px-4 pt-4 pb-2">
             <div className="min-w-0">
               <p className="font-heading text-sm font-semibold">{meta.label}</p>
-              <p className="truncate text-xs text-muted-foreground">{meta.hint}</p>
+              {/*
+                Wraps rather than truncates. The stage hint is prose, and F3
+                allows truncation only on identifiers whose full value is
+                somewhere else — this one is nowhere else. It also no longer
+                fits: "Sem resposta — ainda ninguém respondeu" measures 234px
+                against exactly 234px of column header at 375px and clips at
+                the 320px floor, where the English "Untouched — nobody has
+                replied yet" had room to spare.
+              */}
+              <p className="text-xs leading-tight text-muted-foreground">{meta.hint}</p>
             </div>
             <Badge variant="secondary">{countsByStatus[column.status] ?? 0}</Badge>
           </header>

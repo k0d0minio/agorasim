@@ -21,7 +21,12 @@ export default async function AdminNotificationsPage() {
 
   return (
     <AdminShell>
-      <AdminInDevBanner note="Set-and-forget messages: guests get confirmations, reminders and thank-yous at the right moment; you get an instant alert the second a booking or hot lead arrives." />
+      {/*
+        The banner note only — the rest of this screen belongs to
+        `lifecycle-messages/notifications-page-real`. "Set-and-forget" and "hot
+        lead" are idiom, not language: rendered per inventory §4.1.
+      */}
+      <AdminInDevBanner note="Configura-se uma vez e trabalha sozinho: os clientes recebem confirmações, lembretes e agradecimentos na altura certa; e recebe um aviso imediato assim que entra uma reserva ou um pedido com valor." />
 
       <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
         <MessageSquareShare className="size-4" />

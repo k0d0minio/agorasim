@@ -169,6 +169,9 @@ function MobileBottomNav({
           <SheetContent
             id={sheetId}
             side="bottom"
+            // The primitive is shared with the public site's bilingual nav, so
+            // it defaults to English — this console is Portuguese (D4).
+            closeLabel="Fechar"
             className="rounded-t-2xl pb-[max(env(safe-area-inset-bottom),1rem)]"
           >
             <SheetHeader className="pb-0">
@@ -196,7 +199,19 @@ function MobileBottomNav({
                           )}
                         >
                           <Icon className="size-4 shrink-0" />
-                          <span className="truncate">{item.label}</span>
+                          {/*
+                            Wraps rather than truncates. Two columns of a 375px
+                            sheet leave 115px for the label; "Mensagens
+                            automáticas" renders at 160px and "Registo de
+                            atividade" at 133px, so both were being clipped —
+                            the English "Notifications" and "Audit log" fitted,
+                            the Portuguese does not. F3 allows truncation only
+                            on identifiers whose full value is available
+                            elsewhere, and a nav label is the opposite of that.
+                            The row is `min-h-11`, not a fixed height, so the
+                            second line costs nothing.
+                          */}
+                          <span className="leading-tight">{item.label}</span>
                           {item.dev && <InDevMarker className="ml-auto" />}
                         </Link>
                       );

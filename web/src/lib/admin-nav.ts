@@ -46,7 +46,18 @@ export type AdminNavItem = {
    * than the nav entry. Falls back to `label`.
    */
   cardTitle?: string;
-  /** Bottom-toolbar label, where horizontal space is tight. Falls back to `label`. */
+  /**
+   * Bottom-toolbar label, where horizontal space is tight. Falls back to `label`.
+   *
+   * The toolbar gives each of its five slots `(width - 32px) / 5`: 68.6px at
+   * 375px and **57.6px at the 320px reflow floor** (spec D2/D3). A label wider
+   * than that truncates, and N1 says these are always labelled. So a
+   * `shortLabel` here is a width decision, not a translation: the sidebar, the
+   * "Mais" sheet and the page `<h1>` all keep `label`. Measured in the rendered
+   * toolbar at 12px/500 Geist, not estimated — Portuguese runs ~20% longer than
+   * the English these slots were sized for, and the margin is small enough that
+   * guessing is guessing.
+   */
   shortLabel?: string;
   icon: ComponentType<{ className?: string }>;
   group: AdminNavGroup;
@@ -101,7 +112,13 @@ export const ADMIN_NAV: AdminNavItem[] = [
     href: "/admin/calendar",
     label: "Calendário",
     cardTitle: "Disponibilidade",
-    shortLabel: "Calendário",
+    /*
+     * "Calendário" measures 60.5px against a 57.6px slot at 320px — it was the
+     * English "Calendar" that fitted. "Agenda" (42.9px) is what a Portuguese
+     * speaker calls this screen anyway, and the area is still "Calendário"
+     * everywhere it has the room.
+     */
+    shortLabel: "Agenda",
     icon: CalendarDays,
     group: "Vendas",
     description:
@@ -166,7 +183,12 @@ export const ADMIN_NAV: AdminNavItem[] = [
   {
     href: "/admin/feature-requests",
     label: "Sugestões",
-    shortLabel: "Sugestões",
+    /*
+     * 59.7px against the same 57.6px slot. "Ideias" (33.3px) is the word this
+     * area's own description already leads with — not a second name for
+     * *sugestão*, just the shorter one the toolbar has room for.
+     */
+    shortLabel: "Ideias",
     icon: Lightbulb,
     group: "Sistema",
     description:
