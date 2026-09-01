@@ -60,7 +60,11 @@ import { CANCEL_RETURN_PARAM, CANCEL_RETURN_VALUE } from "@/lib/checkout-draft";
 import { BOOKING_CURRENCY, formatPrice } from "@/lib/money";
 import type { VehicleClass } from "@/lib/fleet";
 import type { BookingMode, PartyCount, PricedLine } from "@/lib/pricing";
-import { guestConfirmationEmail, teamNotificationEmail } from "@/lib/booking-emails";
+import {
+  guestConfirmationEmail,
+  partyLabel,
+  teamNotificationEmail,
+} from "@/lib/booking-emails";
 import { isEmailConfigured, sendEmail, teamRecipients } from "@/lib/email";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { siteUrl } from "@/lib/site-origin";
@@ -430,17 +434,6 @@ async function sendConfirmationEmails(
     return entry ? t(entry.title, locale) : slug;
   };
 
-  // "2 adultos · 1 criança (4–12)" — zero-count bands are simply not said.
-  const w = bookingEmails.guest.partyWords;
-  const partyLabel = [
-    [booking.adults, w.adult, w.adults] as const,
-    [booking.children, w.child, w.children] as const,
-    [booking.infants, w.infant, w.infants] as const,
-  ]
-    .filter(([count]) => count > 0)
-    .map(([count, one, many]) => `${count} ${t(count === 1 ? one : many, locale)}`)
-    .join(" · ");
-
   const facts = {
     ref: bookingRef(booking.id),
     guestName: lead.name,
@@ -454,7 +447,7 @@ async function sendConfirmationEmails(
     meetingPoint: meetingPoints[booking.experienceSlug] ?? null,
     addOns: booking.addOns.map(name),
     partySize: booking.partySize,
-    partyLabel: partyLabel || String(booking.partySize),
+    partyLabel: partyLabel(booking, locale),
     total: formatPrice(booking.amountCents, locale, booking.currency),
     adminUrl: `${siteUrl()}/admin/sales/${lead.id}`,
   };

@@ -66,6 +66,8 @@ export const AUDIT_ACTIONS = [
   "availability.cleared",
   "booking.confirmed",
   "booking.expired",
+  "booking.cancelled",
+  "booking.refunded",
   "blog_post.updated",
   "blog_post.published",
   "blog_post.unpublished",
