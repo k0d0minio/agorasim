@@ -26,7 +26,7 @@
  */
 import "server-only";
 
-import { asc, count, desc, eq, inArray } from "drizzle-orm";
+import { asc, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
 
 import {
   bookings,
@@ -183,8 +183,48 @@ const EMPTY_COUNTS = (): Record<RequestStatus, number> =>
  * Everything the Sales board renders, in one round trip: the newest
  * {@link SALES_STAGE_LIMIT} enquiries of each stage, and the uncapped per-stage
  * tallies for the column headers.
+ *
+ * A `q` changes the shape: instead of the stage-capped board it returns every
+ * enquiry whose name, e-mail or phone matches, across all stages, uncapped —
+ * the 51st `booked` lead that no column can hold is exactly who a search is
+ * for.
  */
-export async function listSalesBoard(): Promise<SalesBoardData> {
+export async function listSalesBoard(q?: string): Promise<SalesBoardData> {
+  if (q && q.trim()) {
+    const pattern = `%${q.trim()}%`;
+    const [tallies, leads] = await db.batch([
+      db
+        .select({ status: tourRequests.status, n: count() })
+        .from(tourRequests)
+        .groupBy(tourRequests.status),
+      db
+        .select()
+        .from(tourRequests)
+        .where(
+          or(
+            ilike(tourRequests.name, pattern),
+            ilike(tourRequests.email, pattern),
+            ilike(tourRequests.phone, pattern),
+          ),
+        )
+        .orderBy(desc(tourRequests.createdAt)),
+    ]);
+
+    const countsByStatus = EMPTY_COUNTS();
+    for (const row of tallies) countsByStatus[row.status] = row.n;
+
+    const money = await bookingSummaries(leads.map((lead) => lead.id));
+    const records = leads.map((lead) =>
+      recordFromRequest(lead, money.get(lead.id)),
+    );
+
+    return {
+      records,
+      totalEnquiries: records.length,
+      countsByStatus,
+    };
+  }
+
   // One bounded SELECT per stage plus the tallies — six statements, one
   // `db.batch` round trip on Neon's HTTP driver.
   const [tallies, ...perStage] = await db.batch([
