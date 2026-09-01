@@ -18,21 +18,36 @@
 export const BOOKING_CURRENCY = "eur";
 
 /**
- * A price as an operator types it → cents. `""` (and anything unreadable)
- * means "no price", which is not the same as zero.
+ * An amount as an operator types it → cents, where **zero is a real answer**.
  *
  * Accepts a comma or a dot for the decimal separator, because the people
  * filling this in write "145,50" and their phone keyboard offers whichever it
  * feels like. Rounds to the nearest cent rather than truncating, so a stray
- * third digit costs the guest nothing.
+ * third digit costs the guest nothing. `""` and anything unreadable are `null`.
+ *
+ * Split from {@link parsePriceInput} for the refund field: "cancel this booking
+ * and return nothing" is a decision the team makes (a no-show, a late
+ * cancellation met without goodwill), and it has to be expressible as `0`
+ * rather than indistinguishable from an empty box.
  */
-export function parsePriceInput(value: string): number | null {
+export function parseAmountInput(value: string): number | null {
   const cleaned = value.trim().replace(/\s/g, "").replace(",", ".");
   if (!cleaned) return null;
   if (!/^\d+(\.\d{1,3})?$/.test(cleaned)) return null;
 
   const cents = Math.round(Number(cleaned) * 100);
-  return Number.isFinite(cents) && cents > 0 ? cents : null;
+  return Number.isFinite(cents) && cents >= 0 ? cents : null;
+}
+
+/**
+ * A price as an operator types it → cents. `""` (and anything unreadable)
+ * means "no price", which is not the same as zero — and neither is a typed
+ * zero, which is why it is rejected here and accepted by
+ * {@link parseAmountInput}.
+ */
+export function parsePriceInput(value: string): number | null {
+  const cents = parseAmountInput(value);
+  return cents !== null && cents > 0 ? cents : null;
 }
 
 /** Cents → the string the price field is pre-filled with ("145" / "145.50"). */

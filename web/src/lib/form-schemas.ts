@@ -28,7 +28,7 @@ import {
   localeEnum,
   requestStatusEnum,
 } from "@/db/schema";
-import { DELETE_CONFIRMATION } from "@/lib/admin-format";
+import { DELETE_CONFIRMATION, REFUND_CONFIRMATION } from "@/lib/admin-format";
 import {
   DEFAULT_DRIVERS,
   isDateKey,
@@ -36,7 +36,7 @@ import {
   MAX_RANGE_DAYS,
 } from "@/lib/availability";
 import { MAX_PARTY_ONLINE } from "@/lib/fleet";
-import { parsePriceInput } from "@/lib/money";
+import { parseAmountInput, parsePriceInput } from "@/lib/money";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
 import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
@@ -551,6 +551,37 @@ export const deleteTourRequestSchema = z.object({
 
 export const exportSubjectSchema = z.object({
   email: z.string().trim().toLowerCase().regex(EMAIL_RE),
+});
+
+// ---------------------------------------------------------------------------
+// Cancelling a paid booking
+// ---------------------------------------------------------------------------
+
+/**
+ * Cancel and refund, from the Sales board.
+ *
+ * The amount is typed rather than picked, because "how much goes back" is the
+ * judgement the team is actually making — full for weather, part of it for a
+ * late cancellation met with goodwill, and `0` for neither. It is parsed with
+ * {@link parseAmountInput} precisely so a typed zero survives as `0` instead of
+ * arriving as an empty field.
+ *
+ * The ceiling is *not* checked here: how much is left to refund is a fact about
+ * the booking row, which a schema over a `FormData` has no way to read. The
+ * action re-reads the booking and validates against `refundableCents` — the same
+ * reason it, and not this, decides whether the booking may be cancelled at all.
+ */
+export const cancelBookingSchema = z.object({
+  bookingId: z.uuid(),
+  refundAmount: z
+    .string()
+    .transform((value) => parseAmountInput(value))
+    .refine((cents) => cents !== null, "Indique o valor a reembolsar, ou 0.")
+    .transform((cents) => cents as number),
+  confirm: z.literal(
+    REFUND_CONFIRMATION,
+    `Escreva ${REFUND_CONFIRMATION} para confirmar.`,
+  ),
 });
 
 // ---------------------------------------------------------------------------

@@ -24,6 +24,21 @@ application fee proportionally (`refund_application_fee` or explicit fee refund)
 recording what was returned. Admin booking detail shows refund state. This is the
 substrate the cancellation-selfserve epic triggers.
 
+## Already landed (cancellation-selfserve/admin-cancel-refund)
+
+The admin cancel-and-refund action needed part of this substrate to be honest, so
+it shipped with it: `bookings` gained `refunded_amount_cents`, `stripe_refund_id`
+and `refunded_at` (migration `0017_refund_amounts`), `lib/booking-refund.ts` writes
+`refunded`/`cancelled` with the amount and asks Stripe to return an application fee
+proportionally when the charge carries one, and the admin booking detail shows
+refund state. Seats needed nothing: `holdsCapacitySql` already counts only
+`confirmed` and live `pending` rows, so the status write *is* the release — the
+`occupiesSeatSql` line in the sources below predates shared capacity pools.
+
+**What is left here:** the webhook path (`charge.refunded` / `refund.updated`), so a
+refund issued in the Stripe dashboard reaches the same columns idempotently, and the
+fee arithmetic for the fees `tour-application-fees` will start taking.
+
 ## Acceptance criteria (rough)
 
 - [ ] Dashboard-issued sandbox refund → booking shows refunded, seats freed

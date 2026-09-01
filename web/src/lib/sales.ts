@@ -33,6 +33,7 @@ import {
   db,
   tourRequests,
   type AppLocale,
+  type Booking,
   type EnquiryKind,
   type RequestStatus,
   type TourRequest,
@@ -254,6 +255,24 @@ export async function bookingSummaries(
   }
 
   return summaries;
+}
+
+/**
+ * Every booking behind one lead, newest first — what the lead's own page shows.
+ *
+ * Deliberately unfiltered, where {@link bookingSummaries} keeps only the live
+ * one. A card on the board is a summary and must not offer a total for a
+ * checkout somebody abandoned in March; a booking's own page is where the
+ * question is "what happened to this?", and a cancelled or refunded row is the
+ * answer rather than noise. It is also the only surface a refund can be issued
+ * from, and an action cannot sit on a row the page refuses to draw.
+ */
+export async function bookingsForLead(leadId: string): Promise<Booking[]> {
+  return db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.tourRequestId, leadId))
+    .orderBy(desc(bookings.createdAt));
 }
 
 /** Group records into the board's columns, in lifecycle order. */

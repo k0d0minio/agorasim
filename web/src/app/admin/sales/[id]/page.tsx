@@ -2,16 +2,26 @@ import { notFound } from "next/navigation";
 import { Mail, MessageCircle, Phone } from "lucide-react";
 import { eq } from "drizzle-orm";
 import { db, tourRequests } from "@/db";
+import { departureLabel } from "@/content/logistics";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
-import { auditActionLabel, formatDateTime, formatRelativeTime } from "@/lib/admin-format";
+import {
+  auditActionLabel,
+  bookingStatusMeta,
+  formatDateTime,
+  formatRelativeTime,
+} from "@/lib/admin-format";
 import { listAuditForEntity } from "@/lib/audit";
 import { mailtoHref, whatsAppHref, type ContactContext } from "@/lib/contact-templates";
 import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
 import { toTelHref, toWhatsAppNumber } from "@/lib/phone";
 import { requestStatusMeta } from "@/lib/admin-format";
-import { bookingSummaries, enquiryRef, recordFromRequest } from "@/lib/sales";
+import { bookingRef } from "@/lib/bookings";
+import { formatPrice } from "@/lib/money";
+import { refundableCents } from "@/lib/booking-refund";
+import { bookingsForLead, bookingSummaries, enquiryRef, recordFromRequest } from "@/lib/sales";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { CancelBookingDialog } from "@/components/admin/cancel-booking-dialog";
 import { DeleteSubmissionDialog } from "@/components/admin/delete-submission-dialog";
 import {
   EnquiryKindIcon,
@@ -54,9 +64,10 @@ export default async function AdminLeadPage({
   const [lead] = await db.select().from(tourRequests).where(eq(tourRequests.id, id)).limit(1);
   if (!lead) notFound();
 
-  const [catalogue, history] = await Promise.all([
+  const [catalogue, history, leadBookings] = await Promise.all([
     listCatalogue(),
     listAuditForEntity("tour_request", lead.id),
+    bookingsForLead(lead.id),
   ]);
 
   const index = catalogueIndex(catalogue);
@@ -269,6 +280,112 @@ export default async function AdminLeadPage({
           }}
           options={options}
         />
+
+        {/*
+          The money, and the one thing that can be done to it.
+
+          A booking's own state used to be invisible here: the header carries
+          the reference and the total for a *live* booking, and a cancelled or
+          refunded one simply vanished from the card — which is precisely the
+          one an operator goes looking for. Every booking behind the lead is
+          listed instead, newest first.
+        */}
+        {leadBookings.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Reservas</CardTitle>
+              <CardDescription>
+                O que foi vendido a esta pessoa, e o que aconteceu ao pagamento.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-5">
+              {leadBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="flex flex-col gap-3 border-l-2 pl-3 first:border-primary"
+                >
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <span className="font-mono">{bookingRef(booking.id)}</span>
+                    <Badge variant={bookingStatusMeta[booking.status].variant}>
+                      {bookingStatusMeta[booking.status].label}
+                    </Badge>
+                    <span aria-hidden>·</span>
+                    <span>
+                      {booking.date} ·{" "}
+                      {t(departureLabel(booking.experienceSlug, booking.slot), "pt")}
+                    </span>
+                    <span aria-hidden>·</span>
+                    <span>{booking.partySize} pessoas</span>
+                  </div>
+
+                  <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-muted-foreground">Pago</dt>
+                      <dd>{formatPrice(booking.amountCents, "pt", booking.currency)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Reembolsado</dt>
+                      <dd>
+                        {booking.refundedAmountCents > 0
+                          ? formatPrice(
+                              booking.refundedAmountCents,
+                              "pt",
+                              booking.currency,
+                            )
+                          : "—"}
+                        {booking.refundedAt ? (
+                          <span className="text-muted-foreground">
+                            {" "}
+                            · {formatDateTime(booking.refundedAt)}
+                          </span>
+                        ) : null}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  {/*
+                    Only a paid booking can be called off: everything else is
+                    already over, and the action would refuse anyway (see
+                    `lib/booking-refund.ts`). Rendering it regardless would be a
+                    button whose only outcome is an error message.
+                  */}
+                  {booking.status === "confirmed" ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CancelBookingDialog
+                        booking={{
+                          id: booking.id,
+                          ref: bookingRef(booking.id),
+                          amountCents: booking.amountCents,
+                          refundedAmountCents: booking.refundedAmountCents,
+                          currency: booking.currency,
+                          date: booking.date,
+                        }}
+                        guestName={lead.name}
+                      />
+                      {refundableCents(booking) === 0 ? (
+                        <span className="text-xs text-muted-foreground">
+                          Já não há valor por devolver — o cancelamento liberta o carro.
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {booking.cancelledAt ? (
+                    <p className="text-xs text-muted-foreground">
+                      Cancelada a {formatDateTime(booking.cancelledAt)}
+                      {booking.cancelledVia === "admin"
+                        ? " pela equipa"
+                        : booking.cancelledVia === "guest"
+                          ? " pelo cliente"
+                          : ""}
+                      .
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Who did what to this record. The audit log already held it; there was
             simply nowhere on a lead to read it. */}
