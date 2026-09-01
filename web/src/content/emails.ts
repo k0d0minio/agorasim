@@ -231,4 +231,36 @@ export const bookingEmails = {
     ctaLine: "Ver no painel: {adminUrl}",
     footerNote: "Notificação automática do site — responda para escrever ao cliente.",
   },
+
+  /**
+   * The notice a *guest's own* cancellation sends the team.
+   *
+   * Deliberately absent from the admin path: `lib/booking-refund.ts` leaves the
+   * team notification to its callers so the Sales board sends none — there, the
+   * team are the ones who pressed the button. This is what the cancel link owes
+   * them instead, and its subject leads with the date because the thing that
+   * changed is a departure, not a person.
+   */
+  teamCancellation: {
+    subject: "Reserva cancelada — {date} · {name} ({party}p)",
+    preheader: "{experience} · {party} pessoas · reembolso {refund}",
+    banner: "Reserva cancelada pelo cliente",
+    heading: "O cliente cancelou pelo link do email de confirmação.",
+    detailsHeading: "Reserva cancelada",
+    labels: {
+      reference: "Referência",
+      date: "Data",
+      experience: "Experiência",
+      party: "Pessoas",
+      refund: "Reembolso emitido",
+    },
+    /** The operational consequence — the reason this email exists. */
+    released: {
+      title: "Lugar libertado",
+      body: "O condutor e o carro desta partida voltaram a ficar disponíveis no calendário — a data pode ser vendida outra vez.",
+    },
+    cta: "Ver no painel",
+    ctaLine: "Ver no painel: {adminUrl}",
+    footerNote: "Notificação automática do site — cancelamento self-service do cliente.",
+  },
 } as const;

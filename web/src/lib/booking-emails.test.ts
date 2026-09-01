@@ -4,9 +4,11 @@ import {
   guestCancellationEmail,
   guestConfirmationEmail,
   partyLabel,
+  teamCancellationEmail,
   teamNotificationEmail,
   type BookingCancellationFacts,
   type BookingEmailFacts,
+  type TeamCancellationFacts,
 } from "@/lib/booking-emails";
 import { emailPalette } from "@/lib/email-layout";
 import { site } from "@/content/site";
@@ -43,6 +45,7 @@ function facts(overrides: Partial<BookingEmailFacts> = {}): BookingEmailFacts {
     partyLabel: "2 adultos",
     total: "€340",
     adminUrl: "https://agorasim.pt/admin/sales/abc",
+    cancelUrl: "https://agorasim.pt/pt/reservar/cancelar/abc123",
     ...overrides,
   };
 }
@@ -200,6 +203,28 @@ describe("guestConfirmationEmail", () => {
       expect(message.text).toContain(contact.phoneDisplay);
       expect(message.html).toContain(`tel:${contact.phone}`);
     }
+  });
+
+  it("links the self-serve cancel page from the confirmation", () => {
+    const message = guestConfirmationEmail(facts());
+    const url = "https://agorasim.pt/pt/reservar/cancelar/abc123";
+    // HTML: the button carries the URL. Text: the bare URL on its own line,
+    // because a text-only client has no button to render.
+    expect(message.html).toContain(`href="${url}"`);
+    expect(message.html).toContain("Cancelar reserva");
+    expect(message.text).toContain(url);
+    // The credential risks being forwarded — the mail must say so in both parts.
+    expect(message.html).toContain("link é pessoal");
+    expect(message.text).toContain("link é pessoal");
+  });
+
+  it("omits the cancel button when the booking has no token", () => {
+    const message = guestConfirmationEmail(facts({ cancelUrl: null }));
+    expect(message.html).not.toContain("reservar/cancelar");
+    expect(message.html).not.toContain("Cancelar reserva");
+    expect(message.text).not.toContain("reservar/cancelar");
+    // The free-cancellation promise still stands; only the link is absent.
+    expect(message.text).toContain("Cancelamento gratuito");
   });
 });
 

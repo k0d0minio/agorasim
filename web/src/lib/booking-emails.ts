@@ -18,6 +18,7 @@
  */
 import { site, taglines } from "@/content/site";
 import { bookingEmails } from "@/content/emails";
+import { cancellationEmailCopy } from "@/content/cancellation";
 import { t, type Locale } from "@/i18n/config";
 import type { EmailMessage } from "@/lib/email";
 import {
@@ -73,6 +74,23 @@ export type BookingEmailFacts = {
   total: string;
   /** Deep link to the lead on the Sales board, for the team's copy. */
   adminUrl: string;
+  /**
+   * The guest's self-serve cancel link, token and all — or `null` when this
+   * booking has none.
+   *
+   * **Null is a real state, not an oversight.** A booking made while
+   * `BOOKING_TOKEN_SECRET` was unset never got a credential (see
+   * `lib/booking-checkout.ts`), and the honest thing for its confirmation to do
+   * is carry no cancel button rather than one that lands on "this link no
+   * longer works". The free-cancellation promise above it still holds — it is
+   * just answered by a phone call, the way it was before this link existed.
+   *
+   * **It is a credential.** It belongs in the guest's mail and nowhere else:
+   * never in the team's copy (which is forwarded, and would hand a third party
+   * the power to cancel someone's booking), never in an audit payload, never in
+   * a log line.
+   */
+  cancelUrl: string | null;
 };
 
 /** Replace every `{key}` in `template`. Unknown keys are left alone, visibly. */
@@ -199,6 +217,12 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     // read as a wall, but in a plain text mail an isolated line looks truncated.
     `${nextBody} ${t(c.cancellationNote, l)} ${t(c.changeNote, l)}`,
     "",
+    // The URL bare on its own line: a text-only client has no button to render,
+    // and a link split across a sentence is one a mail client will wrap and
+    // break. Omitted whole when there is no token — see `cancelUrl`.
+    ...(facts.cancelUrl
+      ? [t(cancellationEmailCopy.intro, l), facts.cancelUrl, t(cancellationEmailCopy.warning, l), ""]
+      : []),
     `${diogo.name} ${diogo.phoneDisplay}`,
     `${rita.name} ${rita.phoneDisplay}`,
     "",
@@ -220,6 +244,23 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
       emailNote({ title: t(c.next.title, l), body: nextBody }),
       emailSpacer(16),
       emailParagraph(t(c.cancellationNote, l), { muted: true, spaceBelow: 8 }),
+      // Directly under the promise it honours, so the sentence and the button
+      // that performs it are read as one thing.
+      ...(facts.cancelUrl
+        ? [
+            emailSpacer(12),
+            emailParagraph(t(cancellationEmailCopy.intro, l), { spaceBelow: 12 }),
+            emailButton({
+              label: t(cancellationEmailCopy.button, l),
+              href: facts.cancelUrl,
+            }),
+            emailSpacer(8),
+            emailParagraph(t(cancellationEmailCopy.warning, l), {
+              muted: true,
+              spaceBelow: 12,
+            }),
+          ]
+        : []),
       emailSpacer(8),
       emailParagraph(t(c.changeNote, l), { spaceBelow: 12 }),
       emailContacts(
@@ -481,4 +522,93 @@ export function teamNotificationEmail(
     // single most common thing either of them will want to do with it.
     replyTo: facts.guestEmail,
   };
+}
+
+/** What the team's cancellation notice needs, already formatted for reading. */
+export type TeamCancellationFacts = {
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  /** The language the *guest* reads — reported here, not obeyed. */
+  locale: Locale;
+  date: string;
+  experience: string;
+  partyLabel: string;
+  partySize: number;
+  /** "€340" — what went back to the guest. */
+  refund: string;
+  /** Deep link to the lead on the Sales board. */
+  adminUrl: string;
+};
+
+/**
+ * Diogo & Rita's notice that a guest cancelled themselves.
+ *
+ * **Only the guest's own cancel link sends this.** `lib/booking-refund.ts`
+ * leaves the team notification to its callers precisely so that the Sales board
+ * does not send one: there, the team are the people who just pressed the
+ * button, and mailing them about it would be telling them what they already
+ * know. Here they are not — a guest can do this at midnight — and the thing
+ * they need to hear is not "a booking changed" but "a car is free on that
+ * departure again".
+ *
+ * Portuguese, like every other internal notification. `replyTo` is the guest,
+ * so the most likely next action — asking them whether another date would
+ * work — is one tap.
+ */
+export function teamCancellationEmail(
+  facts: TeamCancellationFacts,
+  recipients: string[],
+): EmailMessage {
+  const c = bookingEmails.teamCancellation;
+
+  const values: Record<string, string> = {
+    ref: facts.ref,
+    date: facts.date,
+    experience: facts.experience,
+    party: String(facts.partySize),
+    refund: facts.refund,
+    name: facts.guestName,
+    adminUrl: facts.adminUrl,
+  };
+
+  const subject = fill(c.subject, values);
+
+  const rows: DetailRow[] = [
+    { label: c.labels.reference, value: facts.ref, mono: true },
+    { label: c.labels.date, value: facts.date },
+    { label: c.labels.experience, value: facts.experience },
+    { label: c.labels.party, value: facts.partyLabel },
+    { label: c.labels.refund, value: facts.refund, emphasis: true },
+  ];
+
+  const text = textLines([
+    c.heading,
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    `${c.released.title}: ${c.released.body}`,
+    "",
+    fill(c.ctaLine, values),
+  ]);
+
+  const html = emailDocument({
+    lang: "pt",
+    title: subject,
+    preheader: fill(c.preheader, values),
+    banner: { text: c.banner, background: emailPalette.textMuted },
+    content: [
+      emailHeading(facts.guestName),
+      emailParagraph(c.heading, { muted: true, spaceBelow: 24 }),
+      emailEyebrow(c.detailsHeading),
+      emailDetails(rows),
+      emailSpacer(24),
+      emailNote(c.released),
+      emailSpacer(28),
+      emailButton({ label: c.cta, href: facts.adminUrl }),
+    ].join(""),
+    footer: [escapeHtml(c.footerNote)],
+  });
+
+  return { to: recipients, subject, text, html, replyTo: facts.guestEmail };
 }

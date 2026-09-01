@@ -111,6 +111,34 @@ export const TOUR_REQUEST_RATE_LIMIT: RateLimitRule = {
   windowSeconds: 10 * 60,
 };
 
+/**
+ * The public cancel link. Two rules, because the route has two very different
+ * kinds of caller.
+ *
+ * **Looking is cheap, cancelling is not.** A guest opens their link once, maybe
+ * reloads it, maybe forwards it to the phone they read email on — so the view
+ * allowance is generous. What it is really there for is the other caller: an
+ * unauthenticated URL with a 43-character secret in the path is an invitation
+ * to walk the space, and while that space is 256 bits wide (so nobody is
+ * walking it), an untimed endpoint that hashes and queries on every request is
+ * still free work handed to whoever asks.
+ */
+export const CANCEL_VIEW_RATE_LIMIT: RateLimitRule = {
+  limit: 30,
+  windowSeconds: 10 * 60,
+};
+
+/**
+ * Pressing the button: 5 per IP per 10 minutes.
+ *
+ * Tighter than the view because each one can reach Stripe. A guest needs one,
+ * and the spare four cover a double-tap and a retry after a failure.
+ */
+export const CANCEL_RATE_LIMIT: RateLimitRule = {
+  limit: 5,
+  windowSeconds: 10 * 60,
+};
+
 /** Record a hit against the shared store. */
 export function rateLimit(
   key: string,
