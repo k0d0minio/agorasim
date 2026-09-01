@@ -1,12 +1,14 @@
-import { Inbox } from "lucide-react";
+import { Inbox, Search } from "lucide-react";
 import { requireAdmin } from "@/lib/admin-auth";
 import { lastAuditByEntity } from "@/lib/audit";
 import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
 import { countPendingRetention, retentionDays } from "@/lib/retention";
 import { listSalesBoard } from "@/lib/sales";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { Input } from "@/components/ui/input";
 import { PlaceholderPanel } from "@/components/admin/placeholder-panel";
 import { SalesBoard } from "@/components/admin/sales-board";
+import { SalesSearchResults } from "@/components/admin/sales-search-results";
 import { SubjectExportForm } from "@/components/admin/subject-export-form";
 
 // Reads live data — never prerender at build time.
@@ -25,15 +27,24 @@ export const dynamic = "force-dynamic";
  *
  * Each column holds its newest records up to a bound (see `SALES_STAGE_LIMIT`)
  * while its header shows the true total — a full column is visibly capped, not
- * quietly wrong.
+ * quietly wrong. A search (`?q=`) is the way past the cap: matches are served
+ * server-side against name, e-mail and phone across every stage, and shown as
+ * one flat list with the count.
  */
-export default async function AdminSalesPage() {
+export default async function AdminSalesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+  const query = q?.trim();
+
   // Every operator can triage; only owners can export guest data below.
   const viewer = await requireAdmin();
   const isOwner = viewer.role === "owner";
 
   const [{ records, totalEnquiries, countsByStatus }, catalogue] =
-    await Promise.all([listSalesBoard(), listCatalogue()]);
+    await Promise.all([listSalesBoard(query), listCatalogue()]);
 
   const [lastChanged, pendingRetention] = await Promise.all([
     // One query for the whole page's "last changed by" lines, not one per row.
@@ -50,7 +61,39 @@ export default async function AdminSalesPage() {
 
   return (
     <AdminShell>
-      {records.length === 0 ? (
+      {/*
+        Lead lookup — "where is that couple's enquiry?". No query shows the
+        board; any query searches every lead, reaching past the per-stage cap.
+      */}
+      <form method="get" className="mb-6">
+        <label htmlFor="sales-search" className="text-sm font-medium">
+          Procurar pedidos
+        </label>
+        <div className="relative mt-1.5 max-w-md">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            id="sales-search"
+            name="q"
+            type="search"
+            defaultValue={query}
+            placeholder="Nome, e-mail ou telefone"
+            className="pl-9"
+          />
+        </div>
+      </form>
+
+      {query ? (
+        <SalesSearchResults
+          records={records}
+          query={query}
+          catalogue={index}
+          lastChanged={lastChanged}
+          now={now}
+        />
+      ) : records.length === 0 ? (
         <PlaceholderPanel
           icon={Inbox}
           title="Ainda não há pedidos"
@@ -67,10 +110,12 @@ export default async function AdminSalesPage() {
       )}
 
       <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5">
-          <Inbox className="size-3.5" />
-          {countLabel}
-        </span>
+        {query ? null : (
+          <span className="flex items-center gap-1.5">
+            <Inbox className="size-3.5" />
+            {countLabel}
+          </span>
+        )}
         {/* The retention policy, made visible. A scheduled job that quietly
             erases data nobody knew was scheduled to go is how surprises happen. */}
         <span>
