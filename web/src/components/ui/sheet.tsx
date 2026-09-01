@@ -50,10 +50,18 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  /*
+   * Unlike `dialog.tsx`, this primitive has two homes: the Portuguese admin
+   * shell and the public site's bilingual mobile nav. So the default stays
+   * English and the admin hands in its own word — a hardcoded "Fechar" here
+   * would put Portuguese into the English public nav.
+   */
+  closeLabel = "Close",
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
+  closeLabel?: string
 }) {
   return (
     <SheetPortal>
@@ -75,9 +83,8 @@ function SheetContent({
               className="absolute top-2 right-2"
               size="icon"
             >
-              <XIcon
-              />
-              <span className="sr-only">Close</span>
+              <XIcon />
+              <span className="sr-only">{closeLabel}</span>
             </Button>
           </SheetPrimitive.Close>
         )}

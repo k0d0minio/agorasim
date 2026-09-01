@@ -176,7 +176,6 @@ export function DeleteExperienceDialog({ id, name }: { id: string; name: string 
         variant="ghost"
         onClick={() => setOpen(true)}
         aria-label={`Apagar ${name}`}
-       
       >
         <Trash2 className="size-4" />
         Apagar
