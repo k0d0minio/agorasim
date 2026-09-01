@@ -35,7 +35,45 @@ groups are arranged by conversation, not online.
 
 Retired: Olaria MZ (ceramics workshop) — no longer offered; never mention it in new content.
 
+## Prices (verified 2026-08-31 against `.icm/docs/prices.pdf` and `web/src/content/experiences.ts`)
+
+Euro, per departure. "Adults" is what a tier is matched on; children are 4–12 years and
+infants under 4 travel free on every route.
+
+**Rural Saloia — public departure (per person)**
+- 1–3 adults: €62 per person · 4–12 adults: €58 per person
+- Children 4–12: €35 · Infants under 4: free
+
+**Rural Saloia — private departure (one price for the whole group)**
+- 1–3 adults €220 · 4 €290 · 5 €350 · 6 €400 · 7 €450 · 8 €500 · 9 €550 · 10 €600 ·
+  11 €650 · 12 €700
+- Children 4–12: €30 each · Infants under 4: free
+
+**Add-ons — private Rural Saloia departures only, never sold on their own**
+- Tasco Galapito: €60 per adult, €25 per child, infants free; minimum 2 at the table.
+- Manzwine: €35 per adult; minimum 2 adults; closed on Mondays.
+- Ramilo Wines: €45 per adult; minimum 3 adults.
+
+**Óbidos & Medieval Villages**
+- Public (minimum 2 adults): €100 per adult · children 4–12 €40 · infants free
+- Private: 1–3 adults €360 for the group; 4–12 adults €110 per person · children €40
+
+Groups above 12, or above the 8 seats of the largest car, are arranged by conversation
+rather than online (see Capacity).
+
+## Meeting points, departures and cancellation
+- **Rural Saloia** meets at Av. Mário Firmino Miguel, Sintra (Portela de Sintra).
+  Two departures a day, 10:00 and 14:00.
+- **Óbidos & Medieval Villages** meets at Alameda Cardeal Cerejeira, Lisbon. One morning
+  and one afternoon departure; the exact hour is confirmed by email or WhatsApp after
+  booking (it is not published — open question with Diogo & Rita).
+- **Cancellation**: free up to 48 hours before, full refund. Bad weather is rescheduled by
+  email where possible; in extreme conditions the booking is refunded.
+
 ## Positioning
 Slow, authentic, crowd-free rural tourism that supports local producers and artisans.
 
-> Keep this file in sync with `web/src/content/experiences.ts` and `web/src/content/site.ts`.
+> Keep this file in sync with `web/src/content/experiences.ts` and `web/src/content/site.ts`,
+> and the price list in sync with `.icm/docs/prices.pdf` — the client's own table is the
+> authority, the catalogue is the site's copy of it, and this file is what content is
+> written from. If the three ever disagree, stop and reconcile before drafting.
