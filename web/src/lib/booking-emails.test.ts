@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   guestCancellationEmail,
   guestConfirmationEmail,
+  guestMoveEmail,
   partyLabel,
   teamCancellationEmail,
   teamNotificationEmail,
   type BookingCancellationFacts,
   type BookingEmailFacts,
+  type BookingMoveFacts,
   type TeamCancellationFacts,
 } from "@/lib/booking-emails";
 import { emailPalette } from "@/lib/email-layout";
@@ -286,6 +288,83 @@ function cancelled(
     ...overrides,
   };
 }
+
+function moved(overrides: Partial<BookingMoveFacts> = {}): BookingMoveFacts {
+  return {
+    ...facts(),
+    date: "sábado, 22 de agosto de 2026",
+    departure: "Tarde · 14h00",
+    previousDate: "sábado, 15 de agosto de 2026",
+    previousDeparture: "Manhã · 10h00",
+    ...overrides,
+  };
+}
+
+describe("guestMoveEmail", () => {
+  it("substitutes every placeholder — no stray braces reach a guest", () => {
+    const message = guestMoveEmail(moved());
+    expect(message.subject).not.toMatch(/\{/);
+    expect(message.text).not.toMatch(/\{/);
+    expect(message.html).not.toMatch(
+      /\{(name|ref|experience|date|previousDate|party|total|site)\}/,
+    );
+  });
+
+  it("names both departures — the one they had and the one they now have", () => {
+    const message = guestMoveEmail(moved());
+    for (const part of [message.text, message.html!]) {
+      // Without the old date the mail reads as a second booking nobody made.
+      expect(part).toContain("sábado, 15 de agosto de 2026");
+      expect(part).toContain("Manhã · 10h00");
+      expect(part).toContain("sábado, 22 de agosto de 2026");
+      expect(part).toContain("Tarde · 14h00");
+    }
+  });
+
+  it("carries the meeting point, as the confirmation did", () => {
+    const message = guestMoveEmail(moved());
+    for (const part of [message.text, message.html!]) {
+      expect(part).toContain("Av. Mário Firmino Miguel, Sintra (Portela de Sintra)");
+    }
+    expect(message.text).toContain("https://maps.app.goo.gl/zufzHo8QpmspvzqC9");
+  });
+
+  it("never wears the confirmation's banner — the date has changed", () => {
+    const message = guestMoveEmail(moved());
+    expect(message.html).toContain("A sua reserva mudou de data");
+    expect(message.html).not.toContain("Reserva confirmada");
+  });
+
+  it("offers a cancel link, and omits the block when there is none", () => {
+    // A guest whose tour was moved without being asked is the one most likely
+    // to want out — and the link in their original confirmation named a
+    // departure that no longer exists.
+    expect(guestMoveEmail(moved()).html).toContain("Cancelar a reserva");
+    const linkless = guestMoveEmail(moved({ cancelUrl: null }));
+    expect(linkless.html).not.toContain("Cancelar a reserva");
+    expect(linkless.text).not.toContain("Cancelar a reserva");
+  });
+
+  it("promises the hour in writing when the tour still owes one", () => {
+    const message = guestMoveEmail(moved({ departureTimeFollows: true }));
+    for (const part of [message.text, message.html!]) {
+      expect(part).toContain("A hora exata da partida segue por email");
+    }
+  });
+
+  it("writes in the language they booked in", () => {
+    const en = guestMoveEmail(
+      moved({ locale: "en", date: "Saturday, 22 August 2026", previousDate: "Saturday, 15 August 2026" }),
+    );
+    expect(en.subject).toContain("New date");
+    expect(en.html).toContain('lang="en"');
+    expect(en.text).toContain("We have moved your experience");
+  });
+
+  it("replies to a person, not to the sending domain", () => {
+    expect(guestMoveEmail(moved()).replyTo).toBe(site.email);
+  });
+});
 
 describe("guestCancellationEmail", () => {
   it("substitutes every placeholder — no stray braces reach a guest", () => {

@@ -42,6 +42,7 @@ import {
   isDateKey,
   MAX_DRIVERS,
   MAX_RANGE_DAYS,
+  TOUR_SLOTS,
 } from "@/lib/availability";
 import { MAX_PARTY_ONLINE } from "@/lib/fleet";
 import { parseAmountInput, parsePriceInput } from "@/lib/money";
@@ -590,6 +591,28 @@ export const cancelBookingSchema = z.object({
     REFUND_CONFIRMATION,
     `Escreva ${REFUND_CONFIRMATION} para confirmar.`,
   ),
+});
+
+/**
+ * Moving a booking to another departure.
+ *
+ * No typed confirmation, unlike the cancellation above, and the difference is
+ * the gesture: a refund moves money and cannot be taken back, while a move is
+ * an edit that can be made again in the other direction. What stands between a
+ * mis-tap and a moved tour is that the operator has to have chosen a day *and*
+ * a departure from a list of the ones that can actually take this party.
+ *
+ * The slot is checked against the two departures the business runs rather than
+ * against the enum, which still carries the retired `full_day` value that
+ * nothing may be moved onto.
+ */
+export const moveBookingSchema = z.object({
+  bookingId: z.uuid(),
+  date: z
+    .string()
+    .trim()
+    .refine((value) => isDateKey(value), "Escolha uma data para a nova partida."),
+  slot: z.enum(TOUR_SLOTS, "Escolha a partida da manhã ou da tarde."),
 });
 
 // ---------------------------------------------------------------------------

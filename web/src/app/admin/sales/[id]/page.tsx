@@ -19,9 +19,12 @@ import { requestStatusMeta } from "@/lib/admin-format";
 import { bookingRef } from "@/lib/bookings";
 import { formatPrice } from "@/lib/money";
 import { refundableCents } from "@/lib/booking-refund";
+import { formatDay } from "@/lib/availability";
+import { groupMoveTargets, listMoveTargets } from "@/lib/booking-move";
 import { bookingsForLead, bookingSummaries, enquiryRef, recordFromRequest } from "@/lib/sales";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { CancelBookingDialog } from "@/components/admin/cancel-booking-dialog";
+import { MoveBookingDialog } from "@/components/admin/move-booking-dialog";
 import { DeleteSubmissionDialog } from "@/components/admin/delete-submission-dialog";
 import {
   EnquiryKindIcon,
@@ -69,6 +72,32 @@ export default async function AdminLeadPage({
     listAuditForEntity("tour_request", lead.id),
     bookingsForLead(lead.id),
   ]);
+
+  /**
+   * Where each paid booking could be moved to — the bad-weather reschedule's
+   * picker, built here because the calendar reads are server-side.
+   *
+   * Only for `confirmed` rows: nothing else can be moved (see
+   * `lib/booking-move.ts`), and scanning three months of the calendar for a
+   * booking that was cancelled in March would be two queries spent on a dialog
+   * that is never rendered.
+   */
+  const moveOptions = new Map(
+    await Promise.all(
+      leadBookings
+        .filter((booking) => booking.status === "confirmed")
+        .map(
+          async (booking) =>
+            [
+              booking.id,
+              groupMoveTargets(
+                await listMoveTargets(booking),
+                booking.experienceSlug,
+              ),
+            ] as const,
+        ),
+    ),
+  );
 
   const index = catalogueIndex(catalogue);
   // The same join the board does, for one lead: without it this page shows
@@ -351,6 +380,20 @@ export default async function AdminLeadPage({
                   */}
                   {booking.status === "confirmed" ? (
                     <div className="flex flex-wrap items-center gap-2">
+                      {/*
+                        Moving comes first, and cancelling second, because that
+                        is the client's own weather policy: reschedule, and
+                        refund only in extreme conditions (info PDF §1.4).
+                      */}
+                      <MoveBookingDialog
+                        booking={{
+                          id: booking.id,
+                          ref: bookingRef(booking.id),
+                          current: `${formatDay(booking.date, "pt")} · ${t(departureLabel(booking.experienceSlug, booking.slot), "pt")}`,
+                        }}
+                        guestName={lead.name}
+                        options={moveOptions.get(booking.id) ?? []}
+                      />
                       <CancelBookingDialog
                         booking={{
                           id: booking.id,
