@@ -127,10 +127,17 @@ vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidat
 const refundsCreate = vi.fn();
 const paymentIntentsRetrieve = vi.fn();
 
+// A whole stand-in for the module, Connect switches included: no connected
+// account here, so the account helpers answer as they do on a platform-only
+// deployment and `onOwningAccount` is a straight pass-through.
 vi.mock("@/lib/stripe", () => ({
   isStripeConfigured: () => true,
   isWebhookConfigured: () => true,
   isTestMode: () => true,
+  connectedAccountId: () => null,
+  isConnectConfigured: () => false,
+  onConnectedAccount: (options?: unknown) => options,
+  onOwningAccount: (run: (options?: unknown) => unknown) => run(undefined),
   stripe: () => ({
     paymentIntents: {
       retrieve: (...args: unknown[]) => paymentIntentsRetrieve(...args),
@@ -743,8 +750,9 @@ describe("cancelling and refunding a booking", () => {
 
     await cancelBooking({}, fullRefund());
 
-    // Nothing takes an application fee yet (Connect is unbuilt), and asking
-    // Stripe to refund one that does not exist is an error, not a no-op.
+    // Nothing takes an application fee yet (the fee itself is the next stub),
+    // and asking Stripe to refund one that does not exist is an error, not a
+    // no-op.
     expect(refundsCreate.mock.calls[0][0]).not.toHaveProperty("refund_application_fee");
   });
 
