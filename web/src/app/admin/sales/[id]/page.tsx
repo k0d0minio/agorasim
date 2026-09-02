@@ -333,6 +333,12 @@ export default async function AdminLeadPage({
                               booking.currency,
                             )
                           : "—"}
+                        {booking.refundedAmountCents > 0 &&
+                        booking.refundedAmountCents < booking.amountCents ? (
+                          <Badge variant="outline" className="ml-2">
+                            parcial
+                          </Badge>
+                        ) : null}
                         {booking.refundedAt ? (
                           <span className="text-muted-foreground">
                             {" "}
@@ -341,6 +347,59 @@ export default async function AdminLeadPage({
                         ) : null}
                       </dd>
                     </div>
+
+                    {/*
+                      The commission, and only on the bookings that have one:
+                      every booking taken before Connect was configured was a
+                      plain platform charge with no fee on it, and a "Comissão —"
+                      row on all of those would be noise standing in for a fact.
+
+                      Both halves together, because neither reads as anything
+                      alone: §6 returns commission in proportion to a refund, and
+                      "€6,80 devolvidos" is only checkable next to the €13,60 it
+                      came out of.
+                    */}
+                    {booking.applicationFeeCents !== null ? (
+                      <div>
+                        <dt className="text-muted-foreground">Comissão</dt>
+                        <dd>
+                          {formatPrice(
+                            booking.applicationFeeCents,
+                            "pt",
+                            booking.currency,
+                          )}
+                          {booking.refundedFeeCents > 0 ? (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              ·{" "}
+                              {formatPrice(
+                                booking.refundedFeeCents,
+                                "pt",
+                                booking.currency,
+                              )}{" "}
+                              devolvidos
+                            </span>
+                          ) : null}
+                        </dd>
+                      </div>
+                    ) : null}
+
+                    {/*
+                      A refund that returned the guest's money and left the
+                      commission behind is the one state nobody can see from
+                      Stripe without knowing to look — so it is said here, on the
+                      screen an operator is already on, rather than left to a
+                      reconciliation next month. It resolves itself when Stripe
+                      redelivers the event; what it must not do is stay silent.
+                    */}
+                    {booking.refundedAmountCents > 0 &&
+                    booking.applicationFeeCents !== null &&
+                    booking.refundedFeeCents === 0 ? (
+                      <p className="text-xs text-muted-foreground sm:col-span-2">
+                        A comissão ainda não consta como devolvida — se não mudar,
+                        confirmar no Stripe.
+                      </p>
+                    ) : null}
                   </dl>
 
                   {/*
