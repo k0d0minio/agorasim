@@ -2,10 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 
+import { departureLabel } from "@/content/logistics";
+import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import { REFUND_CONFIRMATION } from "@/lib/admin-format";
+import { formatDay } from "@/lib/availability";
+import { moveBookingToDeparture } from "@/lib/booking-move";
 import { cancelAndRefundBooking } from "@/lib/booking-refund";
-import { cancelBookingSchema, formValues } from "@/lib/form-schemas";
+import { cancelBookingSchema, formValues, moveBookingSchema } from "@/lib/form-schemas";
 import { formatPrice } from "@/lib/money";
 
 /**
@@ -18,7 +22,9 @@ import { formatPrice } from "@/lib/money";
  * itself is not in this file: `lib/booking-refund.ts` holds it, because the
  * guest's own cancel link has to do exactly the same thing and two copies of
  * "refund, free the car, write the audit row, email the guest" is one copy that
- * eventually forgets a step.
+ * eventually forgets a step. The move below is arranged the same way, in
+ * `lib/booking-move.ts`, so that the availability re-check a reschedule needs
+ * is the very one the checkout runs.
  *
  * **`requireAdmin()`, not `requireOwner()`.** Cancelling a tour and returning
  * the money is operational work — the reason the action exists is that guests
@@ -111,6 +117,103 @@ export async function cancelBooking(
         error:
           "A reserva foi cancelada e o lugar libertado, mas o Stripe recusou o reembolso. " +
           "Emita-o no painel do Stripe e avise o cliente.",
+      };
+  }
+}
+
+export type MoveBookingState = {
+  ok?: boolean;
+  error?: string;
+  /** Where the booking ended up, read back to the operator in their own words. */
+  message?: string;
+};
+
+/**
+ * Move a paid booking to another departure — the bad-weather reschedule.
+ *
+ * The client's weather policy is reschedule first and refund only in extreme
+ * conditions (info PDF §1.4), and this is the action that policy needs: the
+ * same booking, the same payment, a different day. Cancelling and re-selling
+ * would lose the payment linkage and cost the guest a second checkout.
+ *
+ * `requireAdmin()` for the same reason cancelling does not need `requireOwner()`
+ * — moving a tour because it is going to rain is the day job, not an account or
+ * a personal-data decision.
+ *
+ * The work is in `lib/booking-move.ts`: the availability re-check, the write,
+ * the audit entry and the guest's email. This decides who may ask and turns the
+ * outcome into a sentence.
+ */
+export async function moveBooking(
+  _prevState: MoveBookingState,
+  formData: FormData,
+): Promise<MoveBookingState> {
+  const actor = await requireAdmin();
+
+  const parsed = moveBookingSchema.safeParse(formValues(formData));
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues[0]?.message ?? "Escolha a nova data e a partida.",
+    };
+  }
+
+  const { bookingId, date, slot } = parsed.data;
+
+  const outcome = await moveBookingToDeparture({
+    bookingId,
+    date,
+    slot,
+    actorUserId: actor.id,
+  });
+
+  switch (outcome.status) {
+    case "moved": {
+      // The public calendar renders occupancy and is cached: this move freed a
+      // car on one departure and took one on another, and both have to be true
+      // on the booking page before the next guest looks at it.
+      revalidatePath("/", "layout");
+
+      const departure = t(
+        departureLabel(outcome.booking.experienceSlug, outcome.booking.slot),
+        "pt",
+      );
+      return {
+        ok: true,
+        message: `Reserva movida para ${formatDay(outcome.booking.date, "pt")} · ${departure}. O cliente foi avisado.`,
+      };
+    }
+
+    case "not-found":
+      return { error: "Essa reserva já não existe." };
+
+    case "not-movable":
+      // Also what the loser of a race gets: somebody else moved or cancelled it
+      // between this page being rendered and the button being pressed.
+      return {
+        error:
+          "Só é possível mover uma reserva paga — esta já não está confirmada, " +
+          "ou já foi movida entretanto. Recarregue a página.",
+      };
+
+    case "same-departure":
+      return { error: "A reserva já está nessa partida." };
+
+    case "invalid":
+      return { error: "Essa data ou partida não existe no calendário." };
+
+    case "unavailable":
+      // The re-check's own reason, worded for the person reading it. A party
+      // too large for the fleet cannot arise from the picker — it lists only
+      // departures this party fits — but the action does not trust the picker.
+      return {
+        error:
+          outcome.reason === "no-vehicle"
+            ? "Nessa partida já não há um carro para um grupo deste tamanho."
+            : outcome.reason === "unreadable"
+              ? "Não foi possível confirmar essa partida. Tente outra vez."
+              : outcome.reason === "party-too-large" || outcome.reason === "bad-party"
+                ? "Este grupo não cabe numa partida vendida online — trate desta reserva por telefone."
+                : "Essa partida não está à venda ou já está cheia. Escolha outra.",
       };
   }
 }

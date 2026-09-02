@@ -187,6 +187,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "booking.expired": "uma reserva não foi paga a tempo",
   "booking.cancelled": "cancelou uma reserva",
   "booking.refunded": "cancelou e reembolsou uma reserva",
+  "booking.moved": "mudou uma reserva de partida",
   "blog_post.updated": "editou um artigo do blog",
   "blog_post.published": "publicou um artigo no blog",
   "blog_post.unpublished": "retirou um artigo do blog",

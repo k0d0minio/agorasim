@@ -274,6 +274,164 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
   };
 }
 
+/**
+ * Everything the move notice needs — the confirmation's facts, plus the
+ * departure this booking has just left.
+ */
+export type BookingMoveFacts = BookingEmailFacts & {
+  /** "Saturday, 15 August 2026" — the day it *was* on, in the guest's language. */
+  previousDate: string;
+  /** "Manhã · 10h00" — the departure it was on. */
+  previousDeparture: string;
+};
+
+/**
+ * The guest's notice that their tour has been moved, in the language they
+ * booked in.
+ *
+ * **Shaped like the confirmation, not like a memo.** The guest is still coming
+ * — they need the details block, the meeting point, the hour and the reference,
+ * exactly as the confirmation gave them, because this mail replaces it as the
+ * one they will open on the morning. What the confirmation cannot say is which
+ * plan is being corrected, so the departure they had is a row of its own above
+ * the new one: without it, a mail listing a date nobody remembers agreeing to
+ * reads as a second booking rather than a change to the first.
+ *
+ * **It carries a cancel link of its own.** A guest whose tour was moved without
+ * being asked is precisely the one who may want out, and the link in their
+ * original confirmation names a departure that no longer exists. The caller
+ * (`lib/booking-move.ts`) mints the token that goes in it and only writes the
+ * new digest to the row once this message has actually left, so a booking never
+ * loses its working link to a mail that failed to send.
+ *
+ * `replyTo` is the business inbox, as on every other guest mail: "that day does
+ * not work for us" has to reach a person.
+ */
+export function guestMoveEmail(facts: BookingMoveFacts): EmailMessage {
+  const c = bookingEmails.moved;
+  // The details block, the labels and the party words are the confirmation's:
+  // this mail is that mail with a new date on it, and a second vocabulary for
+  // the same rows is how "Ponto de encontro" ends up worded two ways.
+  const g = bookingEmails.guest;
+  const l = facts.locale;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    ref: facts.ref,
+    experience: facts.experience,
+    date: facts.date,
+    previousDate: facts.previousDate,
+    party: String(facts.partySize),
+    total: facts.total,
+    site: siteUrl(),
+  };
+
+  const subject = fill(t(c.subject, l), values);
+  const greeting = fill(t(c.greeting, l), values);
+  const lead = fill(t(c.lead, l), values);
+
+  // Same sentence the confirmation appends when the tour owes an hour: the
+  // guest is being sent to a departure whose time is still to follow, and this
+  // mail is now the one they will read for it.
+  const noteBody = facts.departureTimeFollows
+    ? `${t(c.note.body, l)} ${t(g.departureTimeNote, l)}`
+    : t(c.note.body, l);
+
+  const rows: DetailRow[] = [
+    { label: t(g.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(g.labels.experience, l), value: facts.experience },
+    // The old departure first, so the new one below it is read as the answer to
+    // it rather than as one more line of an unfamiliar list.
+    {
+      label: t(c.labels.previous, l),
+      value: `${facts.previousDate} · ${facts.previousDeparture}`,
+    },
+    { label: t(g.labels.date, l), value: facts.date, emphasis: true },
+    { label: t(g.labels.departure, l), value: facts.departure },
+    ...(facts.meetingPoint
+      ? [
+          {
+            label: t(g.labels.meetingPoint, l),
+            value: facts.meetingPoint.address,
+            href: facts.meetingPoint.mapsUrl,
+          },
+        ]
+      : []),
+    { label: t(g.labels.party, l), value: facts.partyLabel },
+    ...(facts.addOns.length > 0
+      ? [{ label: t(g.labels.addOns, l), value: facts.addOns.join(", ") }]
+      : []),
+    { label: t(g.labels.total, l), value: facts.total },
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    lead,
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    facts.meetingPoint ? `${t(g.labels.meetingPoint, l)}: ${facts.meetingPoint.mapsUrl}` : null,
+    "",
+    `${t(c.note.title, l)}: ${noteBody}`,
+    "",
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    facts.cancelUrl ? fill(t(g.cancelLink.textLine, l), { url: facts.cancelUrl }) : null,
+    facts.cancelUrl ? "" : null,
+    t(c.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader, l), values),
+    // The banner says it moved, in the banner's own words: a guest who reads
+    // the first inch of this mail and stops must not come away believing the
+    // original date still stands.
+    banner: { text: t(c.banner, l) },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(lead, { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      emailSpacer(24),
+      emailNote({ title: t(c.note.title, l), body: noteBody }),
+      emailSpacer(16),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      ...(facts.cancelUrl
+        ? [
+            emailSpacer(24),
+            emailDivider(),
+            emailSpacer(20),
+            emailParagraph(t(g.cancelLink.note, l), { muted: true, spaceBelow: 16 }),
+            emailButton({ label: t(g.cancelLink.label, l), href: facts.cancelUrl }),
+          ]
+        : []),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+  };
+}
+
 /** Everything the cancellation notice needs, already formatted for reading. */
 export type BookingCancellationFacts = {
   ref: string;
