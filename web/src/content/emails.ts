@@ -220,6 +220,67 @@ export const bookingEmails = {
     } as Localized,
   },
 
+  /**
+   * To the guest, when the team moves their tour to another departure.
+   *
+   * The client's own weather policy is reschedule-first (info PDF §1.4), so
+   * this is the message that policy produces: same booking, same money, same
+   * people, a different departure. It is shaped like the confirmation on
+   * purpose — a guest who is about to be somewhere at a time needs the details
+   * block, the meeting point and the hour, not a paragraph about the change —
+   * and it names the old date so the mail reads as a correction of a specific
+   * plan rather than a second booking nobody made.
+   *
+   * Deliberately silent about *why*, like the cancellation copy: whoever moved
+   * it is on the phone or in a reply, which is where the weather belongs.
+   */
+  moved: {
+    subject: {
+      pt: "Nova data — {experience}, {date}",
+      en: "New date — {experience}, {date}",
+    } as Localized,
+    preheader: {
+      pt: "Referência {ref} · agora a {date}",
+      en: "Reference {ref} · now on {date}",
+    } as Localized,
+    banner: {
+      pt: "A sua reserva mudou de data",
+      en: "Your booking has moved",
+    } as Localized,
+    greeting: {
+      pt: "Olá {name},",
+      en: "Hello {name},",
+    } as Localized,
+    lead: {
+      pt: "Passámos o seu passeio de {previousDate} para {date}. O resto fica tudo igual — a mesma experiência, as mesmas pessoas e o valor já pago.",
+      en: "We have moved your experience from {previousDate} to {date}. Everything else stays as it was — the same experience, the same guests and the amount you have already paid.",
+    } as Localized,
+    detailsHeading: {
+      pt: "A reserva, com a nova data",
+      en: "Your booking, with the new date",
+    } as Localized,
+    labels: {
+      /** The departure this booking used to be on — date and hour together. */
+      previous: { pt: "Antes", en: "Previously" } as Localized,
+    },
+    /** What to do if the new departure does not work for them. */
+    note: {
+      title: { pt: "Se a nova data não servir", en: "If the new date does not work" } as Localized,
+      body: {
+        pt: "Responda a este email ou ligue-nos e procuramos outra — e se preferir cancelar, o cancelamento continua gratuito até 48 horas antes da nova data.",
+        en: "Reply to this email or call us and we will find another one — and if you would rather cancel, cancellation stays free up to 48 hours before the new date.",
+      } as Localized,
+    },
+    signoff: {
+      pt: "Até lá,\nAgorasim",
+      en: "See you then,\nAgorasim",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque tem uma reserva em {site}.",
+      en: "You are receiving this email because you have a booking at {site}.",
+    } as Localized,
+  },
+
   /** To Diogo & Rita. Portuguese only — see the note above. */
   team: {
     subject: "Nova reserva paga — {date} · {name} ({party}p)",
