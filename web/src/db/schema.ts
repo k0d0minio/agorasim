@@ -769,6 +769,27 @@ export const bookings = pgTable("bookings", {
   refundedAt: timestamp("refunded_at", { withTimezone: true }),
 
   /**
+   * How much of {@link bookings.applicationFeeCents} has gone back to the
+   * client with the guest's money, in cents.
+   *
+   * The commission agreement (§6) returns commission "in proportion" to any
+   * refund, and this is that proportion once it has actually moved: refund half
+   * a €340 tour whose fee was €13.60, and €6.80 of commission goes back. It is
+   * Stripe's figure — the application fee object's own `amount_refunded`, read
+   * after the fee refund lands — for the same reason
+   * {@link bookings.applicationFeeCents} is: §8 promises both sides can check
+   * every number against the dashboard, and a column holding our intention
+   * would agree with it right up until the once it mattered that it did not.
+   *
+   * `0` rather than null, and it is true rather than unknown: a booking with no
+   * fee on it has no fee to return, and one refunded before this column existed
+   * had none returned by anything that could have written here. The writer is
+   * `lib/booking-refund.ts`, reconciling from the `charge.refunded` webhook —
+   * one writer, so the admin action and a dashboard refund cannot disagree.
+   */
+  refundedFeeCents: integer("refunded_fee_cents").notNull().default(0),
+
+  /**
    * The platform's commission on this booking, in cents — the application fee
    * Stripe actually routed out of the guest's payment.
    *

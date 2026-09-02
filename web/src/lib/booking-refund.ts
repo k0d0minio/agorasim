@@ -45,13 +45,30 @@
  * `tour_requests` row out of "Reservado": the team decides what a cancellation
  * means for a person — re-book them in September, or archive them — and a status
  * this module chose would be a guess sitting on their board.
+ *
+ *
+ * **The third path issues nothing and records everything.** A refund made in
+ * the Stripe dashboard never comes through here at all — it happens entirely on
+ * Stripe's side — so {@link syncRefundFromStripe} runs in the other direction,
+ * reconciling `charge.refunded` onto the row from the webhook. It is also what
+ * finally records the *commission* returned on every refund, including the ones
+ * {@link cancelAndRefundBooking} issued: that path asks Stripe to return the
+ * fee proportionally but never learns the figure, and one writer for the column
+ * is how the books and the dashboard are kept from drifting.
  */
 import "server-only";
 
 import type Stripe from "stripe";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 
-import { bookings, db, tourRequests, type Booking, type CancelledVia } from "@/db";
+import {
+  bookings,
+  db,
+  tourRequests,
+  type Booking,
+  type BookingStatus,
+  type CancelledVia,
+} from "@/db";
 import { formatDay } from "@/lib/availability";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { guestCancellationEmail, partyLabel } from "@/lib/booking-emails";
@@ -362,5 +379,317 @@ async function sendCancellationEmail(
       `[booking] ${bookingRef(booking.id)} cancelled but the guest email failed`,
       err,
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The other direction: a refund that happened in Stripe, reconciled onto the row
+// ---------------------------------------------------------------------------
+
+/**
+ * How much commission a refund of `refundedCents` returns, in cents.
+ *
+ * The agreement (§6) says commission comes back "in proportion", and this is
+ * that sentence as arithmetic: half a tour refunded returns half its fee. Pure
+ * and exported so the rule can be read and tested without a Stripe account.
+ *
+ * Cumulative, like the refund it follows: given the *total* refunded so far it
+ * answers with the *total* fee that should have gone back, so a second partial
+ * refund tops the first one up rather than starting over. A full refund returns
+ * the whole fee exactly, rather than a rounding of it — the one case where "the
+ * proportion" and "all of it" must not be allowed to differ by a cent.
+ */
+export function proportionalFeeRefundCents(options: {
+  /** The application fee that was taken — Stripe's figure, off the charge. */
+  feeCents: number;
+  /** What the charge was for. */
+  chargeCents: number;
+  /** How much of that charge has gone back, in total. */
+  refundedCents: number;
+}): number {
+  const { feeCents, chargeCents, refundedCents } = options;
+  if (feeCents <= 0 || chargeCents <= 0 || refundedCents <= 0) return 0;
+  if (refundedCents >= chargeCents) return feeCents;
+  return Math.min(feeCents, Math.round((feeCents * refundedCents) / chargeCents));
+}
+
+export type RefundSyncOutcome =
+  /** The row moved: amounts, and a status if the refund was a full one. */
+  | {
+      status: "synced";
+      booking: Booking;
+      refundedAmountCents: number;
+      refundedFeeCents: number;
+    }
+  /** Stripe is telling us something the row already says. A retry, or our own refund. */
+  | { status: "already-synced"; booking: Booking }
+  /** A refund against a charge no booking here was paid with. Needs a human. */
+  | { status: "unknown-charge" };
+
+/**
+ * Bring a booking into line with a charge Stripe says has been refunded.
+ *
+ * **This is the write path a refund issued in the Stripe dashboard travels.**
+ * Rita refunding a rained-off tour from her phone produced, until now, nothing
+ * at all on this side: the booking stayed `confirmed`, the departure kept
+ * counting the car, the books never said `refunded`, and the commission stayed
+ * with the platform. `charge.refunded` reaches here instead.
+ *
+ * **Idempotent by reconciliation, not by remembering.** Nothing tracks which
+ * events have been seen. The charge carries the whole truth — `amount_refunded`
+ * is cumulative and absolute — so the row is set *to* it rather than adjusted
+ * *by* it, and an event delivered five times converges on the same numbers.
+ * The write is a compare-and-set on the amount that was read, so two deliveries
+ * racing each other produce one winner and one `already-synced`.
+ *
+ * That is also what makes this safe to run behind {@link cancelAndRefundBooking}:
+ * an admin refund fires this same event a second later, finds the amount it
+ * already wrote, and does nothing to it — while still reconciling the fee,
+ * which the admin path asks Stripe for but cannot know the size of.
+ *
+ * **Seats need no code here**, for the reason in the module note: capacity
+ * counts `confirmed` rows and live `pending` holds, so writing `refunded` *is*
+ * the release.
+ *
+ * **A partial refund is not a cancellation.** Money back on a tour that is
+ * still running — a party that shrank, goodwill after a late start — leaves the
+ * booking `confirmed` and its car committed, because the guest is still coming.
+ * Only Stripe's own `refunded` flag, which means the whole charge went back,
+ * ends the booking. The amounts are written either way, which is what makes the
+ * partial case honest rather than invisible.
+ *
+ * **It never walks a status back.** A refund that later fails lowers
+ * `amount_refunded`, and this will follow it down in the amounts — but a
+ * booking that has read `refunded` has had its car sold to somebody else as far
+ * as anything here knows, and quietly re-confirming it could put two parties on
+ * one departure. That case is logged for a person instead.
+ *
+ * Never throws for anything a caller can be told about; the outcome union is
+ * the report, and the Stripe half of the fee is best-effort on top of a row
+ * that is already correct about the guest's money.
+ */
+export async function syncRefundFromStripe(options: {
+  /** The charge, as Stripe currently has it. The authority on every number here. */
+  charge: Stripe.Charge;
+  /** The refund the event was about, when it carried one. */
+  refundId?: string | null;
+}): Promise<RefundSyncOutcome> {
+  const { charge } = options;
+  const now = new Date();
+
+  const paymentIntentId =
+    typeof charge.payment_intent === "string"
+      ? charge.payment_intent
+      : (charge.payment_intent?.id ?? null);
+
+  // Either handle finds the booking: the charge id is written at confirmation,
+  // the payment intent from checkout — and a booking confirmed before
+  // `0019_commission_audit` has only the latter.
+  const [existing] = await db
+    .select()
+    .from(bookings)
+    .where(
+      paymentIntentId
+        ? or(
+            eq(bookings.stripeChargeId, charge.id),
+            eq(bookings.stripePaymentIntentId, paymentIntentId),
+          )
+        : eq(bookings.stripeChargeId, charge.id),
+    )
+    .limit(1);
+
+  if (!existing) return { status: "unknown-charge" };
+
+  const refundedAmountCents = charge.amount_refunded;
+  const feeTaken = charge.application_fee_amount ?? 0;
+  const feeTarget = proportionalFeeRefundCents({
+    feeCents: feeTaken,
+    chargeCents: charge.amount,
+    refundedCents: refundedAmountCents,
+  });
+
+  // Nothing Stripe is saying is news. The common case by a distance: every
+  // webhook retry, and every event our own refund action caused.
+  if (
+    existing.refundedAmountCents === refundedAmountCents &&
+    existing.refundedFeeCents === feeTarget
+  ) {
+    return { status: "already-synced", booking: existing };
+  }
+
+  if (refundedAmountCents < existing.refundedAmountCents) {
+    // A refund reversed or failed after the fact. The amounts follow Stripe
+    // down — they are a record of where the money is — but see the note above
+    // on why the status does not come back with them.
+    console.error(
+      `[booking] ${bookingRef(existing.id)}: Stripe now says ${refundedAmountCents} ` +
+        `is refunded, down from ${existing.refundedAmountCents} — the row follows the ` +
+        `money but keeps status ${existing.status}; needs a human`,
+    );
+  }
+
+  const fullyRefunded = charge.refunded && refundedAmountCents > 0;
+  const status: BookingStatus =
+    fullyRefunded && (existing.status === "confirmed" || existing.status === "cancelled")
+      ? "refunded"
+      : existing.status;
+
+  const refundId = options.refundId ?? (await latestRefundId(charge));
+
+  const [claimed] = await db
+    .update(bookings)
+    .set({
+      status,
+      refundedAmountCents,
+      ...(refundId ? { stripeRefundId: refundId } : {}),
+      ...(refundedAmountCents > 0 ? { refundedAt: now } : {}),
+      updatedAt: now,
+    })
+    // Compare-and-set on what was read. Two deliveries of the same event race
+    // here exactly as the two confirmation paths race in `booking-checkout.ts`,
+    // and for the same reason exactly one of them comes back with a row.
+    .where(
+      and(
+        eq(bookings.id, existing.id),
+        eq(bookings.refundedAmountCents, existing.refundedAmountCents),
+      ),
+    )
+    .returning();
+
+  if (!claimed) return { status: "already-synced", booking: existing };
+
+  // The commission, second and separately: the guest's money is already
+  // recorded correctly, and a Stripe call failing here must not undo that or
+  // ask Stripe to redeliver an event whose only remaining work is a fee.
+  const refundedFeeCents = await returnApplicationFee(claimed, charge, feeTarget);
+
+  const [settled] =
+    refundedFeeCents === claimed.refundedFeeCents
+      ? [claimed]
+      : await db
+          .update(bookings)
+          .set({ refundedFeeCents, updatedAt: now })
+          .where(eq(bookings.id, claimed.id))
+          .returning();
+
+  const booking = settled ?? claimed;
+
+  await recordAuditOrWarn({
+    // Nobody here pressed anything — the actor is Stripe, whoever asked it.
+    actorUserId: null,
+    action: "booking.refunded",
+    entityType: "booking",
+    entityId: booking.id,
+    before: {
+      status: existing.status,
+      refundedAmountCents: existing.refundedAmountCents,
+      refundedFeeCents: existing.refundedFeeCents,
+    },
+    after: {
+      ref: bookingRef(booking.id),
+      date: booking.date,
+      status: booking.status,
+      via: "stripe",
+      // Both amounts, as in the admin path: "€170 refunded" means something
+      // different against a €340 tour than against a €170 one.
+      amountCents: booking.amountCents,
+      refundedAmountCents,
+      // What the platform gave back with it, and what it had taken — §8's
+      // promise is that this is checkable, and an audit row read a year later
+      // has only what it wrote down.
+      applicationFeeCents: feeTaken > 0 ? feeTaken : null,
+      refundedFeeCents,
+      stripeRefundId: refundId,
+      stripeChargeId: charge.id,
+    },
+    ipAddress: null,
+  });
+
+  return { status: "synced", booking, refundedAmountCents, refundedFeeCents };
+}
+
+/**
+ * Stripe's handle for the refund that most recently hit this charge.
+ *
+ * A `charge.refunded` payload carries no refund id of its own, and which one it
+ * was is the join a guest's "the bank says nothing arrived" needs. The embedded
+ * list is used when the payload has one and asked for otherwise; a failure
+ * costs the id and nothing else, because every amount on the row comes from the
+ * charge itself.
+ */
+async function latestRefundId(charge: Stripe.Charge): Promise<string | null> {
+  const embedded = charge.refunds?.data?.[0]?.id;
+  if (embedded) return embedded;
+  if (!isStripeConfigured()) return null;
+
+  try {
+    const refunds = await onOwningAccount((account) =>
+      stripe().refunds.list({ charge: charge.id, limit: 1 }, account),
+    );
+    return refunds.data[0]?.id ?? null;
+  } catch (err) {
+    console.warn(`[stripe] couldn't read the refunds on ${charge.id}`, err);
+    return null;
+  }
+}
+
+/**
+ * Return the commission in proportion, and report what Stripe says came back.
+ *
+ * **Why this is not simply `refund_application_fee`.** That flag exists on a
+ * refund *we* create, and the refund this is reconciling was very likely
+ * created by somebody in the Stripe dashboard, where the default is to keep the
+ * fee. So the fee is topped up here to whatever the proportion says it should
+ * be, from whatever it currently is — which makes this correct behind the
+ * dashboard, behind {@link cancelAndRefundBooking} (whose flag already returned
+ * it, leaving nothing to top up), and behind a retry of either.
+ *
+ * **The application fee lives on the platform**, not on the connected account
+ * the charge is on: it is the platform's money coming back, so the call carries
+ * no `stripeAccount` — the one Stripe call in this file that must not.
+ *
+ * Never throws. A fee that could not be returned is logged loudly and leaves
+ * the column at what Stripe last confirmed, because the alternative — writing
+ * what we asked for rather than what moved — is a books entry that disagrees
+ * with the dashboard, which is the one thing §8 promises cannot happen.
+ */
+async function returnApplicationFee(
+  booking: Booking,
+  charge: Stripe.Charge,
+  targetCents: number,
+): Promise<number> {
+  const feeId =
+    typeof charge.application_fee === "string"
+      ? charge.application_fee
+      : (charge.application_fee?.id ?? null);
+
+  // No fee to return: a platform charge, or a booking taken before Connect.
+  if (!feeId || targetCents <= 0) return booking.refundedFeeCents;
+  if (!isStripeConfigured()) return booking.refundedFeeCents;
+
+  try {
+    const client = stripe();
+    const fee = await client.applicationFees.retrieve(feeId);
+    const shortfall = targetCents - fee.amount_refunded;
+    if (shortfall <= 0) return fee.amount_refunded;
+
+    await client.applicationFees.createRefund(
+      feeId,
+      { amount: shortfall },
+      {
+        // Keyed on the total the fee should reach, so a redelivered event asks
+        // for the same top-up once and a genuinely larger refund later asks for
+        // a new one.
+        idempotencyKey: `booking-fee-refund:${booking.id}:${targetCents}`,
+      },
+    );
+    return targetCents;
+  } catch (err) {
+    console.error(
+      `[booking] ${bookingRef(booking.id)}: refunded ${booking.refundedAmountCents} to the ` +
+        `guest but couldn't return ${targetCents} of commission on ${feeId} — needs a human`,
+      err,
+    );
+    return booking.refundedFeeCents;
   }
 }

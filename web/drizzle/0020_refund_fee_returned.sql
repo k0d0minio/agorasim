@@ -1,0 +1,22 @@
+-- ---------------------------------------------------------------------------
+-- Commission comes back with the money: how much of the application fee has
+-- been returned on a refunded booking.
+--
+-- `0019_commission_audit` recorded what the platform *took*; the agreement (§6)
+-- also says a refund returns commission "in proportion", and nothing recorded
+-- what went back. Refund half a €340 tour whose fee was €13.60 and €6.80 of
+-- commission is owed back — a number that until now existed only inside Stripe,
+-- which makes "what did we actually keep this month?" a dashboard exercise.
+--
+-- Cumulative and Stripe's own figure: the application fee object's
+-- `amount_refunded`, read after the fee refund lands, so this column and the
+-- dashboard cannot drift. `0` defaults are true rather than unknown — a booking
+-- with no fee has no fee to return, and one refunded before today had none
+-- returned by anything that could have written here. So no backfill.
+--
+-- The single writer is `lib/booking-refund.ts`, reconciling from the
+-- `charge.refunded` webhook, which fires for a refund issued in the Stripe
+-- dashboard and for one the Sales board issued alike — so both paths land here
+-- through the same code and cannot disagree.
+-- ---------------------------------------------------------------------------
+ALTER TABLE "bookings" ADD COLUMN "refunded_fee_cents" integer DEFAULT 0 NOT NULL;
