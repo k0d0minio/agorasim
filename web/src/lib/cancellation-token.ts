@@ -150,3 +150,20 @@ export async function cancellationTokenMatches(
   if (!looksLikeCancellationToken(candidate)) return false;
   return secretsMatch(await cancellationTokenDigest(candidate), digest);
 }
+
+/**
+ * Where the emailed link points: `/pt/reserva/cancelar/<token>`.
+ *
+ * Here rather than in `lib/routes.ts` for the reason the confirmation page is
+ * absent from it too — this is a transactional page reached once, from a link
+ * in somebody's inbox, and it has no place in the nav, the sitemap or the
+ * hreflang set. What it does need is for the mail that mints the link and the
+ * route that reads it to agree on one string, which is what this function is.
+ *
+ * The token goes in the path rather than a query string on purpose: query
+ * strings are the part of a URL that analytics, referrer headers and "share
+ * this page" buttons copy around most freely, and this one is a credential.
+ */
+export function cancellationPath(locale: string, token: string): string {
+  return `/${locale}/reserva/cancelar/${token}`;
+}

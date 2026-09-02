@@ -20,8 +20,10 @@
  * **Every booking is born with a credential.** The row carries a hashed
  * cancellation token from the insert (`lib/cancellation-token.ts`), because the
  * table holds no guest identity to authenticate against — the token in the
- * emailed link is the only thing that will prove a booking is somebody's. There
- * is no route reading it yet.
+ * emailed link is the only thing that proves a booking is somebody's. The
+ * plaintext the guest actually receives is minted in {@link confirmPaidBooking},
+ * in the same breath as the mail that carries it, and read back by
+ * `app/[locale]/reserva/cancelar/[token]`.
  *
  * **The guest is a lead from the first click.** The `tour_requests` row is
  * written up front, not on payment: an abandoned checkout is a person who
@@ -53,6 +55,7 @@ import type { Experience } from "@/content/experiences";
 import { formatDay, type DateKey } from "@/lib/availability";
 import { bookingRef, holdExpiryFrom } from "@/lib/bookings";
 import {
+  cancellationPath,
   isCancellationTokenConfigured,
   issueCancellationToken,
 } from "@/lib/cancellation-token";
@@ -353,12 +356,40 @@ export async function confirmPaidBooking(options: {
     return { status: "not-payable", booking: existing };
   }
 
+  /**
+   * The cancel link's credential, minted *here* rather than at checkout.
+   *
+   * The digest written when the row was inserted has no plaintext anywhere —
+   * `startBookingCheckout` drops it deliberately, because the confirmation
+   * email is composed in a different request and a hash cannot be un-hashed.
+   * So the link the guest actually receives is issued in the same breath as the
+   * mail that carries it, and the digest below replaces the placeholder. The
+   * booking is never tokenless in between: the old digest stays valid until the
+   * new one lands in the same UPDATE that confirms the booking.
+   *
+   * Only the winner of the guard below writes its digest, and only the winner
+   * sends the mail — so the link a guest receives and the digest on their row
+   * are always the same pair. The loser of the race (or a webhook retry) mints
+   * a token, writes nothing, and drops it: a booking already confirmed never
+   * has its credential rotated out from under a link sitting in somebody's
+   * inbox.
+   */
+  const issued = isCancellationTokenConfigured()
+    ? await issueCancellationToken()
+    : null;
+  if (!issued) {
+    console.error(
+      `[booking] BOOKING_TOKEN_SECRET is not set — ${bookingRef(existing.id)} gets no cancel link`,
+    );
+  }
+
   const [confirmed] = await db
     .update(bookings)
     .set({
       status: "confirmed",
       confirmedAt: now,
       stripePaymentIntentId: paymentIntentId ?? existing.stripePaymentIntentId,
+      ...(issued ? { cancellationTokenHash: issued.digest } : {}),
       // Persisted, not just used for the mail: the Sales board, the admin's
       // "write to this guest" templates and this page all have to agree about
       // which language this person reads.
@@ -407,7 +438,7 @@ export async function confirmPaidBooking(options: {
     ipAddress: null,
   });
 
-  await sendConfirmationEmails(confirmed, lead, catalogue);
+  await sendConfirmationEmails(confirmed, lead, catalogue, issued?.token ?? null);
 
   return { status: "confirmed", booking: confirmed, alreadyConfirmed: false };
 }
@@ -417,6 +448,16 @@ async function sendConfirmationEmails(
   booking: Booking,
   lead: typeof tourRequests.$inferSelect | undefined,
   catalogue: Map<string, Experience>,
+  /**
+   * The plaintext cancellation token, for the link in the guest's copy. `null`
+   * when none could be minted, and then the mail simply carries no link — see
+   * `BookingEmailFacts.cancelUrl`.
+   *
+   * It reaches this function as an argument and leaves it inside one URL: it is
+   * a credential, so it is never logged, never audited and never written to the
+   * row in plaintext (`lib/cancellation-token.ts`).
+   */
+  cancelToken: string | null,
 ): Promise<void> {
   if (!lead) {
     console.warn(
@@ -450,6 +491,9 @@ async function sendConfirmationEmails(
     partyLabel: partyLabel(booking, locale),
     total: formatPrice(booking.amountCents, locale, booking.currency),
     adminUrl: `${siteUrl()}/admin/sales/${lead.id}`,
+    cancelUrl: cancelToken
+      ? `${siteUrl()}${cancellationPath(locale, cancelToken)}`
+      : null,
   };
 
   const team = teamRecipients();
