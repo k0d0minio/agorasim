@@ -25,6 +25,14 @@
  * in the same breath as the mail that carries it, and read back by
  * `app/[locale]/reserva/cancelar/[token]`.
  *
+ * **The charge belongs to the client, not to the platform.** When
+ * `STRIPE_CONNECTED_ACCOUNT_ID` is set the session is created *on* that account
+ * — a Stripe direct charge — so the client is the merchant of record the
+ * agreement says they are, the guest's card statement reads Agorasim, and the
+ * platform's commission will later ride along as an application fee. With it
+ * unset the session is a plain platform charge, which is every booking taken so
+ * far and remains a supported state (see `lib/stripe.ts`).
+ *
  * **The guest is a lead from the first click.** The `tour_requests` row is
  * written up front, not on payment: an abandoned checkout is a person who
  * wanted this tour on this day and got as far as their card, which is the best
@@ -71,7 +79,7 @@ import {
 import { isEmailConfigured, sendEmail, teamRecipients } from "@/lib/email";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { siteUrl } from "@/lib/site-origin";
-import { stripe } from "@/lib/stripe";
+import { onConnectedAccount, stripe } from "@/lib/stripe";
 
 /**
  * Start a checkout: the lead, the hold, and the Stripe session.
@@ -215,56 +223,64 @@ export async function startBookingCheckout(options: {
   };
 
   try {
-    const session = await stripe().checkout.sessions.create({
-      mode: "payment",
-      // Payment methods come from the Stripe dashboard rather than being listed
-      // here, so enabling MB WAY or Multibanco — which Portuguese guests will
-      // expect — is a switch the team can flip without a deploy.
-      line_items: lines.map((line) => ({
-        quantity: line.quantity,
-        price_data: {
-          currency: BOOKING_CURRENCY,
-          unit_amount: line.unitCents,
-          product_data: {
-            name: lineName(line),
-            description:
-              line.unit === "child"
-                ? undefined
-                : t(byslug.get(line.slug)!.tagline, locale) || undefined,
+    const session = await stripe().checkout.sessions.create(
+      {
+        mode: "payment",
+        // Payment methods come from the Stripe dashboard rather than being listed
+        // here, so enabling MB WAY or Multibanco — which Portuguese guests will
+        // expect — is a switch the team can flip without a deploy.
+        line_items: lines.map((line) => ({
+          quantity: line.quantity,
+          price_data: {
+            currency: BOOKING_CURRENCY,
+            unit_amount: line.unitCents,
+            product_data: {
+              name: lineName(line),
+              description:
+                line.unit === "child"
+                  ? undefined
+                  : t(byslug.get(line.slug)!.tagline, locale) || undefined,
+            },
           },
+        })),
+        customer_email: guest.email,
+        client_reference_id: booking.id,
+        // On the session and on the payment intent: the first is what the webhook
+        // reads, the second is what a refund in the Stripe dashboard shows the
+        // person issuing it.
+        metadata: {
+          bookingId: booking.id,
+          date,
+          slot,
+          mode,
+          partySize: String(partySize),
+          vehicleClass,
         },
-      })),
-      customer_email: guest.email,
-      client_reference_id: booking.id,
-      // On the session and on the payment intent: the first is what the webhook
-      // reads, the second is what a refund in the Stripe dashboard shows the
-      // person issuing it.
-      metadata: {
-        bookingId: booking.id,
-        date,
-        slot,
-        mode,
-        partySize: String(partySize),
-        vehicleClass,
+        payment_intent_data: {
+          metadata: { bookingId: booking.id, date, ref: bookingRef(booking.id) },
+        },
+        // The same instant the hold lapses, so the two cannot disagree about
+        // whether paying is still possible.
+        expires_at: Math.floor(holdExpiresAt.getTime() / 1000),
+        locale: locale === "pt" ? "pt" : "en",
+        success_url: `${base}/${locale}/reservar/confirmacao?session_id={CHECKOUT_SESSION_ID}`,
+        // Back to the form, not to an error: a guest who changed their mind about
+        // the card has not changed their mind about the tour.
+        //
+        // The flag is what tells the form this is a return rather than a fresh
+        // visit, so it puts their basket back from the draft their own browser
+        // kept (`lib/checkout-draft.ts`). Deliberately the *only* thing on this
+        // URL: a `cancel_url` carrying their name, email and party would put all
+        // of it into browser history, proxy logs and the next page's referrer.
+        cancel_url: `${base}/${locale}/reservar?${CANCEL_RETURN_PARAM}=${CANCEL_RETURN_VALUE}`,
       },
-      payment_intent_data: {
-        metadata: { bookingId: booking.id, date, ref: bookingRef(booking.id) },
-      },
-      // The same instant the hold lapses, so the two cannot disagree about
-      // whether paying is still possible.
-      expires_at: Math.floor(holdExpiresAt.getTime() / 1000),
-      locale: locale === "pt" ? "pt" : "en",
-      success_url: `${base}/${locale}/reservar/confirmacao?session_id={CHECKOUT_SESSION_ID}`,
-      // Back to the form, not to an error: a guest who changed their mind about
-      // the card has not changed their mind about the tour.
-      //
-      // The flag is what tells the form this is a return rather than a fresh
-      // visit, so it puts their basket back from the draft their own browser
-      // kept (`lib/checkout-draft.ts`). Deliberately the *only* thing on this
-      // URL: a `cancel_url` carrying their name, email and party would put all
-      // of it into browser history, proxy logs and the next page's referrer.
-      cancel_url: `${base}/${locale}/reservar?${CANCEL_RETURN_PARAM}=${CANCEL_RETURN_VALUE}`,
-    });
+      // Direct charge: with the connected account configured this session,
+      // its payment intent and its charge are all created on the client's
+      // account, and the platform never becomes the merchant of record.
+      // Unconfigured, this is `undefined` and the call is the platform-only
+      // one it has always been.
+      onConnectedAccount(),
+    );
 
     if (!session.url) throw new Error("Stripe returned a session with no URL");
 

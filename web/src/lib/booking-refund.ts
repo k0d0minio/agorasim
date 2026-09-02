@@ -32,14 +32,14 @@
  * moment it lands.
  *
  * **The application fee comes back in proportion.** Nothing takes one yet
- * (Connect is `commission-engine/connect-scaffolding`), so the charge is
- * inspected rather than assumed: when it carries an application fee the refund
- * asks Stripe to return it, and Stripe does the proportional arithmetic for a
+ * (`commission-engine/tour-application-fees`), so the charge is inspected
+ * rather than assumed: when it carries an application fee the refund asks
+ * Stripe to return it, and Stripe does the proportional arithmetic for a
  * partial refund. When it does not — every booking today — the flag is left
  * off, because sending it for a charge that never had a fee is an error rather
- * than a no-op. Reversing a Connect *transfer* is deliberately absent: nothing
- * in this codebase creates one, and which shape of Connect charge to reverse is
- * that epic's decision to make.
+ * than a no-op. Reversing a Connect *transfer* stays absent on purpose: the
+ * scaffolding chose the direct-charge shape (`lib/stripe.ts`), which creates no
+ * transfer to reverse.
  *
  * **The lead is left where it is.** A cancelled booking does not move its
  * `tour_requests` row out of "Reservado": the team decides what a cancellation
@@ -61,7 +61,7 @@ import { listCatalogue } from "@/lib/experience-catalogue";
 import { bookingEmails } from "@/content/emails";
 import { t } from "@/i18n/config";
 import { formatPrice } from "@/lib/money";
-import { isStripeConfigured, stripe } from "@/lib/stripe";
+import { isStripeConfigured, onOwningAccount, stripe } from "@/lib/stripe";
 
 /**
  * What is still returnable on a booking: what was paid, less what has already
@@ -255,33 +255,42 @@ async function issueRefund(
   const client = stripe();
   const paymentIntentId = booking.stripePaymentIntentId!;
 
-  const intent = await client.paymentIntents.retrieve(paymentIntentId, {
-    expand: ["latest_charge"],
-  });
-  const charge =
-    intent.latest_charge && typeof intent.latest_charge !== "string"
-      ? intent.latest_charge
-      : null;
-  const hasApplicationFee = Boolean(charge?.application_fee_amount);
+  // Both calls go to whichever account took the money — the client's for a
+  // booking paid under Connect, the platform's for one paid before it. Wrapping
+  // the pair keeps them on the same account: the retry only happens when the
+  // intent was not found, so no refund exists to be issued twice.
+  return onOwningAccount(async (account) => {
+    const intent = await client.paymentIntents.retrieve(
+      paymentIntentId,
+      { expand: ["latest_charge"] },
+      account,
+    );
+    const charge =
+      intent.latest_charge && typeof intent.latest_charge !== "string"
+        ? intent.latest_charge
+        : null;
+    const hasApplicationFee = Boolean(charge?.application_fee_amount);
 
-  return client.refunds.create(
-    {
-      payment_intent: paymentIntentId,
-      amount: amountCents,
-      reason: "requested_by_customer",
-      // Stripe returns the fee in proportion to the amount refunded, which is
-      // what the commission agreement requires ("refunds return commission in
-      // proportion") — so the arithmetic is Stripe's, not ours.
-      ...(hasApplicationFee ? { refund_application_fee: true } : {}),
-      metadata: { bookingId: booking.id, ref: bookingRef(booking.id), via },
-    },
-    {
-      // Keyed on what has already gone back as well as what is going back now,
-      // so a retried submission collapses into one refund while a *second*,
-      // deliberate partial refund of the same amount is a new request.
-      idempotencyKey: `booking-refund:${booking.id}:${booking.refundedAmountCents}:${amountCents}`,
-    },
-  );
+    return client.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+        amount: amountCents,
+        reason: "requested_by_customer",
+        // Stripe returns the fee in proportion to the amount refunded, which is
+        // what the commission agreement requires ("refunds return commission in
+        // proportion") — so the arithmetic is Stripe's, not ours.
+        ...(hasApplicationFee ? { refund_application_fee: true } : {}),
+        metadata: { bookingId: booking.id, ref: bookingRef(booking.id), via },
+      },
+      {
+        ...account,
+        // Keyed on what has already gone back as well as what is going back now,
+        // so a retried submission collapses into one refund while a *second*,
+        // deliberate partial refund of the same amount is a new request.
+        idempotencyKey: `booking-refund:${booking.id}:${booking.refundedAmountCents}:${amountCents}`,
+      },
+    );
+  });
 }
 
 /**

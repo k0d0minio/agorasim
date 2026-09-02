@@ -13,7 +13,7 @@ import { bookingRef } from "@/lib/bookings";
 import { listCatalogue } from "@/lib/experience-catalogue";
 import { formatPrice } from "@/lib/money";
 import { href } from "@/lib/routes";
-import { isStripeConfigured, stripe } from "@/lib/stripe";
+import { isStripeConfigured, onOwningAccount, stripe } from "@/lib/stripe";
 import { Section } from "@/components/section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -143,7 +143,13 @@ async function resolve(sessionId: string, locale: Locale): Promise<ResolvedBooki
   if (!isStripeConfigured()) return { kind: "unknown" };
 
   try {
-    const session = await stripe().checkout.sessions.retrieve(sessionId);
+    // `onOwningAccount` rather than a bare retrieve: with Connect configured the
+    // session lives on the client's account, and a booking taken before that
+    // switch still lives on the platform's. Both have to resolve, or a guest who
+    // has paid is told their booking is pending.
+    const session = await onOwningAccount((account) =>
+      stripe().checkout.sessions.retrieve(sessionId, undefined, account),
+    );
     if (session.payment_status !== "paid") return { kind: "pending" };
 
     const catalogue = await listCatalogue();

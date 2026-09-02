@@ -2,7 +2,12 @@ import type Stripe from "stripe";
 
 import { closeUnpaidBooking, confirmPaidBooking } from "@/lib/booking-checkout";
 import { listCatalogue } from "@/lib/experience-catalogue";
-import { isStripeConfigured, isWebhookConfigured, stripe } from "@/lib/stripe";
+import {
+  connectedAccountId,
+  isStripeConfigured,
+  isWebhookConfigured,
+  stripe,
+} from "@/lib/stripe";
 
 /**
  * Stripe's webhook — the moment a booking becomes real.
@@ -12,7 +17,7 @@ import { isStripeConfigured, isWebhookConfigured, stripe } from "@/lib/stripe";
  * and for a delayed method like Multibanco it happens days before the money
  * arrives. What confirms a booking is Stripe telling the server, signed.
  *
- * Four properties this route has to have, and how each is bought:
+ * Five properties this route has to have, and how each is bought:
  *
  * 1. **Signature-verified.** The raw body is read as text and handed to
  *    `constructEventAsync` with the endpoint secret. Parsing the JSON first
@@ -27,6 +32,18 @@ import { isStripeConfigured, isWebhookConfigured, stripe } from "@/lib/stripe";
  * 4. **Honest about failure.** A 500 asks Stripe to retry, which is right for a
  *    transient database error and wrong for an event we simply do not handle —
  *    those get a 200 and a shrug, or Stripe retries them for three days.
+ * 5. **Account-aware.** Once checkouts run on the client's connected account
+ *    (`lib/stripe.ts`), their events reach the platform through a Connect
+ *    endpoint and carry `event.account`; the platform's own events carry
+ *    nothing. Both are legitimate — bookings taken before Connect was
+ *    configured still live on the platform — so the check is not that an
+ *    account is present but that it is *ours*.
+ *
+ * One endpoint serves both, and `STRIPE_WEBHOOK_SECRET` is whichever endpoint's
+ * secret is in use: the Connect endpoint's once the connected account is live,
+ * the platform endpoint's before that. Nothing here has to change to switch,
+ * and no event this route acts on is read from anywhere but the signed payload
+ * — the account only decides whether to act at all.
  */
 export const dynamic = "force-dynamic";
 
@@ -74,6 +91,26 @@ export async function POST(request: Request): Promise<Response> {
   const session = event.data.object as Stripe.Checkout.Session;
 
   try {
+    /**
+     * Whose booking this is. An event from any account but our own connected
+     * one is somebody else's payment arriving on a mis-wired endpoint: it is
+     * acknowledged so Stripe stops retrying it, and dropped without touching
+     * the database. Confirming a booking against a session id this deployment
+     * never issued is precisely the hole the signature check exists to close,
+     * and a shared platform account would otherwise reopen it.
+     *
+     * `null` means the platform's own account, which is where every booking
+     * taken so far lives — so it is always accepted.
+     */
+    const eventAccount = event.account ?? null;
+    if (eventAccount && eventAccount !== connectedAccountId()) {
+      console.error(
+        `[stripe] ${event.type} for ${session.id} came from ${eventAccount}, ` +
+          "which is not this deployment's connected account — ignoring",
+      );
+      return Response.json({ received: true, ignored: "foreign account" });
+    }
+
     if (PAID_EVENTS.has(event.type)) {
       // `unpaid` happens on `completed` for delayed payment methods — the guest
       // has a reference to pay against, and nothing is confirmed until the
