@@ -4,9 +4,11 @@ import {
   guestCancellationEmail,
   guestConfirmationEmail,
   partyLabel,
+  teamCancellationEmail,
   teamNotificationEmail,
   type BookingCancellationFacts,
   type BookingEmailFacts,
+  type TeamCancellationFacts,
 } from "@/lib/booking-emails";
 import { emailPalette } from "@/lib/email-layout";
 import { site } from "@/content/site";
@@ -43,6 +45,7 @@ function facts(overrides: Partial<BookingEmailFacts> = {}): BookingEmailFacts {
     partyLabel: "2 adultos",
     total: "€340",
     adminUrl: "https://agorasim.pt/admin/sales/abc",
+    cancelUrl: "https://agorasim.pt/pt/reserva/cancelar/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     ...overrides,
   };
 }
@@ -341,6 +344,153 @@ describe("guestCancellationEmail", () => {
 
   it("replies to a person, not to the sending domain", () => {
     expect(guestCancellationEmail(cancelled()).replyTo).toBe(site.email);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The cancel link the confirmation carries
+// ---------------------------------------------------------------------------
+
+describe("guestConfirmationEmail — the cancel link", () => {
+  const CANCEL_URL =
+    "https://agorasim.pt/pt/reserva/cancelar/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+  it("carries the link in both parts, as a button and as a bare URL", () => {
+    const message = guestConfirmationEmail(facts({ cancelUrl: CANCEL_URL }));
+
+    expect(message.html).toContain(`href="${CANCEL_URL}"`);
+    // On its own line in the text part: a sentence wrapped round a URL is a URL
+    // that breaks across lines in somebody's mail client.
+    expect(message.text).toContain(CANCEL_URL);
+    expect(message.text).toMatch(new RegExp(`\\n[^\\n]*${CANCEL_URL}`));
+  });
+
+  it("states the window beside the link, in the guest's language", () => {
+    expect(guestConfirmationEmail(facts({ cancelUrl: CANCEL_URL })).html).toContain(
+      "até 48 horas antes da partida",
+    );
+    expect(
+      guestConfirmationEmail(facts({ cancelUrl: CANCEL_URL, locale: "en" })).html,
+    ).toContain("up to 48 hours before departure");
+  });
+
+  /**
+   * The whole block goes, not just the anchor. A confirmation that promises
+   * free cancellation and then shows a dead button is worse than one that
+   * leaves the promise to the phone numbers underneath it.
+   */
+  it("omits the block entirely when the booking has no token", () => {
+    const message = guestConfirmationEmail(facts({ cancelUrl: null }));
+
+    expect(message.html).not.toContain("/reserva/cancelar/");
+    expect(message.html).not.toContain("Cancelar a reserva");
+    expect(message.text).not.toContain("Cancelar a reserva");
+    // And the mail still says what it always said about cancelling.
+    expect(message.text).toContain("Cancelamento gratuito até 48 horas");
+  });
+
+  it("puts the link below the phone numbers, not above them", () => {
+    // Ordering is the cheapest way to say "ring us first" — see the note in
+    // `lib/booking-emails.ts`.
+    const html = guestConfirmationEmail(facts({ cancelUrl: CANCEL_URL })).html!;
+
+    expect(html.indexOf(site.contacts[0].phoneDisplay)).toBeLessThan(
+      html.indexOf(CANCEL_URL),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The team's copy when a guest cancels themselves
+// ---------------------------------------------------------------------------
+
+function guestCancelled(
+  overrides: Partial<TeamCancellationFacts> = {},
+): TeamCancellationFacts {
+  return {
+    ref: "BK-A1B2C3",
+    guestName: "Sofia Almeida",
+    guestEmail: "sofia@example.com",
+    guestPhone: "+351912345678",
+    locale: "pt",
+    date: "sábado, 15 de agosto de 2026",
+    experience: "Rural Saloia — experiência privada",
+    departure: "Manhã · 10h00",
+    partyLabel: "2 adultos",
+    total: "€340",
+    refund: "€340",
+    refundFailed: false,
+    cancelledAt: "13/08/2026, 23:04",
+    adminUrl: "https://agorasim.pt/admin/sales/abc",
+    ...overrides,
+  };
+}
+
+describe("teamCancellationEmail", () => {
+  const recipients = ["diogo@agorasim.pt", "rita@agorasim.pt"];
+
+  it("substitutes every placeholder", () => {
+    const message = teamCancellationEmail(guestCancelled(), recipients);
+    expect(message.subject).not.toMatch(/\{/);
+    expect(message.text).not.toMatch(/\{/);
+    expect(message.html).not.toMatch(/\{(name|ref|experience|date|refund|adminUrl)\}/);
+  });
+
+  it("says which booking, when, and how much went back", () => {
+    const message = teamCancellationEmail(guestCancelled(), recipients);
+
+    expect(message.to).toEqual(recipients);
+    for (const part of [message.text, message.html!]) {
+      expect(part).toContain("BK-A1B2C3");
+      expect(part).toContain("sábado, 15 de agosto de 2026");
+      expect(part).toContain("13/08/2026, 23:04");
+      expect(part).toContain("€340");
+    }
+  });
+
+  it("is Portuguese whatever language the guest booked in", () => {
+    const message = teamCancellationEmail(guestCancelled({ locale: "en" }), recipients);
+
+    expect(message.html).toContain('lang="pt"');
+    expect(message.subject).toContain("Reserva cancelada pelo cliente");
+    // The guest's language is reported, not obeyed.
+    expect(message.html).toContain("EN");
+  });
+
+  it("never wears the new-booking banner", () => {
+    const message = teamCancellationEmail(guestCancelled(), recipients);
+
+    expect(message.html).not.toContain("Nova reserva paga");
+    expect(message.html).toContain(`bgcolor="${emailPalette.textMuted}"`);
+  });
+
+  it("raises the outstanding refund as a job, and only when there is one", () => {
+    const failed = teamCancellationEmail(
+      guestCancelled({ refund: null, refundFailed: true }),
+      recipients,
+    );
+    for (const part of [failed.text, failed.html!]) {
+      expect(part).toContain("O reembolso não passou");
+    }
+
+    const fine = teamCancellationEmail(guestCancelled(), recipients);
+    expect(fine.text).not.toContain("O reembolso não passou");
+    expect(fine.html).not.toContain("O reembolso não passou");
+  });
+
+  it("does not offer to dial a number that is not there", () => {
+    const message = teamCancellationEmail(
+      guestCancelled({ guestPhone: null }),
+      recipients,
+    );
+
+    expect(message.html).not.toContain("tel:—");
+  });
+
+  it("replies to the guest — the next move is writing to them", () => {
+    expect(teamCancellationEmail(guestCancelled(), recipients).replyTo).toBe(
+      "sofia@example.com",
+    );
   });
 });
 

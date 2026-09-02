@@ -111,6 +111,34 @@ export const TOUR_REQUEST_RATE_LIMIT: RateLimitRule = {
   windowSeconds: 10 * 60,
 };
 
+/**
+ * The guest's cancel link, on the way in: 20 lookups per IP per 10 minutes.
+ *
+ * This is the page load, not the cancellation. It is looser than the forms
+ * above because a genuine guest reloads a link their mail client may have
+ * prefetched, opens it on a phone and again on a laptop, and comes back to read
+ * the deadline — while what it is defending against is somebody walking the
+ * token space, and 32 bytes of entropy makes that hopeless long before a rate
+ * limit does (`lib/cancellation-token.ts`). The limit is here so a walk costs a
+ * database round-trip per attempt instead of none.
+ */
+export const CANCELLATION_LOOKUP_RATE_LIMIT: RateLimitRule = {
+  limit: 20,
+  windowSeconds: 10 * 60,
+};
+
+/**
+ * Pressing the button: 5 cancellations per IP per 10 minutes.
+ *
+ * Tight, because on the other side of it is a Stripe refund. Nobody legitimate
+ * cancels five bookings from one address in ten minutes, and the confirmation
+ * step means a real guest spends exactly one of these.
+ */
+export const CANCELLATION_RATE_LIMIT: RateLimitRule = {
+  limit: 5,
+  windowSeconds: 10 * 60,
+};
+
 /** Record a hit against the shared store. */
 export function rateLimit(
   key: string,

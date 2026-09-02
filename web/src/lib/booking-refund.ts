@@ -3,9 +3,9 @@
  * the guest told.
  *
  * **Why this is a module and not the body of an admin action.** Two paths end a
- * paid booking — the Sales board (a phone call to Rita) and, once it ships, the
- * guest's own cancel link — and they differ in exactly one fact: who pressed
- * the button. Everything else has to be identical, because the failure mode of
+ * paid booking — the Sales board (a phone call to Rita) and the guest's own
+ * cancel link (`lib/booking-cancellation.ts`) — and they differ in exactly one
+ * fact: who pressed the button. Everything else has to be identical, because the failure mode of
  * two implementations is that one of them forgets the email, or the seat, or
  * the audit entry, and nobody notices until a guest is standing at a meeting
  * point. So the decision (how much, and whether the caller may) belongs to the
@@ -67,8 +67,8 @@ import { isStripeConfigured, stripe } from "@/lib/stripe";
  * What is still returnable on a booking: what was paid, less what has already
  * gone back.
  *
- * Pure, and the ceiling every caller validates against — the admin form today,
- * the guest route after it. A booking refunded in part once can be refunded
+ * Pure, and the ceiling every caller validates against — the admin form, and
+ * the guest route, which asks for all of it. A booking refunded in part once can be refunded
  * again up to this and never past it. Stripe would refuse anyway; refusing here
  * means the operator reads a sentence in Portuguese instead of an error code.
  */
@@ -288,8 +288,10 @@ async function issueRefund(
  * Tell the guest. Best-effort and never throws — see the function note above.
  *
  * The team gets nothing here on purpose: from the Sales board they are the ones
- * who just did this, and the guest's own cancel link (which does owe them a
- * notification) is a route that does not exist yet.
+ * who just did this. The guest's own cancel link does owe them a notification,
+ * and sends its own — `teamCancellationEmail`, from
+ * `lib/booking-cancellation.ts`, which is the only path that ends a booking
+ * with nobody at the business in the loop.
  */
 async function sendCancellationEmail(
   booking: Booking,

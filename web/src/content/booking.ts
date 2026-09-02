@@ -267,4 +267,119 @@ export const bookingContent = {
     backHome: { pt: "Voltar ao início", en: "Back to the homepage" } as Localized,
     contactUs: { pt: "Falar connosco", en: "Get in touch" } as Localized,
   },
+
+  /**
+   * The guest's own cancel link — `/[locale]/reserva/cancelar/<token>`.
+   *
+   * Every string a guest can be shown on that page lives here, including the
+   * ones for the paths where nothing happens: an expired link, a booking inside
+   * the 48 hours, a refund Stripe refused. A page reached from an email, by
+   * somebody who may be about to lose a day out, is the last place to fall back
+   * on an untranslated default.
+   *
+   * **The window is stated, never implied.** Both the open and the closed panel
+   * name the deadline as a date and a time, because "48 hours" is a rule and
+   * "quinta-feira, 13 de agosto, 10h00" is an answer.
+   */
+  cancellation: {
+    title: { pt: "Cancelar a sua reserva", en: "Cancel your booking" } as Localized,
+    lead: {
+      pt: "Confirme os dados abaixo. O cancelamento é gratuito e devolvemos o valor total.",
+      en: "Check the details below. Cancelling is free and we return the full amount.",
+    } as Localized,
+    detailsHeading: { pt: "A sua reserva", en: "Your booking" } as Localized,
+
+    /** Names the boundary rather than restating the rule. */
+    deadlineNote: {
+      pt: "Pode cancelar sem custos até {deadline}.",
+      en: "You can cancel free of charge until {deadline}.",
+    } as Localized,
+    refundNote: {
+      pt: "Devolvemos {amount} ao mesmo cartão ou método com que pagou. O banco costuma demorar 5 a 10 dias úteis a mostrar o valor.",
+      en: "We return {amount} to the same card or method you paid with. Banks usually take 5–10 working days to show it.",
+    } as Localized,
+
+    /**
+     * Step one. Destructive and deliberately not the primary button — the
+     * confirmation panel below is what actually cancels.
+     */
+    start: { pt: "Cancelar reserva", en: "Cancel booking" } as Localized,
+
+    /** Step two: the confirmation. "Manter" is the default, as HIG asks. */
+    confirmTitle: {
+      pt: "Cancelar mesmo esta reserva?",
+      en: "Cancel this booking for good?",
+    } as Localized,
+    confirmBody: {
+      pt: "O lugar volta a ficar disponível e não é possível desfazer. Se só quer mudar de dia, fale connosco — remarcamos sem custos.",
+      en: "The seat goes back on sale and this can't be undone. If you only want to move day, talk to us — we'll rebook you at no cost.",
+    } as Localized,
+    keep: { pt: "Manter reserva", en: "Keep booking" } as Localized,
+    confirm: { pt: "Sim, cancelar", en: "Yes, cancel" } as Localized,
+    cancelling: { pt: "A cancelar…", en: "Cancelling…" } as Localized,
+
+    /** Done. */
+    doneTitle: { pt: "Reserva cancelada", en: "Booking cancelled" } as Localized,
+    doneLead: {
+      pt: "Está tratado. Enviámos a confirmação para o seu email.",
+      en: "That's done. We've emailed you the confirmation.",
+    } as Localized,
+    doneRefund: {
+      pt: "Reembolso de {amount} enviado para o método com que pagou.",
+      en: "A refund of {amount} is on its way back to the method you paid with.",
+    } as Localized,
+
+    /**
+     * Inside 48 hours. Not a refusal — a redirection to the two people who can
+     * decide: the team cancels for weather and for goodwill regardless of the
+     * clock (see `app/admin/sales/actions.ts`), and this is how a guest reaches
+     * them.
+     */
+    tooLateTitle: {
+      pt: "Já estamos a menos de 48 horas da partida",
+      en: "Your departure is less than 48 hours away",
+    } as Localized,
+    tooLateBody: {
+      pt: "O cancelamento gratuito online terminou em {deadline}, por isso esta página já não pode tratar disso. Ligue-nos ou mande mensagem — falamos consigo e vemos o que é possível.",
+      en: "Free online cancellation closed at {deadline}, so this page can no longer do it. Call or message us — we'll talk it through and see what we can do.",
+    } as Localized,
+    contactHeading: { pt: "Fale connosco", en: "Talk to us" } as Localized,
+    whatsApp: { pt: "WhatsApp", en: "WhatsApp" } as Localized,
+
+    /**
+     * One neutral page for every link that does not resolve: unknown, spent,
+     * revoked, or pointing at a booking that is already over. Says nothing
+     * about which, because saying which would turn this page into an oracle for
+     * whoever is guessing tokens.
+     */
+    unknownTitle: {
+      pt: "Este link já não está ativo",
+      en: "This link is no longer active",
+    } as Localized,
+    unknownBody: {
+      pt: "Pode já ter sido usado, ou a reserva pode ter sido tratada connosco. Se precisar de alguma coisa, fale connosco e resolvemos.",
+      en: "It may already have been used, or the booking may have been handled with us. If you need anything, get in touch and we'll sort it out.",
+    } as Localized,
+
+    errors: {
+      rateLimited: {
+        pt: "Recebemos vários pedidos seus. Aguarde alguns minutos antes de tentar novamente.",
+        en: "We've had several attempts from you. Please wait a few minutes before trying again.",
+      } as Localized,
+      /**
+       * The booking is cancelled and the seat is free; only the money is
+       * outstanding. Deliberately precise — "something went wrong" would have a
+       * guest press cancel again on a booking that no longer exists, and wonder
+       * where their money went.
+       */
+      refundFailed: {
+        pt: "A reserva foi cancelada, mas o reembolso não passou à primeira. Já estamos a tratar disso e entramos em contacto — se preferir, ligue-nos.",
+        en: "Your booking is cancelled, but the refund didn't go through first time. We're on it and will be in touch — or call us if you'd rather.",
+      } as Localized,
+      generic: {
+        pt: "Não foi possível cancelar agora. Tente novamente ou fale connosco.",
+        en: "We couldn't cancel that just now. Please try again, or get in touch.",
+      } as Localized,
+    },
+  },
 } as const;
