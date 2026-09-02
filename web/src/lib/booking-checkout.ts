@@ -28,10 +28,17 @@
  * **The charge belongs to the client, not to the platform.** When
  * `STRIPE_CONNECTED_ACCOUNT_ID` is set the session is created *on* that account
  * — a Stripe direct charge — so the client is the merchant of record the
- * agreement says they are, the guest's card statement reads Agorasim, and the
- * platform's commission will later ride along as an application fee. With it
- * unset the session is a plain platform charge, which is every booking taken so
- * far and remains a supported state (see `lib/stripe.ts`).
+ * agreement says they are, and the guest's card statement reads Agorasim. With
+ * it unset the session is a plain platform charge, which is every booking taken
+ * so far and remains a supported state (see `lib/stripe.ts`).
+ *
+ * **The commission rides along on that charge.** With Connect configured the
+ * session carries an `application_fee_amount` — the agreement's 4%, floored and
+ * capped by `lib/commission.ts` — which Stripe routes to the platform the
+ * instant the payment succeeds, with no invoice and no transfer either way.
+ * What was actually taken is read back off the charge in
+ * {@link confirmPaidBooking} and written to the booking, so both sides can
+ * reconcile this table against the Stripe dashboard row by row.
  *
  * **The guest is a lead from the first click.** The `tour_requests` row is
  * written up front, not on payment: an abandoned checkout is a person who
@@ -78,8 +85,15 @@ import {
 } from "@/lib/booking-emails";
 import { isEmailConfigured, sendEmail, teamRecipients } from "@/lib/email";
 import { recordAuditOrWarn } from "@/lib/audit";
+import { commissionOn } from "@/lib/commission";
 import { siteUrl } from "@/lib/site-origin";
-import { onConnectedAccount, stripe } from "@/lib/stripe";
+import {
+  connectedAccountId,
+  isStripeConfigured,
+  onConnectedAccount,
+  onOwningAccount,
+  stripe,
+} from "@/lib/stripe";
 
 /**
  * Start a checkout: the lead, the hold, and the Stripe session.
@@ -205,6 +219,22 @@ export async function startBookingCheckout(options: {
     })
     .returning({ id: bookings.id });
 
+  /**
+   * The platform's commission on this sale, as an application fee — and only
+   * when there is a connected account for it to be split away from.
+   *
+   * A direct charge is what makes the split possible: the money is the
+   * client's, and Stripe routes the fee to the platform out of it at the moment
+   * of payment (agreement §3). Without a connected account there is no split to
+   * make — the charge is the platform's own — and Stripe rejects an
+   * `application_fee_amount` on it outright. So the field is present exactly
+   * when Connect is, which is also what keeps every booking taken so far
+   * chargeable on a deployment that has not switched yet.
+   */
+  const applicationFeeCents = connectedAccountId()
+    ? commissionOn("tour", totalCents).feeCents
+    : null;
+
   const base = siteUrl();
   const byslug = new Map<string, Experience>(
     [experience, ...addOns].map((entry) => [entry.slug, entry]),
@@ -258,6 +288,11 @@ export async function startBookingCheckout(options: {
         },
         payment_intent_data: {
           metadata: { bookingId: booking.id, date, ref: bookingRef(booking.id) },
+          // Checkout carries the fee here rather than on the session: what is
+          // being split is the payment intent this session will create.
+          ...(applicationFeeCents !== null
+            ? { application_fee_amount: applicationFeeCents }
+            : {}),
         },
         // The same instant the hold lapses, so the two cannot disagree about
         // whether paying is still possible.
@@ -399,12 +434,18 @@ export async function confirmPaidBooking(options: {
     );
   }
 
+  const commission = await readCommissionAudit(
+    paymentIntentId ?? existing.stripePaymentIntentId,
+    existing,
+  );
+
   const [confirmed] = await db
     .update(bookings)
     .set({
       status: "confirmed",
       confirmedAt: now,
       stripePaymentIntentId: paymentIntentId ?? existing.stripePaymentIntentId,
+      ...commission,
       ...(issued ? { cancellationTokenHash: issued.digest } : {}),
       // Persisted, not just used for the mail: the Sales board, the admin's
       // "write to this guest" templates and this page all have to agree about
@@ -457,6 +498,109 @@ export async function confirmPaidBooking(options: {
   await sendConfirmationEmails(confirmed, lead, catalogue, issued?.token ?? null);
 
   return { status: "confirmed", booking: confirmed, alreadyConfirmed: false };
+}
+
+/**
+ * The commission columns of a booking, as written at confirmation. Absent keys
+ * are left as they are on the row rather than nulled.
+ */
+type CommissionAudit = Partial<
+  Pick<
+    Booking,
+    | "applicationFeeCents"
+    | "commissionRateBps"
+    | "commissionBound"
+    | "stripeChargeId"
+    | "stripeConnectedAccountId"
+  >
+>;
+
+/**
+ * What the platform was actually paid on this booking, read off the charge.
+ *
+ * **Stripe's figure is the record, not ours.** The agreement's promise (§8) is
+ * that every commission is checkable in the Stripe dashboard by both sides, so
+ * the column that has to match it holds what Stripe took — not what checkout
+ * asked for. The two disagreeing is a real event worth seeing: a session paid
+ * after the price list moved under it, or a fee the dashboard adjusted. It is
+ * logged rather than corrected, because the money has already moved and the
+ * charge is the truth about where it went.
+ *
+ * The rate and the bound are still ours: they say *why* that number, and there
+ * is nothing on the Stripe object to read them from.
+ *
+ * **Never throws.** This runs between a successful payment and the row that
+ * says so; a Stripe read failing here must not cost the guest their
+ * confirmation, so it costs the audit columns instead and says so in the logs.
+ * Nothing else reads them yet — `refund-machinery` is where they start to
+ * matter — and a null is recoverable from Stripe later, while an unconfirmed
+ * paid booking is a phone call.
+ */
+async function readCommissionAudit(
+  paymentIntentId: string | null | undefined,
+  booking: Pick<Booking, "id" | "amountCents">,
+): Promise<CommissionAudit> {
+  if (!paymentIntentId || !isStripeConfigured()) return {};
+
+  try {
+    // The account comes back with the charge rather than being read from the
+    // environment: `onOwningAccount` falls back to the platform for a booking
+    // taken before Connect was configured, and the column has to say which of
+    // the two this charge actually lives on.
+    const { charge, account } = await onOwningAccount(async (options) => {
+      const intent = await stripe().paymentIntents.retrieve(
+        paymentIntentId,
+        { expand: ["latest_charge"] },
+        options,
+      );
+      return {
+        charge:
+          intent.latest_charge && typeof intent.latest_charge !== "string"
+            ? intent.latest_charge
+            : null,
+        account: options?.stripeAccount ?? null,
+      };
+    });
+
+    if (!charge) {
+      console.warn(
+        `[booking] ${bookingRef(booking.id)} was paid but ${paymentIntentId} has no charge yet`,
+      );
+      return {};
+    }
+
+    const feeCents = charge.application_fee_amount ?? null;
+    const audit: CommissionAudit = {
+      stripeChargeId: charge.id,
+      stripeConnectedAccountId: account,
+    };
+
+    // No fee is the ordinary answer on a platform-only deployment, and on every
+    // booking taken before Connect existed. The charge id is still worth having.
+    if (feeCents === null) return audit;
+
+    const expected = commissionOn("tour", booking.amountCents);
+    if (expected.feeCents !== feeCents) {
+      console.error(
+        `[booking] ${bookingRef(booking.id)}: Stripe took ${feeCents} in commission, ` +
+          `the agreement's rate on ${booking.amountCents} is ${expected.feeCents} — ` +
+          "recording what Stripe took",
+      );
+    }
+
+    return {
+      ...audit,
+      applicationFeeCents: feeCents,
+      commissionRateBps: expected.rateBps,
+      commissionBound: expected.bound,
+    };
+  } catch (err) {
+    console.error(
+      `[booking] couldn't read the commission on ${bookingRef(booking.id)} from ${paymentIntentId}`,
+      err,
+    );
+    return {};
+  }
 }
 
 /** Both confirmation emails. Never throws — see the module note. */

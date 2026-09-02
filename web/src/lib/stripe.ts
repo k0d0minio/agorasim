@@ -25,8 +25,10 @@
  *
  * {@link connectedAccountId} is the switch, and unset is today's state and a
  * supported one — the client's account does not exist yet, and until it does
- * every charge is a plain platform charge exactly as before. No fee is taken
- * either way yet; that is `commission-engine/tour-application-fees`.
+ * every charge is a plain platform charge exactly as before, with no fee taken:
+ * a charge the platform owns has nothing to split, and Stripe refuses an
+ * application fee on one. Configured, the commission rides on every checkout
+ * (`lib/commission.ts`, wired in `lib/booking-checkout.ts`).
  */
 import "server-only";
 

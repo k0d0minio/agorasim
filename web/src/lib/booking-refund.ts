@@ -31,13 +31,13 @@
  * write below *is* the seat release, and the departure is sellable again the
  * moment it lands.
  *
- * **The application fee comes back in proportion.** Nothing takes one yet
- * (`commission-engine/tour-application-fees`), so the charge is inspected
- * rather than assumed: when it carries an application fee the refund asks
- * Stripe to return it, and Stripe does the proportional arithmetic for a
- * partial refund. When it does not — every booking today — the flag is left
- * off, because sending it for a charge that never had a fee is an error rather
- * than a no-op. Reversing a Connect *transfer* stays absent on purpose: the
+ * **The application fee comes back in proportion.** The charge is inspected
+ * rather than assumed, because a fee is taken only where a connected account
+ * exists to split it from: when the charge carries one the refund asks Stripe
+ * to return it, and Stripe does the proportional arithmetic for a partial
+ * refund. When it does not — every booking taken before Connect was configured
+ * — the flag is left off, because sending it for a charge that never had a fee
+ * is an error rather than a no-op. Reversing a Connect *transfer* stays absent on purpose: the
  * scaffolding chose the direct-charge shape (`lib/stripe.ts`), which creates no
  * transfer to reverse.
  *

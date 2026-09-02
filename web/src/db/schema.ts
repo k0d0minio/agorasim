@@ -170,6 +170,17 @@ export const bookingStatusEnum = pgEnum("booking_status", [
  */
 export const cancelledViaEnum = pgEnum("cancelled_via", ["guest", "admin", "system"]);
 
+/**
+ * Which rule of the commission agreement produced the fee on a booking.
+ *
+ * §4 is a percentage between two bounds — 4%, never under €10, never over €50 —
+ * so the fee alone does not say why it is what it is: €50 is both "4% of
+ * €1,250" and "the cap on a €2,000 group". This column is that explanation,
+ * written next to the amount so a reconciliation against the Stripe dashboard
+ * never has to re-derive it. See `lib/commission.ts`, which owns the values.
+ */
+export const commissionBoundEnum = pgEnum("commission_bound", ["rate", "floor", "cap"]);
+
 /** Review lifecycle shared by every generated-content draft table. */
 export const contentStatusEnum = pgEnum("content_status", [
   "draft",
@@ -225,6 +236,7 @@ export type AvailabilitySlot = (typeof availabilitySlotEnum.enumValues)[number];
 export type AvailabilityStatus = (typeof availabilityStatusEnum.enumValues)[number];
 export type BookingStatus = (typeof bookingStatusEnum.enumValues)[number];
 export type CancelledVia = (typeof cancelledViaEnum.enumValues)[number];
+export type CommissionBound = (typeof commissionBoundEnum.enumValues)[number];
 export type ContentStatus = (typeof contentStatusEnum.enumValues)[number];
 export type SocialPlatform = (typeof socialPlatformEnum.enumValues)[number];
 export type FeatureRequestStatus = (typeof featureRequestStatusEnum.enumValues)[number];
@@ -755,6 +767,51 @@ export const bookings = pgTable("bookings", {
   stripeRefundId: text("stripe_refund_id"),
   /** When money last went back. Null until any does. */
   refundedAt: timestamp("refunded_at", { withTimezone: true }),
+
+  /**
+   * The platform's commission on this booking, in cents — the application fee
+   * Stripe actually routed out of the guest's payment.
+   *
+   * **Stripe's figure, not ours.** It is read back from the charge at
+   * confirmation rather than copied from what checkout asked for, because the
+   * agreement's promise is that both sides can check every fee against the
+   * Stripe dashboard: a column holding our intention would agree with the
+   * dashboard right up until the one time it mattered that it did not.
+   *
+   * Null is the ordinary state for most rows in this table and means "no fee
+   * was taken", not "unknown": every booking sold before Connect was configured
+   * was a plain platform charge with no application fee on it, and a deployment
+   * with no connected account still takes none.
+   */
+  applicationFeeCents: integer("application_fee_cents"),
+  /**
+   * The rate that produced it, in basis points — 400 for a tour (§4), 600 for
+   * an event (§5). Stored rather than inferred: §8 has the rates reviewed at 24
+   * months, and a booking taken under today's rate must still explain itself
+   * after they change.
+   */
+  commissionRateBps: integer("commission_rate_bps"),
+  /** Why the fee is that number: the rate, or one of §4's two bounds. */
+  commissionBound: commissionBoundEnum("commission_bound"),
+
+  /**
+   * Stripe's `ch_…` — the object the fee was actually taken out of.
+   *
+   * The payment intent above is the handle a refund is issued against; this is
+   * the one a fee is reconciled against, and they are not interchangeable in
+   * the dashboard. Recorded for every confirmed booking, fee or no fee.
+   */
+  stripeChargeId: text("stripe_charge_id"),
+  /**
+   * The connected account the charge lives on (`acct_…`), or null for a
+   * platform charge.
+   *
+   * Stripe objects are not portable between accounts, so "which account was
+   * this?" is the first question any later lookup has to answer — and the
+   * answer cannot be re-read from the environment, which is a *current*
+   * setting and says nothing about where a booking from last season was paid.
+   */
+  stripeConnectedAccountId: text("stripe_connected_account_id"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
