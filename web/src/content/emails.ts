@@ -103,6 +103,31 @@ export const bookingEmails = {
       pt: "Se precisar de alterar alguma coisa, responda a este email ou ligue-nos:",
       en: "If anything needs to change, reply to this email or call us:",
     } as Localized,
+    /**
+     * The self-serve cancel link, and the sentence that frames it.
+     *
+     * Omitted entirely — button, line and all — when the booking has no usable
+     * token (`BOOKING_TOKEN_SECRET` unset). A confirmation that promises free
+     * cancellation and then shows a dead link is worse than one that leaves the
+     * promise to the phone numbers underneath it, which is why
+     * `lib/booking-emails.ts` drops the whole block rather than linking to a
+     * page that will not know the guest.
+     *
+     * Worded as "if you need to" rather than as an invitation: it sits in a
+     * confirmation, below the part the guest is actually reading.
+     */
+    cancelLink: {
+      label: { pt: "Cancelar a reserva", en: "Cancel this booking" } as Localized,
+      note: {
+        pt: "Se precisar de cancelar, pode fazê-lo aqui até 48 horas antes da partida — sem custos e com devolução do valor total.",
+        en: "If you need to cancel, you can do it here up to 48 hours before departure — free of charge, with the full amount returned.",
+      } as Localized,
+      /** The plain-text part, where a button is a URL on its own line. */
+      textLine: {
+        pt: "Cancelar a reserva (até 48h antes): {url}",
+        en: "Cancel this booking (up to 48h before): {url}",
+      } as Localized,
+    },
     signoff: {
       pt: "Até breve,\nAgorasim",
       en: "See you soon,\nAgorasim",
@@ -228,6 +253,40 @@ export const bookingEmails = {
     },
     cta: "Ver no painel",
     /** How the same link reads in the plain text part. */
+    ctaLine: "Ver no painel: {adminUrl}",
+    footerNote: "Notificação automática do site — responda para escrever ao cliente.",
+  },
+
+  /**
+   * To Diogo & Rita, when a guest cancels themselves. Portuguese, like every
+   * other message that goes to the team.
+   *
+   * It exists because the self-serve link is the one path that ends a booking
+   * with nobody at the business in the loop: from the Sales board they are the
+   * ones who pressed the button and a notification would be telling them what
+   * they just did, but a link opened at 23:00 by a guest in another country
+   * frees a car and moves money with no other trace than the audit log. This is
+   * the message that makes the morning's roster true.
+   *
+   * The reason is deliberately not guessed at — the guest gave none, and the
+   * team's next move is a phone call if they want one.
+   */
+  teamCancellation: {
+    subject: "Reserva cancelada pelo cliente — {date} · {name}",
+    preheader: "{experience} · {ref} · reembolso {refund}",
+    banner: "Cancelamento do cliente",
+    heading: "O cliente cancelou esta reserva através do link do email de confirmação. O lugar já está livre e o reembolso foi pedido ao Stripe.",
+    detailsHeading: "Reserva cancelada",
+    labels: {
+      refund: "Reembolsado",
+      cancelledAt: "Cancelada em",
+    },
+    /** Said only when Stripe refused — the one line that needs a person. */
+    refundFailed: {
+      title: "O reembolso não passou",
+      body: "A reserva está cancelada e o lugar livre, mas o Stripe recusou o reembolso. Emita-o no painel do Stripe e avise o cliente.",
+    },
+    cta: "Ver no painel",
     ctaLine: "Ver no painel: {adminUrl}",
     footerNote: "Notificação automática do site — responda para escrever ao cliente.",
   },

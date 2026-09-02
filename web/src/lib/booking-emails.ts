@@ -73,6 +73,16 @@ export type BookingEmailFacts = {
   total: string;
   /** Deep link to the lead on the Sales board, for the team's copy. */
   adminUrl: string;
+  /**
+   * The guest's own cancel link — absolute, and carrying the plaintext token
+   * this mail is the only place that will ever hold (`lib/cancellation-token.ts`).
+   *
+   * `null` when the booking has no usable token, and then the whole block is
+   * omitted: the 48-hour promise still stands on the phone numbers below it,
+   * and a confirmation offering a link that cannot know the guest is worse than
+   * one that never offered it.
+   */
+  cancelUrl: string | null;
 };
 
 /** Replace every `{key}` in `template`. Unknown keys are left alone, visibly. */
@@ -199,6 +209,12 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     // read as a wall, but in a plain text mail an isolated line looks truncated.
     `${nextBody} ${t(c.cancellationNote, l)} ${t(c.changeNote, l)}`,
     "",
+    // The URL on its own line: a text client turns a bare link into a tappable
+    // one, and a sentence wrapped around it is a link that breaks across lines.
+    facts.cancelUrl
+      ? fill(t(c.cancelLink.textLine, l), { url: facts.cancelUrl })
+      : null,
+    facts.cancelUrl ? "" : null,
     `${diogo.name} ${diogo.phoneDisplay}`,
     `${rita.name} ${rita.phoneDisplay}`,
     "",
@@ -229,6 +245,18 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
           href: `tel:${contact.phone}`,
         })),
       ),
+      // Below the phone numbers, not above them: the team would rather a guest
+      // who is wavering rang them than pressed a button, and the ordering of a
+      // confirmation email is the cheapest way to say so.
+      ...(facts.cancelUrl
+        ? [
+            emailSpacer(24),
+            emailDivider(),
+            emailSpacer(20),
+            emailParagraph(t(c.cancelLink.note, l), { muted: true, spaceBelow: 16 }),
+            emailButton({ label: t(c.cancelLink.label, l), href: facts.cancelUrl }),
+          ]
+        : []),
       emailSpacer(24),
       emailDivider(),
       emailSpacer(20),
@@ -270,8 +298,8 @@ export type BookingCancellationFacts = {
  * The guest's cancellation notice, in the language they booked in.
  *
  * One message for both paths that end a booking — the team cancelling from the
- * Sales board, and (once it exists) the guest's own cancel link — because what
- * it has to say is the same either way: the tour is off, and here is what
+ * Sales board, and the guest's own cancel link — because what it has to say is
+ * the same either way: the tour is off, and here is what
  * happened to the money. The two differ in who pressed the button, which is a
  * fact for the audit log, not for this email.
  *
@@ -479,6 +507,139 @@ export function teamNotificationEmail(
     html,
     // So hitting reply on the notification writes to the guest. This is the
     // single most common thing either of them will want to do with it.
+    replyTo: facts.guestEmail,
+  };
+}
+
+/** Everything the team's cancellation notice needs, already formatted. */
+export type TeamCancellationFacts = {
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string | null;
+  /** The language the guest booked in — reported here, not obeyed. */
+  locale: Locale;
+  /** "Saturday, 15 August 2026" — in the guest's language, as they saw it. */
+  date: string;
+  experience: string;
+  departure: string;
+  partyLabel: string;
+  /** "€340" — what they had paid. */
+  total: string;
+  /** "€340" — what went back, or `null` when Stripe refused. */
+  refund: string | null;
+  /** True when the booking is cancelled and the money is still outstanding. */
+  refundFailed: boolean;
+  /** "15/08/2026, 23:04" — when the guest pressed the button, Lisbon time. */
+  cancelledAt: string;
+  /** Deep link to the lead on the Sales board. */
+  adminUrl: string;
+};
+
+/**
+ * The team's copy when a guest cancels themselves. Portuguese.
+ *
+ * The guest's own notice is `guestCancellationEmail` and goes out from
+ * `lib/booking-refund.ts`, which is shared with the Sales board; this one has
+ * no counterpart there on purpose. From the board the team *are* the ones who
+ * pressed the button, and a notification would be the site telling them what
+ * they had just done. The link is the only path that ends a booking with nobody
+ * at the business awake, so it is the only path that owes them a message.
+ *
+ * `replyTo` is the guest, as on the new-booking notification: the likely next
+ * action is writing to them, and a cancellation is when the team most wants to
+ * ask whether another day would work.
+ */
+export function teamCancellationEmail(
+  facts: TeamCancellationFacts,
+  recipients: string[],
+): EmailMessage {
+  const c = bookingEmails.teamCancellation;
+
+  const values: Record<string, string> = {
+    ref: facts.ref,
+    date: facts.date,
+    experience: facts.experience,
+    name: facts.guestName,
+    total: facts.total,
+    // The preheader states the money either way — "reembolso —" in an inbox
+    // preview is what makes somebody open this one first.
+    refund: facts.refund ?? "—",
+    adminUrl: facts.adminUrl,
+  };
+
+  const subject = fill(c.subject, values);
+
+  const bookingRows: DetailRow[] = [
+    { label: bookingEmails.team.labels.reference, value: facts.ref, mono: true },
+    { label: bookingEmails.team.labels.date, value: facts.date },
+    { label: bookingEmails.team.labels.departure, value: facts.departure },
+    { label: bookingEmails.team.labels.experience, value: facts.experience },
+    { label: bookingEmails.team.labels.party, value: facts.partyLabel },
+    { label: bookingEmails.team.labels.total, value: facts.total },
+    { label: c.labels.refund, value: facts.refund ?? "—", emphasis: true },
+    { label: c.labels.cancelledAt, value: facts.cancelledAt },
+  ];
+
+  const guestRows: DetailRow[] = [
+    { label: bookingEmails.team.guestLabels.name, value: facts.guestName },
+    {
+      label: bookingEmails.team.guestLabels.email,
+      value: facts.guestEmail,
+      href: `mailto:${facts.guestEmail}`,
+    },
+    {
+      label: bookingEmails.team.guestLabels.phone,
+      value: facts.guestPhone ?? "—",
+      ...(facts.guestPhone ? { href: `tel:${facts.guestPhone}` } : {}),
+    },
+    { label: bookingEmails.team.guestLabels.locale, value: facts.locale.toUpperCase() },
+  ];
+
+  const text = textLines([
+    c.heading,
+    "",
+    ...bookingRows.map((row) => `${row.label}: ${row.value}`),
+    facts.refundFailed ? `\n${c.refundFailed.title}: ${c.refundFailed.body}` : null,
+    "",
+    bookingEmails.team.guestHeading,
+    ...guestRows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    fill(c.ctaLine, values),
+  ]);
+
+  const html = emailDocument({
+    lang: "pt",
+    title: subject,
+    preheader: fill(c.preheader, values),
+    // Muted, like the guest's cancellation notice and for the same reason: this
+    // is not a sale, and it must not read like one at a glance.
+    banner: { text: c.banner, background: emailPalette.textMuted },
+    content: [
+      emailHeading(facts.guestName),
+      emailParagraph(c.heading, { muted: true, spaceBelow: 24 }),
+      emailEyebrow(c.detailsHeading),
+      emailDetails(bookingRows),
+      emailSpacer(24),
+      // Only when there is a job outstanding. Everything else here is a record;
+      // this is the one line that is a task.
+      ...(facts.refundFailed ? [emailNote(c.refundFailed), emailSpacer(24)] : []),
+      emailDivider(),
+      emailSpacer(24),
+      emailEyebrow(bookingEmails.team.guestHeading),
+      // Without the name: it is the heading of this email.
+      emailDetails(guestRows.slice(1)),
+      emailSpacer(28),
+      emailButton({ label: c.cta, href: facts.adminUrl }),
+    ].join(""),
+    footer: [escapeHtml(c.footerNote)],
+  });
+
+  return {
+    to: recipients,
+    subject,
+    text,
+    html,
     replyTo: facts.guestEmail,
   };
 }
