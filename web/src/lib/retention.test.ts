@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_AUDIT_IP_RETENTION_DAYS,
+  DEFAULT_MESSAGE_PROVIDER_ID_RETENTION_DAYS,
   DEFAULT_RETENTION_DAYS,
   auditIpRetentionDays,
+  messageProviderIdRetentionDays,
   retentionCutoff,
   retentionDays,
 } from "./retention";
@@ -49,6 +51,37 @@ describe("auditIpRetentionDays", () => {
       expect(auditIpRetentionDays({ AUDIT_IP_RETENTION_DAYS: raw })).toBe(
         DEFAULT_AUDIT_IP_RETENTION_DAYS,
       );
+    }
+  });
+});
+
+describe("messageProviderIdRetentionDays", () => {
+  it("reads its own variable", () => {
+    expect(
+      messageProviderIdRetentionDays({ MESSAGE_PROVIDER_ID_RETENTION_DAYS: "30" }),
+    ).toBe(30);
+    expect(messageProviderIdRetentionDays({ AUDIT_IP_RETENTION_DAYS: "7" })).toBe(
+      DEFAULT_MESSAGE_PROVIDER_ID_RETENTION_DAYS,
+    );
+  });
+
+  it("defaults to the debugging window, far short of the enquiry period", () => {
+    // The id is a key to the whole message in Resend's dashboard, so it is kept
+    // only while "did this arrive?" is still a live question.
+    expect(messageProviderIdRetentionDays({})).toBe(
+      DEFAULT_MESSAGE_PROVIDER_ID_RETENTION_DAYS,
+    );
+    expect(DEFAULT_MESSAGE_PROVIDER_ID_RETENTION_DAYS).toBeLessThan(
+      DEFAULT_RETENTION_DAYS,
+    );
+  });
+
+  it("falls back rather than keeping the id forever on a bad value", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const raw of ["", "ninety", "0", "-1", "90.5"]) {
+      expect(
+        messageProviderIdRetentionDays({ MESSAGE_PROVIDER_ID_RETENTION_DAYS: raw }),
+      ).toBe(DEFAULT_MESSAGE_PROVIDER_ID_RETENTION_DAYS);
     }
   });
 });

@@ -25,6 +25,12 @@
  *    columns mirror the `Localized<T>` shape used across `web/src/content/` so a
  *    published draft maps cleanly onto the site's typed content and JSON-LD.
  *
+ * 2b. **What was sent** — `messageLog` records every automatic message (the
+ *    booking confirmation today, the lifecycle mails next), so a scheduled send
+ *    can ask "did this already go out?" and the admin can answer "what did this
+ *    guest receive?". It is personal data and is erased and expired with the
+ *    enquiry it belongs to.
+ *
  * 3. **Operators and accountability** — `adminUsers` (who can sign in) and
  *    `auditLog` (what they did). The admin used to be one shared password, so
  *    "who archived this lead?" had no answer; every mutating admin action now
@@ -181,6 +187,59 @@ export const cancelledViaEnum = pgEnum("cancelled_via", ["guest", "admin", "syst
  */
 export const commissionBoundEnum = pgEnum("commission_bound", ["rate", "floor", "cap"]);
 
+/**
+ * Every automatic message this system sends, as a closed set.
+ *
+ * A message's *kind* is what makes "has this booking already had its
+ * day-before reminder?" answerable, so it is an enum and not free text: a typo
+ * in a kind is a second reminder in somebody's inbox, not a mislabelled row.
+ * The name says the occasion, never the recipient — the same kind goes to the
+ * guest and to the team, told apart by {@link messageRecipientEnum}.
+ *
+ * `balance-request` and `balance-reminder` are the quote flow's two chasers
+ * (`.icm/intake/quote-flow/`) and have no sender yet. They are here because
+ * adding a value to a Postgres enum later is a migration, and because a kind
+ * is how a repeated message stays idempotent: a second chaser is its own kind,
+ * never the same kind sent twice.
+ */
+export const messageKindEnum = pgEnum("message_kind", [
+  "booking-confirmation",
+  "booking-cancellation",
+  "booking-moved",
+  "enquiry-ack",
+  "day-before-reminder",
+  "thank-you-review",
+  "balance-request",
+  "balance-reminder",
+]);
+
+/**
+ * Who a message went to — the guest it is about, or the team's own inbox.
+ *
+ * Part of the uniqueness key rather than folded into the kind: a confirmation
+ * is one occasion that produces two mails, and "the guest's copy failed but the
+ * team's went out" is a real state the Notifications page has to be able to
+ * show.
+ */
+export const messageRecipientEnum = pgEnum("message_recipient", ["guest", "team"]);
+
+/**
+ * Where one send got to.
+ *
+ * `sending` is written *before* the provider is called, and that ordering is
+ * the whole idempotency mechanism: the row is a claim, taken under a unique
+ * index, so a second caller for the same message finds the claim and does not
+ * send. A row stuck in `sending` means the process died between the claim and
+ * the provider's answer — deliberately left claimed, because a duplicate
+ * confirmation is worse than a missing one, and visible as exactly that on the
+ * Notifications page.
+ */
+export const messageStatusEnum = pgEnum("message_status", [
+  "sending",
+  "sent",
+  "failed",
+]);
+
 /** Review lifecycle shared by every generated-content draft table. */
 export const contentStatusEnum = pgEnum("content_status", [
   "draft",
@@ -237,6 +296,9 @@ export type AvailabilityStatus = (typeof availabilityStatusEnum.enumValues)[numb
 export type BookingStatus = (typeof bookingStatusEnum.enumValues)[number];
 export type CancelledVia = (typeof cancelledViaEnum.enumValues)[number];
 export type CommissionBound = (typeof commissionBoundEnum.enumValues)[number];
+export type MessageKind = (typeof messageKindEnum.enumValues)[number];
+export type MessageRecipient = (typeof messageRecipientEnum.enumValues)[number];
+export type MessageStatus = (typeof messageStatusEnum.enumValues)[number];
 export type ContentStatus = (typeof contentStatusEnum.enumValues)[number];
 export type SocialPlatform = (typeof socialPlatformEnum.enumValues)[number];
 export type FeatureRequestStatus = (typeof featureRequestStatusEnum.enumValues)[number];
@@ -869,6 +931,134 @@ export type BookingLineItem = {
 
 export type Booking = typeof bookings.$inferSelect;
 export type NewBooking = typeof bookings.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// The message log
+// ---------------------------------------------------------------------------
+
+/**
+ * Every automatic message this system sends: what it was, who it was for, and
+ * whether it left.
+ *
+ * **The row is a claim, not a receipt.** It is written `sending` *before* the
+ * provider is called and updated afterwards, under the partial unique indexes
+ * below. That ordering is what makes a scheduled send idempotent: the daily
+ * dispatcher can ask for the day-before reminder on every booking every day,
+ * and the second attempt loses the insert instead of arriving in somebody's
+ * inbox. Nothing here counts a send that has not been claimed first — see
+ * `lib/message-log.ts`, which is the only writer.
+ *
+ * **This table is personal data, and holds no identifiers.** "Agorasim emailed
+ * this person on this day" is data about that person (GDPR Art. 4(1)) even with
+ * no address in it, which is why the log is in the export and the retention
+ * scope from its first row rather than after somebody notices. What keeps it
+ * *minimal* is that the identity is only ever borrowed:
+ *
+ * - **Linkage, not a copy.** `tour_request_id` is the person; the address, the
+ *   name and the language live once on `tour_requests` and are read through the
+ *   FK. A hash of the address would have been a second, quieter copy of the
+ *   same identifier — pseudonymous, still personal data, and a second thing to
+ *   erase.
+ * - **`cascade`, not `set null`.** An Art. 17 erasure deletes the enquiry and
+ *   takes its sends with it. `bookings` survives an erasure because a paid tour
+ *   has record-keeping duties of its own; a log of emails has none, so nothing
+ *   here outlives the person it is about.
+ * - **No subject line.** The team's copy is subjected "Nova reserva paga —
+ *   {date} · {name}" (`content/emails.ts`), so storing what an operator would
+ *   most like to read back would put the guest's name in a second table. The
+ *   kind says what the message was, which is what the Notifications page and
+ *   the dispatcher actually ask.
+ * - **The provider id expires.** `provider_message_id` resolves, in the Resend
+ *   dashboard, to the whole message including the address and the body — so it
+ *   is cleared by the retention job when the enquiry it belongs to is
+ *   anonymised (`lib/retention.ts`). Keeping it would leave a working pointer
+ *   to data this database had already given up.
+ *
+ * See the `tour_requests` note above for the same reasoning applied to the lead
+ * itself, and `.icm/docs/data-protection.md`.
+ */
+export const messageLog = pgTable("message_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  /** Which message this was. See {@link messageKindEnum}. */
+  kind: messageKindEnum("kind").notNull(),
+  /** The guest it is about, or the team's inbox. */
+  recipient: messageRecipientEnum("recipient").notNull(),
+
+  /**
+   * The person, borrowed from the enquiry rather than copied.
+   *
+   * Null only for a message with no lead behind it at all. `cascade` is the
+   * erasure rule described in the table note — deleting the enquiry deletes
+   * its sends.
+   */
+  tourRequestId: uuid("tour_request_id").references(() => tourRequests.id, {
+    onDelete: "cascade",
+  }),
+  /**
+   * The booking a message is *about*, and the subject its uniqueness is keyed
+   * on for every booking-shaped kind (confirmation, reminder, thank-you).
+   *
+   * Null for the kinds that answer an enquiry rather than a booking.
+   */
+  bookingId: uuid("booking_id").references(() => bookings.id, {
+    onDelete: "cascade",
+  }),
+
+  status: messageStatusEnum("status").notNull().default("sending"),
+
+  /**
+   * Resend's id for the message (`re_…`), for reading a delivery back out of
+   * their dashboard. Null until the send is accepted — and null again once
+   * retention has expired it, see the table note.
+   */
+  providerMessageId: text("provider_message_id"),
+  /**
+   * Why a `failed` row failed, in the provider's terms ("failed",
+   * "no-recipient"). Never the provider's body text: that quotes the message,
+   * which quotes the guest.
+   */
+  failureReason: text("failure_reason"),
+
+  /** When the provider accepted it. Null on a `sending` or `failed` row. */
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  /**
+   * One message of each kind per booking, per recipient — the index the
+   * dispatcher's idempotency actually rests on.
+   *
+   * Partial in two ways, both load-bearing. `booking_id is not null` is what
+   * makes this the booking-shaped rule and leaves enquiry-shaped sends to the
+   * index below. `status <> 'failed'` is what lets a send be *retried*: a
+   * failed attempt stays in the log as the record of an attempt, and stops
+   * reserving the slot it did not fill.
+   */
+  uniqueIndex("message_log_booking_kind_key")
+    .on(table.kind, table.recipient, table.bookingId)
+    .where(sql`"booking_id" is not null and "status" <> 'failed'`),
+  /**
+   * The same rule for messages whose subject is the enquiry itself (the ack),
+   * scoped to rows that name no booking so a booking's mails are never keyed
+   * on the lead behind them.
+   */
+  uniqueIndex("message_log_enquiry_kind_key")
+    .on(table.kind, table.recipient, table.tourRequestId)
+    .where(
+      sql`"booking_id" is null and "tour_request_id" is not null and "status" <> 'failed'`,
+    ),
+  // "What did we send about this booking / this lead?" — the Notifications page
+  // and the admin's per-row history.
+  index("message_log_booking_idx").on(table.bookingId),
+  index("message_log_tour_request_idx").on(table.tourRequestId),
+  // The log reads newest-first, like the audit trail it sits beside.
+  index("message_log_created_at_idx").on(table.createdAt),
+]);
+
+export type MessageLogEntry = typeof messageLog.$inferSelect;
+export type NewMessageLogEntry = typeof messageLog.$inferInsert;
 
 // ---------------------------------------------------------------------------
 // Internal feature requests
