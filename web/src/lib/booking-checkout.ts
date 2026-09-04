@@ -40,6 +40,12 @@
  * {@link confirmPaidBooking} and written to the booking, so both sides can
  * reconcile this table against the Stripe dashboard row by row.
  *
+ * **Every send is logged.** The confirmation pair goes out through
+ * `lib/message-log.ts`, which claims a `message_log` row before calling the
+ * provider — so what the guest was sent is a record rather than a log line, and
+ * a second confirmation cannot be produced by a path that bypasses the guard
+ * below. The rows are erased with the guest (`db/schema.ts`).
+ *
  * **The guest is a lead from the first click.** The `tour_requests` row is
  * written up front, not on payment: an abandoned checkout is a person who
  * wanted this tour on this day and got as far as their card, which is the best
@@ -83,7 +89,8 @@ import {
   partyLabel,
   teamNotificationEmail,
 } from "@/lib/booking-emails";
-import { isEmailConfigured, sendEmail, teamRecipients } from "@/lib/email";
+import { isEmailConfigured, teamRecipients } from "@/lib/email";
+import { sendLoggedEmail } from "@/lib/message-log";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { commissionOn } from "@/lib/commission";
 import { siteUrl } from "@/lib/site-origin";
@@ -657,19 +664,40 @@ async function sendConfirmationEmails(
   };
 
   const team = teamRecipients();
+  /**
+   * Both mails go through the log, keyed on this booking: one
+   * `booking-confirmation` to the guest and one to the team.
+   *
+   * Belt and braces with the `status = 'pending'` guard above rather than a
+   * replacement for it — the guard already means only one caller reaches this
+   * function, and the log's unique index means a path that ever bypassed it
+   * still cannot put a second confirmation in the guest's inbox. It is also
+   * what makes the send answerable: "was this guest's confirmation actually
+   * sent?" is now a row rather than a line in last week's logs.
+   */
+  const subject = {
+    kind: "booking-confirmation",
+    bookingId: booking.id,
+    tourRequestId: lead.id,
+  } as const;
+
   const results = await Promise.all([
-    sendEmail(guestConfirmationEmail(facts)),
+    sendLoggedEmail({ ...subject, recipient: "guest" }, guestConfirmationEmail(facts)),
     team.length > 0
-      ? sendEmail(teamNotificationEmail(facts, team))
-      : Promise.resolve({ sent: false as const, reason: "no-recipient" as const }),
+      ? sendLoggedEmail(
+          { ...subject, recipient: "team" },
+          teamNotificationEmail(facts, team),
+        )
+      : Promise.resolve({ status: "skipped", reason: "no-recipient" } as const),
   ]);
 
   for (const [who, result] of [["guest", results[0]], ["team", results[1]]] as const) {
-    if (!result.sent) {
-      console.error(
-        `[booking] ${facts.ref} confirmed but the ${who} email was not sent (${result.reason})`,
-      );
-    }
+    // `duplicate` is a send that already happened, not a failure — the loser of
+    // a race, or a webhook Stripe retried.
+    if (result.status === "sent" || result.status === "duplicate") continue;
+    console.error(
+      `[booking] ${facts.ref} confirmed but the ${who} email was not sent (${result.reason})`,
+    );
   }
 }
 
