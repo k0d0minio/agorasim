@@ -430,6 +430,17 @@ describe("exporting a person's data", () => {
   it("returns JSON for the owner and records the export", async () => {
     await signInAs("owner");
     queueResult([{ ...subjectRow, message: "Looking for a Saturday in August" }]);
+    // The sends about those enquiries: the log holds no address, so the export
+    // reaches it through the enquiry rows above.
+    queueResult([
+      {
+        id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        kind: "booking-confirmation",
+        recipient: "guest",
+        tourRequestId: REQUEST_ID,
+        status: "sent",
+      },
+    ]);
     queueResult(undefined); // the audit insert
 
     const result = await exportSubject({}, form({ email: "Ana.Silva@example.com" }));
@@ -441,6 +452,9 @@ describe("exporting a person's data", () => {
     expect(exported.subjectEmail).toBe("ana.silva@example.com");
     expect(exported.counts.tourRequests).toBe(1);
     expect(exported.records.tourRequests[0].message).toContain("Saturday in August");
+    // "You emailed me these times" is part of the Art. 15 answer.
+    expect(exported.counts.messageLog).toBe(1);
+    expect(exported.records.messageLog[0].kind).toBe("booking-confirmation");
 
     // The audit entry says an export happened, without repeating the address.
     const entry = insertedValues()[0]!;

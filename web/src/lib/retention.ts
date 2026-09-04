@@ -31,6 +31,18 @@
  * it exists so that "was this action taken from somewhere unexpected?" has an
  * answer while the question is still live, which is weeks, not years.
  *
+ * **The message log expires its provider ids on the same clock.** `message_log`
+ * holds no address and no subject line (see its note in `db/schema.ts`), but
+ * `provider_message_id` resolves in Resend's dashboard to the whole message —
+ * the address, the guest's name, the lot. That makes it a working pointer to
+ * personal data held somewhere else, so it expires here for the same reason the
+ * audit IP does, and immediately for any send whose enquiry has already been
+ * anonymised: this database must not keep a key to data it has itself given up.
+ * The row survives, because "a reminder went out on the 14th" is the log's
+ * whole job and is no longer about an identifiable person once the enquiry is
+ * anonymised. An Art. 17 erasure is the harder case and needs nothing here —
+ * deleting the enquiry deletes its sends, by `ON DELETE cascade`.
+ *
  * This is the one place the application writes to `audit_log` after the fact,
  * and it is worth being explicit about why that does not contradict the
  * append-only rule in `db/schema.ts`. No entry is added, removed or reordered;
@@ -40,9 +52,9 @@
  */
 import "server-only";
 
-import { and, isNotNull, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 
-import { auditLog, db, tourRequests } from "@/db";
+import { auditLog, db, messageLog, tourRequests } from "@/db";
 import { expireLapsedHolds } from "@/lib/bookings";
 
 /** Proposed, **not decided**. Override with `ENQUIRY_RETENTION_DAYS`. */
@@ -57,6 +69,16 @@ export const DEFAULT_RETENTION_DAYS = 730;
  * `AUDIT_IP_RETENTION_DAYS`.
  */
 export const DEFAULT_AUDIT_IP_RETENTION_DAYS = 90;
+
+/**
+ * How long a `message_log` row keeps the provider's id for the message. 90 days,
+ * on the audit-IP reasoning rather than the enquiry one: the id exists so that
+ * "did this actually arrive?" can be chased in Resend's dashboard while the
+ * question is still live, which is weeks. After that it is only a key to a copy
+ * of the mail — the address and the body included — sitting on somebody else's
+ * server. Override with `MESSAGE_PROVIDER_ID_RETENTION_DAYS`.
+ */
+export const DEFAULT_MESSAGE_PROVIDER_ID_RETENTION_DAYS = 90;
 
 /**
  * Read a whole-day period out of the environment, falling back to `fallback`.
@@ -105,6 +127,20 @@ export function auditIpRetentionDays(
   );
 }
 
+/**
+ * How long a send keeps its provider message id.
+ * See {@link DEFAULT_MESSAGE_PROVIDER_ID_RETENTION_DAYS}.
+ */
+export function messageProviderIdRetentionDays(
+  env: Record<string, string | undefined> = process.env,
+): number {
+  return configuredDays(
+    env,
+    "MESSAGE_PROVIDER_ID_RETENTION_DAYS",
+    DEFAULT_MESSAGE_PROVIDER_ID_RETENTION_DAYS,
+  );
+}
+
 /** The instant before which an unconverted enquiry is expired. */
 export function retentionCutoff(now: Date, days: number): Date {
   return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
@@ -146,16 +182,23 @@ export type RetentionRun = {
   auditIpDays: number;
   /** Audit entries that lost their IP address in this run. */
   auditIpsCleared: number;
+  /** Cutoff used for {@link RetentionRun.providerMessageIdsCleared}. */
+  providerIdCutoff: string;
+  providerIdDays: number;
+  /** Sends that lost their provider message id in this run. */
+  providerMessageIdsCleared: number;
 };
 
 /**
- * Run both retention passes: anonymise expired enquiries, and expire the IP
- * addresses on old audit entries.
+ * Run every retention pass: anonymise expired enquiries, expire the IP
+ * addresses on old audit entries, and expire the provider ids on old sends.
  *
  * They share a job because they answer the same obligation on the same schedule,
  * and because a deployment that runs one but not the other is the situation this
  * was written to end. They do not share a *period*: an unconverted lead is kept
- * for two years, the address it was submitted from for ninety days.
+ * for two years, the address it was submitted from for ninety days, and the
+ * handle on a mail sitting in Resend for ninety days or until the enquiry
+ * behind it is anonymised, whichever comes first.
  *
  * Both passes are idempotent, so a second run in the same window is a no-op
  * rather than a second pass over the same rows.
@@ -189,6 +232,15 @@ export async function runRetention(now: Date = new Date()): Promise<RetentionRun
   const { cutoff: auditIpCutoff, days: auditIpDays, cleared } =
     await clearExpiredAuditIps(now);
 
+  // After the anonymisation above, not before: a lead anonymised by this very
+  // run loses the provider ids of its sends in the same run rather than a week
+  // later.
+  const {
+    cutoff: providerIdCutoff,
+    days: providerIdDays,
+    cleared: providerMessageIdsCleared,
+  } = await clearExpiredProviderMessageIds(now);
+
   const holdsExpired = await expireLapsedHolds(now);
 
   return {
@@ -199,6 +251,9 @@ export async function runRetention(now: Date = new Date()): Promise<RetentionRun
     auditIpCutoff: auditIpCutoff.toISOString(),
     auditIpDays,
     auditIpsCleared: cleared,
+    providerIdCutoff: providerIdCutoff.toISOString(),
+    providerIdDays,
+    providerMessageIdsCleared,
   };
 }
 
@@ -220,6 +275,47 @@ async function clearExpiredAuditIps(
     .set({ ipAddress: null })
     .where(and(lt(auditLog.createdAt, cutoff), isNotNull(auditLog.ipAddress)))
     .returning({ id: auditLog.id });
+
+  return { cutoff, days, cleared: rows.length };
+}
+
+/**
+ * Null the provider message id on sends that no longer need one — the ones past
+ * the window, and the ones whose enquiry has been anonymised whatever their age.
+ *
+ * Only the id goes. The row stays, because what it says once the id is gone —
+ * this kind of message, about this booking, went out on this day — is the
+ * record the Notifications page and the dispatcher exist for, and is not about
+ * an identifiable person once the enquiry it points at has been anonymised.
+ *
+ * `providerMessageId IS NOT NULL` keeps it idempotent and keeps the write off
+ * the rows that have already expired, exactly as the audit-IP pass does. A send
+ * that never reached Resend has no id and is never touched.
+ */
+async function clearExpiredProviderMessageIds(
+  now: Date,
+): Promise<{ cutoff: Date; days: number; cleared: number }> {
+  const days = messageProviderIdRetentionDays();
+  const cutoff = retentionCutoff(now, days);
+
+  const anonymisedLeads = db
+    .select({ id: tourRequests.id })
+    .from(tourRequests)
+    .where(isNotNull(tourRequests.anonymisedAt));
+
+  const rows = await db
+    .update(messageLog)
+    .set({ providerMessageId: null, updatedAt: now })
+    .where(
+      and(
+        isNotNull(messageLog.providerMessageId),
+        or(
+          lt(messageLog.createdAt, cutoff),
+          inArray(messageLog.tourRequestId, anonymisedLeads),
+        ),
+      ),
+    )
+    .returning({ id: messageLog.id });
 
   return { cutoff, days, cleared: rows.length };
 }
