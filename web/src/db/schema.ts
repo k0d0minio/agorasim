@@ -19,6 +19,13 @@
  *    availability row means no tour. Guest identity stays on `tourRequests` —
  *    `bookings` deliberately holds none.
  *
+ * 1d. **Quotes and their instalments** — weddings and events are not sold off a
+ *    price list; they are quoted per job. `quotes` is that offer (a *hard*
+ *    event date, a venue, a total, the terms it was made under) and
+ *    `quotePayments` its instalments — a 30% deposit and a balance, each with
+ *    its own Stripe session, fee and status. Same PII split as `bookings`:
+ *    the couple live on `tourRequests`, the money lives here.
+ *
  * 2. **Generated content drafts** — one table per output type produced by the
  *    `workspaces/` ICM pipelines. Each row is a reviewable draft that the admin
  *    "Content" page lists before it is published to the site. The JSON payload
@@ -181,6 +188,63 @@ export const cancelledViaEnum = pgEnum("cancelled_via", ["guest", "admin", "syst
  */
 export const commissionBoundEnum = pgEnum("commission_bound", ["rate", "floor", "cap"]);
 
+/**
+ * Where a quote is in its life — the events and weddings side of the business,
+ * which is quoted per job rather than sold off a price list (info PDF §2.3).
+ *
+ * The order is the flow: Rita builds a `draft`, sends it, the guest pays the
+ * deposit that holds the date (`deposit_paid`), the balance lands 14 days
+ * before the event (`paid`). `cancelled` can follow any of them.
+ *
+ * `deposit_paid` is a state and not a derived count for one reason: it is what
+ * the date being *held* means, and the T−14 balance scheduler selects on it.
+ * Deriving it from the payment rows on every scan would put the same predicate
+ * in two places and make an index impossible.
+ */
+export const quoteStatusEnum = pgEnum("quote_status", [
+  "draft",
+  "sent",
+  "deposit_paid",
+  "paid",
+  "cancelled",
+]);
+
+/**
+ * Which instalment of a quote a payment row is.
+ *
+ * Two are the agreement's own (§5): a 30% `deposit` that holds the date, and
+ * the `balance` collected by a second link 14 days out. `other` is everything
+ * a bespoke job actually produces — a late extra, an agreed surcharge, a
+ * second partial payment — and exists so those do not have to masquerade as a
+ * balance and overwrite it.
+ */
+export const quotePaymentKindEnum = pgEnum("quote_payment_kind", [
+  "deposit",
+  "balance",
+  "other",
+]);
+
+/**
+ * Where one instalment is.
+ *
+ * `pending` is the row a quote is created with: an amount and a due date that
+ * nobody has been asked for yet. `issued` means a Stripe Checkout Session
+ * exists and the link has gone to the guest — the flag the T−14 scheduler is
+ * idempotent on, so a dispatcher that runs twice in a day does not email the
+ * same balance link twice.
+ *
+ * `cancelled` is deliberately distinct from a cancelled quote: an instalment
+ * can be written off (the couple paid the balance by transfer) while the quote
+ * itself completes.
+ */
+export const quotePaymentStatusEnum = pgEnum("quote_payment_status", [
+  "pending",
+  "issued",
+  "paid",
+  "refunded",
+  "cancelled",
+]);
+
 /** Review lifecycle shared by every generated-content draft table. */
 export const contentStatusEnum = pgEnum("content_status", [
   "draft",
@@ -237,6 +301,9 @@ export type AvailabilityStatus = (typeof availabilityStatusEnum.enumValues)[numb
 export type BookingStatus = (typeof bookingStatusEnum.enumValues)[number];
 export type CancelledVia = (typeof cancelledViaEnum.enumValues)[number];
 export type CommissionBound = (typeof commissionBoundEnum.enumValues)[number];
+export type QuoteStatus = (typeof quoteStatusEnum.enumValues)[number];
+export type QuotePaymentKind = (typeof quotePaymentKindEnum.enumValues)[number];
+export type QuotePaymentStatus = (typeof quotePaymentStatusEnum.enumValues)[number];
 export type ContentStatus = (typeof contentStatusEnum.enumValues)[number];
 export type SocialPlatform = (typeof socialPlatformEnum.enumValues)[number];
 export type FeatureRequestStatus = (typeof featureRequestStatusEnum.enumValues)[number];
@@ -869,6 +936,279 @@ export type BookingLineItem = {
 
 export type Booking = typeof bookings.$inferSelect;
 export type NewBooking = typeof bookings.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Quotes — the events and weddings side, priced per job
+// ---------------------------------------------------------------------------
+
+/**
+ * One priced line of a quote, as Rita wrote it.
+ *
+ * Free text rather than a catalogue slug, unlike {@link BookingLineItem}: a
+ * wedding is quoted "per event depending on location" (info PDF §2.3), so the
+ * lines are "4 carros clássicos, 6 horas" and "deslocação Ericeira" — things
+ * no catalogue holds and none should be invented for.
+ *
+ * The lines explain {@link quotes.totalCents}; they do not decide it. A quote
+ * with no lines at all is legal and means a single agreed figure, which is how
+ * most of them start on a phone call.
+ */
+export type QuoteLineItem = {
+  /** What it is, in the language the quote is written in. */
+  label: string;
+  /** Per unit, in cents. */
+  unitCents: number;
+  quantity: number;
+};
+
+/**
+ * A quote for an event: a hard date, a venue, a total, and the terms it was
+ * offered under.
+ *
+ * **This table holds no personal data**, exactly as `bookings` does not. Who
+ * the couple are lives on the `tour_requests` row this points at — one home for
+ * names, emails and phone numbers, already covered by the retention job, the
+ * subject-access export and the erasure path. What is here is commercial: what
+ * was offered, for how much, on which day, and under what terms.
+ *
+ * **`eventDate` is a real `date`, and that is the point of the table.** An
+ * event's only home until now was a `tour_requests` row whose `preferred_date`
+ * is free text — "late August", "flexible" — which no scheduler can compute
+ * against. The balance link is promised automatically 14 days out (proposal
+ * §5), and "14 days before 'late August'" is not a query. Plain `date`, not a
+ * timestamp, for the reason `availability.date` is: a wedding on the 15th of
+ * August is on the 15th of August in Sintra whatever timezone is asking.
+ *
+ * **The money is frozen here, not derived.** `totalCents` is what was offered
+ * and `depositPercent` is the split that was agreed; the instalments computed
+ * from them are written into `quote_payments` rows at creation and are not
+ * recomputed afterwards. Editing a sent quote is a re-quote, not a silent
+ * re-price of an instalment somebody may already have paid.
+ *
+ * **Commission is the events rate (§5): 6%, proportionally on each payment.**
+ * There is no kind column deciding that — a quote is an event by construction,
+ * and whether it is a wedding or another kind of event is already on the
+ * `tour_requests` row. The rate that was actually applied is recorded per
+ * payment, where the fee is.
+ */
+export const quotes = pgTable("quotes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  /**
+   * The enquiry this quote was built from — the couple's side of it, and the
+   * row the Sales board draws.
+   *
+   * `set null` rather than `cascade`, for the same reason `bookings` does it:
+   * an Art. 17 erasure removes the person, and the financial record of an event
+   * that was quoted, deposited and paid for has its own reasons to survive that
+   * (tax, among others). What is left is a quote with no name on it, which is
+   * the correct outcome of an erasure rather than an accident.
+   */
+  tourRequestId: uuid("tour_request_id").references(() => tourRequests.id, {
+    onDelete: "set null",
+  }),
+
+  /** Who built it. Set from the signed-in account, never typed. */
+  createdByUserId: uuid("created_by_user_id").references(() => adminUsers.id, {
+    onDelete: "set null",
+  }),
+
+  /** The day of the event, `YYYY-MM-DD`. What T−14 is computed against. */
+  eventDate: date("event_date").notNull(),
+  /** Where it is, in the team's own words — "Quinta do Hespanhol, Mafra". */
+  venue: text("venue"),
+
+  /** The language the quote is written and sent in. */
+  locale: localeEnum("locale").notNull().default("pt"),
+
+  /** The lines behind the total, or `[]` for a single agreed figure. */
+  lineItems: jsonb("line_items").$type<QuoteLineItem[]>().notNull().default(sql`'[]'::jsonb`),
+  /**
+   * What the event costs in total, in euro cents — the figure the deposit and
+   * the balance are split out of.
+   *
+   * Integer cents for the reason everything else in this schema is: money in a
+   * float is a rounding error waiting for a customer to find it, and cents are
+   * the unit Stripe charges in.
+   */
+  totalCents: integer("total_cents").notNull(),
+  currency: text("currency").notNull().default("eur"),
+
+  /**
+   * The share taken up front to hold the date. 30 by default (proposal §5),
+   * a whole percent because that is how it is negotiated — "metade" is 50, not
+   * 50.0.
+   */
+  depositPercent: integer("deposit_percent").notNull().default(30),
+
+  /**
+   * How many days before the event the deposit stops being refundable.
+   *
+   * 30 by default (D9), and a column rather than a constant because the client
+   * asked for the window and the lawyer has flagged the *sinal* regime around
+   * it: the number is going to move, and a quote already accepted must keep
+   * evidencing the window it was accepted under.
+   */
+  termsWindowDays: integer("terms_window_days").notNull().default(30),
+  /**
+   * Which wording the quote was sent under. Frozen at send; re-set if the quote
+   * is re-sent. Null while it is still a draft.
+   */
+  termsVersion: text("terms_version"),
+  /**
+   * The version the guest actually agreed to, copied here when they accept, and
+   * never written again.
+   *
+   * Two columns rather than one, and it is the marketing-consent discipline
+   * from `tour_requests`: re-send a quote with reworded terms and
+   * {@link quotes.termsVersion} moves, while what the couple agreed to before
+   * that must not. Evidence of an agreement that can be edited by a later
+   * action is not evidence.
+   */
+  acceptedTermsVersion: text("accepted_terms_version"),
+  /** When they accepted — paying the deposit is the acceptance. */
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+
+  status: quoteStatusEnum("status").notNull().default("draft"),
+
+  /**
+   * The guest's credential for the public quote page, hashed.
+   *
+   * The same shape and the same reasoning as `bookings.cancellation_token_hash`:
+   * this table holds no identity, so there is nobody to log in as and the token
+   * in the emailed link *is* the authentication. What is stored is a digest, so
+   * a dump of this table is not a stack of working quote links.
+   *
+   * **Not personal data — a credential.** It stays out of the Art. 15 export
+   * for the same reason a password hash would.
+   *
+   * Nullable: a draft has never been sent and has no link.
+   */
+  accessTokenHash: text("access_token_hash"),
+
+  /** When it last went to the guest. */
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  /** When it was called off, by either side. */
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  // The lead's own page lists the quotes built from it.
+  index("quotes_tour_request_idx").on(table.tourRequestId),
+  // The T−14 scan: "deposit-paid quotes whose event is on this date". Status
+  // first, because it is the selective half — most rows are never deposit-paid
+  // on any given morning.
+  index("quotes_status_event_date_idx").on(table.status, table.eventDate),
+  // The team's own calendar view of what is coming up, whatever its state.
+  index("quotes_event_date_idx").on(table.eventDate),
+  // The public page carries the token and nothing else, so "which quote is
+  // this?" is a lookup by digest. Unique because two quotes sharing a token
+  // would hand one couple another's event; Postgres allows any number of nulls
+  // under a unique index, which is what keeps the drafts above legal.
+  uniqueIndex("quotes_access_token_key").on(table.accessTokenHash),
+]);
+
+export type Quote = typeof quotes.$inferSelect;
+export type NewQuote = typeof quotes.$inferInsert;
+
+/**
+ * One instalment of a quote: the 30% deposit, the balance, or an agreed extra.
+ *
+ * **A child table, not a pair of columns on `quotes`.** Two payments each need
+ * their own Stripe session, their own application fee, their own due date and
+ * their own status, and §5 takes the commission proportionally on each — none
+ * of which survives being flattened into `deposit_*` and `balance_*` columns.
+ * The concrete failure that shape produces is overwriting: a re-issued balance
+ * link, or a second partial payment, would land on the same columns as the
+ * first and erase the record of it.
+ *
+ * **`cascade` on the quote**, unlike the `set null` above. There is no erasure
+ * pressure here — this row holds no person, only an amount belonging to a
+ * quote — and an instalment of a quote that does not exist is not a record of
+ * anything. Quotes are cancelled rather than deleted, so in practice the
+ * cascade never fires; it is there so that a genuine delete cannot leave
+ * orphans behind.
+ *
+ * The Stripe and refund columns mirror `bookings` deliberately, down to the
+ * names: the same webhook machinery and the same `lib/booking-refund.ts`
+ * reconciliation have to work over both, and a second vocabulary for the same
+ * five facts is how the two drift apart.
+ */
+export const quotePayments = pgTable("quote_payments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  quoteId: uuid("quote_id")
+    .notNull()
+    .references(() => quotes.id, { onDelete: "cascade" }),
+
+  kind: quotePaymentKindEnum("kind").notNull(),
+  /** What this instalment is for, in cents. Frozen when the quote is created. */
+  amountCents: integer("amount_cents").notNull(),
+  currency: text("currency").notNull().default("eur"),
+
+  /**
+   * When it is owed, `YYYY-MM-DD`. Null for the deposit, which is due on
+   * acceptance rather than on a date; the balance carries the event date minus
+   * 14 days (proposal §5).
+   */
+  dueDate: date("due_date"),
+
+  status: quotePaymentStatusEnum("status").notNull().default("pending"),
+
+  /** Stripe's Checkout Session. Unique: the webhook resolves a payment by it. */
+  stripeSessionId: text("stripe_session_id").unique(),
+  /** Set once payment succeeds — the handle a refund is issued against. */
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  /** Stripe's `ch_…` — the object the application fee was taken out of. */
+  stripeChargeId: text("stripe_charge_id"),
+  /** The connected account the charge lives on, or null for a platform charge. */
+  stripeConnectedAccountId: text("stripe_connected_account_id"),
+
+  /**
+   * The platform's commission on *this instalment*, in cents — Stripe's own
+   * figure, read back from the charge, as on `bookings`.
+   *
+   * Per payment rather than per quote because §5 says so: 6% of the deposit
+   * when the deposit is paid, 6% of the balance when the balance is paid. The
+   * two sum to exactly 6% of the whole, so nothing has to know that a payment
+   * is part of a larger job.
+   */
+  applicationFeeCents: integer("application_fee_cents"),
+  /** The rate that produced it, in basis points — 600 for an event (§5). */
+  commissionRateBps: integer("commission_rate_bps"),
+
+  /** Cumulative, in the unit it was charged in. See `bookings.refunded_amount_cents`. */
+  refundedAmountCents: integer("refunded_amount_cents").notNull().default(0),
+  /** How much commission went back with it (§6, in proportion). */
+  refundedFeeCents: integer("refunded_fee_cents").notNull().default(0),
+  /** Stripe's handle for the most recent refund — `re_…`. */
+  stripeRefundId: text("stripe_refund_id"),
+  refundedAt: timestamp("refunded_at", { withTimezone: true }),
+
+  /**
+   * When the payment link last went to the guest.
+   *
+   * The T−14 scheduler's idempotency, and the reason it is a timestamp on the
+   * row rather than a job-side ledger: "has this balance been asked for?" has
+   * to be answerable from the payment itself, or a dispatcher that runs twice
+   * in a morning emails the same link twice.
+   */
+  issuedAt: timestamp("issued_at", { withTimezone: true }),
+  /** When the money actually landed. */
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  // Every read of a quote wants its instalments with it.
+  index("quote_payments_quote_idx").on(table.quoteId),
+  // The scheduler's other half: "balances that are due and not yet issued".
+  index("quote_payments_status_due_idx").on(table.status, table.dueDate),
+]);
+
+export type QuotePayment = typeof quotePayments.$inferSelect;
+export type NewQuotePayment = typeof quotePayments.$inferInsert;
 
 // ---------------------------------------------------------------------------
 // Internal feature requests
