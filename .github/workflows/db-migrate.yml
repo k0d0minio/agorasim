@@ -56,6 +56,14 @@ jobs:
       - name: Run Drizzle migrations
         run: pnpm db:migrate
 
+      # `drizzle-kit migrate` reports success even when it skipped an entry —
+      # it applies only what is stamped later than the newest applied row. This
+      # step compares every journal file's hash against the table and fails the
+      # job on any gap, so a skipped migration is red here rather than a 42703
+      # in production (see scripts/verify-migrations.ts).
+      - name: Verify every journal entry is applied
+        run: pnpm db:verify
+
       # A database with no accounts in it locks the team out of /admin, so the
       # first owner is seeded here. Idempotent by design: an address that
       # already has an account is left completely alone, password included —
