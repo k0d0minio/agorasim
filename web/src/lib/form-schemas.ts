@@ -134,6 +134,20 @@ const repeated = z.preprocess(
 );
 
 /**
+ * A stepper's count: an integer within [min, max], refused otherwise.
+ *
+ * A message may be passed by schemas that surface errors inline (the manual
+ * booking form is Portuguese); the public checkout schema leaves the default,
+ * because the guest UI words its own errors in both languages.
+ */
+const partyCount = (min: number, max: number, message = "Invalid input") =>
+  z
+    .string()
+    .trim()
+    .transform((value) => Number.parseInt(value, 10))
+    .refine((n) => Number.isInteger(n) && n >= min && n <= max, message);
+
+/**
  * `FormData` as a plain object `safeParse` can read. Repeated names (a checkbox
  * group) come back as an array, everything else as a single value.
  */
@@ -616,6 +630,68 @@ export const moveBookingSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Manual booking (a cash sale, from the calendar day sheet)
+// ---------------------------------------------------------------------------
+
+/**
+ * A booking sold over the phone or in person, recorded straight into the
+ * calendar without Stripe in the middle.
+ *
+ * Most of it is the *checkout* schema's shape — tour, date, departure, party in
+ * the price bands, add-ons — plus the guest whose name the Sales board will
+ * show. The differences are the two things a phone sale is:
+ *
+ * - **No stripeSessionId / hold.** The public schema hides the capacity check
+ *   behind a booked calendar; here the booking is `confirmed` the moment it is
+ *   created.
+ * - **An editable `amount`, for the negotiated cash deal.** Blank uses the
+ *   catalogue total, exactly as checkout would have priced it. A typed figure
+ *   is the deal the team actually agreed, which is recorded on the row and
+ *   reconciled in the `priceBreakdown` — a deal cheaper than the list is
+ *   recorded honestly, not as a phantom full-price booking. A typed `0` is a
+ *   real answer too: a favour, a payment still pending elsewhere.
+ *
+ * What is deliberately absent is a payment method field: the calendar records
+ * cash rows, and everything else this schema could say (`stripe`) belongs on
+ * the checkout path.
+ */
+export const createManualBookingSchema = z.object({
+  /** Must be a real calendar day; the action re-checks it on sale/open. */
+  date: z
+    .string()
+    .trim()
+    .refine((value) => isDateKey(value), "Escolha uma data válida."),
+  slot: z.enum(TOUR_SLOTS, "Escolha a partida da manhã ou da tarde."),
+  experience: z
+    .string()
+    .trim()
+    .regex(SLUG_RE, "Esta experiência não existe."),
+  /** Shared departure or the whole slot — repriced server-side either way. */
+  mode: z.enum(["public", "private"]).catch("public"),
+  addOns: repeated.transform((slugs) => slugs.filter((slug) => SLUG_RE.test(slug))),
+  adults: partyCount(1, MAX_PARTY_ONLINE, "Diga quantos adultos vêm (1 a 8)."),
+  children: partyCount(0, MAX_PARTY_ONLINE).catch(0),
+  infants: partyCount(0, MAX_PARTY_ONLINE).catch(0),
+  /** Who reserves — the name the Sales board will show. */
+  name: text.min(1, "Diga o nome de quem reserva."),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(EMAIL_RE, "Escreva um endereço de email válido."),
+  phone: optionalText,
+  /**
+   * The agreed cash deal, as euros in a text box. Blank (or unreadable) means
+   * "charge the catalogue total"; a typed figure overrides it — see the note
+   * above the schema.
+   */
+  amount: z.string().trim().catch("").transform(parseAmountInput),
+});
+
+/** Field names `createManualBooking` can report an inline error against. */
+export type ManualBookingField = "date" | "slot" | "experience" | "party" | "name" | "email";
+
+// ---------------------------------------------------------------------------
 // Public tour-request form
 // ---------------------------------------------------------------------------
 
@@ -680,14 +756,6 @@ export type TourRequestField = "name" | "email" | "preferredDate";
  * catalogue (`lib/bookings.ts`), and the number the browser was shown is never
  * read back.
  */
-/** A stepper's count: an integer within [min, max], refused otherwise. */
-const partyCount = (min: number, max: number) =>
-  z
-    .string()
-    .trim()
-    .transform((value) => Number.parseInt(value, 10))
-    .refine((n) => Number.isInteger(n) && n >= min && n <= max);
-
 export const bookingCheckoutSchema = z.object({
   name: text.min(1),
   email: z.string().trim().toLowerCase().regex(EMAIL_RE),
