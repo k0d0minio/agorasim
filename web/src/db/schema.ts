@@ -184,6 +184,18 @@ export const bookingStatusEnum = pgEnum("booking_status", [
 export const cancelledViaEnum = pgEnum("cancelled_via", ["guest", "admin", "system"]);
 
 /**
+ * How a booking was paid for.
+ *
+ * `stripe` is every row born inside Checkout — the online path that owns a
+ * payment intent. `cash` is a booking taken by phone or in person and recorded
+ * straight into the calendar by the team: it is `confirmed` from the moment it
+ * is created, never holds a seat, and has no Stripe ids by construction. The
+ * distinction exists so the money views, refund paths and reconciliations do
+ * not have to infer "cash" from a null payment intent.
+ */
+export const paymentMethodEnum = pgEnum("payment_method", ["stripe", "cash"]);
+
+/**
  * Which rule of the commission agreement produced the fee on a booking.
  *
  * §4 is a percentage between two bounds — 4%, never under €10, never over €50 —
@@ -839,6 +851,14 @@ export const bookings = pgTable("bookings", {
   stripeSessionId: text("stripe_session_id").unique(),
   /** Set once payment succeeds — the handle a refund is issued against. */
   stripePaymentIntentId: text("stripe_payment_intent_id"),
+
+  /**
+   * How this row was paid for — see {@link paymentMethodEnum}.
+   *
+   * `stripe` is the default so every row already in the table read as what it
+   * was; only the manual "Nova reserva" path ever writes `cash`.
+   */
+  paymentMethod: paymentMethodEnum("payment_method").notNull().default("stripe"),
 
   /** When a `pending` hold stops reserving the seat. */
   holdExpiresAt: timestamp("hold_expires_at", { withTimezone: true }).notNull(),

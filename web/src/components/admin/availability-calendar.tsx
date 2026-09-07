@@ -29,6 +29,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  ManualBookingDialog,
+  type ManualBookingTour,
+} from "@/components/admin/manual-booking-dialog";
 
 /**
  * The availability calendar — Diogo & Rita's morning screen.
@@ -401,6 +405,7 @@ function DayEditor({
   day,
   bookings,
   experienceNames,
+  tours,
   defaultDrivers,
   maxDrivers,
   onDone,
@@ -411,6 +416,8 @@ function DayEditor({
   bookings: CalendarBooking[];
   /** Tour slug → name in Portuguese, for the sheet's rows. */
   experienceNames: Record<string, string>;
+  /** Active signature tours, for the manual-booking sheet. */
+  tours: ManualBookingTour[];
   defaultDrivers: number;
   maxDrivers: number;
   onDone: () => void;
@@ -442,6 +449,12 @@ function DayEditor({
   const error = save.error ?? clear.error;
   const fieldId = `day-${day.date}`;
   const anyDecided = editable.some((slot) => slot.status !== null);
+  // The departures that could still take a new booking today — the only ones
+  // the "Nova reserva" sheet offers. A closed or spent departure would only be
+  // refused by the action, so it is not offered at all.
+  const openSlots = editable
+    .filter((slot) => slot.status === "open" && slot.bookable)
+    .map((slot) => slot.slot);
   const outInSelection = editable
     .filter((slot) => chosenSlots.includes(slot.slot))
     .reduce((sum, slot) => sum + slot.driversUsed, 0);
@@ -471,6 +484,15 @@ function DayEditor({
         ) : null}
 
         <DayBookings bookings={bookings} experienceNames={experienceNames} />
+
+        {openSlots.length > 0 && tours.length > 0 ? (
+          <ManualBookingDialog
+            date={day.date}
+            openSlots={openSlots}
+            tours={tours}
+            onDone={onDone}
+          />
+        ) : null}
 
         <div
           role="group"
@@ -1270,6 +1292,7 @@ export function AvailabilityCalendar({
   fleet,
   bookingsByDate,
   experienceNames,
+  tours,
   today,
 }: {
   monthLabel: string;
@@ -1290,6 +1313,8 @@ export function AvailabilityCalendar({
   bookingsByDate: Record<string, CalendarBooking[]>;
   /** Tour slug → name in Portuguese, for the day sheet's rows. */
   experienceNames: Record<string, string>;
+  /** Active signature tours, for the manual-booking sheet. */
+  tours: ManualBookingTour[];
   /** Today in Lisbon, as the floor of the season fields. */
   today: string;
 }) {
@@ -1562,6 +1587,7 @@ export function AvailabilityCalendar({
           day={selectedDay}
           bookings={bookingsOf(selectedDay.date)}
           experienceNames={experienceNames}
+          tours={tours}
           defaultDrivers={defaultDrivers}
           maxDrivers={maxDrivers}
           onDone={refresh}
