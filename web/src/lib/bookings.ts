@@ -177,7 +177,9 @@ export type BookingForCalendar = {
   name: string | null;
   date: DateKey;
   experienceSlug: string;
-  slot: AvailabilitySlot;
+  /** Never `full_day` here: the query filters it to the two operational
+   *  departures, the same way the 0012 migration moved its rows to `morning`. */
+  slot: "morning" | "afternoon";
   partySize: number;
   status: BookingStatus;
 };
@@ -213,11 +215,22 @@ export async function bookingsBetween(options: {
     .from(bookings)
     .leftJoin(tourRequests, eq(bookings.tourRequestId, tourRequests.id))
     .where(
-      and(sql`${bookings.date} between ${from} and ${to}`, holdsCapacitySql(now)),
+      and(
+        sql`${bookings.date} between ${from} and ${to}`,
+        // `full_day` is enum history (see db/schema.ts §0012) — the calendar
+        // only ever hosts the 10:00 and 14:00 departures, so dead rows do not
+        // even cross the wire. The `slot` ternary below narrows the type.
+        inArray(bookings.slot, ["morning", "afternoon"]),
+        holdsCapacitySql(now),
+      ),
     )
     .orderBy(bookings.date, bookings.slot);
 
-  return rows.map((row) => ({ ...row, ref: bookingRef(row.id) }));
+  return rows.map((row) => ({
+    ...row,
+    ref: bookingRef(row.id),
+    slot: row.slot === "full_day" ? "morning" : row.slot,
+  }));
 }
 
 /**
