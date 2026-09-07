@@ -93,6 +93,12 @@ export default async function AdminCalendarPage({
   const experienceNames = Object.fromEntries(
     [...index.entries()].map(([slug, entry]) => [slug, t(entry.title, "pt")]),
   );
+  // The tours the "Nova reserva" sheet can sell: active signature tours only.
+  // The manual path records cash sales against the two flagships; a retired
+  // tour takes no new money, and anything else is an add-on, not a tour.
+  const tours = catalogue
+    .filter((entry) => entry.kind === "signature" && entry.active)
+    .map((entry) => ({ slug: entry.slug, title: t(entry.title, "pt") }));
   const bookingsByDate = bookings.reduce<Record<string, typeof bookings>>(
     (groups, booking) => {
       (groups[booking.date] ??= []).push(booking);
@@ -124,6 +130,7 @@ export default async function AdminCalendarPage({
         fleet={FLEET.map((vehicle) => ({ name: vehicle.name, seats: vehicle.seats }))}
         bookingsByDate={bookingsByDate}
         experienceNames={experienceNames}
+        tours={tours}
         today={today}
       />
     </AdminShell>

@@ -1,20 +1,28 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
 import { requireAdmin } from "@/lib/admin-auth";
 import {
+  checkSlotAvailable,
   clearDays,
   expandDateRange,
   upsertDays,
   type DateKey,
 } from "@/lib/availability";
-import { datesWithBookings } from "@/lib/bookings";
+import { datesWithBookings, slotOccupancyOn } from "@/lib/bookings";
 import { recordAuditOrWarn } from "@/lib/audit";
+import { listCatalogue } from "@/lib/experience-catalogue";
+import { BOOKING_CURRENCY } from "@/lib/money";
+import { priceBooking } from "@/lib/pricing";
+import { db, bookings, tourRequests, type BookingLineItem } from "@/db";
 import {
   clearAvailabilitySchema,
+  createManualBookingSchema,
   formValues,
   setAvailabilitySchema,
+  type ManualBookingField,
 } from "@/lib/form-schemas";
 
 /**
@@ -240,5 +248,225 @@ export async function clearAvailability(
       removed === 1
         ? "1 partida limpa — volta a não estar decidida."
         : `${removed} partidas limpas — voltam a não estar decididas.`,
+  };
+}
+
+export type ManualBookingActionState = {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+  fieldErrors?: Partial<Record<ManualBookingField, string>>;
+};
+
+/**
+ * Record a sale that never touched Stripe.
+ *
+ * Every row in `bookings` is born inside Checkout and owns a payment intent;
+ * that is how the whole pipeline is built. But a tour also gets sold on the
+ * phone, or settled in cash in the car park — and a sale the calendar cannot
+ * count is a slot the website sells twice. This is the one path that writes a
+ * `payment_method = 'cash'` row: confirmed from creation (it never holds, it
+ * was agreed there and then), no Stripe ids by construction, so every money
+ * view and every refund reconcile against what was actually agreed.
+ *
+ * **The agreed price is the truth, not a guess.** The catalogue prices the
+ * basket and that figure is the default, but the box stays editable: that a
+ * deal was struck — usually lower — and a breakdown that claims the catalogue
+ * price while the guest paid less is the exact fiction audit trails exist to
+ * catch. When the agreed figure differs, an `acordo` line makes the breakdown
+ * add up to the charge (negative = discount).
+ *
+ * **The same capacity checks as the checkout.** This path exists because the
+ * phone rings; ringing does not create a car. `checkSlotAvailable` runs the
+ * same read as `/reservar`, and a departure at capacity is refused in
+ * Portuguese rather than overbooked.
+ *
+ * The tour-request side stays honest too: `status = 'booked'` and
+ * `source = 'phone'` keep the sales board from mistaking a sold booking for an
+ * unanswered lead ("booking" belongs to the checkout's machine writes).
+ */
+export async function createManualBooking(
+  _prevState: ManualBookingActionState,
+  formData: FormData,
+): Promise<ManualBookingActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = createManualBookingSchema.safeParse(formValues(formData));
+  if (!parsed.success) {
+    const { fieldErrors } = z.flattenError(parsed.error);
+    return {
+      fieldErrors: {
+        date: fieldErrors.date?.[0],
+        slot: fieldErrors.slot?.[0],
+        experience: fieldErrors.experience?.[0],
+        party:
+          fieldErrors.adults?.[0] ??
+          fieldErrors.children?.[0] ??
+          fieldErrors.infants?.[0],
+        name: fieldErrors.name?.[0],
+        email: fieldErrors.email?.[0],
+      },
+    };
+  }
+
+  const {
+    date,
+    slot,
+    experience,
+    mode,
+    addOns,
+    adults,
+    children,
+    infants,
+    name,
+    email,
+    phone,
+    amount,
+  } = parsed.data;
+
+  const catalogue = await listCatalogue();
+  const tour = catalogue.find((entry) => entry.slug === experience);
+  if (!tour || tour.kind !== "signature" || !tour.active) {
+    return { fieldErrors: { experience: "Esta experiência não está à venda." } };
+  }
+
+  const quoted = priceBooking({
+    tour: { slug: tour.slug, pricing: tour.pricing },
+    addOns: [],
+    mode,
+    party: { adults, children, infants },
+    date,
+  });
+  if (!quoted.ok) {
+    switch (quoted.reason) {
+      case "party-too-large":
+        return {
+          fieldErrors: {
+            party: `Esta experiência não pode levar mais do que ${quoted.maxAdults} adultos.`,
+          },
+        };
+      case "min-adults":
+        return {
+          fieldErrors: { party: `Esta experiência precisa de ao menos ${quoted.min} adultos.` },
+        };
+      case "bad-party":
+        return { fieldErrors: { party: "Diga quantos adultos vêm (1 a 8)." } };
+      default:
+        // Unpriced, mode unsupported, add-on rules: with an empty add-on basket
+        // the add-on reasons are unreachable, so they read back as the tour
+        // itself not being on sale in this format.
+        return { fieldErrors: { experience: "Esta experiência não está à venda neste formato." } };
+    }
+  }
+
+  const fit = await checkSlotAvailable({
+    experienceSlug: tour.slug,
+    date,
+    slot,
+    partySize: quoted.seats,
+    occupancy: await slotOccupancyOn(date, slot),
+  });
+  if (!fit.ok) {
+    switch (fit.reason) {
+      case "no-vehicle":
+        return {
+          fieldErrors: { slot: "O carro que esta partida precisa já está reservado." },
+        };
+      case "party-too-large":
+        return {
+          fieldErrors: { party: "Esta partida já não tem lugar para este grupo." },
+        };
+      case "bad-party":
+        return { fieldErrors: { party: "Diga quantos adultos vêm (1 a 8)." } };
+      case "unreadable":
+        return {
+          error: "Não foi possível confirmar a disponibilidade — tente novamente.",
+        };
+      case "invalid":
+      case "unavailable":
+        return { fieldErrors: { slot: "Esta partida não está à venda." } };
+    }
+  }
+
+  const agreedCents = amount ?? quoted.totalCents;
+  const lines: BookingLineItem[] = [...quoted.lines];
+  if (agreedCents !== quoted.totalCents) {
+    lines.push({
+      slug: "acordo",
+      kind: "tour",
+      unit: "group",
+      unitCents: agreedCents - quoted.totalCents,
+      quantity: 1,
+    });
+  }
+
+  const now = new Date();
+  try {
+    const [lead] = await db
+      .insert(tourRequests)
+      .values({
+        name,
+        email,
+        phone,
+        locale: "pt",
+        kind: "tour",
+        experienceSlug: tour.slug,
+        addOns,
+        partySize: quoted.seats,
+        preferredDate: date,
+        status: "booked",
+        source: "phone",
+      })
+      .returning({ id: tourRequests.id });
+
+    const [booking] = await db
+      .insert(bookings)
+      .values({
+        tourRequestId: lead.id,
+        date,
+        slot,
+        experienceSlug: tour.slug,
+        addOns,
+        mode,
+        adults,
+        children,
+        infants,
+        vehicleClass: fit.vehicleClass,
+        partySize: quoted.seats,
+        amountCents: agreedCents,
+        currency: BOOKING_CURRENCY,
+        priceBreakdown: lines,
+        status: "confirmed",
+        locale: "pt",
+        paymentMethod: "cash",
+        holdExpiresAt: now,
+        confirmedAt: now,
+      })
+      .returning({ id: bookings.id });
+
+    await recordAuditOrWarn({
+      actorUserId: actor.id,
+      action: "booking.created",
+      entityType: "booking",
+      entityId: booking.id,
+      after: {
+        date,
+        slot,
+        experienceSlug: tour.slug,
+        partySize: quoted.seats,
+        amountCents: agreedCents,
+        paymentMethod: "cash",
+      },
+    });
+  } catch (err) {
+    console.error("[admin] failed to create a manual booking", err);
+    return { error: "Não foi possível registar a reserva — tente novamente." };
+  }
+
+  revalidatePublicSite();
+
+  return {
+    ok: true,
+    message: "Reserva registada e confirmada.",
   };
 }
