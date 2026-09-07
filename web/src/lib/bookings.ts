@@ -25,6 +25,7 @@ import { and, count, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
 import {
   bookings,
   db,
+  tourRequests,
   type AvailabilitySlot,
   type Booking,
   type BookingStatus,
@@ -155,6 +156,81 @@ export async function countSlotOccupancy(options: {
     byKey.set(key, entry);
   }
   return byKey;
+}
+
+/**
+ * One live booking, as the calendar's day sheet lists it.
+ *
+ * The guest's *name* lives on the lead, never on the booking — the `bookings`
+ * row holds only commercial facts (§AGORA), which is why this join goes to
+ * `tourRequests` for it and why the name is nullable: a lead erased on request
+ * leaves the booking, and the booking must still render, name-less.
+ *
+ * `ref` is the display reference the guest was quoted (`bookingRef`). It is
+ * computed here, server-side, rather than shipped as a client copy of the
+ * same string logic.
+ */
+export type BookingForCalendar = {
+  id: string;
+  ref: string;
+  tourRequestId: string | null;
+  name: string | null;
+  date: DateKey;
+  experienceSlug: string;
+  /** Never `full_day` here: the query filters it to the two operational
+   *  departures, the same way the 0012 migration moved its rows to `morning`. */
+  slot: "morning" | "afternoon";
+  partySize: number;
+  status: BookingStatus;
+};
+
+/**
+ * The live bookings between two dates, newest consideration aside in day and
+ * departure order.
+ *
+ * "Live" is the same predicate the occupancy and the availability calendar run
+ * on — {@link holdsCapacitySql}: paid, or pending with a hold that has not
+ * lapsed. Anything else is history nobody is due to host, which is why a
+ * cancelled seat does not appear on the day sheet beside the guests who are
+ * actually coming.
+ */
+export async function bookingsBetween(options: {
+  from: DateKey;
+  to: DateKey;
+  now?: Date;
+}): Promise<BookingForCalendar[]> {
+  const { from, to, now = new Date() } = options;
+
+  const rows = await db
+    .select({
+      id: bookings.id,
+      tourRequestId: bookings.tourRequestId,
+      name: tourRequests.name,
+      date: bookings.date,
+      experienceSlug: bookings.experienceSlug,
+      slot: bookings.slot,
+      partySize: bookings.partySize,
+      status: bookings.status,
+    })
+    .from(bookings)
+    .leftJoin(tourRequests, eq(bookings.tourRequestId, tourRequests.id))
+    .where(
+      and(
+        sql`${bookings.date} between ${from} and ${to}`,
+        // `full_day` is enum history (see db/schema.ts §0012) — the calendar
+        // only ever hosts the 10:00 and 14:00 departures, so dead rows do not
+        // even cross the wire. The `slot` ternary below narrows the type.
+        inArray(bookings.slot, ["morning", "afternoon"]),
+        holdsCapacitySql(now),
+      ),
+    )
+    .orderBy(bookings.date, bookings.slot);
+
+  return rows.map((row) => ({
+    ...row,
+    ref: bookingRef(row.id),
+    slot: row.slot === "full_day" ? "morning" : row.slot,
+  }));
 }
 
 /**
