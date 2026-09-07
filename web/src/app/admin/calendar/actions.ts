@@ -299,7 +299,10 @@ export async function createManualBooking(
         date: fieldErrors.date?.[0],
         slot: fieldErrors.slot?.[0],
         experience: fieldErrors.experience?.[0],
-        party: fieldErrors.party ?? fieldErrors.adults?.[0] ?? fieldErrors.children?.[0] ?? fieldErrors.infants?.[0],
+        party:
+          fieldErrors.adults?.[0] ??
+          fieldErrors.children?.[0] ??
+          fieldErrors.infants?.[0],
         name: fieldErrors.name?.[0],
         email: fieldErrors.email?.[0],
       },

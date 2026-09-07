@@ -454,7 +454,11 @@ function DayEditor({
   // refused by the action, so it is not offered at all.
   const openSlots = editable
     .filter((slot) => slot.status === "open" && slot.bookable)
-    .map((slot) => slot.slot);
+    .map((slot) => slot.slot)
+    .filter(
+      (slot): slot is "morning" | "afternoon" =>
+        slot === "morning" || slot === "afternoon",
+    );
   const outInSelection = editable
     .filter((slot) => chosenSlots.includes(slot.slot))
     .reduce((sum, slot) => sum + slot.driversUsed, 0);

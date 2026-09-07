@@ -183,6 +183,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "availability.opened": "pôs dias à venda",
   "availability.closed": "fechou dias",
   "availability.cleared": "limpou dias do calendário",
+  "booking.created": "registou uma reserva",
   "booking.confirmed": "uma reserva foi paga e confirmada",
   "booking.expired": "uma reserva não foi paga a tempo",
   "booking.cancelled": "cancelou uma reserva",
