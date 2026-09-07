@@ -4,7 +4,7 @@ import { useActionState, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import { CalendarRange, ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
 
 import {
   clearAvailability,
@@ -12,8 +12,11 @@ import {
   type AvailabilityActionState,
 } from "@/app/admin/calendar/actions";
 import type { DaySlots, SlotAvailability } from "@/lib/availability";
+import type { BookingStatus } from "@/db/schema";
+import { bookingStatusMeta } from "@/lib/admin-format";
 import { VEHICLE_CLASSES, type VehicleClass } from "@/lib/fleet";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -47,8 +50,19 @@ import { Label } from "@/components/ui/label";
  *
  * - Every day cell is a ≥44px target (T1) laid out in a 7-column grid that
  *   still fits the 320px reflow floor (D2).
+ * - A departure reads in its cell the way a host's calendar reads on Airbnb:
+ *   a filled chip whose colour *is* the state — light green is on sale with
+ *   drivers free, solid green is on sale but spent, solid red is closed, a
+ *   dashed outline is undecided — and a live booking is a dot on the tile.
+ *   There is no legend to consult, which is the point: the cells colour
+ *   themselves (see {@link slotChip}).
  * - Editing a day opens the shared responsive dialog — a bottom sheet on a
- *   phone, a centred dialog from `sm` up (S1).
+ *   phone, a centred dialog from `sm` up (S1) — which also lists that day's
+ *   live bookings, each linking to its lead.
+ * - A stretch of days is written by *tapping two days*: arm the pick, tap the
+ *   two ends of the stripe, and open, close, or clear the lot behind the same
+ *   confirmation the month sweeps use. It is the grid-native middle between
+ *   the one-day sheet and the seasonal window (see {@link RangeActions}).
  * - Month paging is `<Link>`s, not client state (V3): the back-swipe an
  *   installed PWA cannot disable stays meaningful, and a reload lands where
  *   the operator was.
@@ -75,8 +89,29 @@ import { Label } from "@/components/ui/label";
  */
 export type CalendarDay = DaySlots & { longLabel: string };
 
-/** One car, as the legend names it. */
+/** One car, as the fleet line names it. */
 export type CalendarVehicle = { name: string; seats: number };
+
+/**
+ * One live booking, as the day sheet lists it.
+ *
+ * Built server-side (`bookingsBetween` in `lib/bookings.ts`), which is where
+ * the reference and the guest's name come from: the booking row knows the lead
+ * only by id, the lead holds the name, and both are cheaper to join once in
+ * SQL than to explain to a client component.
+ */
+export type CalendarBooking = {
+  /** `BK-XXXXXX` — the reference the guest was quoted. Precomputed, server-side. */
+  ref: string;
+  /** The lead's id — the day sheet links through to its sales page. Nullable after erasure. */
+  tourRequestId: string | null;
+  /** The guest's name, from the lead. Null once the lead's data has been erased. */
+  name: string | null;
+  experienceSlug: string;
+  slot: "morning" | "afternoon";
+  partySize: number;
+  status: BookingStatus;
+};
 
 const SLOT_SHORT: Record<string, string> = { morning: "10h", afternoon: "14h" };
 
@@ -139,20 +174,50 @@ function rangeWords(list: CalendarDay[]): string {
   return `${first} a ${readableDay(list[list.length - 1].date)}`;
 }
 
-/** How one departure reads inside a day cell, at arm's length. */
-function slotTone(slot: SlotAvailability): { className: string; text: string } {
+/**
+ * How one departure reads inside a day cell, at arm's length.
+ *
+ * A departure is one of four states, and the cell is drawn so each one is a
+ * colour plus a small mark rather than a code that needs a legend:
+ *
+ * - **à venda, com vagas** — a light green chip, `10h·2`, where the number is
+ *   drivers still free.
+ * - **à venda, esgotada** — solid green with the time struck through: spent,
+ *   not closed.
+ * - **fechada** — solid red with the time struck through and a cross.
+ * - **sem decisão** — a faint dashed outline, no fill at all.
+ */
+function slotChip(slot: SlotAvailability): { className: string; text: React.ReactNode } {
   const short = SLOT_SHORT[slot.slot] ?? slot.slot;
   if (slot.status === null) {
-    return { className: "text-muted-foreground/50", text: short };
+    return {
+      className: "border border-dashed border-input text-muted-foreground",
+      text: short,
+    };
   }
   if (slot.status === "closed") {
-    return { className: "text-destructive", text: `${short}×` };
+    return {
+      className: "bg-destructive text-destructive-foreground",
+      text: (
+        <>
+          <s>{short}</s>
+          <span aria-hidden>×</span>
+        </>
+      ),
+    };
   }
   if (!slot.bookable) {
-    return { className: "font-semibold text-foreground", text: `${short}✓` };
+    return {
+      className: "bg-primary text-primary-foreground",
+      text: <s>{short}</s>,
+    };
   }
   // The number is drivers still free — how many more tours can leave at all.
-  return { className: "font-semibold text-primary", text: `${short}·${slot.driversLeft}` };
+  return {
+    className:
+      "border border-primary/40 bg-primary/15 font-semibold text-primary",
+    text: `${short}·${slot.driversLeft}`,
+  };
 }
 
 /** One departure, spoken for a screen reader and for the day sheet's summary. */
@@ -168,7 +233,7 @@ function slotSentence(slot: SlotAvailability): string {
   return `${short} ${slot.driversLeft} de ${slot.drivers} condutores livres, ${carsLeft(slot)}`;
 }
 
-/** The whole cell: border from the "best" state, captions from both slots. */
+/** The whole cell: a neutral tile the departure chips and the range draw on. */
 function cellAppearance(day: CalendarDay): {
   className: string;
   disabled: boolean;
@@ -183,16 +248,10 @@ function cellAppearance(day: CalendarDay): {
       label: `${dayNumber} — já passou`,
     };
   }
-
-  const anyOpen = day.slots.some((slot) => slot.status === "open");
-  const anyDecided = day.slots.some((slot) => slot.status !== null);
-
   return {
-    className: anyOpen
-      ? "border-primary/50 bg-primary/10"
-      : anyDecided
-        ? "border-input bg-muted/40"
-        : "border-dashed border-input hover:bg-muted",
+    // The tile itself carries no state any more — the two chips do, so the
+    // small states of a day read without a legend (see {@link slotChip}).
+    className: "border-border bg-card hover:bg-muted/50",
     disabled: false,
     label: `${dayNumber} — ${day.slots.map(slotSentence).join(", ")}`,
   };
@@ -249,6 +308,87 @@ function WriteFields({ dates, slots }: { dates: string[]; slots: string[] }) {
 }
 
 /**
+ * Who is actually coming on a day: one row per live booking, in the same
+ * trade the sales page uses — reference, payment state, tour, party — with the
+ * row itself linking through to the lead it belongs to.
+ *
+ * Shown above the controls, not below: "who is on this day" is the first thing
+ * an operator asks when they open it, and it is why the tile's green was struck
+ * through.
+ */
+function DayBookings({
+  bookings,
+  experienceNames,
+}: {
+  bookings: CalendarBooking[];
+  experienceNames: Record<string, string>;
+}) {
+  const groups = (
+    [
+      { slot: "morning", label: "Manhã · 10:00", rows: [] as CalendarBooking[] },
+      { slot: "afternoon", label: "Tarde · 14:00", rows: [] as CalendarBooking[] },
+    ] as const
+  )
+    .map((group) => ({
+      ...group,
+      rows: bookings.filter((booking) => booking.slot === group.slot),
+    }))
+    .filter((group) => group.rows.length > 0);
+
+  if (groups.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-3 border-t pt-3">
+      <p className="text-sm font-medium">Reservas neste dia</p>
+      {groups.map((group) => (
+        <div key={group.slot} className="flex flex-col gap-1.5">
+          <p className="text-xs font-medium text-muted-foreground">{group.label}</p>
+          {group.rows.map((booking) => {
+            const meta = bookingStatusMeta[booking.status];
+            const experience =
+              experienceNames[booking.experienceSlug] ?? booking.experienceSlug;
+            const party =
+              booking.partySize === 1 ? "1 pessoa" : `${booking.partySize} pessoas`;
+            const row = (
+              <>
+                <span className="text-sm font-medium">
+                  {booking.name ?? booking.ref}
+                </span>
+                {booking.name ? (
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {booking.ref}
+                  </span>
+                ) : null}
+                <Badge variant={meta.variant}>{meta.label}</Badge>
+                <span className="text-sm text-muted-foreground">{experience}</span>
+                <span aria-hidden>·</span>
+                <span className="text-sm text-muted-foreground">{party}</span>
+              </>
+            );
+            return booking.tourRequestId ? (
+              <Link
+                key={booking.ref}
+                href={`/admin/sales/${booking.tourRequestId}`}
+                className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-muted/40 px-2 py-1.5 transition-colors hover:bg-muted/70 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                {row}
+              </Link>
+            ) : (
+              <div
+                key={booking.ref}
+                className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-muted/40 px-2 py-1.5"
+              >
+                {row}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * One day's editor: pick which departures the change addresses, then open,
  * close, or forget them — plus how many drivers are on, and why.
  *
@@ -259,12 +399,18 @@ function WriteFields({ dates, slots }: { dates: string[]; slots: string[] }) {
  */
 function DayEditor({
   day,
+  bookings,
+  experienceNames,
   defaultDrivers,
   maxDrivers,
   onDone,
   onOpenChange,
 }: {
   day: CalendarDay;
+  /** The live bookings on this day, for the sheet. */
+  bookings: CalendarBooking[];
+  /** Tour slug → name in Portuguese, for the sheet's rows. */
+  experienceNames: Record<string, string>;
   defaultDrivers: number;
   maxDrivers: number;
   onDone: () => void;
@@ -323,6 +469,8 @@ function DayEditor({
             {error}
           </p>
         ) : null}
+
+        <DayBookings bookings={bookings} experienceNames={experienceNames} />
 
         <div
           role="group"
@@ -550,12 +698,198 @@ function SweepConfirmation({
   );
 }
 
+/**
+ * The two taps that picked a range, and what they want done with it.
+ *
+ * The grid's middle gesture, between the one-day sheet and the season fields:
+ * tap the range button, tap two days, and the stripe between them is offered
+ * the same three writes the day sheet has — open, close, clear — each behind
+ * the same {@link SweepConfirmation} the sweeps use, posting `from`/`to` so
+ * the *shared* server actions expand the range themselves (see
+ * `addressedDays`).
+ *
+ * A range here is one month at most: the grid shows one month, the pager is a
+ * link, and a span that crosses into the neighbour is the season window's
+ * job, which is what the hint below points at.
+ */
+function RangeActions({
+  range,
+  onDone,
+  onCancel,
+}: {
+  range: { from: string; to: string };
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [setState, setFormAction] = useActionState<AvailabilityActionState, FormData>(
+    setAvailability,
+    {},
+  );
+  const [clearState, clearFormAction] = useActionState<AvailabilityActionState, FormData>(
+    clearAvailability,
+    {},
+  );
+  // Both actions answer `AvailabilityActionState`, so one `Confirming` shape
+  // serves them — but identity must be matched against the state the question
+  // was asked from, which is which kind of action is pending.
+  const [confirming, setConfirming] = useState<
+    Confirming<"open" | "closed" | "clear">
+  >(null);
+
+  useEffect(() => {
+    if (setState.ok || clearState.ok) onDone();
+  }, [setState, clearState, onDone]);
+
+  const asked = stillAskingForRange(confirming, setState, clearState);
+
+  const days = spanOfDays(range.from, range.to);
+  const departures = days * 2;
+  const span = `${readableDay(range.from)} a ${readableDay(range.to)}`;
+
+  const confirmation = asked
+    ? {
+        open: {
+          title: `Pôr ${dayCount(days)} à venda?`,
+          description:
+            `As duas partidas de todos os dias de ${span} ficam à venda — ${departures} ` +
+            "partidas. As notas e as escalas de condutores já lançadas nesses dias " +
+            "ficam exatamente como estão.",
+          confirmLabel: "Pôr à venda",
+          pendingLabel: "A abrir…",
+          destructive: false,
+        },
+        closed: {
+          title: `Fechar ${dayCount(days)}?`,
+          description:
+            `As duas partidas de todos os dias de ${span} saem de venda — ${departures} ` +
+            "partidas. As reservas já feitas não são canceladas.",
+          confirmLabel: "Fechar",
+          pendingLabel: "A fechar…",
+          destructive: true,
+        },
+        clear: {
+          title: `Limpar ${dayCount(days)}?`,
+          description:
+            `Apaga a decisão dos dias de ${span} por completo — voltam a não existir no ` +
+            "calendário. Dias com reservas não são limpos: o arranque recusa-os e " +
+            "fica a dizer porquê.",
+          confirmLabel: "Limpar",
+          pendingLabel: "A limpar…",
+          destructive: true,
+        },
+      }[asked]
+    : null;
+
+  const answeredSet = asked !== null && asked !== "clear" ? asked : null;
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-col gap-3">
+        <div>
+          <p className="text-sm font-medium">Período escolhido</p>
+          <p className="text-xs text-muted-foreground">
+            {span} · {dayCount(days)} · {departures}{" "}
+            {departures === 1 ? "partida" : "partidas"}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setConfirming({ what: "closed", after: setState })}
+          >
+            Fechar período
+          </Button>
+          <Button
+            type="button"
+            onClick={() => setConfirming({ what: "open", after: setState })}
+          >
+            Abrir período
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setConfirming({ what: "clear", after: clearState })}
+          >
+            Limpar
+          </Button>
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancelar
+          </Button>
+        </div>
+
+        {setState.error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {setState.error}
+          </p>
+        ) : null}
+        {clearState.error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {clearState.error}
+          </p>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
+          Para um período maior que este mês, use a caixa «Um período de datas»
+          em baixo — o gesto no calendário fica dentro do mês que está a ver.
+        </p>
+      </div>
+
+      {confirmation ? (
+        <SweepConfirmation
+          key={confirmation.title}
+          open
+          onOpenChange={(open) => {
+            if (!open) setConfirming(null);
+          }}
+          formAction={answeredSet ? setFormAction : clearFormAction}
+          title={confirmation.title}
+          description={confirmation.description}
+          confirmLabel={confirmation.confirmLabel}
+          pendingLabel={confirmation.pendingLabel}
+          destructive={confirmation.destructive}
+        >
+          <input type="hidden" name="from" value={range.from} />
+          <input type="hidden" name="to" value={range.to} />
+          {BOTH_SLOTS.map((slot) => (
+            <input key={slot} type="hidden" name="slots" value={slot} />
+          ))}
+          {answeredSet ? (
+            <input type="hidden" name="status" value={answeredSet} />
+          ) : null}
+        </SweepConfirmation>
+      ) : null}
+    </Card>
+  );
+}
+
+/**
+ * Which range action the server has answered, from either of its two writers.
+ *
+ * Same identity rule as {@link stillAsking}, with two states to compare
+ * against: the ask remembers the state object it was armed with, and is
+ * "answered" exactly when that same object stops being what the hook is
+ * showing — which happens once, on the result, and never again while the
+ * dialog stays open.
+ */
+function stillAskingForRange(
+  confirming: Confirming<"open" | "closed" | "clear">,
+  setState: AvailabilityActionState,
+  clearState: AvailabilityActionState,
+): "open" | "closed" | "clear" | null {
+  if (confirming === null) return null;
+  if (confirming.what === "clear") {
+    return confirming.after === clearState ? confirming.what : null;
+  }
+  return confirming.after === setState ? confirming.what : null;
+}
+
+const BOTH_SLOTS = ["morning", "afternoon"];
+
 /** A month's worth of days a bulk sweep can address: everything not past. */
 function sweepable(days: CalendarDay[]): CalendarDay[] {
   return days.filter((day) => day.slots.some((slot) => !slot.past));
 }
-
-const BOTH_SLOTS = ["morning", "afternoon"];
 
 /** What one sweep button means, so the button and its confirmation agree. */
 type Sweep = {
@@ -934,6 +1268,8 @@ export function AvailabilityCalendar({
   maxDrivers,
   maxRangeDays,
   fleet,
+  bookingsByDate,
+  experienceNames,
   today,
 }: {
   monthLabel: string;
@@ -948,13 +1284,22 @@ export function AvailabilityCalendar({
   maxDrivers: number;
   /** `MAX_RANGE_DAYS`, so the season confirmation can state where a write stops. */
   maxRangeDays: number;
-  /** The cars, for the legend — why a departure can be full with a driver free. */
+  /** The cars, for the fleet line. */
   fleet: CalendarVehicle[];
+  /** Live bookings grouped by date — the dot on the tile and the day sheet. */
+  bookingsByDate: Record<string, CalendarBooking[]>;
+  /** Tour slug → name in Portuguese, for the day sheet's rows. */
+  experienceNames: Record<string, string>;
   /** Today in Lisbon, as the floor of the season fields. */
   today: string;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
+  // The two-tap range pick: `rangePicking` arms the grid, the first tap sets
+  // `rangeAnchor`, the second closes `range` on the stripe between them.
+  const [rangePicking, setRangePicking] = useState(false);
+  const [rangeAnchor, setRangeAnchor] = useState<string | null>(null);
+  const [range, setRange] = useState<{ from: string; to: string } | null>(null);
 
   const byDate = new Map(days.map((day) => [day.date, day]));
   const selectedDay = selected ? byDate.get(selected) : undefined;
@@ -964,6 +1309,42 @@ export function AvailabilityCalendar({
   );
   const toursLeft = openSlots.reduce((sum, slot) => sum + slot.driversLeft, 0);
 
+  /**
+   * Two taps, one stripe: the grid's own way to write a stretch of days.
+   *
+   * Outside range mode a tap is the day sheet, as ever. Inside it, the first
+   * tap sets an end and the second names the stripe; a third tap starts over.
+   * The tap order never matters — the stripe is sorted before it is kept.
+   */
+  function onDayTap(date: string) {
+    if (!rangePicking) {
+      setSelected(date);
+      return;
+    }
+    if (range) {
+      setRange(null);
+      setRangeAnchor(date);
+      return;
+    }
+    if (rangeAnchor === null) {
+      setRangeAnchor(date);
+      return;
+    }
+    if (rangeAnchor === date) {
+      setRangeAnchor(null);
+      return;
+    }
+    const [from, to] = [rangeAnchor, date].sort();
+    setRange({ from, to });
+    setRangeAnchor(null);
+  }
+
+  function leaveRangeMode() {
+    setRangePicking(false);
+    setRangeAnchor(null);
+    setRange(null);
+  }
+
   // Stable, and it has to be: every card below takes it as `onDone` and calls
   // it from an effect that lists it as a dependency. A fresh function each
   // render would re-fire those effects on the render `router.refresh()` itself
@@ -972,6 +1353,19 @@ export function AvailabilityCalendar({
     setSelected(null);
     router.refresh();
   }, [router]);
+
+  // The same shape, for the range card: writing the stripe ends the gesture.
+  const endRange = useCallback(() => {
+    leaveRangeMode();
+    router.refresh();
+  }, [router]);
+
+  /** A date's live bookings — the tile's dot and the day sheet's rows. */
+  const bookingsOf = (date: string): CalendarBooking[] => bookingsByDate[date] ?? [];
+
+  // A tile is inside a picked stripe when its key compares in the streak.
+  const inRange = (date: string): boolean =>
+    range !== null && date >= range.from && date <= range.to;
 
   const calendarHref = (monthKey: string) => `/admin/calendar?month=${monthKey}`;
 
@@ -1023,6 +1417,25 @@ export function AvailabilityCalendar({
           </Button>
         </div>
 
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant={rangePicking ? "secondary" : "outline"}
+            aria-pressed={rangePicking}
+            onClick={() =>
+              rangePicking ? leaveRangeMode() : setRangePicking(true)
+            }
+          >
+            <CalendarRange className="size-4" aria-hidden />
+            {rangePicking ? "Cancelar seleção" : "Marcar um período"}
+          </Button>
+          {rangePicking ? (
+            <p className="text-xs text-muted-foreground">
+              Toque no primeiro e no último dia do período.
+            </p>
+          ) : null}
+        </div>
+
         <div className="grid grid-cols-7 gap-0.5 text-center text-xs font-medium text-muted-foreground sm:gap-1">
           {weekdays.map((initial, i) => (
             <span key={i} className="py-1">
@@ -1038,22 +1451,38 @@ export function AvailabilityCalendar({
             if (!day) return <span key={date} />;
 
             const { className, disabled, label } = cellAppearance(day);
+            const dateBookings = bookingsOf(date);
             return (
               <button
                 key={date}
                 type="button"
                 disabled={disabled}
-                onClick={() => setSelected(date)}
-                aria-label={label}
+                onClick={() => onDayTap(date)}
+                aria-label={`${label}${dateBookings.length > 0 ? `, ${dateBookings.length} ${dateBookings.length === 1 ? "reserva" : "reservas"}` : ""}`}
+                aria-pressed={inRange(date) || rangeAnchor === date}
                 className={cn(
                   // 44px floor from the primitive scale, and square so the grid
                   // stays a grid at 320px. `overflow-hidden` is the guarantee
                   // that a cell cannot push its neighbour sideways whatever the
                   // caption ends up being.
-                  "flex min-h-12 touch-manipulation flex-col items-center justify-center overflow-hidden rounded-lg border py-1 text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed",
+                  "relative flex min-h-12 touch-manipulation flex-col items-center justify-center gap-0.5 overflow-hidden rounded-lg border py-1 text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed",
                   className,
+                  // The picked stripe — a solid ring across the tiles, which
+                  // is how a contiguous range is *seen* to be one range.
+                  inRange(date) && "bg-primary/10 ring-2 ring-primary/60",
+                  rangeAnchor === date && "ring-2 ring-foreground/70",
                 )}
               >
+                {dateBookings.length > 0 ? (
+                  // A live booking is a dot on the tile — presence on the grid,
+                  // count and names in the day sheet. `aria-hidden`: the label
+                  // above carries the number.
+                  <span
+                    aria-hidden
+                    title={`${dateBookings.length} ${dateBookings.length === 1 ? "reserva" : "reservas"}`}
+                    className="absolute right-1 top-1 size-1.5 rounded-full bg-foreground/70"
+                  />
+                ) : null}
                 <span>{Number(date.slice(8))}</span>
                 {!disabled ? (
                   // The two departures stack rather than sit side by side. They
@@ -1063,12 +1492,18 @@ export function AvailabilityCalendar({
                   // sun. At 12px two "10h·2" captions do not fit across a cell
                   // on any phone, so the cell grows downwards instead, where
                   // there is room.
-                  <span className="flex w-full flex-col items-center text-xs leading-tight font-normal">
+                  <span className="flex w-full flex-col gap-0.5 px-0.5 text-xs leading-tight font-normal">
                     {day.slots.map((slot) => {
-                      const tone = slotTone(slot);
+                      const chip = slotChip(slot);
                       return (
-                        <span key={slot.slot} className={tone.className}>
-                          {tone.text}
+                        <span
+                          key={slot.slot}
+                          className={cn(
+                            "rounded-sm px-0.5 py-px whitespace-nowrap",
+                            chip.className,
+                          )}
+                        >
+                          {chip.text}
                         </span>
                       );
                     })}
@@ -1079,6 +1514,15 @@ export function AvailabilityCalendar({
           })}
         </div>
       </Card>
+
+      {range ? (
+        <RangeActions
+          key={range.from}
+          range={range}
+          onDone={endRange}
+          onCancel={() => leaveRangeMode()}
+        />
+      ) : null}
 
       <p className="text-sm text-muted-foreground">
         {openSlots.length} {openSlots.length === 1 ? "partida" : "partidas"} à venda
@@ -1104,28 +1548,11 @@ export function AvailabilityCalendar({
         />
       </Card>
 
-      <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-primary">10h·2</span>
-          <span>à venda, com condutores livres</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-foreground">10h✓</span>
-          <span>esgotada</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-destructive">10h×</span>
-          <span>fechada por si</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-muted-foreground/50">10h</span>
-          <span>não está à venda</span>
-        </div>
-      </dl>
-
       <p className="text-xs text-muted-foreground">
-        Uma partida pode estar esgotada com um condutor livre — o grupo precisa de
-        um veículo que outro grupo já tem. A frota:{" "}
+        Um número é o de condutores ainda livres; um risco sobre a hora diz que a
+        partida já não leva mais grupos — esgotada ou fechada, o verde e o
+        vermelho dizem qual. Uma partida pode esgotar com um condutor livre: o
+        grupo precisa de um veículo que outro grupo já tem. A frota:{" "}
         {fleet.map((vehicle) => `${vehicle.name} (${vehicle.seats})`).join(" · ")}.
       </p>
 
@@ -1133,6 +1560,8 @@ export function AvailabilityCalendar({
         <DayEditor
           key={selectedDay.date}
           day={selectedDay}
+          bookings={bookingsOf(selectedDay.date)}
+          experienceNames={experienceNames}
           defaultDrivers={defaultDrivers}
           maxDrivers={maxDrivers}
           onDone={refresh}
