@@ -163,42 +163,6 @@ export function ManualBookingDialog({
   onDone: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [state, formAction] = useActionState<ManualBookingActionState, FormData>(
-    createManualBooking,
-    {},
-  );
-
-  const [slot, setSlot] = useState<"morning" | "afternoon">(openSlots[0] ?? "morning");
-  const [experience, setExperience] = useState(tours[0]?.slug ?? "");
-  const [mode, setMode] = useState<"public" | "private">("public");
-  const [adults, setAdults] = useState(2);
-  const [children, setChildren] = useState(0);
-  const [infants, setInfants] = useState(0);
-
-  // A fresh sheet on every open, whatever the last booking left behind: the
-  // defaults are the defaults, not the previous guest. (After a success the
-  // whole dialog unmounts — `onDone` collapses the day sheet — so state never
-  // survives to poison the next opener.)
-  useEffect(() => {
-    if (!open) return;
-    setSlot(openSlots[0] ?? "morning");
-    setExperience(tours[0]?.slug ?? "");
-    setMode("public");
-    setAdults(2);
-    setChildren(0);
-    setInfants(0);
-  }, [open, openSlots, tours]);
-
-  // Closing on success is derived, as everywhere in this admin: once `ok`
-  // lands the booking exists, the dialog has nothing left to say and the
-  // sheet's `onDone` repaints the calendar behind it.
-  useEffect(() => {
-    if (!state.ok) return;
-    setOpen(false);
-    onDone();
-  }, [state.ok, onDone]);
-
-  const errors = state.fieldErrors ?? {};
 
   return (
     <>
@@ -212,166 +176,228 @@ export function ManualBookingDialog({
         Nova reserva
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <form action={formAction} className="flex flex-col gap-4">
-            <input type="hidden" name="date" value={date} />
-
-            <DialogHeader>
-              <DialogTitle>Nova reserva</DialogTitle>
-              <DialogDescription>
-                Venda feita ao telefone ou em pessoa, sem Stripe. O valor de base é o do
-                catálogo; diga outro se o que combinou foi diferente.
-              </DialogDescription>
-            </DialogHeader>
-
-            <FieldError message={state.error} />
-
-            <div role="group" aria-label="Partida" className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium">Partida</span>
-              <div className="flex gap-2">
-                {openSlots.map((choice) => (
-                  <Choice
-                    key={choice}
-                    active={slot === choice}
-                    onClick={() => setSlot(choice)}
-                  >
-                    {choice === "morning" ? "Manhã · 10:00" : "Tarde · 14:00"}
-                  </Choice>
-                ))}
-              </div>
-              <FieldError message={errors.slot} />
-            </div>
-            <input type="hidden" name="slot" value={slot} />
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="manual-booking-experience">Passeio</Label>
-              <Select
-                id="manual-booking-experience"
-                name="experience"
-                value={experience}
-                onChange={(event) => setExperience(event.target.value)}
-              >
-                {tours.map((tour) => (
-                  <option key={tour.slug} value={tour.slug}>
-                    {tour.title}
-                  </option>
-                ))}
-              </Select>
-              <FieldError message={errors.experience} />
-            </div>
-
-            <div role="group" aria-label="Formato" className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium">Formato</span>
-              <div className="flex gap-2">
-                <Choice active={mode === "public"} onClick={() => setMode("public")}>
-                  Partilhado
-                </Choice>
-                <Choice active={mode === "private"} onClick={() => setMode("private")}>
-                  Privado
-                </Choice>
-              </div>
-            </div>
-            <input type="hidden" name="mode" value={mode} />
-
-            <div role="group" aria-label="Quantos vêm" className="flex flex-col gap-2">
-              <span className="text-sm font-medium">Quantos vêm</span>
-              <div className="grid grid-cols-3 gap-2">
-                <Stepper
-                  id="manual-adults"
-                  label="Adultos"
-                  unit="adulto"
-                  count={adults}
-                  min={1}
-                  max={8}
-                  onChange={setAdults}
-                />
-                <Stepper
-                  id="manual-children"
-                  label="Crianças"
-                  unit="criança"
-                  count={children}
-                  min={0}
-                  max={8}
-                  onChange={setChildren}
-                />
-                <Stepper
-                  id="manual-infants"
-                  label="Bebés"
-                  unit="bebé"
-                  count={infants}
-                  min={0}
-                  max={8}
-                  onChange={setInfants}
-                />
-              </div>
-              <FieldError message={errors.party} />
-            </div>
-            <input type="hidden" name="adults" value={adults} />
-            <input type="hidden" name="children" value={children} />
-            <input type="hidden" name="infants" value={infants} />
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="manual-booking-name">Nome</Label>
-              <Input
-                id="manual-booking-name"
-                name="name"
-                required
-                autoComplete="name"
-                placeholder="Quem reserva"
-              />
-              <FieldError message={errors.name} />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="manual-booking-email">Email</Label>
-              <Input
-                id="manual-booking-email"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                inputMode="email"
-                placeholder="nome@exemplo.pt"
-              />
-              <FieldError message={errors.email} />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="manual-booking-phone">Telefone (opcional)</Label>
-              <Input
-                id="manual-booking-phone"
-                name="phone"
-                type="tel"
-                autoComplete="tel"
-                inputMode="tel"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="manual-booking-amount">Valor combinado (€)</Label>
-              <Input
-                id="manual-booking-amount"
-                name="amount"
-                inputMode="decimal"
-                placeholder="Preço do catálogo"
-                enterKeyHint="done"
-              />
-              <p className="text-xs text-muted-foreground">
-                Em branco, o preço do catálogo. Ou o valor negociado — fica registado
-                como combinado.
-              </p>
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancelar
-              </Button>
-              <SubmitButton />
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {open ? (
+        <ManualBookingForm
+          date={date}
+          openSlots={openSlots}
+          tours={tours}
+          onDone={onDone}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
     </>
+  );
+}
+
+/**
+ * The mounted-while-open form. The dialog exists only while a booking is being
+ * recorded, so nothing survives to poison a later opener: `open` controls the
+ * trigger up here, and this form — its `useActionState` and every field —
+ * resets itself by unmounting when the sheet closes. The disappearance IS the
+ * reset, which is why there is no "clear on open" effect.
+ */
+function ManualBookingForm({
+  date,
+  openSlots,
+  tours,
+  onDone,
+  onClose,
+}: {
+  date: string;
+  openSlots: ("morning" | "afternoon")[];
+  tours: ManualBookingTour[];
+  onDone: () => void;
+  onClose: () => void;
+}) {
+  const [state, formAction] = useActionState<ManualBookingActionState, FormData>(
+    createManualBooking,
+    {},
+  );
+
+  const [slot, setSlot] = useState<"morning" | "afternoon">(openSlots[0] ?? "morning");
+  const [experience, setExperience] = useState(tours[0]?.slug ?? "");
+  const [mode, setMode] = useState<"public" | "private">("public");
+  const [adults, setAdults] = useState(2);
+  const [children, setChildren] = useState(0);
+  const [infants, setInfants] = useState(0);
+
+  // Closing on success is derived, as everywhere in this admin: once `ok`
+  // lands the booking exists and the sheet has nothing left to say — refresh
+  // the calendar behind it (`onDone`) and turn the dialog off (`onClose`,
+  // which unmounts this very form).
+  useEffect(() => {
+    if (!state.ok) return;
+    onDone();
+    onClose();
+  }, [state.ok, onDone, onClose]);
+
+  const errors = state.fieldErrors ?? {};
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
+      <DialogContent>
+        <form action={formAction} className="flex flex-col gap-4">
+          <input type="hidden" name="date" value={date} />
+
+          <DialogHeader>
+            <DialogTitle>Nova reserva</DialogTitle>
+            <DialogDescription>
+              Venda feita ao telefone ou em pessoa, sem Stripe. O valor de base é o do
+              catálogo; diga outro se o que combinou foi diferente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <FieldError message={state.error} />
+
+          <div role="group" aria-label="Partida" className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Partida</span>
+            <div className="flex gap-2">
+              {openSlots.map((choice) => (
+                <Choice
+                  key={choice}
+                  active={slot === choice}
+                  onClick={() => setSlot(choice)}
+                >
+                  {choice === "morning" ? "Manhã · 10:00" : "Tarde · 14:00"}
+                </Choice>
+              ))}
+            </div>
+            <FieldError message={errors.slot} />
+          </div>
+          <input type="hidden" name="slot" value={slot} />
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="manual-booking-experience">Passeio</Label>
+            <Select
+              id="manual-booking-experience"
+              name="experience"
+              value={experience}
+              onChange={(event) => setExperience(event.target.value)}
+            >
+              {tours.map((tour) => (
+                <option key={tour.slug} value={tour.slug}>
+                  {tour.title}
+                </option>
+              ))}
+            </Select>
+            <FieldError message={errors.experience} />
+          </div>
+
+          <div role="group" aria-label="Formato" className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Formato</span>
+            <div className="flex gap-2">
+              <Choice active={mode === "public"} onClick={() => setMode("public")}>
+                Partilhado
+              </Choice>
+              <Choice active={mode === "private"} onClick={() => setMode("private")}>
+                Privado
+              </Choice>
+            </div>
+          </div>
+          <input type="hidden" name="mode" value={mode} />
+
+          <div role="group" aria-label="Quantos vêm" className="flex flex-col gap-2">
+            <span className="text-sm font-medium">Quantos vêm</span>
+            <div className="grid grid-cols-3 gap-2">
+              <Stepper
+                id="manual-adults"
+                label="Adultos"
+                unit="adulto"
+                count={adults}
+                min={1}
+                max={8}
+                onChange={setAdults}
+              />
+              <Stepper
+                id="manual-children"
+                label="Crianças"
+                unit="criança"
+                count={children}
+                min={0}
+                max={8}
+                onChange={setChildren}
+              />
+              <Stepper
+                id="manual-infants"
+                label="Bebés"
+                unit="bebé"
+                count={infants}
+                min={0}
+                max={8}
+                onChange={setInfants}
+              />
+            </div>
+            <FieldError message={errors.party} />
+          </div>
+          <input type="hidden" name="adults" value={adults} />
+          <input type="hidden" name="children" value={children} />
+          <input type="hidden" name="infants" value={infants} />
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="manual-booking-name">Nome</Label>
+            <Input
+              id="manual-booking-name"
+              name="name"
+              required
+              autoComplete="name"
+              placeholder="Quem reserva"
+            />
+            <FieldError message={errors.name} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="manual-booking-email">Email</Label>
+            <Input
+              id="manual-booking-email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              inputMode="email"
+              placeholder="nome@exemplo.pt"
+            />
+            <FieldError message={errors.email} />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="manual-booking-phone">Telefone (opcional)</Label>
+            <Input
+              id="manual-booking-phone"
+              name="phone"
+              type="tel"
+              autoComplete="tel"
+              inputMode="tel"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="manual-booking-amount">Valor combinado (€)</Label>
+            <Input
+              id="manual-booking-amount"
+              name="amount"
+              inputMode="decimal"
+              placeholder="Preço do catálogo"
+              enterKeyHint="done"
+            />
+            <p className="text-xs text-muted-foreground">
+              Em branco, o preço do catálogo. Ou o valor negociado — fica registado
+              como combinado.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <SubmitButton />
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
