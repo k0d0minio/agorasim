@@ -73,6 +73,7 @@ export const AUDIT_ACTIONS = [
   "blog_post.updated",
   "blog_post.published",
   "blog_post.unpublished",
+  "cron.dispatch",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -85,7 +86,8 @@ export type AuditEntityType =
   | "experience"
   | "availability"
   | "booking"
-  | "blog_post";
+  | "blog_post"
+  | "cron";
 
 export type AuditInput = {
   /** The signed-in operator, or `null` for an automated job (the retention cron). */
