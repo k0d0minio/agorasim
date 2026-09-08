@@ -7,7 +7,6 @@ import { getDictionary } from "@/i18n/dictionaries";
 import {
   complementsOf,
   listExperiences,
-  signatureOf,
 } from "@/lib/experience-catalogue";
 import { fromPriceLabel } from "@/content/pricing";
 import { Section, SectionHeading, Container } from "@/components/section";
@@ -27,8 +26,15 @@ export async function generateMetadata({
   const { locale } = await params;
   if (!isLocale(locale)) return {};
   const title = locale === "pt" ? "Experiências" : "Experiences";
-  const signature = signatureOf(await listExperiences());
-  const description = signature ? t(signature.summary, locale) : undefined;
+  const catalogue = await listExperiences();
+  const signatures = catalogue.filter((e) => e.kind === "signature");
+  if (signatures.length === 0) return { title, alternates: alternates(locale, "experiencias") };
+  const summaries = signatures.map((s) => t(s.summary, locale));
+  const description = signatures.length === 1
+    ? summaries[0]
+    : locale === "pt"
+      ? `${summaries[0]} — e também ${summaries[1]}.`
+      : `${summaries[0]} — and also ${summaries[1]}.`;
   return { title, description, alternates: alternates(locale, "experiencias") };
 }
 
@@ -45,57 +51,44 @@ export default async function ExperiencesPage({
   const l: Locale = locale;
   const dict = getDictionary(l);
   const catalogue = await listExperiences();
-  const sig = signatureOf(catalogue);
+  const signatures = catalogue.filter((e) => e.kind === "signature");
   const complementExperiences = complementsOf(catalogue);
-  // The other bookable tours — Óbidos joined the catalogue with AGORA-002.
-  const otherTours = catalogue.filter(
-    (entry) => entry.kind === "signature" && entry.slug !== sig?.slug,
-  );
 
-  // An empty catalogue is a misconfiguration, not a page — better a 404 than a
-  // hero with no title in it.
-  if (!sig) notFound();
-
-  // The same honest "from" the cards carry, on the tour that leads the page —
-  // read from the catalogue, so it moves when the price list does.
-  const sigPrice = fromPriceLabel(sig.pricing, l);
+  if (signatures.length === 0) notFound();
 
   return (
     <>
-      <JsonLd data={experienceJsonLd(sig, l)} />
-      {otherTours.map((tour) => (
+      {signatures.map((tour) => (
         <JsonLd key={tour.slug} data={experienceJsonLd(tour, l)} />
       ))}
 
-      {/* Signature experience feature */}
-      <Section>
-        <div className="grid items-center gap-10 lg:grid-cols-2">
+      {/* Every signature tour gets equal billing — full-width feature blocks
+          with alternating image placement for visual variety. */}
+      {signatures.map((tour, i) => {
+        const price = fromPriceLabel(tour.pricing, l);
+        const imageOnRight = i % 2 === 0;
+        const imageBlock = (
+          <Media src={tour.image} label={t(tour.imageAlt, l)} className="aspect-4/3 w-full" />
+        );
+        const contentBlock = (
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-              {l === "pt" ? "Experiência principal" : "Signature experience"}
-            </p>
-            <h1 className="mt-2 text-4xl font-semibold sm:text-5xl">{t(sig.title, l)}</h1>
-            <p className="mt-4 text-lg text-muted-foreground">{t(sig.summary, l)}</p>
+            <h1 className="text-4xl font-semibold sm:text-5xl">{t(tour.title, l)}</h1>
+            <p className="mt-4 text-lg text-muted-foreground">{t(tour.summary, l)}</p>
             <ul className="mt-6 space-y-2 text-muted-foreground">
-              {t(sig.highlights, l).map((h) => (
+              {t(tour.highlights, l).map((h) => (
                 <li key={h} className="flex items-start gap-2">
                   <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                   {h}
                 </li>
               ))}
             </ul>
-            {sigPrice ? (
-              <p className="mt-6 text-lg font-medium text-foreground">{sigPrice}</p>
+            {price ? (
+              <p className="mt-6 text-lg font-medium text-foreground">{price}</p>
             ) : null}
             <div className="mt-8 flex flex-wrap gap-3">
-              {/* The signature tour is the default today; naming it anyway
-                  means this button keeps selling *this* block's tour if the
-                  catalogue order ever changes. */}
-              <BookingButton locale={l} label={dict.cta.bookExperience} tour={sig.slug} />
+              <BookingButton locale={l} label={dict.cta.bookExperience} tour={tour.slug} />
               <Link
-                href={href(l, "experiencias", sig.slug)}
-                // min-h-11: this sits beside a 48px button and was a 20px-tall
-                // target (spec §2 T1).
+                href={href(l, "experiencias", tour.slug)}
                 className="inline-flex min-h-11 touch-manipulation items-center gap-1 self-center text-sm font-medium text-primary hover:underline"
               >
                 {dict.cta.learnMore}
@@ -103,19 +96,42 @@ export default async function ExperiencesPage({
               </Link>
             </div>
           </div>
-          <Media src={sig.image} label={t(sig.imageAlt, l)} className="aspect-4/3 w-full" />
-        </div>
-      </Section>
+        );
 
-      {/* The other tours — Óbidos & Medieval Villages since AGORA-002. */}
-      {otherTours.length > 0 ? (
+        return (
+          <Section key={tour.slug}>
+            <div className="grid items-center gap-10 lg:grid-cols-2">
+              {imageOnRight ? (
+                <>
+                  {contentBlock}
+                  {imageBlock}
+                </>
+              ) : (
+                <>
+                  {imageBlock}
+                  {contentBlock}
+                </>
+              )}
+            </div>
+          </Section>
+        );
+      })}
+
+      {/* Add-ons — promoted out of the muted band, with price and a visible
+          tie-in to each tour so they read as "compose your day", not an appendix. */}
+      {complementExperiences.length > 0 ? (
         <Section>
           <SectionHeading
-            eyebrow={l === "pt" ? "Também connosco" : "Also with us"}
-            title={l === "pt" ? "Outras experiências" : "More experiences"}
+            eyebrow={dict.labels.complement}
+            title={l === "pt" ? "Complementos à sua medida" : "Add-ons to make it yours"}
+            intro={
+              l === "pt"
+                ? "Adicione um almoço, uma degustação ou uma visita ao seu passeio."
+                : "Add a lunch, a tasting, or a visit to your tour."
+            }
           />
-          <Container className="mt-10 grid gap-6 px-0 sm:grid-cols-2">
-            {otherTours.map((exp) => (
+          <Container className="mt-10 grid gap-6 px-0 sm:grid-cols-2 lg:grid-cols-4">
+            {complementExperiences.map((exp) => (
               <ExperienceCard
                 key={exp.slug}
                 experience={exp}
@@ -127,18 +143,35 @@ export default async function ExperiencesPage({
         </Section>
       ) : null}
 
-      {/* Complements */}
-      <Section muted>
-        <SectionHeading
-          eyebrow={dict.labels.complement}
-          title={l === "pt" ? "Complementos à sua medida" : "Add-ons to make it yours"}
-        />
-        <Container className="mt-10 grid gap-6 px-0 sm:grid-cols-2 lg:grid-cols-4">
-          {complementExperiences.map((exp) => (
-            <ExperienceCard key={exp.slug} experience={exp} locale={l} learnMore={dict.cta.learnMore} />
-          ))}
-        </Container>
-      </Section>
+      {/* Cross-links: each signature tour points to its complements so the
+          guest sees them as part of composing that specific tour. */}
+      {signatures.map((tour) => {
+        const tourComplements = complementsOf(catalogue);
+        if (tourComplements.length === 0) return null;
+        return (
+          <Section muted key={`${tour.slug}-crosslinks`}>
+            <SectionHeading
+              title={
+                l === "pt"
+                  ? `O que levar com ${t(tour.title, l)}`
+                  : `Pair with ${t(tour.title, l)}`
+              }
+            />
+            <Container className="mt-6 flex flex-wrap gap-3 px-0">
+              {tourComplements.map((exp) => (
+                <Link
+                  key={exp.slug}
+                  href={href(l, "experiencias", exp.slug)}
+                  className="inline-flex items-center gap-1 rounded-full border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary/50"
+                >
+                  {t(exp.title, l)}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              ))}
+            </Container>
+          </Section>
+        );
+      })}
     </>
   );
 }
