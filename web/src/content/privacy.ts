@@ -4,6 +4,13 @@ import type { Localized } from "@/i18n/config";
  * Privacy / data-protection copy — the policy page, the notice next to the
  * booking form and the marketing opt-in.
  *
+ * The recipients section names every processor the site actually uses: Vercel
+ * and Neon (hosting, database), Stripe (payment — Checkout is a redirect, card
+ * data never touches this app; the client's account is merchant of record and
+ * the platform takes an application fee, see `lib/booking-checkout.ts`) and
+ * Resend (transactional email, EU-west/Ireland region, see `lib/email.ts`).
+ * When a processor is added or removed, this file changes in the same PR.
+ *
  * ⚠️ **DRAFT LEGAL TEXT — NOT REVIEWED.** Everything below was written by an
  * engineer to give the mechanisms something honest to point at. It is not legal
  * advice and it has not been reviewed by anyone qualified. Before this goes
@@ -59,8 +66,8 @@ export const privacyContent = {
   } as Localized,
 
   lead: {
-    pt: "Como a Agorasim recolhe, usa e protege os seus dados pessoais quando pede uma experiência connosco.",
-    en: "How Agorasim collects, uses and protects your personal data when you enquire about an experience with us.",
+    pt: "Como a Agorasim recolhe, usa e protege os seus dados pessoais quando reserva ou pede uma experiência connosco.",
+    en: "How Agorasim collects, uses and protects your personal data when you book or enquire about an experience with us.",
   } as Localized,
 
   /** Rendered as a prominent banner at the top of the page. Remove on sign-off. */
@@ -70,7 +77,7 @@ export const privacyContent = {
   } as Localized,
 
   lastUpdatedLabel: { pt: "Última atualização", en: "Last updated" } as Localized,
-  lastUpdated: { pt: "31 de julho de 2026", en: "31 July 2026" } as Localized,
+  lastUpdated: { pt: "10 de setembro de 2026", en: "10 September 2026" } as Localized,
 
   sections: {
     pt: [
@@ -87,13 +94,15 @@ export const privacyContent = {
         body: [
           "Quando preenche o formulário de pedido de experiência recolhemos: o seu nome, o seu email, o seu telefone (opcional), o número de pessoas, a data ou período preferido, a experiência e complementos que lhe interessam, a mensagem que nos escrever e o idioma em que navegava.",
           "Registamos também a data do pedido e, se tiver assinalado a caixa de comunicações de marketing, o facto de o ter feito, o momento e a versão do texto que aceitou.",
-          "Não recolhemos dados através do site para além destes. Não usamos ferramentas de análise de tráfego nem publicidade comportamental.",
+          "Quando reserva e paga online recolhemos ainda os dados da reserva: a experiência, a data e a hora de partida, a composição do grupo (adultos, crianças e bebés), o montante pago e o estado do pagamento. O pagamento em si é feito numa página da Stripe, não no nosso site: os dados do cartão são introduzidos aí e nunca passam pelos nossos servidores. Da Stripe recebemos apenas a confirmação de que o pagamento foi feito, o montante e as referências necessárias para o associar à sua reserva.",
+          "Para além disto, os únicos dados que saem do site são os necessários para cobrar o pagamento (Stripe) e para lhe enviar os emails sobre o seu pedido ou reserva (Resend) — ver «Com quem partilhamos os dados». Não usamos ferramentas de análise de tráfego nem publicidade comportamental.",
         ],
       },
       {
         heading: "Porque tratamos os seus dados (fundamento de licitude)",
         body: [
           "Respondemos ao seu pedido e preparamos a sua experiência com base em diligências pré-contratuais a seu pedido (artigo 6.º, n.º 1, alínea b) do RGPD). Sem estes dados não conseguimos contactá-lo nem organizar o passeio.",
+          "Quando reserva e paga online, o tratamento dos dados da reserva e do pagamento — incluindo os emails de confirmação e de cancelamento — é necessário para a execução do contrato consigo (artigo 6.º, n.º 1, alínea b)).",
           "O envio de comunicações de marketing assenta exclusivamente no seu consentimento (artigo 6.º, n.º 1, alínea a)). É opcional, é dado numa caixa separada e não assinalada, e pode ser retirado a qualquer momento sem afetar o seu pedido.",
           "TODO(legal): confirmar o fundamento indicado para o pedido de experiência e se existe algum tratamento adicional (por exemplo, obrigações fiscais associadas a reservas efetivamente realizadas) que deva ser descrito aqui.",
         ],
@@ -109,15 +118,17 @@ export const privacyContent = {
       {
         heading: "Com quem partilhamos os dados",
         body: [
-          "Recorremos a prestadores de serviços que tratam dados por nossa conta: a Vercel (alojamento do site e armazenamento das fotografias das experiências) e a Neon (base de dados onde os pedidos ficam guardados).",
+          "Recorremos a prestadores de serviços que tratam dados por nossa conta: a Vercel (alojamento do site e armazenamento das fotografias das experiências), a Neon (base de dados onde os pedidos e as reservas ficam guardados), a Stripe (processamento de pagamentos) e a Resend (envio de emails).",
+          "Stripe — processamento de pagamentos. Quando paga uma reserva é encaminhado para uma página de pagamento da Stripe; os dados do cartão são introduzidos aí e nunca passam pelo nosso site. A Stripe recebe o seu email, a descrição do que está a reservar (experiência, data, número de pessoas) e o montante, e devolve-nos a confirmação do pagamento e as referências para o associar à sua reserva. O pagamento é cobrado na conta Stripe da Agorasim, que é o comerciante registado e a quem o valor pertence; a plataforma que opera este site recebe, através da Stripe, uma comissão de serviço sobre cada pagamento e nunca vê os dados do seu cartão. A política de privacidade da Stripe está em stripe.com/privacy.",
+          "Resend — envio de emails transacionais: a confirmação e o cancelamento da reserva, a resposta ao seu pedido e a cópia que a equipa recebe. Os emails são processados na região europeia da Resend (eu-west, Irlanda). A Resend tem sede nos Estados Unidos; para qualquer tratamento pela empresa-mãe fora do Espaço Económico Europeu, o mecanismo de transferência aplicável são as cláusulas contratuais-tipo aprovadas pela Comissão Europeia.",
           "Não vendemos os seus dados nem os partilhamos para fins de marketing de terceiros.",
-          "TODO(legal): confirmar as regiões de alojamento e, quando existam transferências para fora do Espaço Económico Europeu, o mecanismo aplicável (por exemplo, cláusulas contratuais-tipo).",
+          "TODO(legal): confirmar as regiões de alojamento da Vercel e da Neon, a entidade Stripe contratante (Stripe Payments Europe, Irlanda, para contas em Portugal) e, quando existam transferências para fora do Espaço Económico Europeu, o mecanismo aplicável (por exemplo, cláusulas contratuais-tipo).",
         ],
       },
       {
         heading: "Cookies e serviços externos",
         body: [
-          "O site não usa cookies de análise nem de publicidade, e não coloca cookies de terceiros: a reserva é feita através do nosso próprio formulário, sem sistemas externos incorporados na página. Por isso não verá um aviso de cookies — não há nada a que consentir.",
+          "O site não usa cookies de análise nem de publicidade, e não coloca cookies de terceiros. Não há sistemas externos incorporados nas nossas páginas: o pedido e a reserva são feitos através dos nossos próprios formulários e, quando paga, é encaminhado para uma página alojada pela Stripe (checkout.stripe.com), que tem a sua própria política de cookies e de privacidade, regressando ao nosso site no fim. Por isso não verá um aviso de cookies no nosso site — não há nada a que consentir.",
           "As fontes tipográficas são servidas a partir do nosso próprio domínio, pelo que a sua visita não gera pedidos a servidores da Google.",
           "A área reservada de administração usa um cookie estritamente necessário para manter a sessão iniciada. Não é usado para qualquer outro fim.",
         ],
@@ -151,13 +162,15 @@ export const privacyContent = {
         body: [
           "When you fill in the experience request form we collect: your name, your email address, your phone number (optional), the number of people, your preferred date or period, the experience and add-ons you are interested in, whatever you write in the message field, and the language you were browsing in.",
           "We also record when the enquiry was made and, if you ticked the marketing box, that you did so, when, and which version of the wording you agreed to.",
-          "We collect nothing else through the site. We do not use web analytics or behavioural advertising.",
+          "When you book and pay online we also collect the booking itself: the experience, the date and departure time, who is in your party (adults, children and infants), the amount paid and the payment status. The payment happens on a page hosted by Stripe, not on our site: your card details are entered there and never pass through our servers. From Stripe we receive only confirmation that the payment was made, the amount, and the references needed to match it to your booking.",
+          "Beyond this, the only data that leaves the site is what is needed to take your payment (Stripe) and to send you the emails about your enquiry or booking (Resend) — see \"Who we share it with\". We do not use web analytics or behavioural advertising.",
         ],
       },
       {
         heading: "Why we process it (lawful basis)",
         body: [
           "We answer your enquiry and prepare your experience on the basis of steps taken at your request prior to entering into a contract (GDPR Art. 6(1)(b)). Without this data we cannot reply to you or arrange the tour.",
+          "When you book and pay online, processing the booking and payment data — including the confirmation and cancellation emails — is necessary to perform the contract with you (Art. 6(1)(b)).",
           "Marketing email is sent solely on the basis of your consent (Art. 6(1)(a)). It is optional, it is given via a separate, unticked box, and you can withdraw it at any time without affecting your enquiry.",
           "TODO(legal): confirm the basis stated for the enquiry itself, and whether any further processing (for example tax obligations attached to bookings that actually happen) needs describing here.",
         ],
@@ -173,15 +186,17 @@ export const privacyContent = {
       {
         heading: "Who we share it with",
         body: [
-          "We use service providers who process data on our behalf: Vercel (website hosting and storage of the experience photos) and Neon (the database the enquiries are stored in).",
+          "We use service providers who process data on our behalf: Vercel (website hosting and storage of the experience photos), Neon (the database the enquiries and bookings are stored in), Stripe (payment processing) and Resend (email delivery).",
+          "Stripe — payment processing. When you pay for a booking you are redirected to a payment page hosted by Stripe; your card details are entered there and never pass through our site. Stripe receives your email address, a description of what you are booking (experience, date, number of people) and the amount, and returns to us confirmation of the payment and the references to match it to your booking. The payment is taken on Agorasim's own Stripe account — Agorasim is the merchant of record and the money is theirs; the platform that operates this site receives, through Stripe, a service fee on each payment and never sees your card details. Stripe's privacy policy is at stripe.com/privacy.",
+          "Resend — transactional email: your booking confirmation and cancellation, the reply to your enquiry, and the copy the team receives. Emails are processed in Resend's European region (eu-west, Ireland). Resend is headquartered in the United States; for any processing by the parent company outside the European Economic Area, the transfer safeguard relied on is the standard contractual clauses approved by the European Commission.",
           "We do not sell your data and we do not share it for third-party marketing.",
-          "TODO(legal): confirm the hosting regions and, where any transfer outside the European Economic Area occurs, the safeguard relied on (for example standard contractual clauses).",
+          "TODO(legal): confirm the hosting regions for Vercel and Neon, the contracting Stripe entity (Stripe Payments Europe, Ireland, for Portuguese accounts) and, where any transfer outside the European Economic Area occurs, the safeguard relied on (for example standard contractual clauses).",
         ],
       },
       {
         heading: "Cookies and third-party services",
         body: [
-          "The site uses no analytics and no advertising cookies, and sets no third-party cookies at all: booking happens through our own form, with no external systems embedded in the page. That is why there is no cookie banner — there is nothing to consent to.",
+          "The site uses no analytics and no advertising cookies, and sets no third-party cookies. There are no external systems embedded in our pages: enquiries and bookings go through our own forms and, when you pay, you are redirected to a page hosted by Stripe (checkout.stripe.com), which has its own cookie and privacy policies, and returned to our site afterwards. That is why there is no cookie banner on our site — there is nothing to consent to.",
           "Web fonts are served from our own domain, so visiting the site sends no request to Google's servers.",
           "The admin area uses one strictly necessary cookie to keep an operator signed in. It is used for nothing else.",
         ],
