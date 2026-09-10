@@ -18,8 +18,17 @@
  * skipped and said so in the logs. A deployment mid-setup should still be able
  * to take a booking; the team learns about it from the admin, which is where
  * they would look anyway.
+ *
+ * **Every message can be answered.** `From:` is `reservas@agorasim.pt` — an
+ * address that exists to send, not to be read — so a guest who hits reply must
+ * land somewhere a person looks. Any message without a `replyTo` of its own
+ * goes out with `site.email` (the info@ inbox) as the default, here at the one
+ * point every send passes through, rather than trusting each composer to
+ * remember it.
  */
 import "server-only";
+
+import { site } from "@/content/site";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
@@ -30,6 +39,11 @@ export type EmailMessage = {
   text: string;
   /** Optional HTML alternative. */
   html?: string;
+  /**
+   * Where a reply lands. Defaults to `site.email` — the business inbox — so no
+   * message ever answers to the sending address. Set it when a better human
+   * exists: the team's copy of a booking answers to the guest.
+   */
   replyTo?: string;
 };
 
@@ -90,7 +104,7 @@ export async function sendEmail(message: EmailMessage): Promise<EmailResult> {
         subject: message.subject,
         text: message.text,
         ...(message.html ? { html: message.html } : {}),
-        ...(message.replyTo ? { reply_to: message.replyTo } : {}),
+        reply_to: message.replyTo || site.email,
       }),
     });
 
