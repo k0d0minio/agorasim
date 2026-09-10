@@ -5,7 +5,7 @@
 - priority: P1
 - size: S
 - depends-on: none
-- sequence: 2 of 9
+- sequence: 2 of 14
 - sources: tech lens: `site.domain = "https://agorasim.pt"` hardcoded in `web/src/content/site.ts`, driving metadataBase, every canonical/hreflang, `sitemap.ts`, `robots.ts` host — while the site serves at agorasim.jamienisbet.com; leaks via `email-layout.ts:74`, `booking-emails.ts:95`, `jsonld.ts:46-48`; Stripe return URLs already env-driven and clean (`stripe.ts:70-77`)
 
 ## Problem
