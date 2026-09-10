@@ -109,7 +109,7 @@ Branch protection on `main` (CI required) goes on the moment real money can flow
 
 - [ ] 🧑 Create their admin accounts (`/admin/settings/users`): both **owner** role (Q20), temporary passwords handed over by voice/WhatsApp-disappearing, changed on first sign-in. Session lasts 7 days; the password manager on their phones should store it.
 - [ ] 👥 Install the admin PWA: Safari → `https://agorasim.pt/admin` → Share → *Adicionar ao ecrã principal* (iOS) / Chrome menu → *Instalar aplicação* (Android). Log in once inside the installed app.
-- [ ] 👥 Walk through, on the phone, with Jamie on a call: Sales board (a booking's detail, reference `BK-…`, guest phone tap-to-call), Calendar (close a day, close a slot, reopen), a cancel-and-refund on the €1 test, the catalogue (price edit → live at once), Notifications, Users.
+- [ ] 👥 Walk through, on the phone, with Jamie on a call: Sales board (a booking's detail, reference `BK-…`, guest phone tap-to-call), Calendar (close a day, close a slot, reopen), a cancel-and-refund on the €1 test, the catalogue (texts and visibility; **prices are read-only in the admin** — a price change goes through Jamie until `triage/admin-pricing-editor` ships), Notifications, Users.
 - [ ] 👥 Turn on email notifications for `info@` on their phones (the team copy of every paid booking lands there).
 - [ ] 🧑 Agree the first-week rule: **every real booking is checked on the Sales board within the hour**, because there is no SMS and (until `error-tracking` lands) no alarm.
 
