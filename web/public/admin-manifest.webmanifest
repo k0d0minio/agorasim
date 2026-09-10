@@ -1,13 +1,12 @@
 {
-  "name": "Agorasim Operations",
-  "short_name": "Agorasim Ops",
-  "description": "The Agorasim back office — leads, bookings, content and marketing in your pocket.",
+  "name": "Agorasim — Gestão",
+  "short_name": "Agorasim",
+  "description": "O painel de gestão da Agorasim — pedidos, reservas, calendário e catálogo, no telemóvel.",
   "id": "/admin",
   "start_url": "/admin",
   "scope": "/admin",
   "display": "standalone",
-  "orientation": "portrait",
-  "lang": "en",
+  "lang": "pt-PT",
   "background_color": "#fdfaf4",
   "theme_color": "#fdfaf4",
   "icons": [
@@ -18,12 +17,17 @@
   ],
   "shortcuts": [
     {
-      "name": "Sales board",
+      "name": "Vendas",
       "url": "/admin/sales",
       "icons": [{ "src": "/icons/admin-icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "name": "The catalogue",
+      "name": "Calendário",
+      "url": "/admin/calendar",
+      "icons": [{ "src": "/icons/admin-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Catálogo",
       "url": "/admin/experiences",
       "icons": [{ "src": "/icons/admin-icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }

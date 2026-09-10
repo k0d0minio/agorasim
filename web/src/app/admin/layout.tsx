@@ -20,7 +20,10 @@ export const metadata: Metadata = {
   // gates it (manifest fetches are credential-less); start_url/scope point back
   // at /admin.
   manifest: "/admin-manifest.webmanifest",
-  appleWebApp: { capable: true, title: "Agorasim · Painel", statusBarStyle: "default" },
+  // The iOS home-screen label. Kept to the manifest's `short_name` so the
+  // installed icon reads the same on both platforms — iOS truncates anything
+  // longer than about a dozen characters under the icon anyway.
+  appleWebApp: { capable: true, title: "Agorasim", statusBarStyle: "default" },
   icons: { apple: "/icons/admin-apple-touch-icon.png" },
 };
 
