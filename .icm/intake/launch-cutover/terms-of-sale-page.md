@@ -5,7 +5,7 @@
 - priority: P1
 - size: M
 - depends-on: none
-- sequence: 3 of 8
+- sequence: 3 of 14
 - sources: legal lens 2026-08-29: no terms segment exists (`web/src/lib/routes.ts:14-25`), footer links privacy only; full prepayment with no seller identity/NIF at point of sale, no written cancellation procedure, no Art. 6(1)(k)/16(l) Directive 2011/83 statement that the 14-day withdrawal right doesn't apply to date-specific leisure services; pay-button labelling already compliant (`booking.ts:118`)
 
 ## Problem
