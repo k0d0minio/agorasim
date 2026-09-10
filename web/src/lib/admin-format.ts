@@ -193,6 +193,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "blog_post.published": "publicou um artigo no blog",
   "blog_post.unpublished": "retirou um artigo do blog",
   "cron.dispatch": "dispatcher diário executado",
+  "cron.backup": "cópia de segurança diária da base de dados executada",
 };
 
 /**
