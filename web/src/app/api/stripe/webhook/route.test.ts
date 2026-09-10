@@ -126,7 +126,12 @@ vi.mock("@/lib/email", () => ({
 }));
 vi.mock("@/lib/request-ip", () => ({ clientIp: async () => "203.0.113.9" }));
 
+// The alarm the route pulls on the cases it cannot fix. A stand-in, so the
+// suite can see it pulled without a DSN or a transport in the way.
+vi.mock("@/lib/observability", () => ({ captureAlert: vi.fn(), captureError: vi.fn() }));
+
 const { POST } = await import("./route");
+const { captureAlert, captureError } = await import("@/lib/observability");
 const { proportionalFeeRefundCents } = await import("@/lib/booking-refund");
 
 // ---------------------------------------------------------------------------
@@ -441,6 +446,17 @@ describe("POST /api/stripe/webhook — charge.refunded", () => {
       received: true,
       outcome: "unknown-charge",
     });
+    // "Loudly" means a person hears about it, not only the log: money moved on
+    // a charge this app never sold, and that is the alarm's whole purpose.
+    expect(captureAlert).toHaveBeenCalledWith(
+      expect.stringContaining("no booking"),
+      expect.objectContaining({
+        area: "stripe-webhook",
+        tags: expect.objectContaining({ outcome: "unknown-charge" }),
+        extra: expect.objectContaining({ chargeId: "ch_test_1" }),
+      }),
+    );
+    expect(captureError).not.toHaveBeenCalled();
   });
 
   it("ignores a refund from an account that is not this deployment's", async () => {
@@ -456,6 +472,16 @@ describe("POST /api/stripe/webhook — charge.refunded", () => {
       ignored: "foreign account",
     });
     expect(calls).toHaveLength(0);
+    // Dropped, but not quietly: an endpoint receiving another account's
+    // payments is mis-wired, and only a person can find out whose.
+    expect(captureAlert).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        level: "warning",
+        tags: expect.objectContaining({ outcome: "foreign-account" }),
+        extra: expect.objectContaining({ account: "acct_somebody_else" }),
+      }),
+    );
   });
 });
 

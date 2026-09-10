@@ -13,6 +13,8 @@
  */
 import "server-only";
 
+import { captureError } from "@/lib/observability";
+
 export type CronJobResult = {
   /** Stable machine name for logging and audit. */
   name: string;
@@ -36,6 +38,12 @@ export function register(job: CronJob): void {
 /**
  * Run every registered job in sequence. A job failure is caught and reported
  * but does not abort the rest. Returns the collected results.
+ *
+ * "Reported" means the error tracker as well as the log: the dispatcher
+ * answers 207 and carries on, which is right for the other jobs and wrong as
+ * the only record — a reminder job that fails every morning would otherwise
+ * be a status code nobody reads. The capture happens here rather than in the
+ * route because this is where the thrown value still has its stack.
  */
 export async function runAllJobs(): Promise<{
   results: CronJobResult[];
@@ -51,6 +59,7 @@ export async function runAllJobs(): Promise<{
       const name = job.name || "anonymous";
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[cron] job "${name}" failed`, err);
+      captureError(err, { area: "cron", tags: { job: name } });
       errors.push({ name, error: message });
     }
   }

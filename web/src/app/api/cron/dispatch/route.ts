@@ -1,6 +1,7 @@
 import { secretsMatch } from "@/lib/admin-session";
 import { recordAudit } from "@/lib/audit";
 import { runAllJobs } from "@/lib/cron/jobs";
+import { captureError } from "@/lib/observability";
 
 // Side-effect: registers the placeholder job. Remove this import once a real
 // job (day-before-reminder, thankyou-review) registers itself here instead.
@@ -23,6 +24,12 @@ import "@/lib/cron/noop";
  * anything — using {@link recordAudit}, which throws on failure, so a run
  * that cannot be recorded surfaces as a failed cron rather than as silent
  * data loss.
+ *
+ * Failures reach the error tracker too (`lib/observability.ts`): each job
+ * that threw is captured by {@link runAllJobs} where its stack still is, and
+ * a run that failed as a whole is captured here. Anything thrown outside the
+ * `try` reaches Sentry through Next's `onRequestError`
+ * (`src/instrumentation.ts`).
  */
 export const dynamic = "force-dynamic";
 
@@ -66,6 +73,7 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json({ results });
   } catch (err) {
     console.error("[dispatch] run failed", err);
+    captureError(err, { area: "cron", tags: { job: "dispatch" } });
     return Response.json({ error: "dispatch run failed" }, { status: 500 });
   }
 }
