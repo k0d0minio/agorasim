@@ -6,7 +6,7 @@
 - size: M
 - depends-on: sandbox-e2e-handover
 - sequence: 8 of 8
-- blocked: awaiting client answer — "does PAX count children?" (open-questions pack item, icm-board deal folder)
+- blocked: awaiting client answer — "does PAX count children?" — asked again 2026-09-10 with the Stripe onboarding. **Fallback rule (runbook §4a Q5): if unanswered by Fri 2026-09-11 12:00, implement the price sheet literally — PAX = adults + children (4–12), infants excluded — and Jamie confirms or vetoes.** Real payments start Sat 2026-09-12
 - sources: 2026-08-29 product lens: `web/src/lib/pricing.ts:173-214` keys `tierFor` and every `minAdults` on adults only; prices.pdf says "8 PAX 500€", "PUBLIC (MIN. 2 PAX)"
 
 ## Problem

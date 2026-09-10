@@ -4,12 +4,19 @@
 - epic: launch-cutover
 - priority: P1
 - size: M
-- depends-on: restore-runbook, env-driven-domain, terms-of-sale-page, footer-compliance, privacy-refresh
-- sequence: 8 of 8
+- depends-on: restore-runbook, env-driven-domain, terms-of-sale-page, footer-compliance, privacy-refresh, resend-sending-domain, admin-accounts-and-phones, stripe-live-accounts
+- sequence: 8 of 14
 - blocked: client — domain recovery from previous provider + their Stripe account + §1.1 answers (RNAAT/insurance/invoicing lift the draft banners); Jamie — Commission & Payments Agreement signed (D16)
 - sources: DEAL.md current objective; the restored runbook; D16
 
 ## Problem
+
+> **Facts corrected 2026-09-10:** agorasim.pt is registered and DNS-hosted at **Amen**
+> (`ns*.amenworld.com`); the old WordPress site is **live again** at `130.185.83.150`
+> (not 403). Vercel already has `agorasim.pt` + `www` attached and waits for DNS. The
+> switch is two records inside Amen (A + www CNAME); the registrar transfer is a
+> separate, post-launch stub (`domain-registrar-transfer`). Full sequence, rollback
+> values and the open question pack: `.icm/docs/launch-runbook.md`.
 
 The choreographed day: DNS cutover at controlpanel.pro **preserving MX** (Google
 Workspace mail must not blink), Vercel domain attach, `NEXT_PUBLIC_SITE_URL` flip,

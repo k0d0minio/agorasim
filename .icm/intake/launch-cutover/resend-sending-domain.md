@@ -43,5 +43,3 @@ message `web/src/lib/email.ts` sends (guest and team), document
 `email-layout.ts` copy for any hardcoded sender text. DNS and Resend dashboard steps are
 Jamie's — do not attempt them. PR on a `claude/` branch; no local checks — CI is the
 source of truth.
-
-> App half landed in PR #88 — reply-to default, sender test; DNS half (Track D) still open.
