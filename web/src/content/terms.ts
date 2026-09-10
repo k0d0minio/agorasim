@@ -166,6 +166,7 @@ export const termsContent = {
         heading: "Reclamações e lei aplicável",
         body: [
           "Se algo não correr bem, fale connosco primeiro — info@agorasim.pt ou os telefones indicados acima. Respondemos rapidamente.",
+          "Pode também apresentar reclamação no Livro de Reclamações Eletrónico (www.livroreclamacoes.pt). Em caso de litígio de consumo, pode recorrer à entidade de resolução alternativa de litígios competente (Lei n.º 144/2015): o Centro de Arbitragem de Conflitos de Consumo de Lisboa — CACCL (www.centroarbitragemlisboa.pt) ou, a nível nacional, o CNIACC (www.cniacc.pt). A lista atualizada de entidades autorizadas é publicada pela DGPJ (dgpj.justica.gov.pt).",
           "Estes termos regem-se pela lei portuguesa. Em caso de litígio, são competentes os tribunais portugueses, sem prejuízo dos direitos que a lei lhe confere como consumidor.",
         ],
       },
@@ -247,6 +248,7 @@ export const termsContent = {
         heading: "Complaints and governing law",
         body: [
           "If something goes wrong, talk to us first — info@agorasim.pt or the phone numbers above. We answer quickly.",
+          "You can also file a complaint in the Livro de Reclamações Eletrónico, Portugal's official complaints book (www.livroreclamacoes.pt). For a consumer dispute you can turn to the competent alternative dispute resolution entity (Portuguese Law 144/2015): the Centro de Arbitragem de Conflitos de Consumo de Lisboa — CACCL (www.centroarbitragemlisboa.pt) or, nationally, CNIACC (www.cniacc.pt). The current list of authorised entities is published by the DGPJ (dgpj.justica.gov.pt).",
           "These terms are governed by Portuguese law. Any dispute falls to the Portuguese courts, without prejudice to the rights the law gives you as a consumer.",
         ],
       },
