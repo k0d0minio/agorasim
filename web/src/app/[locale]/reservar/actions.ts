@@ -147,7 +147,7 @@ export async function submitTourRequest(
       marketingConsent,
       marketingConsentAt: marketingConsent ? new Date() : null,
       marketingConsentVersion: marketingConsent ? MARKETING_CONSENT_VERSION : null,
-    }).returning("id");
+    }).returning({ id: tourRequests.id });
 
     // Fire-and-forget emails: the enquiry is stored; if the mail fails the
     // team still sees it on the Sales board. Never block or fail the form.
