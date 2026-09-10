@@ -23,6 +23,10 @@ correct what changed since: sandbox-first objective (no promised date), repo now
 private, credential rotation done (secure-client-data), commission engine status,
 and strip any credential the old runbook carried (it referenced the plaintext
 password — the restored copy must not).
+Track H also gains the old-URL check that `old-site-redirects` shipped without a
+runbook to write to: `curl -I` each WordPress path on the live host — the pages 301
+onto `/pt/…`, the machinery paths (`/feed`, `/wp-json`, `/xmlrpc.php`, `/wp-content/*`,
+`/wp-admin/*`, `/wp-login.php`) answer 410.
 
 ## Acceptance criteria (rough)
 
