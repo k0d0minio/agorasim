@@ -5,7 +5,7 @@
 - priority: P1
 - size: S
 - depends-on: none
-- sequence: 4 of 8
+- sequence: 4 of 14
 - sources: legal lens: DL 156/2005 (Livro de Reclamações Eletrónico link mandatory for PT consumer-facing traders) + Lei 144/2015 (ADR/RAL entity identification); footer has neither (`web/src/components/site-footer.tsx:92-106`)
 
 ## Problem
