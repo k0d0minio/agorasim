@@ -107,7 +107,7 @@ export const termsContent = {
         heading: "O que compra",
         body: [
           "Compra um lugar — ou o carro inteiro, se escolher o preço por grupo — numa partida com dia e hora definidos, na experiência que selecionou, com os complementos que tiver adicionado. Tudo o que está incluído está descrito na página da experiência e no resumo da reserva antes de pagar.",
-          "O carro é sempre só do seu grupo. Cada dia tem até duas partidas (10:00 e 14:00), e o ponto de encontro é o indicado na página da experiência e no email de confirmação.",
+          "Cada dia tem até duas partidas (10:00 e 14:00), e o ponto de encontro é o indicado na página da experiência e no email de confirmação.",
           "A sua reserva fica confirmada quando o pagamento é aceite. Recebe então um email de confirmação com todos os detalhes. Enquanto conclui o pagamento, guardamos o vosso carro durante 30 minutos; se o pagamento não for concluído nesse período, a partida volta a ficar disponível.",
         ],
       },
@@ -116,7 +116,6 @@ export const termsContent = {
         body: [
           "Todos os preços são apresentados em euros e incluem IVA à taxa legal em vigor. O preço que paga é o que aparece no resumo da reserva antes de confirmar — não há custos adicionais depois.",
           "O pagamento é feito na totalidade no momento da reserva, através da Stripe. Não guardamos os dados do seu cartão.",
-          "TODO(legal): confirmar o regime de IVA aplicável (taxa e eventual isenção) e o emissor da fatura. Se a Agorasim estiver obrigada a emitir fatura com o número de contribuinte do cliente, acrescentar aqui como e quando é pedido.",
         ],
       },
       {
@@ -154,7 +153,6 @@ export const termsContent = {
           "Casamentos e outros eventos são orçamentados caso a caso e não se reservam através da página de reservas online. As condições abaixo aplicam-se a esses orçamentos, salvo indicação diferente no orçamento aceite.",
           "A data fica reservada com o pagamento de um sinal de 30% do valor orçamentado. O sinal não é reembolsável em caso de cancelamento a menos de 30 dias do evento. Até essa altura, o sinal é devolvido na totalidade se cancelar.",
           "A mudança de data é gratuita, sujeita à nossa disponibilidade. O restante valor é pago nas condições indicadas no orçamento.",
-          "TODO(legal): confirmar o prazo de 30 dias com o cliente (decisão D9, valor por defeito) e verificar o enquadramento do sinal no regime legal português.",
         ],
       },
       {
@@ -162,7 +160,6 @@ export const termsContent = {
         body: [
           "Os carros são clássicos, conduzidos por nós. Pedimos que siga as indicações do condutor, use o cinto de segurança quando existir e não fume dentro dos carros. Crianças viajam com os sistemas de retenção adequados, que nos deve indicar na reserva.",
           "Reservamo-nos o direito de recusar ou interromper a experiência, sem reembolso, a quem ponha em risco a segurança do grupo ou danifique os carros. Danos causados intencionalmente ou por negligência grave são da responsabilidade de quem os causar.",
-          "TODO(legal): confirmar a cobertura do seguro de acidentes pessoais e de responsabilidade civil (obrigatório para agentes de animação turística) e indicar aqui a seguradora e a apólice.",
         ],
       },
       {
@@ -192,7 +189,7 @@ export const termsContent = {
         heading: "What you are buying",
         body: [
           "You are buying a seat — or the whole car, if you choose the per-group price — on a departure with a set day and time, on the experience you selected, with any add-ons you included. Everything that is included is described on the experience page and in the booking summary before you pay.",
-          "The car is always yours alone. Each day has up to two departures (10:00 and 14:00), and the meeting point is the one shown on the experience page and in your confirmation email.",
+          "Each day has up to two departures (10:00 and 14:00), and the meeting point is the one shown on the experience page and in your confirmation email.",
           "Your booking is confirmed when the payment is accepted. You then receive a confirmation email with every detail. We hold your car for 30 minutes while you complete the payment; if the payment is not completed in that time, the departure becomes available again.",
         ],
       },
@@ -201,7 +198,6 @@ export const termsContent = {
         body: [
           "All prices are shown in euros and include VAT at the legal rate in force. The price you pay is the one shown in the booking summary before you confirm — there are no additional charges afterwards.",
           "Payment is made in full at the time of booking, through Stripe. We never see or store your card details.",
-          "TODO(legal): confirm the VAT regime that applies (rate and any exemption) and who issues the invoice. If Agorasim must issue an invoice carrying the guest's tax number, add here how and when it is requested.",
         ],
       },
       {
@@ -239,7 +235,6 @@ export const termsContent = {
           "Weddings and other events are quoted case by case and are not booked through the online booking page. The conditions below apply to those quotes unless the accepted quote says otherwise.",
           "The date is reserved on payment of a deposit of 30% of the quoted amount. The deposit is non-refundable if you cancel less than 30 days before the event. Until then, the deposit is returned in full if you cancel.",
           "Changing the date is free, subject to our availability. The balance is paid on the conditions set out in the quote.",
-          "TODO(legal): confirm the 30-day window with the client (decision D9, the default) and check how the deposit sits under the Portuguese sinal regime.",
         ],
       },
       {
@@ -247,7 +242,6 @@ export const termsContent = {
         body: [
           "The cars are classics, driven by us. We ask you to follow the driver's instructions, wear the seat belt where one is fitted and not smoke inside the cars. Children travel with the appropriate restraints, which you should tell us about when booking.",
           "We reserve the right to refuse or stop the experience, without refund, for anyone who endangers the group's safety or damages the cars. Damage caused intentionally or through gross negligence is the responsibility of whoever causes it.",
-          "TODO(legal): confirm the personal-accident and civil-liability insurance cover (mandatory for tourism-activity operators) and name the insurer and policy here.",
         ],
       },
       {
@@ -279,3 +273,17 @@ export const termsContent = {
     linkLabel: { pt: "termos de venda", en: "terms of sale" } as Localized,
   },
 } as const;
+
+/**
+ * Open legal items — tracked here, never rendered. Each one gates the draft
+ * banner coming off; see `.icm/docs/launch-runbook.md` § 4b and
+ * `.icm/docs/data-protection.md`.
+ */
+export const legalOpenItems: readonly string[] = [
+  "TODO(legal): confirmar o regime de IVA aplicável (taxa e eventual isenção) e o emissor da fatura. Se a Agorasim estiver obrigada a emitir fatura com o número de contribuinte do cliente, acrescentar aqui como e quando é pedido.",
+  "TODO(legal): confirmar o prazo de 30 dias com o cliente (decisão D9, valor por defeito) e verificar o enquadramento do sinal no regime legal português.",
+  "TODO(legal): confirmar a cobertura do seguro de acidentes pessoais e de responsabilidade civil (obrigatório para agentes de animação turística) e indicar aqui a seguradora e a apólice.",
+  "TODO(legal): confirm the VAT regime that applies (rate and any exemption) and who issues the invoice. If Agorasim must issue an invoice carrying the guest's tax number, add here how and when it is requested.",
+  "TODO(legal): confirm the 30-day window with the client (decision D9, the default) and check how the deposit sits under the Portuguese sinal regime.",
+  "TODO(legal): confirm the personal-accident and civil-liability insurance cover (mandatory for tourism-activity operators) and name the insurer and policy here.",
+];
