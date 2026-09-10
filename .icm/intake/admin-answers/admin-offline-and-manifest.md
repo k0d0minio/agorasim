@@ -13,6 +13,9 @@
   `web/public/admin-manifest.webmanifest` (`"lang": "en"`, English `name`,
   `"orientation": "portrait"`); no service worker anywhere in the repo against every
   `/admin` route being `force-dynamic`; D4
+- note: the manifest half (pt-PT `lang`, Portuguese name/short_name/description and
+  shortcuts, `orientation` dropped) landed in PR `claude/admin-accounts-and-phones`
+  (launch-cutover, 2026-09-10) — only the service-worker half remains here
 
 ## Problem
 
