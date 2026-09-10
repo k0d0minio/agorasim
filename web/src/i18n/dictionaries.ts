@@ -30,7 +30,21 @@ type Dict = {
     closeMenu: string;
     switchLanguage: string;
   };
-  footer: { tagline: string; contacts: string; explore: string; rights: string };
+  footer: {
+    tagline: string;
+    contacts: string;
+    explore: string;
+    rights: string;
+    /**
+     * The consumer-law line (see `content/consumer-law.ts`). `adrIntro` is
+     * followed by the regional entity link, `adrNational` by the national one,
+     * `adrDirectory` labels the DGPJ list link.
+     */
+    complaintsBook: string;
+    adrIntro: string;
+    adrNational: string;
+    adrDirectory: string;
+  };
 };
 
 /** UI chrome strings (navigation, buttons, labels). Page content lives in src/content. */
@@ -70,6 +84,10 @@ const dictionaries: Record<Locale, Dict> = {
       contacts: "Contactos",
       explore: "Explorar",
       rights: "Todos os direitos reservados.",
+      complaintsBook: "Livro de Reclamações Eletrónico",
+      adrIntro: "Resolução alternativa de litígios de consumo (Lei n.º 144/2015):",
+      adrNational: "ou, a nível nacional,",
+      adrDirectory: "Lista de entidades autorizadas (DGPJ)",
     },
   },
   en: {
@@ -107,6 +125,10 @@ const dictionaries: Record<Locale, Dict> = {
       contacts: "Contact",
       explore: "Explore",
       rights: "All rights reserved.",
+      complaintsBook: "Livro de Reclamações Eletrónico (official complaints book)",
+      adrIntro: "Alternative consumer dispute resolution (Portuguese Law 144/2015):",
+      adrNational: "or, nationally,",
+      adrDirectory: "List of authorised entities (DGPJ)",
     },
   },
 };
