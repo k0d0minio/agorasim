@@ -95,12 +95,19 @@ export function SiteFooter({ locale }: { locale: Locale }) {
             © {year} {site.name}. {dict.footer.rights}
           </span>
           {/* The privacy policy has to be reachable from every page, not just
-              from the form that collects the data. */}
+              from the form that collects the data — and the terms of sale from
+              every page, not just the checkout that asks for payment. */}
           <Link
             href={href(locale, "privacidade")}
             className="inline-flex min-h-11 touch-manipulation items-center hover:text-primary"
           >
             {dict.nav.privacidade}
+          </Link>
+          <Link
+            href={href(locale, "termos")}
+            className="inline-flex min-h-11 touch-manipulation items-center hover:text-primary"
+          >
+            {dict.nav.termos}
           </Link>
         </div>
       </div>

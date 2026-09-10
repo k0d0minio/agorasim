@@ -11,6 +11,7 @@ type Dict = {
     contactos: string;
     reservar: string;
     privacidade: string;
+    termos: string;
   };
   cta: {
     book: string;
@@ -45,6 +46,7 @@ const dictionaries: Record<Locale, Dict> = {
       contactos: "Contactos",
       reservar: "Reservar",
       privacidade: "Privacidade",
+      termos: "Termos de venda",
     },
     cta: {
       book: "Reserve agora",
@@ -81,6 +83,7 @@ const dictionaries: Record<Locale, Dict> = {
       contactos: "Contact",
       reservar: "Book",
       privacidade: "Privacy",
+      termos: "Terms of sale",
     },
     cta: {
       book: "Book now",

@@ -7,9 +7,10 @@ import { locales, type Locale, type Localized } from "@/i18n/config";
  * preserve the existing site's URLs and avoid duplicate content.
  *
  * A segment may instead be a `Localized<string>` where the page is new and has
- * no legacy URL to protect — `privacidade` / `privacy`. Each such route has one
- * `page.tsx` per segment, and each of those 404s for the locale it does not
- * belong to, so `/pt/privacy` never becomes a second copy of `/pt/privacidade`.
+ * no legacy URL to protect — `privacidade` / `privacy`, `termos` / `terms`. Each
+ * such route has one `page.tsx` per segment, and each of those 404s for the
+ * locale it does not belong to, so `/pt/privacy` never becomes a second copy of
+ * `/pt/privacidade`.
  */
 export const segments = {
   home: "",
@@ -21,6 +22,7 @@ export const segments = {
   contactos: "contactos",
   reservar: "reservar",
   privacidade: { pt: "privacidade", en: "privacy" } as Localized,
+  termos: { pt: "termos", en: "terms" } as Localized,
 } as const;
 
 export type RouteKey = keyof typeof segments;
@@ -77,4 +79,5 @@ export const liveKeys: RouteKey[] = [
   "contactos",
   "reservar",
   "privacidade",
+  "termos",
 ];
