@@ -5,7 +5,7 @@
 - priority: P1
 - size: M
 - depends-on: none
-- sequence: 6 of 8
+- sequence: 6 of 14
 - sources: tech lens: zero observability; three designed-silent paths — email "never throws" (`web/src/lib/email.ts:11-16`), orphan paid session logs "needs a human" and 200s (`api/stripe/webhook/route.ts:103-105`), Neon blip bakes the unsellable fallback catalogue into ISR for an hour (`experience-catalogue.ts:70-79`)
 
 ## Problem
