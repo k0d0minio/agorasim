@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { closeUnpaidBooking, confirmPaidBooking } from "@/lib/booking-checkout";
 import { syncRefundFromStripe } from "@/lib/booking-refund";
 import { listCatalogue } from "@/lib/experience-catalogue";
+import { captureAlert, captureError } from "@/lib/observability";
 import {
   connectedAccountId,
   isStripeConfigured,
@@ -33,7 +34,12 @@ import {
  *    the second one through sends no second email.
  * 4. **Honest about failure.** A 500 asks Stripe to retry, which is right for a
  *    transient database error and wrong for an event we simply do not handle —
- *    those get a 200 and a shrug, or Stripe retries them for three days.
+ *    those get a 200 and a shrug, or Stripe retries them for three days. The
+ *    cases a retry cannot fix — money with no booking behind it — are the ones
+ *    that need a person, so they are reported through `lib/observability.ts`
+ *    rather than left in a log, and so is the 500. Whatever escapes the
+ *    handler altogether reaches Sentry through Next's `onRequestError`
+ *    (`src/instrumentation.ts`).
  * 5. **Account-aware.** Once checkouts run on the client's connected account
  *    (`lib/stripe.ts`), their events reach the platform through a Connect
  *    endpoint and carry `event.account`; the platform's own events carry
@@ -135,6 +141,15 @@ export async function POST(request: Request): Promise<Response> {
         `[stripe] ${event.type} for ${objectId} came from ${eventAccount}, ` +
           "which is not this deployment's connected account — ignoring",
       );
+      // A warning, not an error: nothing here is wrong, but a webhook endpoint
+      // receiving another account's payments is mis-wired, and only a person
+      // can find out whose.
+      captureAlert("Stripe event from an account that is not this deployment's", {
+        area: "stripe-webhook",
+        level: "warning",
+        tags: { event: event.type, outcome: "foreign-account" },
+        extra: { objectId, account: eventAccount },
+      });
       return Response.json({ received: true, ignored: "foreign account" });
     }
 
@@ -168,6 +183,11 @@ export async function POST(request: Request): Promise<Response> {
         console.error(
           `[stripe] paid session ${session.id} matches no booking — needs a human`,
         );
+        captureAlert("Paid Stripe session matches no booking", {
+          area: "stripe-webhook",
+          tags: { event: event.type, outcome: "unknown-session" },
+          extra: { sessionId: session.id },
+        });
       }
 
       return Response.json({ received: true, outcome: outcome.status });
@@ -208,6 +228,11 @@ export async function POST(request: Request): Promise<Response> {
         console.error(
           `[stripe] ${charge.id} was refunded but matches no booking — needs a human`,
         );
+        captureAlert("Refunded Stripe charge matches no booking", {
+          area: "stripe-webhook",
+          tags: { event: event.type, outcome: "unknown-charge" },
+          extra: { chargeId: charge.id },
+        });
       }
 
       return Response.json({ received: true, outcome: outcome.status });
@@ -219,6 +244,11 @@ export async function POST(request: Request): Promise<Response> {
     // Genuinely transient — a database blip. 500 asks Stripe to try again,
     // which is exactly what should happen.
     console.error(`[stripe] failed to handle ${event.type} for ${objectId}`, err);
+    captureError(err, {
+      area: "stripe-webhook",
+      tags: { event: event.type },
+      extra: { objectId },
+    });
     return Response.json({ error: "handler failed" }, { status: 500 });
   }
 }

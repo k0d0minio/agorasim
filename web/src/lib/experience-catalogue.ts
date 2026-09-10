@@ -27,6 +27,7 @@ import {
   type Faq,
 } from "@/content/experiences";
 import { FALLBACK_EXPERIENCE_ICON, isExperienceIconKey } from "@/lib/experience-icons";
+import { captureError } from "@/lib/observability";
 import { parseExperiencePricing, type ExperiencePricing } from "@/lib/pricing";
 
 /** A catalogue entry with the columns only the admin and the checkout care about. */
@@ -96,21 +97,39 @@ function toEntry(row: ExperienceRow): CatalogueEntry {
 }
 
 /**
- * Say a read fell back — once per process, not once per page.
+ * Say a read fell back — once per process in the log, and every time to the
+ * error tracker when it is an outage rather than the design.
  *
  * A build without `DATABASE_URL` renders every locale of every page through
  * this, and a stack trace per render buries whatever else the build had to say.
  * The condition is the same one every time, so saying it once is saying it.
+ *
+ * The capture is gated on `DATABASE_URL` being set, because the two reasons to
+ * land here are opposites. No variable is a build or a test with no database:
+ * the fallback is exactly what this module promises, and there is nobody to
+ * alert. A variable that could not be reached is Neon being down under a live
+ * deployment, and the result — an hour of the site quietly selling last
+ * deploy's price list, or refusing to sell at all — is the outage the ticket
+ * that added this capture was about. (The SDK also stands down during `next
+ * build` on its own, so the gate is a statement of intent more than a guard.)
  */
 let warnedAboutFallback = false;
 
-function warnFallbackOnce(context: string, err: unknown): void {
-  if (warnedAboutFallback) return;
-  warnedAboutFallback = true;
-  console.warn(
-    `[catalogue] falling back to the shipped experiences (${context}): ` +
-      `${err instanceof Error ? err.message : String(err)}`,
-  );
+function reportFallback(read: "list" | "entry", detail: string, err: unknown): void {
+  if (!warnedAboutFallback) {
+    warnedAboutFallback = true;
+    console.warn(
+      `[catalogue] falling back to the shipped experiences (${detail}): ` +
+        `${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (process.env.DATABASE_URL) {
+    captureError(err, {
+      area: "catalogue",
+      tags: { read, fallback: "shipped-experiences" },
+      extra: { detail },
+    });
+  }
 }
 
 /**
@@ -147,7 +166,7 @@ export async function listCatalogue(): Promise<CatalogueEntry[]> {
     if (rows.length === 0) return shippedCatalogue();
     return rows.map(toEntry);
   } catch (err) {
-    warnFallbackOnce("listing the catalogue", err);
+    reportFallback("list", "listing the catalogue", err);
     return shippedCatalogue();
   }
 }
@@ -174,7 +193,7 @@ export async function getCatalogueEntry(slug: string): Promise<CatalogueEntry | 
     // Ask the shipped array before giving up, for the unseeded case.
     return shippedCatalogue().find((entry) => entry.slug === slug);
   } catch (err) {
-    warnFallbackOnce(`reading "${slug}"`, err);
+    reportFallback("entry", `reading "${slug}"`, err);
     return shippedCatalogue().find((entry) => entry.slug === slug);
   }
 }

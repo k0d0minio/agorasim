@@ -110,6 +110,7 @@ export const privacyContent = {
         heading: "Com quem partilhamos os dados",
         body: [
           "Recorremos a prestadores de serviços que tratam dados por nossa conta: a Vercel (alojamento do site e armazenamento das fotografias das experiências) e a Neon (base de dados onde os pedidos ficam guardados).",
+          "Usamos ainda a Sentry para monitorização de erros: quando algo falha nos nossos servidores, é-lhe enviado um relatório técnico — o erro, a operação em curso e metadados do pedido (endereço da página, método e cabeçalhos, sem cookies). Não coloca cookies, não corre nada no seu navegador e os endereços IP não são recolhidos.",
           "Não vendemos os seus dados nem os partilhamos para fins de marketing de terceiros.",
           "TODO(legal): confirmar as regiões de alojamento e, quando existam transferências para fora do Espaço Económico Europeu, o mecanismo aplicável (por exemplo, cláusulas contratuais-tipo).",
         ],
@@ -174,6 +175,7 @@ export const privacyContent = {
         heading: "Who we share it with",
         body: [
           "We use service providers who process data on our behalf: Vercel (website hosting and storage of the experience photos) and Neon (the database the enquiries are stored in).",
+          "We also use Sentry for error monitoring: when something fails on our servers, a technical report is sent to it — the error, the operation under way and request metadata (page address, method and headers, without cookies). It sets no cookies, runs nothing in your browser, and IP addresses are not collected.",
           "We do not sell your data and we do not share it for third-party marketing.",
           "TODO(legal): confirm the hosting regions and, where any transfer outside the European Economic Area occurs, the safeguard relied on (for example standard contractual clauses).",
         ],

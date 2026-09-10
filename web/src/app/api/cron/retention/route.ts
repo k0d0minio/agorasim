@@ -1,5 +1,6 @@
 import { secretsMatch } from "@/lib/admin-session";
 import { recordAudit } from "@/lib/audit";
+import { captureError } from "@/lib/observability";
 import { runRetention } from "@/lib/retention";
 
 /**
@@ -18,6 +19,12 @@ import { runRetention } from "@/lib/retention";
  * The run is recorded in the audit log with a null actor — nobody pressed
  * anything — using {@link recordAudit}, which throws on failure, so a run that
  * cannot be recorded surfaces as a failed cron rather than as silent data loss.
+ *
+ * A failed run is also reported to the error tracker (`lib/observability.ts`):
+ * a cron's 500 is seen by Vercel's scheduler and nobody else, and a retention
+ * job that has been failing for a month is a compliance problem, not a log
+ * line. Anything thrown outside the `try` reaches Sentry through Next's
+ * `onRequestError` (`src/instrumentation.ts`).
  */
 export const dynamic = "force-dynamic";
 
@@ -60,6 +67,7 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json(result);
   } catch (err) {
     console.error("[retention] run failed", err);
+    captureError(err, { area: "cron", tags: { job: "retention" } });
     return Response.json({ error: "retention run failed" }, { status: 500 });
   }
 }
