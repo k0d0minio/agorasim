@@ -167,7 +167,9 @@ describe("restoreUpsertSet", () => {
 
 describe("BACKUP_TABLES", () => {
   it("covers every table the schema exports, so a new table cannot go unbacked-up", () => {
-    const exported = Object.values(schema)
+    // The schema module's value type is a union of every export (enums, tables,
+    // helpers); a predicate cannot narrow that union to `Table`, so widen first.
+    const exported = Object.values(schema as Record<string, unknown>)
       .filter((value): value is Table => is(value, Table))
       .map((table) => getTableName(table))
       .sort();
