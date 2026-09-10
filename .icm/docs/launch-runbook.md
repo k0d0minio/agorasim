@@ -114,7 +114,7 @@ Branch protection on `main` (CI required) goes on the moment real money can flow
 ### Track F — Friday evening, DNS prepared
 
 - [ ] 🧑 In Amen DNS, lower TTL on `agorasim.pt` A and `www` CNAME to **300**. (Current 900 — the lower value means a rollback propagates in 5 minutes.)
-- [ ] 🧑 Screenshot / export the full Amen zone. Store it with the rollback values (§9).
+- [ ] 🧑 Screenshot / export the full Amen zone. Store it with the rollback values (§5).
 - [ ] 🧑 Vercel → project → Domains: confirm `agorasim.pt` is the primary and `www.agorasim.pt` **redirects** to it (matches the old site's behaviour and `site.domain`).
 - [ ] 🧑 Confirm Production env is complete (Track C + D values) and the latest production deployment is the intended commit.
 - [ ] 🧑 Neon manual snapshot.
