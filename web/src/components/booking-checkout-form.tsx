@@ -8,6 +8,7 @@ import { Check, Lock, MapPin, Minus, Plus, ShieldCheck } from "lucide-react";
 import { t, type Locale, type Localized } from "@/i18n/config";
 import { bookingContent } from "@/content/booking";
 import { privacyContent } from "@/content/privacy";
+import { termsContent } from "@/content/terms";
 import { departureLabel, meetingPoints } from "@/content/logistics";
 import type { Experience } from "@/content/experiences";
 import type { PublicMonth } from "@/lib/availability";
@@ -907,6 +908,21 @@ export function BookingCheckoutForm({
               {t(c.labels.testMode, l)}
             </p>
           ) : null}
+
+          {/*
+            The terms are presented before payment, not after: a guest who is
+            about to prepay in full is owed the seller's identity, the
+            cancellation procedure and the withdrawal statement one tap away
+            from the button that commits them (Directive 2011/83/EU Art. 6 and
+            8). A sentence and a link, not a checkbox — see `terms.ts`.
+          */}
+          <p className="text-center text-xs text-muted-foreground">
+            {t(termsContent.checkoutNotice.prefix, l)}{" "}
+            <Link href={href(l, "termos")} className="underline hover:text-primary">
+              {t(termsContent.checkoutNotice.linkLabel, l)}
+            </Link>
+            .
+          </p>
 
           <PayButton locale={l} />
 

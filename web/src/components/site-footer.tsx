@@ -5,6 +5,25 @@ import type { Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
 import { href, navOrder } from "@/lib/routes";
 import { site } from "@/content/site";
+import { consumerLaw } from "@/content/consumer-law";
+
+/**
+ * An outbound link in the compliance row. Underlined, so the link is told
+ * apart from the sentence around it by more than colour (WCAG 1.4.1), and
+ * opened in the same tab — a guest reading the terms should not lose the
+ * page they were on to a popup they did not ask for.
+ */
+function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      rel="noopener noreferrer"
+      className="underline decoration-muted-foreground/50 underline-offset-2 hover:text-primary"
+    >
+      {children}
+    </a>
+  );
+}
 
 export function SiteFooter({ locale }: { locale: Locale }) {
   const dict = getDictionary(locale);
@@ -95,13 +114,55 @@ export function SiteFooter({ locale }: { locale: Locale }) {
             © {year} {site.name}. {dict.footer.rights}
           </span>
           {/* The privacy policy has to be reachable from every page, not just
-              from the form that collects the data. */}
+              from the form that collects the data — and the terms of sale from
+              every page, not just the checkout that asks for payment. */}
           <Link
             href={href(locale, "privacidade")}
             className="inline-flex min-h-11 touch-manipulation items-center hover:text-primary"
           >
             {dict.nav.privacidade}
           </Link>
+          <Link
+            href={href(locale, "termos")}
+            className="inline-flex min-h-11 touch-manipulation items-center hover:text-primary"
+          >
+            {dict.nav.termos}
+          </Link>
+          {/* DL 156/2005: the complaints-book link every consumer-facing
+              trader's site carries. Diogo & Rita still have to register the
+              business on the platform — the site can only point at it. */}
+          <a
+            href={consumerLaw.complaintsBook.url}
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 touch-manipulation items-center hover:text-primary"
+          >
+            {dict.footer.complaintsBook}
+          </a>
+        </div>
+        {/*
+          Lei 144/2015 Art. 18: the ADR entity competent for the trader, named
+          on the site. Mafra is in the Lisbon district, so the regional centre
+          is CACCL; CNIACC is the national fallback; the DGPJ page is the
+          official list. One sentence of small print — inline links in running
+          text are exempt from the 24px target rule (WCAG 2.5.8), and a row of
+          44px buttons here would shout louder than the copyright line.
+        */}
+        <div className="mx-auto max-w-6xl px-4 pb-4 text-xs leading-relaxed text-muted-foreground sm:px-6">
+          <p>
+            {dict.footer.adrIntro}{" "}
+            <ExternalLink href={consumerLaw.adr.regional.url}>
+              {consumerLaw.adr.regional.name} ({consumerLaw.adr.regional.short})
+            </ExternalLink>{" "}
+            {dict.footer.adrNational}{" "}
+            <ExternalLink href={consumerLaw.adr.national.url}>
+              {consumerLaw.adr.national.short}
+            </ExternalLink>
+            .{" "}
+            <ExternalLink href={consumerLaw.adr.directory.url}>
+              {dict.footer.adrDirectory}
+            </ExternalLink>
+            .
+          </p>
         </div>
       </div>
     </footer>
