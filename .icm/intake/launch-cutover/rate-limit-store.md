@@ -5,7 +5,7 @@
 - priority: P2
 - size: S
 - depends-on: none
-- sequence: 7 of 8
+- sequence: 7 of 9
 - sources: tech lens: `web/src/lib/rate-limit.ts:7-14` — in-module memory store, per-instance, reset on cold start; its own comment admits it stops bursts, not slow attacks; admin login + public forms rely on it
 
 ## Problem

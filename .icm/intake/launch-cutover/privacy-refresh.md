@@ -5,7 +5,7 @@
 - priority: P1
 - size: S
 - depends-on: none
-- sequence: 5 of 8
+- sequence: 5 of 9
 - sources: legal lens: recipients name only Vercel + Neon (`web/src/content/privacy.ts:112-114`); "We collect nothing else through the site" (`:154`) and "no external systems embedded" (`:184`) false since checkout; Resend is a US processor (transfer point); dangling refs to deleted `.icm/docs/data-protection.md` (`privacy.ts:12`, `retention.ts:11`)
 
 ## Problem

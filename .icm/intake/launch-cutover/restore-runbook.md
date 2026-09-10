@@ -5,7 +5,7 @@
 - priority: P1
 - size: S
 - depends-on: none
-- sequence: 1 of 8
+- sequence: 1 of 9
 - sources: ticket-scout 2026-08-29: HEAD commit 21d39ea ("file update") deleted `.icm/docs/launch-runbook.md` (+ launch-plan, information-request, social spike, all `.icm/files/*.docx` — 761 deletions); last good version `d4d3fc4:.icm/docs/launch-runbook.md`; DEAL.md corrections of 2026-08-27 (three stale facts fixed there)
 
 ## Problem

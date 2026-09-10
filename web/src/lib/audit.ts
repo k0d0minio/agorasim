@@ -74,6 +74,7 @@ export const AUDIT_ACTIONS = [
   "blog_post.published",
   "blog_post.unpublished",
   "cron.dispatch",
+  "cron.backup",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

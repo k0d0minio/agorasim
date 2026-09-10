@@ -28,6 +28,7 @@ Stripe account, and (Jamie's) the signed commission agreement (D16).
 6. error-tracking — the silent failure paths get an alarm — depends-on: none
 7. rate-limit-store — shared store before real traffic — depends-on: none
 8. live-cutover-day — the choreographed switch — depends-on: restore-runbook, env-driven-domain, terms-of-sale-page, footer-compliance, privacy-refresh *(blocked: client — domain + Stripe account + §1.1 answers; Jamie — signed agreement)*
+9. db-backup-floor — nightly gzipped NDJSON export of every table to a private Blob store, 30-day prune, restore script; the only restore path beyond Neon free's six hours — depends-on: none
 
 ## Out of scope (whole epic)
 

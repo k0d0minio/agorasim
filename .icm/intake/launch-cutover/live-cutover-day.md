@@ -5,7 +5,7 @@
 - priority: P1
 - size: M
 - depends-on: restore-runbook, env-driven-domain, terms-of-sale-page, footer-compliance, privacy-refresh
-- sequence: 8 of 8
+- sequence: 8 of 9
 - blocked: client — domain recovery from previous provider + their Stripe account + §1.1 answers (RNAAT/insurance/invoicing lift the draft banners); Jamie — Commission & Payments Agreement signed (D16)
 - sources: DEAL.md current objective; the restored runbook; D16
 
