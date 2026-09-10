@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ExperienceRow } from "@/db/schema";
 import {
@@ -6,6 +6,7 @@ import {
   listCatalogue,
   listExperiences,
 } from "@/lib/experience-catalogue";
+import { captureError } from "@/lib/observability";
 import { isPriced, priceBooking, type ExperiencePricing } from "@/lib/pricing";
 
 /**
@@ -49,6 +50,10 @@ vi.mock("@/db", async () => {
 
   return { ...schema, db: { select: () => query } };
 });
+
+// The alarm an outage pulls. A stand-in: what is asserted is whether the
+// resolver pulled it, and when — not whether Sentry heard.
+vi.mock("@/lib/observability", () => ({ captureError: vi.fn() }));
 
 /**
  * The price lists as `drizzle/0012_real_prices_two_tours.sql` seeds them —
@@ -188,6 +193,76 @@ describe("what /reservar asks the catalogue", () => {
     table.rows = [];
 
     expect(sellableTours(await listExperiences()).length).toBeGreaterThan(0);
+  });
+});
+
+describe("when the fallback is an outage rather than the design", () => {
+  /**
+   * The same fallback serves two opposite situations: a build or a test with
+   * no database at all, which is the module's promise, and a deployment whose
+   * database could not be reached, which is an hour of the site quietly
+   * selling last deploy's price list. `DATABASE_URL` is what tells them apart.
+   */
+  const originalUrl = process.env.DATABASE_URL;
+
+  beforeEach(() => {
+    vi.mocked(captureError).mockClear();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    if (originalUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = originalUrl;
+  });
+
+  it("raises the alarm when a configured database cannot be read", async () => {
+    process.env.DATABASE_URL = "postgresql://neon.example/agorasim";
+    const outage = new Error("connection refused");
+    table.error = outage;
+
+    await listCatalogue();
+
+    expect(captureError).toHaveBeenCalledWith(
+      outage,
+      expect.objectContaining({
+        area: "catalogue",
+        tags: expect.objectContaining({ read: "list", fallback: "shipped-experiences" }),
+      }),
+    );
+  });
+
+  it("raises it for the single-slug read too, and says which", async () => {
+    process.env.DATABASE_URL = "postgresql://neon.example/agorasim";
+    table.error = new Error("connection refused");
+
+    await getCatalogueEntry("rural-saloia");
+
+    expect(captureError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        tags: expect.objectContaining({ read: "entry" }),
+        extra: expect.objectContaining({ detail: expect.stringContaining("rural-saloia") }),
+      }),
+    );
+  });
+
+  it("stays quiet when there is no database to reach", async () => {
+    delete process.env.DATABASE_URL;
+    table.error = new Error("DATABASE_URL is not set");
+
+    await listCatalogue();
+
+    // A build without a database is what the fallback is for.
+    expect(captureError).not.toHaveBeenCalled();
+  });
+
+  it("stays quiet when the table is merely unseeded", async () => {
+    process.env.DATABASE_URL = "postgresql://neon.example/agorasim";
+    table.rows = [];
+
+    await listCatalogue();
+
+    expect(captureError).not.toHaveBeenCalled();
   });
 });
 

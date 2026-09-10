@@ -14,6 +14,13 @@
  * email into a lost booking. Sends return a result the caller can log; the
  * webhook logs it and moves on.
  *
+ * **Never throws, but never silent either.** A confirmation that did not go out
+ * after a payment was taken is exactly the failure nobody would notice from
+ * the outside, so both ways a send can fail are reported through
+ * `lib/observability.ts` as well as logged. What is reported is the reason,
+ * the status and how many recipients there were — never who they were, and
+ * never the subject, which on the team's copy carries the guest's name.
+ *
  * **Unconfigured is a supported state.** With no `RESEND_API_KEY` the send is
  * skipped and said so in the logs. A deployment mid-setup should still be able
  * to take a booking; the team learns about it from the admin, which is where
@@ -28,6 +35,7 @@
  */
 import "server-only";
 
+import { captureAlert, captureError } from "@/lib/observability";
 import { site } from "@/content/site";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
@@ -117,6 +125,11 @@ export async function sendEmail(message: EmailMessage): Promise<EmailResult> {
           .text()
           .catch(() => "<no body>")}`,
       );
+      captureAlert("Resend refused an email", {
+        area: "email",
+        tags: { reason: "refused", status: String(response.status) },
+        extra: { recipients: message.to.length },
+      });
       return { sent: false, reason: "failed" };
     }
 
@@ -124,6 +137,11 @@ export async function sendEmail(message: EmailMessage): Promise<EmailResult> {
     return { sent: true, id: body?.id ?? null };
   } catch (err) {
     console.error(`[email] failed to send "${message.subject}"`, err);
+    captureError(err, {
+      area: "email",
+      tags: { reason: "network" },
+      extra: { recipients: message.to.length },
+    });
     return { sent: false, reason: "failed" };
   }
 }
