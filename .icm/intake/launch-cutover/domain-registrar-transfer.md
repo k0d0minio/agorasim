@@ -6,7 +6,7 @@
 - size: M
 - depends-on: live-cutover-day
 - sequence: 14 of 14
-- blocked: human — runbook Q10–Q16 unanswered (registrant identity; receiving registrar; Amen login; Amen legacy mailboxes; **Workspace billing channel — reseller via Amen or direct with Google**)
+- blocked: human — Q14 answered 2026-09-10 (**Workspace billed directly by Google** — reseller risk gone); still open: receiving registrar (Q11), and Diogo & Rita's Amen login + registrant contact + auth code (Q12 — they have none of it ready). Post-launch, with a sit-down
 - sources: live DNS 2026-09-10 (NS amenworld.com, MX Google, `mail.`/`webmail.` → Amen securemail.pro, SPF includes Amen's `spf.webapps.net`); `.icm/docs/launch-runbook.md` § Track I; the client's stated fear (mail outage)
 
 ## Problem

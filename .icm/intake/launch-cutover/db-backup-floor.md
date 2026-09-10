@@ -2,7 +2,7 @@
 
 - feature-slug: db-backup-floor
 - epic: launch-cutover
-- priority: P1
+- priority: P0  (Neon upgrade declined 2026-09-10 — this export is the only restore path beyond 6 h)
 - size: S
 - depends-on: none
 - sequence: 12 of 14

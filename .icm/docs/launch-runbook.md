@@ -48,7 +48,7 @@ Legend: 🧑 Jamie · 👥 Diogo & Rita · 🤖 session (via PR) · ⛔ hard gat
 ### Track A — data safety floor (before anything else changes)
 
 - [ ] 🧑 Neon → project `agorasim` → **create a manual snapshot** now, and again on Friday evening and immediately before Saturday's DNS change.
-- [ ] 🧑 Decide the plan (Q9): Neon *Launch* gives 7-day history + scheduled snapshots; free keeps 6 h. Recommendation: upgrade before the first live euro.
+- [x] 🧑 Q9 answered: **no Neon upgrade**. The 6 h window stands; `db-backup-floor` is therefore P0 and ships before Saturday.
 - [ ] 🤖 `launch-cutover/db-backup-floor`: a nightly logical export of `bookings`, `tour_requests`, `admin_users`, `audit_log`, quotes to Vercel Blob, so a restore never depends on one vendor.
 - [ ] 🧑 Google Workspace: super-admin signs in at admin.google.com and runs **Data Export** (Takeout for organisations) *or* per-account Takeout for info@ — a cold copy before any domain work. This is a belt; the domain track (Track I) is the braces.
 
@@ -73,16 +73,18 @@ Branch protection on `main` (CI required) goes on the moment real money can flow
 
 ### Track C — Stripe, two accounts, one webhook ⛔
 
-**Jamie's platform account (already exists, sandbox in use):**
-- [ ] 🧑 Activate **live mode**: business details, identity, IBAN. Stripe can clear this in minutes or days — start today.
+**Jamie's platform account (exists, sandbox only — never live-activated, platform profile never completed):**
+- [ ] 🧑 Dashboard → **Activate account**: business details, identity, IBAN. Stripe can clear this in minutes or days — start today. Until this is done, no live connected account can be created.
+- [ ] 🧑 Then Connect → **Get started / platform profile**: account type **Standard**, onboarding **hosted by Stripe**, loss liability with the connected account. This is a questionnaire, not a review — minutes.
 - [ ] 🧑 Connect → **complete the platform profile** (Stripe blocks live connected accounts until the platform questionnaire is done). Loss liability: the connected account (Standard) bears disputes — matches the agreement §3.
 - [ ] 🧑 Developers → Webhooks → add **live** endpoint `https://agorasim.pt/api/stripe/webhook`, **"Listen to events on Connected accounts"**, events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`, `refund.updated`. Signing secret → password manager.
 
 **Diogo & Rita's account (does not exist yet):**
 - [ ] 👥 Create a Stripe account for the trading entity (Agorasim Vintage, NIF 234840919) — needs: company/sole-trader details, representative ID, IBAN, website `https://agorasim.pt`, business description. Diogo or Rita must be present with ID documents; Jamie can sit beside them but the account is **theirs**.
-- [ ] 🧑 Link it as a **Standard connected account** on Jamie's platform (Connect → Accounts → connect an existing account, or an OAuth link). Record the `acct_…` id.
+- [ ] 🧑 Connect → Accounts → **Create** → Standard → send the onboarding link to Diogo (Jamie's Q6 answer). Diogo completes it on his phone with ID + IBAN. Record the `acct_…` id.
+- [ ] 🧑 In the same WhatsApp: **the PAX question** (Q5) — "nos escalões de preço e mínimos, as crianças (4–12) contam como pessoas?" — and the 2SV/recovery check for Diogo's Google super-admin.
 - [ ] 👥 Stripe dashboard on their phones: Stripe app installed, 2FA on, payout schedule reviewed (default daily rolling; weekly is calmer for reconciliation).
-- [ ] 🧑 Sign-off on D16: **the fee switches on with the `acct_` id.** Either the Commission & Payments Agreement is signed before the id is set, or Jamie explicitly waives D16 for the launch (Q4). There is no "connected but no fee" mode in the code.
+- [x] 🧑 D16 decision taken 2026-09-10: **launch with Connect, fee on, agreement signed after** (Jamie's Q4 answer, recorded in §4a). The only box in this file ticked by a session, because the decision was given in writing to it.
 
 **Vercel env (Production scope only — previews keep sandbox keys):**
 - [ ] 🧑 `STRIPE_SECRET_KEY` = live `sk_live_…` (platform)
@@ -165,7 +167,7 @@ Execution (`.pt` mechanics, DNS.pt rules):
 
 ### Track J — old site decommission
 
-- [ ] 👥/🧑 Export WordPress: media library (`/wp-content/uploads/` — the awards badges and old photos the media-estate tickets want) and page content, via Amen's file manager or WP export, **before** hosting is cancelled. The site is unreachable from the public once DNS moves, but Amen hosting keeps it alive at the IP for a few weeks of grace.
+- [ ] ~~Export WordPress~~ — dropped (Q26/27: nothing to keep). Was: media library (`/wp-content/uploads/` — the awards badges and old photos the media-estate tickets want) and page content, via Amen's file manager or WP export, **before** hosting is cancelled. The site is unreachable from the public once DNS moves, but Amen hosting keeps it alive at the IP for a few weeks of grace.
 - [ ] 🤖 `old-site-redirects` shipped (Track B) — old URL → new route map lives in `web/next.config.*`.
 - [ ] 🧑 Facebook/Instagram bio links and Google Business Profile still point at `https://agorasim.pt` (they do; the target simply changes).
 
@@ -181,7 +183,63 @@ Execution (`.pt` mechanics, DNS.pt rules):
 | Sat–Sun | 🧑 | Watch the Sales board + Stripe + Resend logs hourly; first real booking gets a phone call from Jamie to Diogo/Rita to confirm they saw it. |
 | Week of 14 Sep | 🤖/🧑 | Remaining Track B items; Neon plan; Search Console; **Track I registrar transfer begins only after Q10–Q13 are answered and the pre-conditions hold**. |
 
-## 4 · Open before Saturday — the question pack
+## 4a · Answers received 2026-09-10 (Jamie) — and the decisions they fix
+
+| Q | Answer | Effect |
+|---|---|---|
+| 1 | **Real payments on agorasim.pt on Saturday** | Track C is the critical path; the enquiry fallback is the contingency only |
+| 2 | Weddings/events enquiry-only | quote-flow stays out of launch |
+| 3 | Error tracking rides Saturday; rate limiter the week after | `error-tracking` P0, `rate-limit-store` P2 |
+| 4 | **Launch with Connect** | **D16 waived for launch**: the fee is taken from the first live booking, agreement to be signed after. Written here as the record; `/project` should register it as a decision superseding D16 |
+| 5 | PAX vs adults **still unanswered** | Jamie asks Diogo & Rita in the same message as the Stripe onboarding. **Fallback rule if unanswered by Fri 12:00:** implement the price sheet literally — PAX = adults + children (4–12), infants excluded — for every tier and minimum. Jamie to confirm or veto this default |
+| 6 | Jamie sends the Stripe Connect onboarding | Standard account created from the platform (Connect → Accounts → Create → Standard → onboarding link/email) |
+| 7 | Platform account **never live-activated**; platform profile **never completed** | Both start today — Stripe controls the clock. See § Track C, first two boxes |
+| 8 | Weekly payouts; Stripe receipt email off | Set on the connected account after onboarding |
+| 9 | No Neon upgrade | `db-backup-floor` becomes **P0**: the nightly export is the only restore path beyond 6 h. Manual snapshots Fri + Sat still apply |
+| 10 | Registrant stays Agorasim Vintage; Jamie's registrar account manages | Track I as written |
+| 11 | Amen has already moved the domain into Diogo & Rita's own Amen account | The Amen login is theirs; the transfer out is a client-authorised act |
+| 12 | Diogo & Rita have none of the transfer prerequisites in place | Track I needs a sit-down with them; not this week |
+| 13 | Everything lives in Google Workspace (Mail, Calendar, Drive) | Amen mail records are legacy; remove `spf.webapps.net` and `mail.`/`webmail.` **after** launch, not before |
+| 14 | **Workspace billed directly by Google** | Reseller risk gone; Track I is safe once records are mirrored |
+| 15 | Diogo is super-admin; 2-step verification and recovery unknown | Friday: Jamie checks 2SV + recovery phone with Diogo (a lost super-admin is the real Workspace risk left) |
+| 16 | Calendar, Drive, GBP all on the domain | Nothing changes for them on Saturday (only A/www move) |
+| 17 | From `reservas@agorasim.pt`, reply-to `info@`; `reservas@` as a Workspace alias | Diogo creates the alias in admin.google.com → Users → info@ → alternate emails |
+| 18 / 22 | Team copy of every paid booking → `info@` | `BOOKING_NOTIFICATION_EMAILS=info@agorasim.pt` |
+| 19 / 20 | Accounts exist; both must be **owner** | Jamie checks roles at `/admin/settings/users` |
+| 21 | Phone OS unknown | The guide covers iOS and Android |
+| 23 | No RNAAT number, no insurance policy known | See § 4b — this is a licensing question, not a website one |
+| 24 | Livro de Reclamações registration unknown | Diogo checks livroreclamacoes.pt → "Sou fornecedor" → login exists? |
+| 25 | "Stripe" issues the invoices | **Stripe receipts are not faturas.** Portuguese law requires a fatura per sale through AT-certified software (or the AT portal for sole traders). Flagged, not a launch blocker for the site; Diogo & Rita's accountant decides |
+| 26 / 27 | Nothing on the WordPress site to keep; no media export | Redirects still ship for SEO; Track J export step dropped |
+
+## 4b · RNAAT and insurance — what the research says
+
+- **RNAAT** (Registo Nacional dos Agentes de Animação Turística, Turismo de Portugal) is
+  the mandatory registration for anyone selling tourist animation activities — guided
+  tours included — under Decreto-Lei n.º 108/2009 (as amended by DL 95/2013 and
+  DL 186/2015). Registration is done online through Turismo de Portugal's RNT portal
+  and the number must appear on the operator's commercial communications, the website
+  included. The public register is searchable by name at
+  `https://rnt.turismodeportugal.pt/RNT/Pesquisa_AAT.aspx` — the form cannot be queried
+  from a script, so **Jamie or Diogo searches "Agorasim" there** to find out whether a
+  registration exists. If the business has been selling tours through a third-party
+  platform, it very probably has one.
+- **Insurance**: the same decree makes two policies a condition of RNAAT registration —
+  civil liability (responsabilidade civil) and personal accident cover for participants
+  (acidentes pessoais). If RNAAT exists, the policies exist; the insurer's name and
+  policy numbers are what the terms page and the privacy page want.
+- **If neither exists**, that is a licensing gap in the client's business, not the
+  website's. The site can still launch: terms page shows "RNAAT: registo em curso" and
+  the draft banner stays. Jamie tells Diogo & Rita plainly, once, in writing.
+- **Livro de Reclamações Eletrónico**: mandatory for every supplier with a website
+  since 2019 (DL 156/2005 as amended). Registration at livroreclamacoes.pt is the
+  operator's; the footer link ships regardless.
+- **ADR entity**: the old site's own page names no entity and points at the DGPJ list.
+  The competent centre for a Mafra operator is the Centro de Arbitragem de Conflitos de
+  Consumo de Lisboa (CACCL), with CNIACC as national fallback. The EU ODR platform was
+  **discontinued in July 2025** — do not link it.
+
+## 4 · Open before Saturday — the question pack (answers in §4a)
 
 Answers go to Jamie; sessions read them here or in the deal folder. Numbered so answers can be one line each.
 

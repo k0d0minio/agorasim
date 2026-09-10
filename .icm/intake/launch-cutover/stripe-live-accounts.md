@@ -6,7 +6,7 @@
 - size: M
 - depends-on: none
 - sequence: 13 of 14
-- blocked: human — Stripe live activation on Jamie's platform account; Diogo & Rita's account creation with ID + IBAN; D16 decision (fee switches on with the connected id — see Q4 in the runbook)
+- blocked: human — Stripe live activation on Jamie's platform account (never done) + Connect platform profile; Diogo's Standard-account onboarding with ID + IBAN. D16 **decided 2026-09-10: launch with Connect, fee on, agreement signed after** (runbook §4a)
 - sources: `web/src/lib/stripe.ts` (direct charges via `stripeAccount`, fee only when `STRIPE_CONNECTED_ACCOUNT_ID` is set), `web/src/lib/booking-checkout.ts:241` (`commissionOn` when connected), webhook route event list; `.icm/docs/launch-runbook.md` § Track C; D16
 
 ## Problem

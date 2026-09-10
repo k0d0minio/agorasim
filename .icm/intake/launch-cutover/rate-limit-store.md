@@ -2,7 +2,7 @@
 
 - feature-slug: rate-limit-store
 - epic: launch-cutover
-- priority: P2
+- priority: P2  (confirmed post-launch, 2026-09-10 Q3)
 - size: S
 - depends-on: none
 - sequence: 7 of 14
