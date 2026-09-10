@@ -2,10 +2,10 @@
 
 - feature-slug: rate-limit-store
 - epic: launch-cutover
-- priority: P2
+- priority: P2  (confirmed post-launch, 2026-09-10 Q3)
 - size: S
 - depends-on: none
-- sequence: 7 of 8
+- sequence: 7 of 14
 - sources: tech lens: `web/src/lib/rate-limit.ts:7-14` — in-module memory store, per-instance, reset on cold start; its own comment admits it stops bursts, not slow attacks; admin login + public forms rely on it
 
 ## Problem

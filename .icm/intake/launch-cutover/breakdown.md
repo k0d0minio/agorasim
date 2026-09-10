@@ -20,14 +20,26 @@ Stripe account, and (Jamie's) the signed commission agreement (D16).
 
 ## Build order
 
-1. restore-runbook — the cutover sequence back on disk, facts corrected — depends-on: none
+Re-sequenced 2026-09-10 for a Saturday 2026-09-12 go-live; the full choreography and
+the open question pack live in `.icm/docs/launch-runbook.md`.
+
+1. restore-runbook — the cutover sequence back on disk (recreated, original unrecoverable) — depends-on: none ✅ `_done/`
 2. env-driven-domain — canonicals/emails/JSON-LD follow the serving domain — depends-on: none
-3. terms-of-sale-page — the legal terms at checkout — depends-on: none
+3. terms-of-sale-page — the legal terms at checkout + acceptance line — depends-on: none
 4. footer-compliance — Livro de Reclamações + ADR notice — depends-on: none
 5. privacy-refresh — policy catches up with Stripe/Resend; dangling refs fixed — depends-on: none
 6. error-tracking — the silent failure paths get an alarm — depends-on: none
 7. rate-limit-store — shared store before real traffic — depends-on: none
-8. live-cutover-day — the choreographed switch — depends-on: restore-runbook, env-driven-domain, terms-of-sale-page, footer-compliance, privacy-refresh *(blocked: client — domain + Stripe account + §1.1 answers; Jamie — signed agreement)*
+8. live-cutover-day — the two-record DNS switch at Amen + €1 test — depends-on: restore-runbook, env-driven-domain, terms-of-sale-page, footer-compliance, privacy-refresh, resend-sending-domain, admin-accounts-and-phones, stripe-live-accounts *(blocked: client — Stripe account + §1.1 + PAX answer; Jamie — D16)*
+9. resend-sending-domain — confirmations from reservas@agorasim.pt, reply-to info@ — depends-on: none
+10. admin-accounts-and-phones — Portuguese manifest + the phone guide for Diogo & Rita — depends-on: none
+11. old-site-redirects — WordPress URLs 301 onto the new routes — depends-on: none
+12. db-backup-floor — nightly logical export; Neon plan recommendation — depends-on: none
+13. stripe-live-accounts — Jamie's live-Stripe checklist (platform + client account + webhook + env) — depends-on: none *(blocked: human)*
+14. domain-registrar-transfer — Amen → Jamie's registrar, Workspace-safe, **after** launch — depends-on: live-cutover-day *(blocked: runbook Q10–Q16)*
+
+Saturday-critical: 3, 4, 5, 9, 10, 13, then 8. Everything else follows in the week
+after unless Jamie's scope answers (runbook Q3) pull it forward.
 
 ## Out of scope (whole epic)
 
