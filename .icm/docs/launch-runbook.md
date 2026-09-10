@@ -49,7 +49,7 @@ Legend: 🧑 Jamie · 👥 Diogo & Rita · 🤖 session (via PR) · ⛔ hard gat
 
 - [ ] 🧑 Neon → project `agorasim` → **create a manual snapshot** now, and again on Friday evening and immediately before Saturday's DNS change.
 - [x] 🧑 Q9 answered: **no Neon upgrade**. The 6 h window stands; `db-backup-floor` is therefore P0 and ships before Saturday.
-- [ ] 🤖 `launch-cutover/db-backup-floor`: a nightly logical export of `bookings`, `tour_requests`, `admin_users`, `audit_log`, quotes to Vercel Blob, so a restore never depends on one vendor.
+- [ ] 🤖 `launch-cutover/db-backup-floor` (PR #96): a nightly logical export of `bookings`, `tour_requests`, `admin_users`, `audit_log`, quotes to Vercel Blob, so a restore never depends on one vendor.
 - [ ] 🧑 Google Workspace: super-admin signs in at admin.google.com and runs **Data Export** (Takeout for organisations) *or* per-account Takeout for info@ — a cold copy before any domain work. This is a belt; the domain track (Track I) is the braces.
 
 ### Track B — code that must merge before real money ⛔
@@ -91,6 +91,8 @@ Branch protection on `main` (CI required) goes on the moment real money can flow
 - [ ] 🧑 `STRIPE_WEBHOOK_SECRET` = the live endpoint's `whsec_…`
 - [ ] 🧑 `STRIPE_CONNECTED_ACCOUNT_ID` = `acct_…` (only after the D16 line above)
 - [ ] 🧑 `NEXT_PUBLIC_SITE_URL` = `https://agorasim.pt`
+- [ ] 🧑 `SENTRY_DSN` = the DSN of a Sentry project (free tier; server-side only — PR #95). Unset = error tracking off.
+- [ ] 🧑 `BACKUP_BLOB_READ_WRITE_TOKEN` = token of a **second, private, EU-region** Blob store created for the nightly export (PR #96). The existing photo store is public and refuses private writes, so the backup cron fails loudly until this is set.
 - [ ] 🧑 Redeploy production.
 
 **The €1 test (after DNS, Track H):** a real card, cheapest possible booking, confirmed on the Sales board, both emails received, then refunded from the admin — fee taken and returned visible on **both** Stripe dashboards.
