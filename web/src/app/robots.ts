@@ -18,7 +18,27 @@ const AI_CRAWLERS = [
   "CCBot",
 ];
 
+/**
+ * A Vercel deployment that is not the production one — a preview or a branch
+ * deploy. Unset means "not on Vercel" (local, CI, self-hosted), which is left
+ * alone: a real production behind another host must not lock crawlers out of
+ * itself by accident.
+ */
+function isNonProductionDeployment(): boolean {
+  const env = process.env.VERCEL_ENV;
+  return Boolean(env) && env !== "production";
+}
+
 export default function robots(): MetadataRoute.Robots {
+  /*
+   * Previews carry production canonicals (see `lib/site-origin.ts`), so a
+   * crawler is already pointed home; refusing it the preview outright is the
+   * second lock on the same door. No sitemap is advertised from a preview.
+   */
+  if (isNonProductionDeployment()) {
+    return { rules: [{ userAgent: "*", disallow: "/" }] };
+  }
+
   return {
     rules: [
       { userAgent: "*", allow: "/", disallow: "/admin" },

@@ -1,8 +1,16 @@
 import type { Localized } from "@/i18n/config";
+import { canonicalOrigin } from "@/lib/site-origin";
 
 export const site = {
   name: "Agorasim",
-  domain: "https://agorasim.pt",
+  /**
+   * The canonical address — what every `<link rel="canonical">`, hreflang,
+   * sitemap URL, `robots.txt` host and JSON-LD `@id` says. Resolved once, at
+   * module load, from `NEXT_PUBLIC_SITE_URL`, falling back to
+   * `https://agorasim.pt`; see `lib/site-origin.ts` for why it never follows
+   * the Vercel preview URL.
+   */
+  domain: canonicalOrigin(),
   email: "info@agorasim.pt",
   region: "Saloia (Sintra · Mafra · Ericeira), Portugal",
   geo: { latitude: 38.8029, longitude: -9.3817 }, // Mafra area
