@@ -1,11 +1,17 @@
 # Stub: Restore the launch runbook from history
 
+> Done 2026-09-10 — **recreated, not restored.** `d4d3fc4:.icm/docs/launch-runbook.md`
+> does not exist in this repo's history (the path never appears in `git log --all`; the
+> deletion predates the repo). `.icm/docs/launch-runbook.md` was rebuilt from the live
+> DNS/Vercel/Neon/Resend/Stripe state observed that day: MX-preservation explicit,
+> human boxes marked, zero credentials, registrar transfer decoupled from go-live.
+
 - feature-slug: restore-runbook
 - epic: launch-cutover
 - priority: P1
 - size: S
 - depends-on: none
-- sequence: 1 of 9
+- sequence: 1 of 14
 - sources: ticket-scout 2026-08-29: HEAD commit 21d39ea ("file update") deleted `.icm/docs/launch-runbook.md` (+ launch-plan, information-request, social spike, all `.icm/files/*.docx` — 761 deletions); last good version `d4d3fc4:.icm/docs/launch-runbook.md`; DEAL.md corrections of 2026-08-27 (three stale facts fixed there)
 
 ## Problem

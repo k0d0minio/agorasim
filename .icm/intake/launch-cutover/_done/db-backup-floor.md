@@ -5,7 +5,7 @@
 - priority: P0
 - size: M
 - depends-on: none
-- sequence: 9 of 9
+- sequence: 12 of 14
 - sources: Neon free plan — 6-hour point-in-time history, no snapshots; upgrade declined by the owner 2026-09-10; real payments start Saturday 2026-09-12; `web/src/app/api/cron/retention/route.ts` (the cron auth pattern); `@vercel/blob` 2.6.1 already a dependency (`web/package.json`)
 
 ## Problem

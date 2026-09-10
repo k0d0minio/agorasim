@@ -5,7 +5,7 @@
 - priority: P1
 - size: S
 - depends-on: none
-- sequence: 4 of 9
+- sequence: 4 of 14
 - sources: legal lens: DL 156/2005 (Livro de Reclamações Eletrónico link mandatory for PT consumer-facing traders) + Lei 144/2015 (ADR/RAL entity identification); footer has neither (`web/src/components/site-footer.tsx:92-106`)
 
 ## Problem
@@ -18,8 +18,9 @@ also has to register on the platform — the site can only link.
 
 Footer bottom bar gains the standard Livro de Reclamações Eletrónico link (official
 logo optional, text link sufficient) and an ADR line naming the competent entity for
-tourism in the Lisbon region (verify current: likely Centro de Arbitragem de
-Conflitos de Consumo de Lisboa; also the EU ODR platform link) — on both locales.
+tourism in the Lisbon region (verified 2026-09-10: Centro de Arbitragem de
+Conflitos de Consumo de Lisboa, CNIACC as national fallback; **no EU ODR link — the
+platform was discontinued July 2025**) — on both locales.
 Add "register on livroreclamacoes.pt" to the client checklist in the runbook /
 question pack.
 
