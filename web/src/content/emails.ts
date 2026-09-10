@@ -45,8 +45,8 @@ export const bookingEmails = {
       en: "Hello {name},",
     } as Localized,
     lead: {
-      pt: "A sua reserva está confirmada. Obrigado por escolher a Agorasim.",
-      en: "Your booking is confirmed. Thank you for choosing Agorasim.",
+      pt: "Bem-vinda à região do campo onde crescemos. Será um prazer conhecê-la.\n\nA sua reserva está confirmada.",
+      en: "Welcome to the countryside where we grew up. It will be a pleasure to meet you.\n\nYour booking is confirmed.",
     } as Localized,
     detailsHeading: {
       pt: "Detalhes da reserva",
@@ -129,8 +129,8 @@ export const bookingEmails = {
       } as Localized,
     },
     signoff: {
-      pt: "Até breve,\nAgorasim",
-      en: "See you soon,\nAgorasim",
+      pt: "Até breve,\nDiogo e Rita\nAgorasim",
+      en: "See you soon,\nDiogo and Rita\nAgorasim",
     } as Localized,
     /** Why this email exists, in the footer. Transactional, so no unsubscribe. */
     footerNote: {
@@ -346,6 +346,70 @@ export const bookingEmails = {
     refundFailed: {
       title: "O reembolso não passou",
       body: "A reserva está cancelada e o lugar livre, mas o Stripe recusou o reembolso. Emita-o no painel do Stripe e avise o cliente.",
+    },
+    cta: "Ver no painel",
+    ctaLine: "Ver no painel: {adminUrl}",
+    footerNote: "Notificação automática do site — responda para escrever ao cliente.",
+  },
+
+  /** To the guest, acknowledging their enquiry. Warm §2.6 voice, bilingual. */
+  enquiryAck: {
+    subject: {
+      pt: "Recebemos o seu pedido — Agorasim",
+      en: "We received your enquiry — Agorasim",
+    } as Localized,
+    preheader: {
+      pt: "A equipa entra em contacto em breve",
+      en: "The team will be in touch soon",
+    } as Localized,
+    banner: {
+      pt: "Pedido recebido",
+      en: "Enquiry received",
+    } as Localized,
+    greeting: {
+      pt: "Olá {name},",
+      en: "Hello {name},",
+    } as Localized,
+    lead: {
+      pt: "Bem-vinda à região do campo onde crescemos. Será um prazer conhecê-la.\n\nRecebemos o seu pedido e a equipa entra em contacto brevemente para combinar os detalhes.",
+      en: "Welcome to the countryside where we grew up. It will be a pleasure to meet you.\n\nWe have received your enquiry and the team will be in touch shortly to arrange the details.",
+    } as Localized,
+    note: {
+      title: { pt: "Próximos passos", en: "Next steps" } as Localized,
+      body: {
+        pt: "Se preferir, pode também contactar-nos diretamente:",
+        en: "If you prefer, you can also reach us directly:",
+      } as Localized,
+    },
+    signoff: {
+      pt: "Até breve,\nDiogo e Rita\nAgorasim",
+      en: "See you soon,\nDiogo and Rita\nAgorasim",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque fez um pedido em {site}.",
+      en: "You are receiving this email because you made an enquiry at {site}.",
+    } as Localized,
+  },
+
+  /** To Diogo & Rita. Portuguese — a new enquiry has arrived. */
+  teamEnquiry: {
+    subject: "Novo pedido — {name}",
+    preheader: "{party} pessoas · {date}",
+    banner: "Novo pedido",
+    heading: "Alguém enviou um pedido através do site.",
+    detailsHeading: "Pedido",
+    labels: {
+      date: "Data preferida",
+      experience: "Experiência",
+      party: "Pessoas",
+      message: "Mensagem",
+    },
+    guestHeading: "Cliente",
+    guestLabels: {
+      name: "Nome",
+      email: "Email",
+      phone: "Telefone",
+      locale: "Idioma",
     },
     cta: "Ver no painel",
     ctaLine: "Ver no painel: {adminUrl}",

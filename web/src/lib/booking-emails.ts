@@ -801,3 +801,174 @@ export function teamCancellationEmail(
     replyTo: facts.guestEmail,
   };
 }
+
+/** Everything the enquiry ack email needs, already formatted for reading. */
+export type EnquiryEmailFacts = {
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string | null;
+  locale: Locale;
+  partySize: number | null;
+  preferredDate: string | null;
+  experience: string | null;
+  adminUrl: string;
+};
+
+/**
+ * The guest's acknowledgement, in the language they enquired in.
+ *
+ * Sent immediately on enquiry submission — no booking exists yet, so this is
+ * a warm "we got it" rather than a details block. The meeting point and hour
+ * are not known; the team fills those in when they reply.
+ *
+ * `replyTo` is the business inbox: the most likely next action from the guest
+ * is a reply with more details or a question.
+ */
+export function guestEnquiryAckEmail(facts: EnquiryEmailFacts): EmailMessage {
+  const c = bookingEmails.enquiryAck;
+  const l = facts.locale;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    site: siteUrl(),
+  };
+
+  const subject = fill(t(c.subject, l), values);
+  const greeting = fill(t(c.greeting, l), values);
+
+  const text = textLines([
+    greeting,
+    "",
+    t(c.lead, l),
+    "",
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(c.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader, l), values),
+    banner: { text: t(c.banner, l) },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(t(c.lead, l), { spaceBelow: 24 }),
+      emailNote({
+        title: t(c.note.title, l),
+        body: t(c.note.body, l),
+      }),
+      emailSpacer(16),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+  };
+}
+
+/**
+ * The team's copy when a new enquiry arrives. Portuguese.
+ *
+ * Simpler than the booking notification: no reference, no payment, no
+ * departure time. The team's next action is reading the message and replying.
+ *
+ * `replyTo` is the guest — same convention as the booking notification:
+ * hitting reply writes to the person who filled the form.
+ */
+export function teamEnquiryEmail(
+  facts: EnquiryEmailFacts,
+  recipients: string[],
+): EmailMessage {
+  const c = bookingEmails.teamEnquiry;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    date: facts.preferredDate || "—",
+    experience: facts.experience || "—",
+    party: facts.partySize ? String(facts.partySize) : "—",
+    adminUrl: facts.adminUrl,
+  };
+
+  const subject = fill(c.subject, values);
+  const phone = facts.guestPhone ?? "—";
+
+  const enquiryRows: DetailRow[] = [
+    { label: c.labels.date, value: facts.preferredDate || "—" },
+    { label: c.labels.experience, value: facts.experience || "—" },
+    { label: c.labels.party, value: values.party },
+  ];
+
+  const guestRows: DetailRow[] = [
+    { label: c.guestLabels.name, value: facts.guestName },
+    {
+      label: c.guestLabels.email,
+      value: facts.guestEmail,
+      href: `mailto:${facts.guestEmail}`,
+    },
+    {
+      label: c.guestLabels.phone,
+      value: phone,
+      ...(facts.guestPhone ? { href: `tel:${facts.guestPhone}` } : {}),
+    },
+    { label: c.guestLabels.locale, value: facts.locale.toUpperCase() },
+  ];
+
+  const text = textLines([
+    c.heading,
+    "",
+    ...enquiryRows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    c.guestHeading,
+    ...guestRows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    fill(c.ctaLine, values),
+  ]);
+
+  const html = emailDocument({
+    lang: "pt",
+    title: subject,
+    preheader: fill(c.preheader, values),
+    banner: { text: c.banner, background: emailPalette.primaryDark },
+    content: [
+      emailHeading(facts.guestName),
+      emailParagraph(c.heading, { muted: true, spaceBelow: 24 }),
+      emailEyebrow(c.detailsHeading),
+      emailDetails(enquiryRows),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(24),
+      emailEyebrow(c.guestHeading),
+      emailDetails(guestRows.slice(1)),
+      emailSpacer(28),
+      emailButton({ label: c.cta, href: facts.adminUrl }),
+    ].join(""),
+    footer: [escapeHtml(c.footerNote)],
+  });
+
+  return {
+    to: recipients,
+    subject,
+    text,
+    html,
+    replyTo: facts.guestEmail,
+  };
+}

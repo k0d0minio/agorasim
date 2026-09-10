@@ -12,6 +12,10 @@ import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { formValues, tourRequestSchema, type TourRequestField } from "@/lib/form-schemas";
+import { guestEnquiryAckEmail, teamEnquiryEmail } from "@/lib/booking-emails";
+import { sendLoggedEmail } from "@/lib/message-log";
+import { teamRecipients } from "@/lib/email";
+import { siteUrl } from "@/lib/site-origin";
 
 export type TourRequestState = {
   ok?: boolean;
@@ -130,7 +134,7 @@ export async function submitTourRequest(
      */
     const known = new Set((await listExperiences()).map((entry) => entry.slug));
 
-    await db.insert(tourRequests).values({
+    const [inserted] = await db.insert(tourRequests).values({
       ...request,
       addOns: addOns.filter((slug) => known.has(slug)),
       locale,
@@ -143,7 +147,41 @@ export async function submitTourRequest(
       marketingConsent,
       marketingConsentAt: marketingConsent ? new Date() : null,
       marketingConsentVersion: marketingConsent ? MARKETING_CONSENT_VERSION : null,
-    });
+    }).returning("id");
+
+    // Fire-and-forget emails: the enquiry is stored; if the mail fails the
+    // team still sees it on the Sales board. Never block or fail the form.
+    const adminUrl = `${siteUrl()}/admin/sales/${inserted.id}`;
+    const facts = {
+      guestName: request.name,
+      guestEmail: request.email,
+      guestPhone: request.phone,
+      locale,
+      partySize: request.partySize,
+      preferredDate: request.preferredDate,
+      experience: experience && known.has(experience) ? experience : null,
+      adminUrl,
+    };
+
+    const team = teamRecipients();
+    const subject = {
+      kind: "enquiry-ack",
+      tourRequestId: inserted.id,
+    } as const;
+
+    try {
+      await Promise.all([
+        sendLoggedEmail({ ...subject, recipient: "guest" }, guestEnquiryAckEmail(facts)),
+        team.length > 0
+          ? sendLoggedEmail(
+              { ...subject, recipient: "team" },
+              teamEnquiryEmail(facts, team),
+            )
+          : Promise.resolve({ status: "skipped", reason: "no-recipient" } as const),
+      ]);
+    } catch (emailErr) {
+      console.error("[reservar] failed to send enquiry emails", emailErr);
+    }
   } catch (err) {
     console.error("[reservar] failed to store tour request", err);
     return { error: t(c.errors.generic, locale), values: { preferredDate: chosenDate } };
