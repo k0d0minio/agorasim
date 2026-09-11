@@ -9,6 +9,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { BookingBar } from "@/components/booking-bar";
 import { alternates } from "@/lib/seo";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -97,6 +98,7 @@ export default async function LocaleLayout({
         <main className="flex-1">{children}</main>
         <SiteFooter locale={typedLocale} />
         <BookingBar locale={typedLocale} label={dict.cta.bookExperience} />
+        <Analytics />
       </body>
     </html>
   );
