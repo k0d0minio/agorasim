@@ -1,52 +1,30 @@
 # Intake — Agorasim tickets
 
-Open work items for this repo, one markdown file each: `AGORA-NNN-slug.md`.
-Finished tickets are `git mv`'d to `_done/` — the folder move is the state change.
-This is the estate-wide ticket standard (canonical spec: `_system/contracts/TICKETS.md`
-in the Apps estate); this file is a self-contained copy of the contract.
+Open work for this repo lives here as **epics and stubs**; the working contract is the
+`ticket-craft` skill (`.claude/skills/ticket-craft/SKILL.md`), canonical spec
+`_system/contracts/TICKETS.md` in icm-board. This file is its micro-copy.
 
-## Contract
+## Shape
 
-Required in every ticket:
+- **Epic** = `<epic-slug>/` with a `breakdown.md` (what was understood + `## Build order`)
+  and one stub per unit of work. Every stub carries `- feature-slug:` (= filename),
+  `- sequence: <n> of <m>`, `- depends-on: none | <in-epic slugs sequenced earlier>`.
+- **Triage** = `triage/<slug>.md` for one-off findings, with `- lane: bug | tweak | chore`
+  and `- found-by:`.
+- **Identity is the path** (`<epic>/<slug>`); H1 is `# Stub: <title>`. No numbers.
+- Optional dash-lines: `- priority: P0|P1|P2`, `- size:`, `- blocked: <reason>`,
+  `- sources:`.
+- **`## Prompt` is the pick-up contract**: it must stand alone pasted into a fresh Claude
+  session at the repo root and tell that session to read the stub file.
 
-- H1: `# AGORA-NNN · <title>` — `NNN` zero-padded, never reused.
-- A metadata table with a `Priority` row: `P0` (urgent) · `P1` (next) · `P2` (whenever).
-- A `## Prompt` section that stands alone when pasted into a fresh Claude session at
-  the repo root. It should tell the session to read the ticket file for full context.
+## Status is positional
 
-Status (a `Status` row in the table):
+- Open = the stub sits in a live epic or triage. Next = lowest unmet sequence.
+- Done = `git mv` the stub to its epic's `_done/` in the PR that finishes the work.
+  Dropped work moves there too with a `> Dropped: <reason, date>` line prepended.
+- A completed epic archives whole: `git mv intake/<epic>/ intake/_done/<epic>/`.
 
-- `ready` → `today` → `in-progress` → `blocked`. Missing row = `ready`.
-- `today` marks tickets picked for the day's worklist.
-- Done is not a status — move the file to `_done/`.
-- The session doing the work flips `Status` in its PR and moves the ticket to
-  `_done/` in the PR that finishes it.
+## History
 
-Optional, free-form: `Type`, `Size`, `Depends on`, `Client`, acceptance criteria,
-anything else useful.
-
-## Template
-
-```markdown
-# AGORA-001 · <title>
-
-| | |
-|---|---|
-| Status | ready |
-| Type | task |
-| Priority | P1 |
-| Size | S |
-
-## Problem
-<what and why>
-
-## Acceptance
-- [ ] <observable outcome>
-- [ ] CI green
-
-## Prompt
-
-<self-contained instruction for a fresh Claude session; reference this
-ticket file by path. PRs on a claude/ branch; no local checks — CI is
-the source of truth.>
-```
+The tree was purged on 2026-09-11 (every earlier epic, triage stub and `_done/` archive)
+to leave only the go-live work; `git log -- .icm/intake` holds the rest.
