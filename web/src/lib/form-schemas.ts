@@ -674,6 +674,17 @@ export const moveBookingSchema = z.object({
  * the checkout path.
  */
 export const createManualBookingSchema = z.object({
+  /**
+   * The enquiry this sale answers, when the sheet was opened from the Sales
+   * board rather than from a day in the Calendar.
+   *
+   * Absent is the calendar's mount and means "there is no lead yet" — the
+   * action creates one. Present and malformed is *not* the same thing and must
+   * never fall through to that: it would record a phone sale against a new
+   * stranger while the enquiry it answers sat untouched in `Novo`. So no
+   * `.catch()` here; a broken id is a refusal.
+   */
+  leadId: z.uuid("Esse pedido já não existe.").optional(),
   /** Must be a real calendar day; the action re-checks it on sale/open. */
   date: z
     .string()

@@ -23,6 +23,7 @@ import { formatPrice } from "@/lib/money";
 import { refundableCents } from "@/lib/booking-refund";
 import { formatDay } from "@/lib/availability";
 import { groupMoveTargets, listMoveTargets } from "@/lib/booking-move";
+import { listOpenDepartures, manualBookingPrefill } from "@/lib/manual-booking";
 import { bookingsForLead, bookingSummaries, enquiryRef, recordFromRequest } from "@/lib/sales";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { CancelBookingDialog } from "@/components/admin/cancel-booking-dialog";
@@ -34,6 +35,7 @@ import {
   ExperienceNames,
 } from "@/components/admin/experience-icons";
 import { LeadEditForm, type CatalogueOption } from "@/components/admin/lead-edit-form";
+import { LeadManualBooking } from "@/components/admin/lead-manual-booking";
 import { ArchiveLeadButton, LogContactButton } from "@/components/admin/lead-quick-actions";
 import { MarketingConsent, Received } from "@/components/admin/record-meta";
 import { RequestStatusSelect } from "@/components/admin/request-status-select";
@@ -69,10 +71,13 @@ export default async function AdminLeadPage({
   const [lead] = await db.select().from(tourRequests).where(eq(tourRequests.id, id)).limit(1);
   if (!lead) notFound();
 
-  const [catalogue, history, leadBookings] = await Promise.all([
+  const [catalogue, history, leadBookings, openDays] = await Promise.all([
     listCatalogue(),
     listAuditForEntity("tour_request", lead.id),
     bookingsForLead(lead.id),
+    // The "Registar reserva" picker: every departure still on sale between now
+    // and the horizon, so a booking taken on the phone never needs the Calendar.
+    listOpenDepartures(),
   ]);
 
   /**
@@ -127,6 +132,11 @@ export default async function AdminLeadPage({
   const preferredCarName = preferredCarId
     ? (classicCars.find((car) => car.id === preferredCarId)?.name ?? preferredCarId)
     : null;
+  // The tours the manual sheet can sell — active signature routes, exactly as
+  // the Calendar's mount picks them. A retired route takes no new money.
+  const sellableTours = catalogue
+    .filter((entry) => entry.kind === "signature" && entry.active)
+    .map((entry) => ({ slug: entry.slug, title: t(entry.title, "pt") }));
 
   const options: CatalogueOption[] = catalogue.map((entry) => ({
     slug: entry.slug,
@@ -212,6 +222,19 @@ export default async function AdminLeadPage({
                 id={lead.id}
                 lastContactedAt={lead.lastContactedAt?.toISOString() ?? null}
               />
+              {/*
+                The phone booking, taken here rather than in the Calendar. Not
+                offered on an anonymised lead: the retention job has already
+                erased the person this booking would be for, and the fields
+                would prefill blank.
+              */}
+              {lead.anonymisedAt ? null : (
+                <LeadManualBooking
+                  lead={manualBookingPrefill(lead, sellableTours)}
+                  days={openDays}
+                  tours={sellableTours}
+                />
+              )}
               <ArchiveLeadButton id={lead.id} archived={lead.status === "archived"} />
               {isOwner ? (
                 <DeleteSubmissionDialog

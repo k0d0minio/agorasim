@@ -2,12 +2,29 @@ import Link from "next/link";
 import { Clock, MapPin } from "lucide-react";
 import type { AuditLogRow } from "@/lib/audit";
 import type { CatalogueEntry } from "@/lib/experience-catalogue";
+import { manualBookingPrefill } from "@/lib/manual-booking";
 import { groupByStage, type SalesRecord } from "@/lib/sales";
 import { formatRelativeTime, requestStatusMeta } from "@/lib/admin-format";
 import { Badge } from "@/components/ui/badge";
 import { RecordIcons, ExperienceNames } from "@/components/admin/experience-icons";
+import { LeadManualBooking } from "@/components/admin/lead-manual-booking";
+import type {
+  ManualBookingDay,
+  ManualBookingTour,
+} from "@/components/admin/manual-booking-dialog";
 import { RequestStatusSelect } from "@/components/admin/request-status-select";
 import { SalesStagePager } from "@/components/admin/sales-stage-pager";
+
+/**
+ * The stages whose cards offer "Registar reserva".
+ *
+ * A lead still in play, in other words. `booked` has already converted and its
+ * card carries the money; `archived` was deliberately put away, and an action
+ * that would quietly reopen it as a sale does not belong on the card. Both can
+ * still be booked from the lead's own page, which is where a deliberate
+ * exception goes.
+ */
+const BOOKABLE_STAGES = new Set(["new", "contacted", "quoted"]);
 
 /**
  * The Sales board: every lead and booking as a card, in the column its stage
@@ -30,12 +47,21 @@ export function SalesBoard({
   countsByStatus,
   lastChanged,
   now,
+  openDays,
+  tours,
 }: {
   records: SalesRecord[];
   catalogue: Map<string, CatalogueEntry>;
   countsByStatus: Record<string, number>;
   lastChanged: Map<string, AuditLogRow>;
   now: Date;
+  /**
+   * The departures the phone-booking sheet can sell, read once for the whole
+   * board. Every card hands the same array to its own sheet — one read and one
+   * copy in the payload, rather than fifty of each.
+   */
+  openDays: ManualBookingDay[];
+  tours: ManualBookingTour[];
 }) {
   const columns = groupByStage(records);
 
@@ -149,6 +175,21 @@ export function SalesBoard({
                   name={record.name}
                   className="mt-1"
                 />
+
+                {/*
+                  Rita's phone call, answered where it landed: this turns the
+                  enquiry into a confirmed booking without the Calendar detour,
+                  and moves the card into `Reservado` as it does. Not on an
+                  anonymised lead — the person it would be for has been erased.
+                */}
+                {BOOKABLE_STAGES.has(record.status) && !record.anonymisedAt ? (
+                  <LeadManualBooking
+                    lead={manualBookingPrefill(record, tours)}
+                    days={openDays}
+                    tours={tours}
+                    className="mt-2 w-full gap-2"
+                  />
+                ) : null}
 
                 {lastChanged.get(record.id) ? (
                   <p className="mt-1 text-xs text-muted-foreground">

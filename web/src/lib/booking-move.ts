@@ -36,38 +36,34 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 
-import {
-  bookings,
-  db,
-  tourRequests,
-  type AvailabilitySlot,
-  type Booking,
-} from "@/db";
+import { bookings, db, tourRequests, type Booking } from "@/db";
 import { bookingEmails } from "@/content/emails";
 import {
   departureLabel,
   departureTimeFollowsByEmail,
   meetingPoints,
 } from "@/content/logistics";
-import { t, type Locale } from "@/i18n/config";
+import { t } from "@/i18n/config";
 import { recordAuditOrWarn } from "@/lib/audit";
 import {
   checkSlotAvailable,
-  describeSlot,
-  expandDateRange,
   fitsParty,
   formatDay,
   isDateKey,
   isTourSlot,
-  listAvailabilityRows,
-  occupancySlotKey,
   todayKey,
-  TOUR_SLOTS,
   type DateKey,
   type DaySlots,
 } from "@/lib/availability";
+import {
+  groupDepartures,
+  readDepartureWindow,
+  sameDeparture,
+  type Departure,
+  type DepartureGroup,
+} from "@/lib/departure-window";
 import { guestMoveEmail, partyLabel } from "@/lib/booking-emails";
-import { bookingRef, countSlotOccupancy, slotOccupancyOn } from "@/lib/bookings";
+import { bookingRef, slotOccupancyOn } from "@/lib/bookings";
 import {
   cancellationPath,
   isCancellationTokenConfigured,
@@ -89,13 +85,13 @@ import { siteUrl } from "@/lib/site-origin";
  */
 export const MOVE_HORIZON_DAYS = 90;
 
-/** One departure a booking could be moved to — or the one it is on. */
-export type MoveTarget = { date: DateKey; slot: AvailabilitySlot };
-
-/** Whether the same departure is meant by both. */
-function sameDeparture(a: MoveTarget, b: MoveTarget): boolean {
-  return a.date === b.date && a.slot === b.slot;
-}
+/**
+ * One departure a booking could be moved to — or the one it is on.
+ *
+ * The shared {@link Departure} under the move picker's own name: what makes a
+ * departure a *move target* is the filtering below, not its shape.
+ */
+export type MoveTarget = Departure;
 
 /**
  * Whether a booking can be moved at all.
@@ -142,10 +138,8 @@ export function viableMoveTargets(options: {
 /**
  * Every departure this booking could be moved to, from today to the horizon.
  *
- * Two reads for the whole window — the opened days and what is committed
- * against them — rather than one per candidate departure: the picker needs all
- * of them at once, and the alternative is a hundred and eighty round trips to
- * render one dialog.
+ * The window read is {@link readDepartureWindow}, shared with the Sales board's
+ * manual booking; what is particular to a move is the filter below it.
  */
 export async function listMoveTargets(
   booking: Pick<Booking, "experienceSlug" | "partySize" | "date" | "slot">,
@@ -153,85 +147,22 @@ export async function listMoveTargets(
 ): Promise<MoveTarget[]> {
   const { today = todayKey(), horizonDays = MOVE_HORIZON_DAYS } = options;
 
-  const days = expandDateRange(
-    today,
-    // `expandDateRange` caps at a leap year, so the window is whatever is
-    // asked for or that ceiling — never an unbounded scan.
-    lastDayOfWindow(today, horizonDays),
-    horizonDays,
-  );
-  if (days.length === 0) return [];
-
-  const windowStart = days[0];
-  const windowEnd = days[days.length - 1];
-  const [rows, occupancy] = await Promise.all([
-    listAvailabilityRows(windowStart, windowEnd),
-    countSlotOccupancy({ from: windowStart, to: windowEnd }),
-  ]);
-  const byKey = new Map(rows.map((row) => [occupancySlotKey(row.date, row.slot), row]));
-
-  const described: DaySlots[] = days.map((date) => ({
-    date,
-    slots: TOUR_SLOTS.map((slot) =>
-      describeSlot({
-        date,
-        slot,
-        row: byKey.get(occupancySlotKey(date, slot)) ?? null,
-        occupancy: occupancy.get(occupancySlotKey(date, slot)),
-        today,
-      }),
-    ),
-  }));
-
   return viableMoveTargets({
-    days: described,
+    days: await readDepartureWindow({ today, horizonDays }),
     experienceSlug: booking.experienceSlug,
     partySize: booking.partySize,
     from: { date: booking.date, slot: booking.slot },
   });
 }
 
-/** The last day of a window `days` long that starts on `today`, inclusive. */
-function lastDayOfWindow(today: DateKey, days: number): DateKey {
-  const start = Date.parse(`${today}T00:00:00Z`);
-  return new Date(start + Math.max(0, days - 1) * 86_400_000).toISOString().slice(0, 10);
-}
-
 /** The picker's options for one day: the day, named, and its viable departures. */
-export type MoveOptionGroup = {
-  date: DateKey;
-  /** "sábado, 15 de agosto de 2026" — the date helpers are server-only. */
-  label: string;
-  slots: { slot: AvailabilitySlot; label: string }[];
-};
+export type MoveOptionGroup = DepartureGroup;
 
 /**
- * Group targets by day and name them, for a client component to render.
- *
- * Done here rather than in the dialog because `formatDay` and the departure
- * labels are server-side content: the browser is handed strings it can put on
- * screen, not a second copy of the vocabulary.
+ * Group move targets by day and name them, for the dialog to render — the
+ * shared {@link groupDepartures}, under the name the move picker's caller uses.
  */
-export function groupMoveTargets(
-  targets: MoveTarget[],
-  experienceSlug: string,
-  locale: Locale = "pt",
-): MoveOptionGroup[] {
-  const byDate = new Map<DateKey, MoveOptionGroup>();
-
-  for (const target of targets) {
-    const group =
-      byDate.get(target.date) ??
-      { date: target.date, label: formatDay(target.date, locale), slots: [] };
-    group.slots.push({
-      slot: target.slot,
-      label: t(departureLabel(experienceSlug, target.slot), locale),
-    });
-    byDate.set(target.date, group);
-  }
-
-  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-}
+export const groupMoveTargets = groupDepartures;
 
 /** What happened when the team tried to move a booking. */
 export type MoveOutcome =

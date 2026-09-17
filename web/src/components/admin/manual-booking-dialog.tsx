@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Minus, Plus, UserRoundPlus } from "lucide-react";
 
@@ -8,6 +8,7 @@ import {
   createManualBooking,
   type ManualBookingActionState,
 } from "@/app/admin/calendar/actions";
+import type { ManualBookingPrefill } from "@/lib/manual-booking";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,10 +26,38 @@ import { cn } from "@/lib/utils";
 /** An active signature tour the sheet can sell, as `page.tsx` shapes it. */
 export type ManualBookingTour = { slug: string; title: string };
 
-function SubmitButton() {
+/** One day the sheet can sell, and the departures of it still open. */
+export type ManualBookingDay = {
+  date: string;
+  /** "sábado, 15 de agosto de 2026" — formatted on the server. */
+  label: string;
+  slots: { slot: string; label: string }[];
+};
+
+/**
+ * Where the sheet gets the departure it is about to sell.
+ *
+ * Two mounts, two situations, and they are genuinely different questions
+ * rather than one question with an optional half. The Calendar opens this sheet
+ * from inside a day: that day is what the operator is looking at, and only the
+ * departure is left to choose. The Sales board opens it from a lead, where
+ * nothing about the calendar has been decided — so the day is chosen too, out
+ * of every day still open between now and the horizon.
+ *
+ * A union rather than four optional props, because "a date and a list of days"
+ * and "neither" are states the sheet has no reading of, and a prop shape that
+ * can express them is a prop shape somebody eventually passes.
+ */
+export type ManualBookingDeparture =
+  /** The day is settled; pick one of its open departures. */
+  | { kind: "fixed"; date: string; openSlots: ("morning" | "afternoon")[] }
+  /** Nothing is settled; pick the day and then its departure. */
+  | { kind: "pick"; days: ManualBookingDay[] };
+
+function SubmitButton({ armed }: { armed: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending}>
+    <Button type="submit" disabled={pending || !armed}>
       {pending ? "A registar…" : "Registar e confirmar"}
     </Button>
   );
@@ -139,27 +168,45 @@ function FieldError({ message }: { message?: string }) {
  * Every cash or phone booking is inserted straight into the calendar,
  * `confirmed` from creation, by the one path that writes
  * `payment_method = 'cash'` (see the action's note in `calendar/actions.ts`).
- * This sheet is its phone-first entry point, opened from the day sheet: pick
- * the departure — only those actually on sale and with capacity appear —
- * the tour, the format, and the party, name the guest, and either accept the
- * catalogue price or type the deal that was actually struck.
+ * This sheet is its phone-first entry point: pick the departure — only those
+ * actually on sale and with capacity appear — the tour, the format, and the
+ * party, name the guest, and either accept the catalogue price or type the
+ * deal that was actually struck.
  *
- * **The sheet owns its dialog.** The day sheet stays open underneath (it is
- * what the operator was doing), this dialog rises over it as its own sheet and
- * closes itself once the reservation lands — the calendar refresh the day
- * sheet's `onDone` triggers is that landing, showing the new booking dot.
+ * **Two mounts, one sheet.** From a day in the Calendar it sells that day
+ * (`departure.kind === "fixed"`). From a lead on the Sales board it sells
+ * whichever day the operator picks, with the guest already typed in from the
+ * enquiry they are answering — because "Rita is on the phone with the person
+ * whose card she is looking at" is the case the whole feature exists for, and
+ * making her find the day in another screen first is what she was doing
+ * before. See {@link ManualBookingDeparture} for why that is a union.
+ *
+ * **The sheet owns its dialog.** Whatever opened it stays open underneath (it
+ * is what the operator was doing), this dialog rises over it as its own sheet
+ * and closes itself once the reservation lands — the refresh `onDone` triggers
+ * is that landing, showing the new booking dot or the moved card.
  */
 export function ManualBookingDialog({
-  date,
-  openSlots,
+  departure,
   tours,
+  lead,
+  triggerLabel = "Nova reserva",
+  triggerVariant = "secondary",
+  triggerClassName = "w-full gap-2 sm:w-auto",
   onDone,
 }: {
-  /** The day being looked at — posted through to the action. */
-  date: string;
-  /** Departures on sale with capacity left; the choices shown are only these. */
-  openSlots: ("morning" | "afternoon")[];
+  departure: ManualBookingDeparture;
   tours: ManualBookingTour[];
+  /**
+   * The enquiry being answered, where there is one: its fields fill the sheet
+   * and its id moves it to `Reservado` when the booking lands. Absent on the
+   * Calendar's mount, where the call arrived without a lead behind it.
+   */
+  lead?: ManualBookingPrefill;
+  /** "Nova reserva" in the Calendar, "Registar reserva" on a lead. */
+  triggerLabel?: string;
+  triggerVariant?: React.ComponentProps<typeof Button>["variant"];
+  triggerClassName?: string;
   onDone: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -168,19 +215,19 @@ export function ManualBookingDialog({
     <>
       <Button
         type="button"
-        variant="secondary"
+        variant={triggerVariant}
         onClick={() => setOpen(true)}
-        className="w-full gap-2 sm:w-auto"
+        className={triggerClassName}
       >
         <UserRoundPlus className="size-4" />
-        Nova reserva
+        {triggerLabel}
       </Button>
 
       {open ? (
         <ManualBookingForm
-          date={date}
-          openSlots={openSlots}
+          departure={departure}
           tours={tours}
+          lead={lead}
           onDone={onDone}
           onClose={() => setOpen(false)}
         />
@@ -197,15 +244,15 @@ export function ManualBookingDialog({
  * reset, which is why there is no "clear on open" effect.
  */
 function ManualBookingForm({
-  date,
-  openSlots,
+  departure,
   tours,
+  lead,
   onDone,
   onClose,
 }: {
-  date: string;
-  openSlots: ("morning" | "afternoon")[];
+  departure: ManualBookingDeparture;
   tours: ManualBookingTour[];
+  lead?: ManualBookingPrefill;
   onDone: () => void;
   onClose: () => void;
 }) {
@@ -214,12 +261,34 @@ function ManualBookingForm({
     {},
   );
 
-  const [slot, setSlot] = useState<"morning" | "afternoon">(openSlots[0] ?? "morning");
-  const [experience, setExperience] = useState(tours[0]?.slug ?? "");
+  // The day: fixed by the Calendar's mount, chosen here on the board's. Kept as
+  // one piece of state either way so the hidden `date` field below has a single
+  // source, rather than two branches that could post different things.
+  const [date, setDate] = useState(departure.kind === "fixed" ? departure.date : "");
+  const [slot, setSlot] = useState(
+    departure.kind === "fixed" ? (departure.openSlots[0] ?? "morning") : "",
+  );
+  const [experience, setExperience] = useState(
+    // The lead's own tour where it is still sellable — `manualBookingPrefill`
+    // has already refused a retired one, so this is never an option the
+    // `<Select>` below does not list.
+    lead?.experience ?? tours[0]?.slug ?? "",
+  );
   const [mode, setMode] = useState<"public" | "private">("public");
-  const [adults, setAdults] = useState(2);
-  const [children, setChildren] = useState(0);
-  const [infants, setInfants] = useState(0);
+  const [adults, setAdults] = useState(lead?.adults ?? 2);
+  const [children, setChildren] = useState(lead?.children ?? 0);
+  const [infants, setInfants] = useState(lead?.infants ?? 0);
+
+  // The departures of the day chosen, on the board's mount. Changing the day
+  // clears the departure, so a morning chosen on the 15th cannot be submitted
+  // against the 22nd — the same guard the move picker keeps.
+  const slotsForDay = useMemo(
+    () =>
+      departure.kind === "pick"
+        ? (departure.days.find((day) => day.date === date)?.slots ?? [])
+        : [],
+    [departure, date],
+  );
 
   // Closing on success is derived, as everywhere in this admin: once `ok`
   // lands the booking exists and the sheet has nothing left to say — refresh
@@ -233,6 +302,12 @@ function ManualBookingForm({
 
   const errors = state.fieldErrors ?? {};
 
+  // Both halves of the departure are chosen. On the Calendar's mount that is
+  // true from the first render; on the board's it guards the two states the
+  // action would otherwise have to refuse with an error nobody asked for — a
+  // day picked with no departure yet, and a calendar with nothing open at all.
+  const armed = Boolean(date && slot);
+
   return (
     <Dialog
       open
@@ -243,33 +318,106 @@ function ManualBookingForm({
       <DialogContent>
         <form action={formAction} className="flex flex-col gap-4">
           <input type="hidden" name="date" value={date} />
+          {/* The enquiry this sale answers. Its presence is what moves the lead
+              to `Reservado` instead of creating a second card for the same
+              person — see the action. */}
+          {lead ? <input type="hidden" name="leadId" value={lead.leadId} /> : null}
 
           <DialogHeader>
-            <DialogTitle>Nova reserva</DialogTitle>
+            <DialogTitle>{lead ? `Registar reserva — ${lead.name}` : "Nova reserva"}</DialogTitle>
             <DialogDescription>
               Venda feita ao telefone ou em pessoa, sem Stripe. O valor de base é o do
               catálogo; diga outro se o que combinou foi diferente.
+              {lead
+                ? " Os dados vêm do pedido — corrija-os aqui se entretanto mudaram. O pedido passa a Reservado."
+                : ""}
             </DialogDescription>
           </DialogHeader>
 
           <FieldError message={state.error} />
 
-          <div role="group" aria-label="Partida" className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Partida</span>
-            <div className="flex gap-2">
-              {openSlots.map((choice) => (
-                <Choice
-                  key={choice}
-                  active={slot === choice}
-                  onClick={() => setSlot(choice)}
+          {departure.kind === "fixed" ? (
+            <>
+              <div role="group" aria-label="Partida" className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium">Partida</span>
+                <div className="flex gap-2">
+                  {departure.openSlots.map((choice) => (
+                    <Choice
+                      key={choice}
+                      active={slot === choice}
+                      onClick={() => setSlot(choice)}
+                    >
+                      {choice === "morning" ? "Manhã · 10:00" : "Tarde · 14:00"}
+                    </Choice>
+                  ))}
+                </div>
+                <FieldError message={errors.slot} />
+              </div>
+              <input type="hidden" name="slot" value={slot} />
+            </>
+          ) : departure.days.length === 0 ? (
+            /* Not an error: the calendar simply has nothing left to sell. Said
+               plainly, with the screen that fixes it named — as in the move
+               picker, which meets the same wall. */
+            <p className="text-sm text-muted-foreground">
+              Não há nenhuma partida aberta nos próximos meses. Abra dias no calendário e
+              volte aqui.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="manual-booking-date">Dia</Label>
+                <Select
+                  id="manual-booking-date"
+                  value={date}
+                  onChange={(event) => {
+                    setDate(event.target.value);
+                    setSlot("");
+                  }}
                 >
-                  {choice === "morning" ? "Manhã · 10:00" : "Tarde · 14:00"}
-                </Choice>
-              ))}
-            </div>
-            <FieldError message={errors.slot} />
-          </div>
-          <input type="hidden" name="slot" value={slot} />
+                  <option value="">Escolha um dia</option>
+                  {departure.days.map((day) => (
+                    <option key={day.date} value={day.date}>
+                      {day.label}
+                    </option>
+                  ))}
+                </Select>
+                <FieldError message={errors.date} />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="manual-booking-slot">Partida</Label>
+                <Select
+                  id="manual-booking-slot"
+                  name="slot"
+                  value={slot}
+                  disabled={!date}
+                  onChange={(event) => setSlot(event.target.value)}
+                >
+                  <option value="">
+                    {date ? "Escolha a partida" : "Escolha primeiro o dia"}
+                  </option>
+                  {slotsForDay.map((entry) => (
+                    <option key={entry.slot} value={entry.slot}>
+                      {entry.label}
+                    </option>
+                  ))}
+                </Select>
+                <FieldError message={errors.slot} />
+                {/*
+                  What this list does and does not promise. It is every departure
+                  on sale with a driver and a car still free — the calendar's own
+                  `bookable` rule. Whether *this* group fits is settled when the
+                  booking is registered, because the party and the passeio are
+                  still being chosen while the list is on screen.
+                */}
+                <p className="text-xs text-muted-foreground">
+                  Só aparecem os dias com partidas abertas e carro livre. A lotação para
+                  este grupo é confirmada ao registar.
+                </p>
+              </div>
+            </>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="manual-booking-experience">Passeio</Label>
@@ -346,6 +494,7 @@ function ManualBookingForm({
               required
               autoComplete="name"
               placeholder="Quem reserva"
+              defaultValue={lead?.name}
             />
             <FieldError message={errors.name} />
           </div>
@@ -360,6 +509,7 @@ function ManualBookingForm({
               autoComplete="email"
               inputMode="email"
               placeholder="nome@exemplo.pt"
+              defaultValue={lead?.email}
             />
             <FieldError message={errors.email} />
           </div>
@@ -372,6 +522,7 @@ function ManualBookingForm({
               type="tel"
               autoComplete="tel"
               inputMode="tel"
+              defaultValue={lead?.phone}
             />
           </div>
 
@@ -394,7 +545,7 @@ function ManualBookingForm({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
-            <SubmitButton />
+            <SubmitButton armed={armed} />
           </DialogFooter>
         </form>
       </DialogContent>
