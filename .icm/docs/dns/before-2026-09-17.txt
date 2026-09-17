@@ -1,0 +1,16 @@
+_dmarc.agorasim.pt. TXT v=DMARC1; p=none; pct=100; ri=86400
+agorasim.pt. A 130.185.83.150
+agorasim.pt. MX 001 aspmx.l.google.com.
+agorasim.pt. MX 005 alt1.aspmx.l.google.com.
+agorasim.pt. MX 005 alt2.aspmx.l.google.com.
+agorasim.pt. MX 010 alt3.aspmx.l.google.com.
+agorasim.pt. MX 010 alt4.aspmx.l.google.com.
+agorasim.pt. NS ns1.amenworld.com.
+agorasim.pt. NS ns2.amenworld.com.
+agorasim.pt. TXT facebook-domain-verification=tr88umay1su0fk1udrsoazoya8y6sq
+agorasim.pt. TXT v=spf1 include:spf.webapps.net include:_spf.google.com ~all
+ftp.agorasim.pt. CNAME agorasim.pt.
+google._domainkey.agorasim.pt. TXT v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCaHT0QfdWCoUn94IBgNNBKcXOafDFl7f7a9a5+crac+JDj5Q8U75UJhHAXcVjUJKtHknp2vkxPfSaFukWmowcxZ/WQiGHD+natRw++uhBRO79c4L/8kEYTvvASGVzffEskZb0/OSgvACxv+hdw0uVioH27RZQIg4nKmiUB8GeZNwIDAQAB
+mail.agorasim.pt. CNAME mail-pt.securemail.pro.
+webmail.agorasim.pt. CNAME webmail-pt.setupdns.net.
+www.agorasim.pt. CNAME agorasim.pt.

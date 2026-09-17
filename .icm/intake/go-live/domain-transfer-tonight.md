@@ -30,6 +30,27 @@ verbatim) → transfer submitted → `dns-snapshot.sh --ns` diff against the liv
 shows only the two intended differences → nameservers switched → mail in/out of info@
 proven → snapshot stored as the rollback record.
 
+## Session note — 2026-09-17
+
+Still open: **the transfer has not happened.** `dns-snapshot.sh` on 2026-09-17 shows
+`agorasim.pt` still at Amen (`@ NS` = `ns1/ns2.amenworld.com`, `@ A` = `130.185.83.150`),
+record-for-record identical to the 2026-09-11 reading in the runbook §1 — no drift, and no
+Resend or Vercel rows added yet. So none of the three closing conditions (domain landed,
+mail proven, §5 filled with observed values) is met, and this stub stays where it is.
+
+Shipped this session instead, so the gate is trustworthy when the night comes:
+
+- The snapshot is committed as the rollback record: `.icm/docs/dns/before-2026-09-17.txt`.
+- `dns-snapshot.sh` had three defects that all corrupted the gating diff rather than
+  failing it — `dig`-quoted vs DoH-bare TXT values made every TXT row a false difference,
+  a split DKIM string never matched the live one-string value, and `sort` ordered by the
+  operator's locale. All normalised now, with `web/src/lib/dns-snapshot.test.ts` pinning it.
+- **`--ns` cannot be run from a Claude session** — the container's port 53 is redirected to
+  a local resolver that answers some names from cache and SERVFAILs others, so it returned
+  a *random subset* of the zone. It now preflights the SOA and refuses without the `aa`
+  flag. Run `--ns` from Jamie's machine, or use the new `--zonefile` mode on the
+  registrar's zone export, which a session can do (no DNS egress needed).
+
 ## Acceptance criteria (rough)
 
 - [ ] Domain managed from the new registrar; registrant = the company (or the titular change is filed as a separate DNS.pt act, and that is written down)
@@ -42,8 +63,11 @@ proven → snapshot stored as the rollback record.
 In the agorasim repo, read `.icm/intake/go-live/domain-transfer-tonight.md` and
 `.icm/docs/launch-runbook.md` § Track T. You never touch DNS, registrar or Workspace —
 Jamie does, with Diogo & Rita present. Your work: run `web/scripts/dns-snapshot.sh`
-before and (with `--ns`) during the transfer when Jamie asks, diff the outputs, name
-every record that differs, and say whether the differences are the two intended ones.
+before the transfer, and during it compare against the pre-created zone when Jamie asks —
+via `--zonefile` on the registrar's export, or by diffing the `--ns` output Jamie runs on
+his own machine (a session container cannot reach an authoritative nameserver; see the
+session note in the stub). Diff the outputs, name every record that differs, and say
+whether the differences are the intended ones.
 When Jamie confirms the domain has landed and mail is proven, fill §5 of the runbook
 with the observed before/after values and `git mv` this stub to
 `.icm/intake/go-live/_done/` in a PR on a `claude/` branch. CI is the source of truth.

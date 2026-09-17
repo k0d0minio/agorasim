@@ -25,7 +25,10 @@ the new registrar starts with an empty or default one. So the order is fixed:
    mirror table, verbatim, except `@ A` and `www CNAME`, which point at Vercel because
    the site follows the domain (nothing on the old WordPress site is kept — Q26/27).
 3. **Verify** the pre-created zone against the live one **before** any nameserver change
-   (`dns-snapshot.sh --ns <new-ns>` vs the live snapshot: exactly two differences).
+   (`dns-snapshot.sh --ns <new-ns>`, or `--zonefile` on the registrar's export, vs the live
+   snapshot). Two *intended* differences — `@ A` and `www CNAME` — plus two expected ones
+   that are not the site moving: the `@ NS` rows (the new registrar answers with its own)
+   and the Resend rows added in Track D. Everything else identical, mail records above all.
 4. **Transfer**, then **switch nameservers** at the new registrar — that switch *is*
    go-live, so Production env must already be set (§2 Track G).
 5. **Prove mail** in and out of info@agorasim.pt within minutes of the switch.
@@ -60,7 +63,7 @@ Legend: 🧑 Jamie · 👥 Diogo & Rita · 🤖 session (via PR) · ⛔ hard gat
 
 **Before touching anything**
 - [ ] 🧑 Neon → project `agorasim` → manual snapshot.
-- [ ] 🤖/🧑 `web/scripts/dns-snapshot.sh > before.txt` — the live zone as Amen serves it. Keep the file.
+- [ ] 🤖/🧑 `web/scripts/dns-snapshot.sh > before.txt` — the live zone as Amen serves it. Keep the file. Taken 2026-09-17 and committed as `.icm/docs/dns/before-2026-09-17.txt`; re-verified record-for-record against §1, nothing had drifted. Re-run it on the night if more time passes.
 - [ ] 🧑 Amen zone panel: screenshot/export as a second copy.
 - [ ] 👥 Amen login works (password rotated 2026-08-29, in the password manager); the account shows `agorasim.pt` (Q11).
 - [ ] 👥 Who is the current **titular** (registrant) at DNS.pt — Diogo, Rita, or already the company? (`whois agorasim.pt` / dns.pt lookup.) A registrar transfer keeps the titular; **changing the titular to the company is a separate DNS.pt act** (alteração de titular) done at the new registrar after the transfer, with the company's NIF and documents. Decide tonight which of the two happens first; write it down.
@@ -72,7 +75,10 @@ Legend: 🧑 Jamie · 👥 Diogo & Rita · 🤖 session (via PR) · ⛔ hard gat
 - [ ] 👥 Account created in the company's name (Diogo & Rita hold the login; Jamie added as technical contact / delegated access if the panel supports it — Q10: Jamie manages, the client owns).
 - [ ] 🧑 Confirm in its panel that it accepts **transfer-in of `.pt`** and hosts DNS zones (both required for this plan).
 - [ ] 🧑 **Pre-create the zone** from the mirror table below. Every record verbatim from `before.txt` except the two Vercel rows. Add the Resend rows from Track D at the same time.
-- [ ] 🤖/🧑 `web/scripts/dns-snapshot.sh --ns <the new registrar's nameserver> > mirror.txt` and `diff before.txt mirror.txt`. Expected differences: `agorasim.pt A`, `www.agorasim.pt CNAME`, `agorasim.pt NS` (the new registrar answers with its own), plus the added Resend rows. **Anything else different = fix before continuing.**
+- [ ] 🧑 `web/scripts/dns-snapshot.sh --ns <the new registrar's nameserver> > mirror.txt` and `diff before.txt mirror.txt`. Expected differences: `agorasim.pt A`, `www.agorasim.pt CNAME`, `agorasim.pt NS` (the new registrar answers with its own), plus the added Resend rows. **Anything else different = fix before continuing.**
+  - **`--ns` is Jamie's machine, not a session's** (corrected 2026-09-17). A Claude session's container has no authoritative DNS egress: port 53 is redirected to a local resolver that answers some names from cache and SERVFAILs others, so `--ns` there yields a *random subset* of the zone rather than an error. The script now preflights the SOA and refuses unless the nameserver answers with the `aa` flag, so this fails loudly instead of producing a plausible-looking partial `mirror.txt` — but the run still has to happen somewhere with real DNS egress.
+  - A session **can** do the comparison from the registrar's **zone export**, which needs no DNS at all: `web/scripts/dns-snapshot.sh --zonefile export.txt > mirror.txt`. Paste or commit the export and the diff is the same check.
+  - Either way the diff is trustworthy across machines now: TXT quoting, split DKIM strings, MX priority and sort locale are all normalised, so a difference in the output is a real difference in the zone.
 
 Mirror table (name · type · value):
 
@@ -196,12 +202,28 @@ Order matters. Env first, DNS second, test third, announce last.
 
 ## 5 · Rollback values
 
-| Record | Before (Amen, 2026-09-11) | After |
+**Before** is observed and committed: `.icm/docs/dns/before-2026-09-17.txt`, taken with
+`dns-snapshot.sh` on 2026-09-17 and checked record-for-record against §1 — all 16 rows
+identical to the 2026-09-11 reading, no drift, and no Resend or Vercel rows added yet.
+That file is the rollback record; the table below is its summary.
+
+**After** is left blank on purpose. The domain is still at Amen as of 2026-09-17
+(`@ NS` = `ns1/ns2.amenworld.com`, `@ A` = `130.185.83.150`), so there is nothing observed
+to write. It gets filled from `after.txt` once the nameservers are switched and mail is
+proven — never from the mirror table, which is the intent rather than the result.
+
+| Record | Before (observed 2026-09-11, re-verified 2026-09-17) | After (observed — fill after the switch) |
 |---|---|---|
-| Nameservers | `ns1.amenworld.com`, `ns2.amenworld.com` | the new registrar's |
-| `agorasim.pt` A | `130.185.83.150` | Vercel apex A |
-| `www.agorasim.pt` CNAME | `agorasim.pt.` | `cname.vercel-dns.com.` |
-| Everything else | as `before.txt` | identical |
+| Nameservers | `ns1.amenworld.com.`, `ns2.amenworld.com.` | _pending_ (expected: the new registrar's) |
+| `agorasim.pt` A | `130.185.83.150` | _pending_ (expected: Vercel apex A) |
+| `www.agorasim.pt` CNAME | `agorasim.pt.` | _pending_ (expected: `cname.vercel-dns.com.`) |
+| MX (×5) | `1 aspmx` · `5 alt1` · `5 alt2` · `10 alt3` · `10 alt4` `.l.google.com.` | _pending_ (expected: identical) |
+| SPF TXT | `v=spf1 include:spf.webapps.net include:_spf.google.com ~all` | _pending_ (expected: identical) |
+| `google._domainkey` TXT | the 234-char DKIM value in §1, one string | _pending_ (expected: identical) |
+| `_dmarc` TXT | `v=DMARC1; p=none; pct=100; ri=86400` | _pending_ (expected: identical) |
+| facebook TXT | `facebook-domain-verification=tr88umay1su0fk1udrsoazoya8y6sq` | _pending_ (expected: identical) |
+| `mail` · `webmail` · `ftp` CNAME | `mail-pt.securemail.pro.` · `webmail-pt.setupdns.net.` · `agorasim.pt.` | _pending_ (expected: identical) |
+| AAAA, CAA | none | _pending_ (expected: none) |
 
 Rollback while Amen still serves the zone = set nameservers back to Amen's at the new
 registrar (Amen's zone is untouched by the transfer until Amen removes it). Rollback
