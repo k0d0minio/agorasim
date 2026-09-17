@@ -8,10 +8,10 @@ import type { Localized } from "@/i18n/config";
  * wooden boards; quoted per event depending on location; no distance limits;
  * couples book 3 to 4 months ahead.
  *
- * The quote form below is still a **disabled preview** and the page is
- * `noindex` — sending it writes an enquiry, which is
- * `quote-flow/enable-wedding-event-forms`. Until then the banner points
- * couples at the phone, which is how weddings are booked today.
+ * The quote form below sends for real, so the page is indexed like any other.
+ * Only the half of the copy this page words itself lives here — what the form
+ * says back (sending, sent, the errors) and the service-hours options are
+ * shared with `/eventos` in `content/quote-request.ts`.
  */
 export const weddingsContent = {
   title: {
@@ -21,11 +21,6 @@ export const weddingsContent = {
   lead: {
     pt: "Os nossos carros clássicos, engalanados para o seu grande dia — com condutor, flores e todo o charme da região Saloia.",
     en: "Our classic cars, dressed up for your big day — with a driver, flowers and all the charm of the Saloia countryside.",
-  } as Localized,
-
-  inDev: {
-    pt: "O pedido de orçamento online está a ser construído — este é o desenho final. Até lá, o orçamento é pedido por telefone ou email.",
-    en: "Online quote requests are being built — this is the final design. Until then, quotes are arranged by phone or email.",
   } as Localized,
 
   intro: {
@@ -131,22 +126,15 @@ export const weddingsContent = {
         en: "e.g. São Pedro Church, Mafra",
       } as Localized,
       hours: { pt: "Horas de serviço", en: "Hours of service" } as Localized,
-      hoursOptions: {
-        pt: ["Meio dia (até 4h)", "Dia inteiro (até 8h)", "Ainda não sabemos"],
-        en: ["Half day (up to 4h)", "Full day (up to 8h)", "We don't know yet"],
-      } as Localized<string[]>,
       car: { pt: "Carro preferido", en: "Preferred car" } as Localized,
       carNone: { pt: "Aconselhem-nos", en: "Advise us" } as Localized,
+      partySize: { pt: "Número de convidados", en: "Number of guests" } as Localized,
       message: { pt: "Contem-nos mais", en: "Tell us more" } as Localized,
       messagePlaceholder: {
         pt: "O que imaginam para o vosso dia…",
         en: "What you imagine for your day…",
       } as Localized,
       submit: { pt: "Pedir orçamento", en: "Request quote" } as Localized,
-      soon: {
-        pt: "O envio online fica ativo brevemente — até lá, contactem-nos diretamente.",
-        en: "Online sending will be live soon — until then, contact us directly.",
-      } as Localized,
     },
   },
 

@@ -65,7 +65,12 @@ export const navOrder: RouteKey[] = [
  * design previews still marked "in development" — they render, but stay out of
  * the sitemap and carry a noindex until their feature ships.
  *
- * `blog` is deliberately absent, and is not a preview any more. Its liveness is
+ * `casamentos` was the last of those and is one no longer: its quote form
+ * sends, so the page is indexed like any other. Nothing is a preview at the
+ * moment; the mechanism stays because the next page built ahead of its
+ * feature will need it.
+ *
+ * `blog` is deliberately absent, and is not a preview either. Its liveness is
  * not a property of the code: the section goes live the moment Diogo & Rita
  * publish their first article, so `app/[locale]/blog/page.tsx` and `sitemap.ts`
  * ask the database instead (`lib/blog-posts.ts`). A key here would be a
@@ -76,6 +81,7 @@ export const liveKeys: RouteKey[] = [
   "sobre",
   "experiencias",
   "eventos",
+  "casamentos",
   "contactos",
   "reservar",
   "privacidade",

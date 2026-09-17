@@ -49,6 +49,8 @@ import { parseAmountInput, parsePriceInput } from "@/lib/money";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
 import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
+import { classicCars } from "@/content/site";
+import { isServiceHours } from "@/content/quote-request";
 
 // ---------------------------------------------------------------------------
 // Enums, straight from the database schema
@@ -132,6 +134,22 @@ const repeated = z.preprocess(
   (value) => (value === undefined ? [] : Array.isArray(value) ? value : [value]),
   z.array(z.string()),
 );
+
+/**
+ * How many people, as a public enquiry form asks it: a positive whole number,
+ * or nothing at all. Anything else — "umas 40", a zero, an empty box — is
+ * nothing, because neither enquiry form is willing to refuse a lead over the
+ * one field the team will confirm on the phone anyway. Distinct from
+ * {@link partyCount}, which prices a checkout and therefore refuses.
+ */
+const optionalCount = z
+  .string()
+  .trim()
+  .catch("")
+  .transform((value) => {
+    const n = Number.parseInt(value, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  });
 
 /**
  * A stepper's count: an integer within [min, max], refused otherwise.
@@ -727,14 +745,7 @@ export const tourRequestSchema = z.object({
   experience: optionalText.transform((slug) =>
     slug && SLUG_RE.test(slug) ? slug : null,
   ),
-  partySize: z
-    .string()
-    .trim()
-    .catch("")
-    .transform((value) => {
-      const n = Number.parseInt(value, 10);
-      return Number.isFinite(n) && n > 0 ? n : null;
-    }),
+  partySize: optionalCount,
   addOns: repeated.transform((slugs) => slugs.filter((slug) => SLUG_RE.test(slug))),
   /**
    * Marketing opt-in. An unticked checkbox submits nothing at all, so absence is
@@ -748,6 +759,60 @@ export const tourRequestSchema = z.object({
 
 /** Field names `submitTourRequest` can report an inline error against. */
 export type TourRequestField = "name" | "email" | "preferredDate";
+
+// ---------------------------------------------------------------------------
+// Public wedding & event quote form
+// ---------------------------------------------------------------------------
+
+/**
+ * The quote form on `/casamentos` and `/eventos`.
+ *
+ * Deliberately close to {@link tourRequestSchema} and deliberately not the same
+ * one: a tour enquiry picks an experience off the catalogue, a quote enquiry
+ * names a venue and a car. Both write `tour_requests`; `kind` is what tells
+ * them apart on the Sales board.
+ *
+ * Only the name and the e-mail can fail. Everything a quote is priced from —
+ * the date, the venue, the party — is asked for plainly and accepted empty,
+ * because a couple who have not settled on a church yet are still a lead, and
+ * this site does not trade leads for tidy rows.
+ */
+export const quoteRequestSchema = z.object({
+  /**
+   * Which door they came through, from a hidden field. Not trusted so much as
+   * not worth distrusting: the worst a forged value does is put a card under
+   * the wrong badge, which an operator can change on the lead's own page. An
+   * unreadable one files as `event`, the more general of the two.
+   */
+  kind: z.enum(["wedding", "event"]).catch("event"),
+  name: text.min(1),
+  email: text.regex(EMAIL_RE),
+  phone: optionalText,
+  /** A `type="date"` field, so `YYYY-MM-DD` — stored in `preferred_date`. */
+  preferredDate: optionalText,
+  venue: optionalText,
+  /**
+   * A key from {@link SERVICE_HOURS}, never the label the guest saw. An
+   * unrecognised one is dropped rather than rejected — the same reading as an
+   * unknown experience slug on the tour enquiry, for the same reason.
+   */
+  serviceHours: optionalText.transform((value) =>
+    value && isServiceHours(value) ? value : null,
+  ),
+  /** A `classicCars` id, or null for "advise us" — and for anything we retired. */
+  preferredCar: optionalText.transform((value) =>
+    value && classicCars.some((car) => car.id === value) ? value : null,
+  ),
+  partySize: optionalCount,
+  message: optionalText,
+  /** Same rules as everywhere else — see {@link tourRequestSchema}. */
+  marketingConsent: z
+    .preprocess((value) => value === "on" || value === "true", z.boolean())
+    .catch(false),
+});
+
+/** Field names `submitQuoteRequest` can report an inline error against. */
+export type QuoteRequestField = "name" | "email";
 
 // ---------------------------------------------------------------------------
 // Public booking checkout
