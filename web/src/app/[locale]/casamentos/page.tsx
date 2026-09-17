@@ -7,20 +7,13 @@ import { weddingsContent } from "@/content/weddings";
 import { classicCars } from "@/content/site";
 import { todayKey } from "@/lib/availability";
 import { Section, SectionHeading } from "@/components/section";
-import { InDevBanner } from "@/components/in-dev-banner";
 import { FaqList } from "@/components/faq";
+import { QuoteRequestForm } from "@/components/quote-request-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { JsonLd } from "@/components/json-ld";
 import { organizationJsonLd, faqJsonLd } from "@/lib/jsonld";
 import { alternates } from "@/lib/seo";
-
-/** Every field on this page is a disabled preview of the form still to come. */
-const disabledClass = "disabled:opacity-70";
 
 export async function generateMetadata({
   params,
@@ -33,8 +26,6 @@ export async function generateMetadata({
     title: t(weddingsContent.title, locale),
     description: t(weddingsContent.lead, locale),
     alternates: alternates(locale, "casamentos"),
-    // Preview page — keep out of the index until the feature ships.
-    robots: { index: false, follow: false },
   };
 }
 
@@ -48,9 +39,9 @@ export const revalidate = 3600;
 
 /**
  * Wedding-car-hire landing (proposal Feature 4) — Diogo & Rita's real offer,
- * with each car introduced by the name it answers to. The quote form is still
- * a disabled preview and the page stays out of the index until sending works
- * (`quote-flow/enable-wedding-event-forms`).
+ * with each car introduced by the name it answers to. The quote form sends for
+ * real (`kind: "wedding"` into the Sales board), which is what took the page
+ * off its `noindex` and into `liveKeys`.
  */
 export default async function WeddingsPage({
   params,
@@ -64,7 +55,7 @@ export default async function WeddingsPage({
 
   /** The car biographies, keyed the way the fleet tiles and the picker ask. */
   const carById = new Map(classicCars.map((car) => [car.id, car]));
-  /** No wedding was ever in the past — the field says so, even while disabled. */
+  /** No wedding was ever in the past — the date field's floor says so. */
   const today = todayKey();
 
   return (
@@ -107,8 +98,6 @@ export default async function WeddingsPage({
             />
           </div>
         </div>
-
-        <InDevBanner locale={l} body={c.inDev} className="mt-10" />
       </Section>
 
       {/* What's included */}
@@ -179,73 +168,12 @@ export default async function WeddingsPage({
         </div>
       </Section>
 
-      {/* Quote request — design preview, submit disabled until the engine ships */}
+      {/* Quote request — sends a `wedding` enquiry to the Sales board. */}
       <Section muted>
         <div className="scroll-mt-24" id="orcamento" />
         <div className="mx-auto max-w-2xl">
           <SectionHeading title={t(c.quote.title, l)} intro={t(c.quote.lead, l)} />
-          <form className="mt-8 flex flex-col gap-5">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="wd-names">{t(c.quote.labels.names, l)}</Label>
-                <Input id="wd-names" disabled className={disabledClass} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="wd-email">{t(c.quote.labels.email, l)}</Label>
-                <Input id="wd-email" type="email" disabled className={disabledClass} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="wd-phone">{t(c.quote.labels.phone, l)}</Label>
-                <Input id="wd-phone" type="tel" disabled className={disabledClass} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="wd-date">{t(c.quote.labels.date, l)}</Label>
-                <Input id="wd-date" type="date" min={today} disabled className={disabledClass} />
-              </div>
-              <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <Label htmlFor="wd-venue">{t(c.quote.labels.venue, l)}</Label>
-                <Input
-                  id="wd-venue"
-                  disabled
-                  placeholder={t(c.quote.labels.venuePlaceholder, l)}
-                  className={disabledClass}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="wd-hours">{t(c.quote.labels.hours, l)}</Label>
-                <Select id="wd-hours" disabled className={disabledClass}>
-                  {t(c.quote.labels.hoursOptions, l).map((opt) => (
-                    <option key={opt}>{opt}</option>
-                  ))}
-                </Select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="wd-car">{t(c.quote.labels.car, l)}</Label>
-                <Select id="wd-car" disabled className={disabledClass}>
-                  <option>{t(c.quote.labels.carNone, l)}</option>
-                  {classicCars.map((car) => (
-                    <option key={car.id}>{`${car.name} — ${car.model} (${car.year})`}</option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="wd-message">{t(c.quote.labels.message, l)}</Label>
-              <Textarea
-                id="wd-message"
-                rows={4}
-                disabled
-                placeholder={t(c.quote.labels.messagePlaceholder, l)}
-                className={disabledClass}
-              />
-            </div>
-            <div>
-              <Button type="button" size="lg" disabled>
-                {t(c.quote.labels.submit, l)}
-              </Button>
-              <p className="mt-2 text-xs text-muted-foreground">{t(c.quote.labels.soon, l)}</p>
-            </div>
-          </form>
+          <QuoteRequestForm locale={l} kind="wedding" copy={c.quote} today={today} />
         </div>
       </Section>
 

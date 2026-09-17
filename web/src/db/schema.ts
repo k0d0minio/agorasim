@@ -537,9 +537,32 @@ export const tourRequests = pgTable("tour_requests", {
   /** Slugs of add-on experiences (Tasco Galapito, Manzwine, …). */
   addOns: jsonb("add_ons").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   partySize: integer("party_size"),
-  /** Free-form preferred date/period ("2026-08-15", "late August", "flexible"). */
+  /**
+   * Free-form preferred date/period ("2026-08-15", "late August", "flexible").
+   *
+   * A wedding or event enquiry puts *its* date here too, rather than in a column
+   * of its own: it is the same question ("when?"), the same free text, and the
+   * Sales board already leads a card with it. A second date column would have
+   * been a second thing to remember to render.
+   */
   preferredDate: text("preferred_date"),
   message: text("message"),
+
+  /*
+   * What a wedding or event enquiry carries and a tour one never does.
+   *
+   * All three are null on a `tour` row and are only rendered where `kind` says
+   * to. They are columns rather than sentences appended to `message` because
+   * the team quotes these by hand off the Sales board: "which venue, which car,
+   * how many hours" is what a quote is priced from, and a fact buried in the
+   * guest's own paragraph is a fact somebody has to re-read to find.
+   */
+  /** Where it happens — "Igreja de São Pedro, Mafra". Their words, as given. */
+  venue: text("venue"),
+  /** How long the car is wanted for, in the form's own wording. */
+  serviceHours: text("service_hours"),
+  /** `classicCars` id of the car they asked for, or null for "advise us". */
+  preferredCar: text("preferred_car"),
 
   // Triage
   status: requestStatusEnum("status").notNull().default("new"),

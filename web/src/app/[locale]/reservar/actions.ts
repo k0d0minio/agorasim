@@ -153,6 +153,7 @@ export async function submitTourRequest(
     // team still sees it on the Sales board. Never block or fail the form.
     const adminUrl = `${siteUrl()}/admin/sales/${inserted.id}`;
     const facts = {
+      kind: "tour" as const,
       guestName: request.name,
       guestEmail: request.email,
       guestPhone: request.phone,

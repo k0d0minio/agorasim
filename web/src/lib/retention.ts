@@ -160,6 +160,14 @@ export const ANONYMISED = {
    * gesture rather than an erasure.
    */
   internalNotes: null,
+  /**
+   * The venue a wedding or event enquiry named. Free text the guest wrote, on
+   * the same reading as `message` and the free-text preferred date below: a
+   * church and a Saturday in June is somebody's wedding, and a wedding is
+   * published. The hours and the car they asked for stay — neither says
+   * anything about a person once the name and the date are gone.
+   */
+  venue: null,
 } as const;
 
 export type RetentionRun = {

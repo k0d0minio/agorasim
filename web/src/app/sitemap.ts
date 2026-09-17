@@ -22,8 +22,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const posts = await listPublishedPosts();
 
   /*
-   * Live routes only — in-development preview pages (casamentos) stay
-   * noindexed until their feature ships.
+   * Live routes only — an in-development preview page stays noindexed until
+   * its feature ships. There is none at the moment; `casamentos` was the last,
+   * and joined this list the day its quote form started sending.
    *
    * The blog is the one route whose liveness is not a property of the code: it
    * is live once Diogo & Rita have published an article, and until then it is
