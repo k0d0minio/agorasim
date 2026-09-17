@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import { bookingCheckoutSchema, setAvailabilitySchema } from "@/lib/form-schemas";
+import {
+  bookingCheckoutSchema,
+  quoteRequestSchema,
+  setAvailabilitySchema,
+} from "@/lib/form-schemas";
 import { DEFAULT_DRIVERS, MAX_DRIVERS } from "@/lib/availability";
 
 /**
@@ -218,5 +223,106 @@ describe("setAvailabilitySchema", () => {
       write({ dates: "2026-08-15", slots: ["full_day", "morning"] }),
     );
     expect(parsed.data?.slots).toEqual(["morning"]);
+  });
+});
+
+/**
+ * The wedding and event quote form.
+ *
+ * Its field names are pinned here for the reason the checkout's are, one file
+ * up: a form field is a string on one side and a schema key on the other, and
+ * nothing type-checks the join. The rest of these are about the promise the
+ * form makes — that a couple who have not booked a church yet can still send
+ * it. Every field but the name and the e-mail has to survive being left empty.
+ */
+
+/** What `/casamentos` posts when every box is filled in. */
+function quote(overrides: Record<string, unknown> = {}) {
+  return {
+    kind: "wedding",
+    name: "Sofia & Miguel",
+    email: "sofia@example.com",
+    phone: "+351912345678",
+    preferredDate: "2027-06-12",
+    venue: "Igreja de São Pedro, Mafra",
+    serviceHours: "full-day",
+    preferredCar: "citroen-2cv",
+    partySize: "80",
+    message: "Queremos chegar de 2CV.",
+    marketingConsent: "on",
+    ...overrides,
+  };
+}
+
+describe("quoteRequestSchema", () => {
+  it("accepts what the quote form posts, under the names it posts them", () => {
+    const parsed = quoteRequestSchema.safeParse(quote());
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toEqual({
+      kind: "wedding",
+      name: "Sofia & Miguel",
+      email: "sofia@example.com",
+      phone: "+351912345678",
+      preferredDate: "2027-06-12",
+      venue: "Igreja de São Pedro, Mafra",
+      serviceHours: "full-day",
+      preferredCar: "citroen-2cv",
+      partySize: 80,
+      message: "Queremos chegar de 2CV.",
+      marketingConsent: true,
+    });
+  });
+
+  it("takes an enquiry that knows nothing but a name and an e-mail", () => {
+    const parsed = quoteRequestSchema.safeParse({
+      kind: "event",
+      name: "Marta",
+      email: "marta@example.com",
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toMatchObject({
+      kind: "event",
+      venue: null,
+      preferredDate: null,
+      serviceHours: null,
+      preferredCar: null,
+      partySize: null,
+      message: null,
+      // Absence is the "no" — never inferred from the rest of the form.
+      marketingConsent: false,
+    });
+  });
+
+  it("refuses only the two fields a reply needs", () => {
+    const parsed = quoteRequestSchema.safeParse(quote({ name: "  ", email: "sofia@" }));
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(Object.keys(z.flattenError(parsed.error).fieldErrors).sort()).toEqual([
+      "email",
+      "name",
+    ]);
+  });
+
+  it("drops a service-hours option and a car this build does not offer", () => {
+    const parsed = quoteRequestSchema.safeParse(
+      quote({ serviceHours: "fortnight", preferredCar: "delorean" }),
+    );
+    // Dropped, never rejected: a stale tab is still a lead worth having.
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toMatchObject({ serviceHours: null, preferredCar: null });
+  });
+
+  it("files a forged or missing kind as an event rather than losing the lead", () => {
+    const parsed = quoteRequestSchema.safeParse(quote({ kind: "tour" }));
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.kind).toBe("event");
+  });
+
+  it("keeps a party size only when it is a real count", () => {
+    for (const value of ["0", "-3", "algumas", ""]) {
+      expect(quoteRequestSchema.safeParse(quote({ partySize: value })).data?.partySize).toBe(
+        null,
+      );
+    }
   });
 });

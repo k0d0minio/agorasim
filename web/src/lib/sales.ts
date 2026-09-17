@@ -73,6 +73,15 @@ export type SalesRecord = {
   /** The date in play: the guest's preferred day, or the booked one. */
   when: string | null;
   /**
+   * Where a wedding or an event happens. Null on a tour, which departs from
+   * the same place every time and has nothing to say here.
+   *
+   * On the card because triage turns on it: "Mafra, 12 June" and "Algarve,
+   * 12 June" are the same lead shape and a completely different answer, and
+   * the venue was previously only readable by opening the lead.
+   */
+  venue: string | null;
+  /**
    * The reference the *guest* was given, where a real booking exists.
    *
    * Deliberately separate from {@link SalesRecord.ref}: that one is derived
@@ -138,6 +147,7 @@ export function recordFromRequest(
     // The booked day where there is one: it is the day that was actually sold,
     // not the day the guest hoped for before anyone confirmed it.
     when: booking?.date ?? row.preferredDate,
+    venue: row.venue,
     bookingRef: booking?.ref ?? null,
     value: booking?.value ?? null,
     payment: booking?.payment ?? null,

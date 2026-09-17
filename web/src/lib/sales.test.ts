@@ -32,6 +32,9 @@ function tourRequest(overrides: Partial<TourRequest> = {}): TourRequest {
     partySize: 2,
     preferredDate: "15 August",
     message: "Somos dois.",
+    venue: null,
+    serviceHours: null,
+    preferredCar: null,
     status: "new",
     source: "website",
     internalNotes: null,
@@ -116,6 +119,38 @@ describe("recordFromRequest", () => {
 
   it("has no guest reference when nothing was ever sold", () => {
     expect(recordFromRequest(tourRequest()).bookingRef).toBeNull();
+  });
+
+  it("carries the venue a wedding names, and none for a tour", () => {
+    expect(recordFromRequest(tourRequest()).venue).toBe(null);
+    expect(
+      recordFromRequest(
+        tourRequest({
+          kind: "wedding",
+          venue: "Igreja de São Pedro, Mafra",
+          preferredDate: "2027-06-12",
+        }),
+      ),
+    ).toMatchObject({
+      kind: "wedding",
+      venue: "Igreja de São Pedro, Mafra",
+      // The two facts the card is triaged on, together.
+      when: "2027-06-12",
+    });
+  });
+
+  it("lets a booked day beat the event date, as it does any other", () => {
+    const record = recordFromRequest(
+      tourRequest({ kind: "event", venue: "Quinta da Beloura", preferredDate: "2027-06-12" }),
+      {
+        ref: "BK-ABD1AE",
+        value: "€340",
+        payment: "Paid in full",
+        date: "2027-06-13",
+      },
+    );
+    expect(record.when).toBe("2027-06-13");
+    expect(record.venue).toBe("Quinta da Beloura");
   });
 });
 

@@ -389,6 +389,34 @@ export const bookingEmails = {
       pt: "Recebeu este email porque fez um pedido em {site}.",
       en: "You are receiving this email because you made an enquiry at {site}.",
     } as Localized,
+
+    /**
+     * What changes when the enquiry is a wedding or an event: the promise.
+     *
+     * A tour enquiry is answered with a date; these are answered with a price,
+     * worked out by hand for that venue and that day (§2.3, §2.6). Only the
+     * four lines that say so are rewritten — the greeting, the phone numbers,
+     * the sign-off and the footer are the same voice and stay shared, rather
+     * than becoming a second copy to keep in step.
+     */
+    quote: {
+      subject: {
+        pt: "Recebemos o seu pedido de orçamento — Agorasim",
+        en: "We received your quote request — Agorasim",
+      } as Localized,
+      preheader: {
+        pt: "Respondemos em 24–48h com uma proposta",
+        en: "We reply within 24–48h with a proposal",
+      } as Localized,
+      banner: {
+        pt: "Pedido de orçamento recebido",
+        en: "Quote request received",
+      } as Localized,
+      lead: {
+        pt: "Obrigado por pensar em nós para o seu dia. Será um prazer fazer parte dele.\n\nRecebemos o seu pedido e voltamos ao seu contacto em 24–48h com uma proposta à medida — sem compromisso.",
+        en: "Thank you for thinking of us for your day. It would be a pleasure to be part of it.\n\nWe have received your request and will come back to you within 24–48h with a tailored quote — no obligation.",
+      } as Localized,
+    },
   },
 
   /** To Diogo & Rita. Portuguese — a new enquiry has arrived. */
@@ -414,5 +442,26 @@ export const bookingEmails = {
     cta: "Ver no painel",
     ctaLine: "Ver no painel: {adminUrl}",
     footerNote: "Notificação automática do site — responda para escrever ao cliente.",
+
+    /**
+     * The wedding/event copy of the same mail. Portuguese, like the rest of the
+     * team's mail, and it swaps the one row that is always empty on these
+     * (`Experiência`) for the three a quote is actually written from.
+     */
+    quote: {
+      subject: {
+        wedding: "Novo pedido de orçamento (casamento) — {name}",
+        event: "Novo pedido de orçamento (evento) — {name}",
+      },
+      preheader: "{venue} · {date}",
+      banner: "Novo pedido de orçamento",
+      heading: "Alguém pediu um orçamento através do site.",
+      detailsHeading: "Orçamento",
+      labels: {
+        venue: "Local",
+        hours: "Horas de serviço",
+        car: "Carro preferido",
+      },
+    },
   },
 } as const;

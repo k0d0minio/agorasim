@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Clock } from "lucide-react";
+import { Clock, MapPin } from "lucide-react";
 import type { AuditLogRow } from "@/lib/audit";
 import type { CatalogueEntry } from "@/lib/experience-catalogue";
 import { manualBookingPrefill } from "@/lib/manual-booking";
@@ -137,6 +137,19 @@ export function SalesBoard({
                   catalogue={catalogue}
                   className="mt-1.5 block text-xs text-muted-foreground"
                 />
+
+                {/*
+                  Where a wedding or an event happens. Its own line rather than
+                  another chip in the row below: a venue is an address, not a
+                  fact of two words, and the date beside it in that row is what
+                  the two are read together as. Tours carry none.
+                */}
+                {record.venue ? (
+                  <p className="mt-1.5 flex items-start gap-1 text-xs text-muted-foreground">
+                    <MapPin className="mt-0.5 size-3 shrink-0" aria-hidden />
+                    <span>{record.venue}</span>
+                  </p>
+                ) : null}
 
                 <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                   {record.value ? (

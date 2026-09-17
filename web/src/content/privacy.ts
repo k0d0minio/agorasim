@@ -231,6 +231,16 @@ export const privacyContent = {
       pt: "Usamos o seu nome, email e telefone apenas para responder a este pedido e organizar o passeio. Guardamos os dados enquanto o pedido estiver ativo e anonimizamos os pedidos que não avançam.",
       en: "We use your name, email and phone only to answer this enquiry and arrange your tour. We keep it while the enquiry is live and anonymise enquiries that do not go ahead.",
     } as Localized,
+    /**
+     * The same notice on the wedding and event quote forms, which collect one
+     * thing more (where the event is) for one purpose more (writing the quote).
+     * A notice has to describe the collection it sits under, so "organise your
+     * tour" could not simply be reused on a form that arranges neither.
+     */
+    quoteIntro: {
+      pt: "Usamos o seu nome, email, telefone e os detalhes do evento apenas para preparar o orçamento e responder-lhe. Guardamos os dados enquanto o pedido estiver ativo e anonimizamos os pedidos que não avançam.",
+      en: "We use your name, email, phone and the details of your event only to prepare your quote and reply to you. We keep it while the enquiry is live and anonymise enquiries that do not go ahead.",
+    } as Localized,
     linkPrefix: { pt: "Saiba mais na nossa", en: "Read more in our" } as Localized,
     linkLabel: { pt: "Política de Privacidade", en: "Privacy Policy" } as Localized,
   },

@@ -16,8 +16,10 @@
  * No `server-only` marker here for the same reason as before: there is nothing
  * in it that would be unsafe in a bundle, and it imports nothing that would be.
  */
-import { site, taglines } from "@/content/site";
+import { classicCars, site, taglines } from "@/content/site";
 import { bookingEmails } from "@/content/emails";
+import { serviceHoursLabel } from "@/content/quote-request";
+import type { EnquiryKind } from "@/db/schema";
 import { t, type Locale } from "@/i18n/config";
 import type { EmailMessage } from "@/lib/email";
 import {
@@ -804,6 +806,13 @@ export function teamCancellationEmail(
 
 /** Everything the enquiry ack email needs, already formatted for reading. */
 export type EnquiryEmailFacts = {
+  /**
+   * Which of the three doors it came through. `tour` is the `/reservar` form
+   * and is answered with a date; `wedding` and `event` are the quote forms and
+   * are answered with a price, which is the only thing these mails say
+   * differently.
+   */
+  kind: EnquiryKind;
   guestName: string;
   guestEmail: string;
   guestPhone: string | null;
@@ -811,8 +820,21 @@ export type EnquiryEmailFacts = {
   partySize: number | null;
   preferredDate: string | null;
   experience: string | null;
+  /** Wedding and event enquiries only — null on a tour. */
+  venue?: string | null;
+  /** A {@link SERVICE_HOURS} key, resolved to a sentence here. */
+  serviceHours?: string | null;
+  /** A `classicCars` id, resolved to the car's name here. */
+  preferredCar?: string | null;
   adminUrl: string;
 };
+
+/** The car they asked for, by the name it answers to. */
+function carLabel(id: string | null | undefined): string | null {
+  if (!id) return null;
+  const car = classicCars.find((entry) => entry.id === id);
+  return car ? `${car.name} — ${car.model}` : id;
+}
 
 /**
  * The guest's acknowledgement, in the language they enquired in.
@@ -828,18 +850,27 @@ export function guestEnquiryAckEmail(facts: EnquiryEmailFacts): EmailMessage {
   const c = bookingEmails.enquiryAck;
   const l = facts.locale;
 
+  /*
+   * A wedding or an event rewrites the four lines that make a promise, and
+   * nothing else: same greeting, same two phone numbers, same sign-off. The
+   * promise is the difference — "the team will be in touch to arrange the
+   * details" is true of a tour and wrong of a wedding, which is answered with
+   * a quote worked out by hand.
+   */
+  const voice = facts.kind === "tour" ? c : { ...c, ...c.quote };
+
   const values: Record<string, string> = {
     name: facts.guestName,
     site: siteUrl(),
   };
 
-  const subject = fill(t(c.subject, l), values);
+  const subject = fill(t(voice.subject, l), values);
   const greeting = fill(t(c.greeting, l), values);
 
   const text = textLines([
     greeting,
     "",
-    t(c.lead, l),
+    t(voice.lead, l),
     "",
     `${diogo.name} ${diogo.phoneDisplay}`,
     `${rita.name} ${rita.phoneDisplay}`,
@@ -851,11 +882,11 @@ export function guestEnquiryAckEmail(facts: EnquiryEmailFacts): EmailMessage {
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: fill(t(c.preheader, l), values),
-    banner: { text: t(c.banner, l) },
+    preheader: fill(t(voice.preheader, l), values),
+    banner: { text: t(voice.banner, l) },
     content: [
       emailHeading(greeting),
-      emailParagraph(t(c.lead, l), { spaceBelow: 24 }),
+      emailParagraph(t(voice.lead, l), { spaceBelow: 24 }),
       emailNote({
         title: t(c.note.title, l),
         body: t(c.note.body, l),
@@ -899,23 +930,44 @@ export function teamEnquiryEmail(
   recipients: string[],
 ): EmailMessage {
   const c = bookingEmails.teamEnquiry;
+  const isQuote = facts.kind !== "tour";
 
   const values: Record<string, string> = {
     name: facts.guestName,
     date: facts.preferredDate || "—",
     experience: facts.experience || "—",
+    venue: facts.venue || "—",
     party: facts.partySize ? String(facts.partySize) : "—",
     adminUrl: facts.adminUrl,
   };
 
-  const subject = fill(c.subject, values);
+  const subject = fill(
+    facts.kind === "tour" ? c.subject : c.quote.subject[facts.kind],
+    values,
+  );
   const phone = facts.guestPhone ?? "—";
 
-  const enquiryRows: DetailRow[] = [
-    { label: c.labels.date, value: facts.preferredDate || "—" },
-    { label: c.labels.experience, value: facts.experience || "—" },
-    { label: c.labels.party, value: values.party },
-  ];
+  /*
+   * What the team reads first. A quote enquiry drops the `Experiência` row —
+   * it names none, by definition — for the three facts the price is worked out
+   * from: where it is, how long for, and which car.
+   */
+  const enquiryRows: DetailRow[] = isQuote
+    ? [
+        { label: c.labels.date, value: facts.preferredDate || "—" },
+        { label: c.quote.labels.venue, value: facts.venue || "—" },
+        {
+          label: c.quote.labels.hours,
+          value: facts.serviceHours ? serviceHoursLabel(facts.serviceHours, "pt") : "—",
+        },
+        { label: c.quote.labels.car, value: carLabel(facts.preferredCar) ?? "—" },
+        { label: c.labels.party, value: values.party },
+      ]
+    : [
+        { label: c.labels.date, value: facts.preferredDate || "—" },
+        { label: c.labels.experience, value: facts.experience || "—" },
+        { label: c.labels.party, value: values.party },
+      ];
 
   const guestRows: DetailRow[] = [
     { label: c.guestLabels.name, value: facts.guestName },
@@ -933,7 +985,7 @@ export function teamEnquiryEmail(
   ];
 
   const text = textLines([
-    c.heading,
+    isQuote ? c.quote.heading : c.heading,
     "",
     ...enquiryRows.map((row) => `${row.label}: ${row.value}`),
     "",
@@ -946,12 +998,18 @@ export function teamEnquiryEmail(
   const html = emailDocument({
     lang: "pt",
     title: subject,
-    preheader: fill(c.preheader, values),
-    banner: { text: c.banner, background: emailPalette.primaryDark },
+    preheader: fill(isQuote ? c.quote.preheader : c.preheader, values),
+    banner: {
+      text: isQuote ? c.quote.banner : c.banner,
+      background: emailPalette.primaryDark,
+    },
     content: [
       emailHeading(facts.guestName),
-      emailParagraph(c.heading, { muted: true, spaceBelow: 24 }),
-      emailEyebrow(c.detailsHeading),
+      emailParagraph(isQuote ? c.quote.heading : c.heading, {
+        muted: true,
+        spaceBelow: 24,
+      }),
+      emailEyebrow(isQuote ? c.quote.detailsHeading : c.detailsHeading),
       emailDetails(enquiryRows),
       emailSpacer(24),
       emailDivider(),

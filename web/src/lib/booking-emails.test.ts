@@ -3,13 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   guestCancellationEmail,
   guestConfirmationEmail,
+  guestEnquiryAckEmail,
   guestMoveEmail,
   partyLabel,
   teamCancellationEmail,
+  teamEnquiryEmail,
   teamNotificationEmail,
   type BookingCancellationFacts,
   type BookingEmailFacts,
   type BookingMoveFacts,
+  type EnquiryEmailFacts,
   type TeamCancellationFacts,
 } from "@/lib/booking-emails";
 import { emailPalette } from "@/lib/email-layout";
@@ -587,5 +590,135 @@ describe("partyLabel", () => {
     expect(partyLabel({ adults: 0, children: 0, infants: 0, partySize: 4 }, "pt")).toBe(
       "4",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Enquiries — the tour form, and the two quote forms
+// ---------------------------------------------------------------------------
+
+/**
+ * One pair of mails, three doors.
+ *
+ * `/reservar`, `/casamentos` and `/eventos` all write the same table and all
+ * acknowledge themselves with the same two messages — which is the whole point,
+ * and also the risk: the promise each one makes is different. A tour is
+ * answered with a date and a wedding with a price, and telling a couple that
+ * "the team will be in touch to arrange the details" is the kind of wrong that
+ * only shows up in somebody's inbox.
+ */
+function enquiry(overrides: Partial<EnquiryEmailFacts> = {}): EnquiryEmailFacts {
+  return {
+    kind: "tour",
+    guestName: "Sofia Almeida",
+    guestEmail: "sofia@example.com",
+    guestPhone: "+351912345678",
+    locale: "pt",
+    partySize: 2,
+    preferredDate: "15 de agosto",
+    experience: "Rural Saloia",
+    adminUrl: "https://agorasim.pt/admin/sales/abc",
+    ...overrides,
+  };
+}
+
+/** A wedding enquiry, with everything the quote is written from. */
+function weddingEnquiry(overrides: Partial<EnquiryEmailFacts> = {}): EnquiryEmailFacts {
+  return enquiry({
+    kind: "wedding",
+    partySize: 80,
+    preferredDate: "2027-06-12",
+    experience: null,
+    venue: "Igreja de São Pedro, Mafra",
+    serviceHours: "full-day",
+    preferredCar: "citroen-2cv",
+    ...overrides,
+  });
+}
+
+describe("guestEnquiryAckEmail", () => {
+  it("promises a call back about the details on a tour", () => {
+    const message = guestEnquiryAckEmail(enquiry());
+    expect(message.subject).toBe("Recebemos o seu pedido — Agorasim");
+    expect(message.text).toContain("a equipa entra em contacto");
+    expect(message.text).not.toContain("orçamento");
+  });
+
+  it("promises a quote on a wedding, and on an event", () => {
+    for (const kind of ["wedding", "event"] as const) {
+      const message = guestEnquiryAckEmail(weddingEnquiry({ kind }));
+      expect(message.subject).toBe("Recebemos o seu pedido de orçamento — Agorasim");
+      expect(message.text).toContain("24–48h");
+      expect(message.html).toContain("Pedido de orçamento recebido");
+    }
+  });
+
+  it("answers an English couple in English", () => {
+    const message = guestEnquiryAckEmail(weddingEnquiry({ locale: "en" }));
+    expect(message.subject).toBe("We received your quote request — Agorasim");
+    expect(message.html).toContain('lang="en"');
+  });
+
+  it("keeps the shared half of the voice — greeting, phones, sign-off", () => {
+    const message = guestEnquiryAckEmail(weddingEnquiry());
+    expect(message.text).toContain("Olá Sofia Almeida,");
+    expect(message.text).toContain("Diogo");
+    expect(message.text).toContain("Rita");
+    expect(message.subject).not.toMatch(/\{/);
+    expect(message.text).not.toMatch(/\{/);
+  });
+});
+
+describe("teamEnquiryEmail", () => {
+  const recipients = ["diogo@agorasim.pt", "rita@agorasim.pt"];
+
+  it("says which kind of quote was asked for, in the subject", () => {
+    expect(teamEnquiryEmail(enquiry(), recipients).subject).toBe(
+      "Novo pedido — Sofia Almeida",
+    );
+    expect(teamEnquiryEmail(weddingEnquiry(), recipients).subject).toBe(
+      "Novo pedido de orçamento (casamento) — Sofia Almeida",
+    );
+    expect(teamEnquiryEmail(weddingEnquiry({ kind: "event" }), recipients).subject).toBe(
+      "Novo pedido de orçamento (evento) — Sofia Almeida",
+    );
+  });
+
+  it("carries the three facts a quote is priced from, by name not by key", () => {
+    const message = teamEnquiryEmail(weddingEnquiry(), recipients);
+    for (const part of [message.text, message.html!]) {
+      expect(part).toContain("Igreja de São Pedro, Mafra");
+      expect(part).toContain("Dia inteiro (até 8h)");
+      expect(part).toContain("Josefina");
+      // Never the stored keys.
+      expect(part).not.toContain("full-day");
+      expect(part).not.toContain("citroen-2cv");
+    }
+  });
+
+  it("drops the experience row a quote never fills in", () => {
+    const quote = teamEnquiryEmail(weddingEnquiry(), recipients);
+    expect(quote.text).not.toContain("Experiência");
+    const tour = teamEnquiryEmail(enquiry(), recipients);
+    expect(tour.text).toContain("Experiência: Rural Saloia");
+    expect(tour.text).not.toContain("Local:");
+  });
+
+  it("says so plainly when a quote enquiry left the fields empty", () => {
+    const message = teamEnquiryEmail(
+      weddingEnquiry({ venue: null, serviceHours: null, preferredCar: null }),
+      recipients,
+    );
+    expect(message.text).toContain("Local: —");
+    expect(message.text).toContain("Horas de serviço: —");
+    expect(message.text).toContain("Carro preferido: —");
+  });
+
+  it("stays Portuguese, and replies to the guest", () => {
+    const message = teamEnquiryEmail(weddingEnquiry({ locale: "en" }), recipients);
+    expect(message.html).toContain('lang="pt"');
+    expect(message.replyTo).toBe("sofia@example.com");
+    expect(message.subject).not.toMatch(/\{/);
+    expect(message.text).not.toMatch(/\{/);
   });
 });

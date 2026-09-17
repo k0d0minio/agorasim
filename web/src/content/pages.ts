@@ -89,6 +89,42 @@ export const events = {
       "Tell us what you have in mind and we handle the logistics, the local partners and every detail.",
     ],
   } as Localized<string[]>,
+
+  /**
+   * The quote form's own voice on this page. Same fields as `/casamentos` —
+   * see `content/quote-request.ts` for the half both pages share — asked of a
+   * company planning a day rather than a couple planning a wedding, which is
+   * why the first field is a company name and the venue example is a quinta
+   * rather than a church.
+   */
+  quote: {
+    title: { pt: "Peça o seu orçamento", en: "Request your quote" } as Localized,
+    lead: {
+      pt: "Conte-nos o que imagina e respondemos em 24–48h com uma proposta à medida — sem compromisso.",
+      en: "Tell us what you have in mind and we reply within 24–48h with a tailored proposal — no obligation.",
+    } as Localized,
+    labels: {
+      names: { pt: "Nome / empresa", en: "Name / company" } as Localized,
+      email: { pt: "Email", en: "Email" } as Localized,
+      phone: { pt: "Telefone", en: "Phone" } as Localized,
+      date: { pt: "Data do evento", en: "Event date" } as Localized,
+      venue: { pt: "Local do evento", en: "Event location" } as Localized,
+      venuePlaceholder: {
+        pt: "Ex.: Quinta da Beloura, Sintra",
+        en: "e.g. Quinta da Beloura, Sintra",
+      } as Localized,
+      hours: { pt: "Horas de serviço", en: "Hours of service" } as Localized,
+      car: { pt: "Carro preferido", en: "Preferred car" } as Localized,
+      carNone: { pt: "Aconselhem-nos", en: "Advise us" } as Localized,
+      partySize: { pt: "Número de participantes", en: "Number of people" } as Localized,
+      message: { pt: "Conte-nos mais", en: "Tell us more" } as Localized,
+      messagePlaceholder: {
+        pt: "Aniversário, team building, sessão fotográfica, cortejo de chegada…",
+        en: "Birthday, team building, photo shoot, an arrival procession…",
+      } as Localized,
+      submit: { pt: "Pedir orçamento", en: "Request quote" } as Localized,
+    },
+  },
 };
 
 /** Contact page copy. */

@@ -3,6 +3,8 @@ import { Mail, MessageCircle, Phone } from "lucide-react";
 import { eq } from "drizzle-orm";
 import { db, tourRequests } from "@/db";
 import { departureLabel } from "@/content/logistics";
+import { classicCars } from "@/content/site";
+import { serviceHoursLabel } from "@/content/quote-request";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
@@ -124,6 +126,12 @@ export default async function AdminLeadPage({
   const tel = toTelHref(lead.phone);
   const whatsAppNumber = toWhatsAppNumber(lead.phone);
 
+  /** Weddings and events are quoted by hand; tours are not quoted at all. */
+  const isQuote = lead.kind !== "tour";
+  const preferredCarId = lead.preferredCar;
+  const preferredCarName = preferredCarId
+    ? (classicCars.find((car) => car.id === preferredCarId)?.name ?? preferredCarId)
+    : null;
   // The tours the manual sheet can sell — active signature routes, exactly as
   // the Calendar's mount picks them. A retired route takes no new money.
   const sellableTours = catalogue
@@ -270,9 +278,39 @@ export default async function AdminLeadPage({
                 <dd>{lead.partySize ?? "—"}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Data preferida</dt>
+                {/* A tour is asked when they'd *prefer* to come; a wedding has
+                    a date, and calling it a preference reads as a guess. */}
+                <dt className="text-muted-foreground">
+                  {isQuote ? "Data do evento" : "Data preferida"}
+                </dt>
                 <dd>{lead.preferredDate ?? "—"}</dd>
               </div>
+
+              {/*
+                What a quote is written from, and what a tour enquiry never
+                carries. Shown for every wedding and event row, empty ones
+                included: "Local —" is the operator's cue to ask on the phone,
+                where a missing row is just a row they never knew to look for.
+              */}
+              {isQuote ? (
+                <>
+                  <div>
+                    <dt className="text-muted-foreground">Local</dt>
+                    <dd>{lead.venue ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Horas de serviço</dt>
+                    <dd>
+                      {lead.serviceHours ? serviceHoursLabel(lead.serviceHours, "pt") : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Carro preferido</dt>
+                    <dd>{preferredCarName ?? "—"}</dd>
+                  </div>
+                </>
+              ) : null}
+
               <div>
                 <dt className="text-muted-foreground">Fase</dt>
                 <dd>
