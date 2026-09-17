@@ -491,8 +491,10 @@ function DayEditor({
 
         {openSlots.length > 0 && tours.length > 0 ? (
           <ManualBookingDialog
-            date={day.date}
-            openSlots={openSlots}
+            // The day sheet already knows the day: only the departure is left
+            // to choose. The Sales board's mount is the other half of this
+            // union — see `ManualBookingDeparture`.
+            departure={{ kind: "fixed", date: day.date, openSlots }}
             tours={tours}
             onDone={onDone}
           />
