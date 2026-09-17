@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { requireAdmin } from "@/lib/admin-auth";
@@ -11,11 +12,12 @@ import {
   upsertDays,
   type DateKey,
 } from "@/lib/availability";
-import { datesWithBookings, slotOccupancyOn } from "@/lib/bookings";
+import { bookingRef, datesWithBookings, slotOccupancyOn } from "@/lib/bookings";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { listCatalogue } from "@/lib/experience-catalogue";
 import { BOOKING_CURRENCY } from "@/lib/money";
 import { priceBooking } from "@/lib/pricing";
+import { enquiryRef } from "@/lib/sales";
 import { db, bookings, tourRequests, type BookingLineItem } from "@/db";
 import {
   clearAvailabilitySchema,
@@ -284,7 +286,28 @@ export type ManualBookingActionState = {
  * The tour-request side stays honest too: `status = 'booked'` and
  * `source = 'phone'` keep the sales board from mistaking a sold booking for an
  * unanswered lead ("booking" belongs to the checkout's machine writes).
+ *
+ * **Two ways in, one action.** The Calendar's day sheet sells a day it already
+ * knows about, and there is no enquiry behind the call. The Sales board sells
+ * *this* enquiry — Rita is answering it as she types — and posts its `leadId`,
+ * which moves that lead to `booked` rather than creating a second one, and
+ * names it in the audit trail. Everything else about the sale is identical,
+ * which is the point: a second action would be a second capacity check.
  */
+/** The source enquiry, as much of it as the sale needs. */
+async function readLead(id: string) {
+  const [lead] = await db
+    .select({
+      id: tourRequests.id,
+      status: tourRequests.status,
+      locale: tourRequests.locale,
+    })
+    .from(tourRequests)
+    .where(eq(tourRequests.id, id))
+    .limit(1);
+  return lead ?? null;
+}
+
 export async function createManualBooking(
   _prevState: ManualBookingActionState,
   formData: FormData,
@@ -294,6 +317,9 @@ export async function createManualBooking(
   const parsed = createManualBookingSchema.safeParse(formValues(formData));
   if (!parsed.success) {
     const { fieldErrors } = z.flattenError(parsed.error);
+    // The lead is a hidden field: there is no box for the operator to correct,
+    // so it is said at the top of the sheet rather than under a field.
+    if (fieldErrors.leadId?.[0]) return { error: fieldErrors.leadId[0] };
     return {
       fieldErrors: {
         date: fieldErrors.date?.[0],
@@ -310,6 +336,7 @@ export async function createManualBooking(
   }
 
   const {
+    leadId,
     date,
     slot,
     experience,
@@ -323,6 +350,12 @@ export async function createManualBooking(
     phone,
     amount,
   } = parsed.data;
+
+  // The enquiry this sale answers, read before a single row is written: a
+  // stale id from a board left open since yesterday must not leave a confirmed
+  // booking attached to nothing.
+  const source = leadId ? await readLead(leadId) : null;
+  if (leadId && !source) return { error: "Esse pedido já não existe." };
 
   const catalogue = await listCatalogue();
   const tour = catalogue.find((entry) => entry.slug === experience);
@@ -402,22 +435,66 @@ export async function createManualBooking(
 
   const now = new Date();
   try {
-    const [lead] = await db
-      .insert(tourRequests)
-      .values({
-        name,
-        email,
-        phone,
-        locale: "pt",
-        kind: "tour",
-        experienceSlug: tour.slug,
-        addOns,
-        partySize: quoted.seats,
-        preferredDate: date,
-        status: "booked",
-        source: "phone",
-      })
-      .returning({ id: tourRequests.id });
+    /*
+      One person, one card. Opened from a day in the Calendar there is no
+      enquiry behind the call, so the lead is born here — `source = 'phone'`,
+      `status = 'booked'`, which keeps the board from mistaking a sold booking
+      for an unanswered lead ("booking" belongs to the checkout's machine
+      writes). Opened from the Sales board there already *is* one, and
+      inserting a second would put the same couple on the board twice: one
+      card carrying the money and one still sitting in `Novo`. So that row is
+      moved on instead — and its `source` is left exactly as it was, because
+      where a lead came from is a fact about the past, not about who closed it.
+
+      Either way the contact details written are the ones just submitted: the
+      operator is on the phone with this person, and the mistyped address they
+      have just read back is the whole reason the fields are editable.
+
+      On the moved lead the route, the party, the day and the add-ons are set
+      to what was *sold*, not to what was asked for — the card is read as the
+      booking from here on, and a card still showing the Manzwine stop this
+      sale does not include is how a driver sets off for a winery nobody paid
+      for. The enquiry as it arrived survives in the audit trail and in the
+      guest's own message, which is where "what did they originally want?"
+      belongs.
+    */
+    const [lead] = source
+      ? await db
+          .update(tourRequests)
+          .set({
+            name,
+            email,
+            phone,
+            experienceSlug: tour.slug,
+            addOns,
+            partySize: quoted.seats,
+            preferredDate: date,
+            status: "booked",
+            updatedAt: now,
+          })
+          .where(eq(tourRequests.id, source.id))
+          .returning({ id: tourRequests.id })
+      : await db
+          .insert(tourRequests)
+          .values({
+            name,
+            email,
+            phone,
+            locale: "pt",
+            kind: "tour",
+            experienceSlug: tour.slug,
+            addOns,
+            partySize: quoted.seats,
+            preferredDate: date,
+            status: "booked",
+            source: "phone",
+          })
+          .returning({ id: tourRequests.id });
+
+    // The lead was deleted between the read above and this write. Rare, and
+    // worth its own sentence: the generic "tente novamente" would have the
+    // operator retry a sale that can never land.
+    if (!lead) return { error: "Esse pedido já não existe." };
 
     const [booking] = await db
       .insert(bookings)
@@ -437,7 +514,9 @@ export async function createManualBooking(
         currency: BOOKING_CURRENCY,
         priceBreakdown: lines,
         status: "confirmed",
-        locale: "pt",
+        // The language this guest is written to in. A lead knows it; a call
+        // that arrived without one is Portuguese, as it always was here.
+        locale: source?.locale ?? "pt",
         paymentMethod: "cash",
         holdExpiresAt: now,
         confirmedAt: now,
@@ -456,8 +535,40 @@ export async function createManualBooking(
         partySize: quoted.seats,
         amountCents: agreedCents,
         paymentMethod: "cash",
+        // Which enquiry this sale came out of — the id and the handle the team
+        // quotes, never the person. `bookings` holds no name, email or phone by
+        // design, and this entry keeps that property.
+        sourceEnquiryId: source?.id ?? lead.id,
+        sourceEnquiryRef: enquiryRef(source?.id ?? lead.id),
+        /*
+          Whether the enquiry was already there. A phone call with no lead
+          behind it creates one, and an audit trail that showed both the same
+          way could not answer "did Rita convert a website enquiry, or write
+          this booking from scratch?" — which is the marketing question the
+          board exists to make answerable.
+        */
+        sourceEnquiryExisting: source !== null,
       },
     });
+
+    /*
+      The stage move, as its own entry against the lead.
+
+      It has to be here and not folded into the booking entry above: the lead's
+      own page reads `listAuditForEntity("tour_request", id)` for its Histórico,
+      so a move recorded only against the booking would leave a card that
+      silently jumped from `Novo` to `Reservado` with nobody's name on it.
+    */
+    if (source) {
+      await recordAuditOrWarn({
+        actorUserId: actor.id,
+        action: "tour_request.status_changed",
+        entityType: "tour_request",
+        entityId: source.id,
+        before: { status: source.status },
+        after: { status: "booked", bookingRef: bookingRef(booking.id) },
+      });
+    }
   } catch (err) {
     console.error("[admin] failed to create a manual booking", err);
     return { error: "Não foi possível registar a reserva — tente novamente." };

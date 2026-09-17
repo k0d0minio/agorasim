@@ -1,7 +1,9 @@
 import { Inbox, Search } from "lucide-react";
+import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import { lastAuditByEntity } from "@/lib/audit";
 import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
+import { listOpenDepartures } from "@/lib/manual-booking";
 import { countPendingRetention, retentionDays } from "@/lib/retention";
 import { listSalesBoard } from "@/lib/sales";
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -43,8 +45,14 @@ export default async function AdminSalesPage({
   const viewer = await requireAdmin();
   const isOwner = viewer.role === "owner";
 
-  const [{ records, totalEnquiries, countsByStatus }, catalogue] =
-    await Promise.all([listSalesBoard(query), listCatalogue()]);
+  const [{ records, totalEnquiries, countsByStatus }, catalogue, openDays] =
+    await Promise.all([
+      listSalesBoard(query),
+      listCatalogue(),
+      // The picker behind every card's "Registar reserva": one read for the
+      // whole board, shared by all of them. See `lib/manual-booking.ts`.
+      listOpenDepartures(),
+    ]);
 
   const [lastChanged, pendingRetention] = await Promise.all([
     // One query for the whole page's "last changed by" lines, not one per row.
@@ -57,6 +65,11 @@ export default async function AdminSalesPage({
 
   const now = new Date();
   const index = catalogueIndex(catalogue);
+  // The tours a phone booking can be recorded against — active signature
+  // routes, the same set the Calendar's "Nova reserva" sheet sells.
+  const sellableTours = catalogue
+    .filter((entry) => entry.kind === "signature" && entry.active)
+    .map((entry) => ({ slug: entry.slug, title: t(entry.title, "pt") }));
   const countLabel = `${totalEnquiries} ${totalEnquiries === 1 ? "pedido" : "pedidos"}`;
 
   return (
@@ -106,6 +119,8 @@ export default async function AdminSalesPage({
           countsByStatus={countsByStatus}
           lastChanged={lastChanged}
           now={now}
+          openDays={openDays}
+          tours={sellableTours}
         />
       )}
 
