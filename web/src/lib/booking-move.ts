@@ -379,7 +379,14 @@ async function sendMoveEmail(booking: Booking, from: MoveTarget): Promise<void> 
     );
 
     if (result.status !== "sent") {
-      if (result.status !== "duplicate") {
+      if (result.status === "duplicate") {
+        // Not an error — this booking has already been told about this date. Said
+        // out loud all the same: before the log, every move that did not mail left
+        // a line, and a silent return is the one outcome nobody could account for.
+        console.info(
+          `[booking] ${bookingRef(booking.id)} moved to ${booking.date} — already notified, no second mail`,
+        );
+      } else {
         console.error(
           `[booking] ${bookingRef(booking.id)} moved but the guest email was not sent (${result.reason})`,
         );
