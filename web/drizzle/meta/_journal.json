@@ -176,6 +176,13 @@
       "when": 1789643700000,
       "tag": "0024_wedding_event_enquiry_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1789900000000,
+      "tag": "0025_quote_flow_message_kinds",
+      "breakpoints": true
     }
   ]
 }

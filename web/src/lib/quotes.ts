@@ -20,6 +20,14 @@
  * live in {@link QUOTE_TRANSITIONS} and {@link canTransition} so they can be
  * read in one place and tested without a database.
  *
+ * **The quote drags the lead along behind it.** A couple whose deposit has
+ * landed is not "Contactado" on Rita's board, and the difference is not
+ * cosmetic: `lib/retention.ts` exempts a `booked` lead from anonymisation, so a
+ * stage that never moves is a couple whose event record is shredded two years
+ * after the money arrived. Sending moves the lead to `quoted` and a settled
+ * deposit moves it to `booked`, forwards only and never past an archive — see
+ * {@link leadStageAfterQuote}.
+ *
  * **Commission is not computed here.** `lib/commission.ts` owns the agreement's
  * arithmetic and `payment-links` will ask it for 6% of each instalment (§5);
  * what this module does is record the figure Stripe actually took, on the
@@ -36,13 +44,16 @@ import {
   db,
   quotePayments,
   quotes,
+  tourRequests,
   type Quote,
   type QuoteLineItem,
   type QuotePayment,
   type QuotePaymentKind,
   type QuoteStatus,
+  type RequestStatus,
   type AppLocale,
 } from "@/db";
+import { recordAuditOrWarn } from "@/lib/audit";
 import { dateKey, isDateKey, parseDateKey, todayKey, type DateKey } from "@/lib/availability";
 import { BOOKING_CURRENCY } from "@/lib/money";
 
@@ -167,9 +178,11 @@ export function isInsideNonRefundableWindow(
  */
 export const QUOTE_TRANSITIONS: Record<QuoteStatus, readonly QuoteStatus[]> = {
   draft: ["sent", "cancelled"],
-  // `sent → paid` looks like a skipped step and is not: a deposit settled by
-  // bank transfer is written off rather than paid, leaving the balance as the
-  // only outstanding instalment and its arrival as the whole of the money.
+  // `sent → paid` looks like a skipped step and is not: a quote whose whole
+  // value is settled outside Stripe has both instalments written off at once,
+  // and never passes through `deposit_paid`. Writing off the deposit alone is
+  // the ordinary bank-transfer case and lands on `deposit_paid` — see
+  // {@link statusAfterPayment}.
   sent: ["sent", "deposit_paid", "paid", "cancelled"],
   // A fully-paid event can still be called off; the refund is its own path.
   deposit_paid: ["paid", "cancelled"],
@@ -228,10 +241,60 @@ export function statusAfterPayment(
   );
   if (outstanding.length === 0) return "paid";
 
-  const depositPaid = payments.some(
-    (payment) => payment.kind === "deposit" && payment.status === "paid",
+  // Settled, not paid — and the difference is the bank-transfer case. A deposit
+  // the couple sent by transfer is written off by the team (`cancelPayment`)
+  // rather than paid through Stripe, and the date is just as held either way.
+  // Reading only `paid` here left those quotes at `sent`, which is the status
+  // `listQuotesDueForBalance` filters *out*: the couple paid and their balance
+  // was then never asked for.
+  const depositSettled = payments.some(
+    (payment) =>
+      payment.kind === "deposit" &&
+      (payment.status === "paid" || payment.status === "cancelled"),
   );
-  return depositPaid ? "deposit_paid" : current;
+  return depositSettled ? "deposit_paid" : current;
+}
+
+// ---------------------------------------------------------------------------
+// The lead behind the quote
+// ---------------------------------------------------------------------------
+
+/**
+ * The Sales board's stages, in the order a lead passes through them.
+ *
+ * `archived` is deliberately absent: it is not a later stage, it is an operator
+ * saying "not this one", and {@link leadStageAfterQuote} treats it as a place
+ * nothing automatic moves a card out of.
+ */
+export const LEAD_STAGE_ORDER = ["new", "contacted", "quoted", "booked"] as const;
+
+/**
+ * Where a lead should sit once its quote has reached `target`, or `null` when
+ * it should not move at all.
+ *
+ * **Forwards only.** A re-sent quote must not drag a couple who have already
+ * paid back from `booked` to `quoted`, and a quote cancelled after a deposit
+ * does not un-book them either — nothing here ever returns an earlier stage
+ * than the one the lead is on.
+ *
+ * **Never out of the archive.** An archived lead was archived by a person. A
+ * webhook is not the thing that overrules that, so an archived card stays
+ * archived and whoever is watching the quote can un-archive it by hand.
+ */
+export function leadStageAfterQuote(
+  current: RequestStatus,
+  target: "quoted" | "booked",
+): RequestStatus | null {
+  if (current === "archived") return null;
+
+  const from = LEAD_STAGE_ORDER.indexOf(current as (typeof LEAD_STAGE_ORDER)[number]);
+  const to = LEAD_STAGE_ORDER.indexOf(target);
+  return to > from ? target : null;
+}
+
+/** The stages a lead can be on and still legally reach `target`. */
+export function leadStagesThatMayBecome(target: "quoted" | "booked"): RequestStatus[] {
+  return LEAD_STAGE_ORDER.filter((stage) => leadStageAfterQuote(stage, target) !== null);
 }
 
 /** The same rule, refusing anything {@link QUOTE_TRANSITIONS} does not allow. */
@@ -662,12 +725,21 @@ export async function updateQuoteDraft(
  * `tokenHash` is a digest the caller has already computed. Passing it again on
  * a re-send rotates the link, which is the correct behaviour when a quote has
  * gone to the wrong address; omitting it keeps the existing one.
+ *
+ * Sending also moves the lead behind the quote to `quoted`, so the Sales board
+ * shows the couple where they actually are. See {@link moveLeadStage}.
  */
 export async function markQuoteSent(
   id: string,
-  options: { termsVersion: string; tokenHash?: string; now?: Date },
+  options: {
+    termsVersion: string;
+    tokenHash?: string;
+    /** The operator behind the send, for the lead's stage-move audit entry. */
+    actorUserId?: string | null;
+    now?: Date;
+  },
 ): Promise<Quote | null> {
-  const { termsVersion, tokenHash, now = new Date() } = options;
+  const { termsVersion, tokenHash, actorUserId = null, now = new Date() } = options;
 
   const [quote] = await db
     .update(quotes)
@@ -681,7 +753,81 @@ export async function markQuoteSent(
     .where(and(eq(quotes.id, id), inArray(quotes.status, statusesThatMayBecome("sent"))))
     .returning();
 
-  return quote ?? null;
+  if (!quote) return null;
+
+  // The offer has gone out, so the card is no longer "Contactado". A re-send
+  // finds the lead already at `quoted` (or past it) and moves nothing.
+  await moveLeadStage(quote, "quoted", { actorUserId, now });
+
+  return quote;
+}
+
+/**
+ * Move the lead behind a quote to the stage the quote has just reached, and say
+ * so in the audit trail.
+ *
+ * The guard is in the `WHERE` clause rather than read-then-written, exactly as
+ * every quote write here is: {@link leadStagesThatMayBecome} is the same rule as
+ * {@link leadStageAfterQuote}, expressed as the set of rows the update may land
+ * on, so a card an operator archives between the read and the write is not
+ * pulled back out of the archive by a webhook.
+ *
+ * The entry is written against the **lead**, not the quote: the lead's own page
+ * reads `listAuditForEntity("tour_request", id)` for its Histórico, so a move
+ * recorded anywhere else is a card that silently jumps a stage with nobody's
+ * name on it — the same reasoning as the manual booking's stage move.
+ *
+ * Never throws. A stage that did not move is a board that is a little behind;
+ * a deposit that was recorded and then thrown away because the board write
+ * failed is money nobody can find.
+ */
+async function moveLeadStage(
+  quote: Pick<Quote, "id" | "tourRequestId">,
+  target: "quoted" | "booked",
+  context: { actorUserId?: string | null; now?: Date } = {},
+): Promise<RequestStatus | null> {
+  if (!quote.tourRequestId) return null;
+  const { actorUserId = null, now = new Date() } = context;
+
+  let moved: { id: string; status: RequestStatus } | undefined;
+  try {
+    [moved] = await db
+      .update(tourRequests)
+      .set({ status: target, updatedAt: now })
+      .where(
+        and(
+          eq(tourRequests.id, quote.tourRequestId),
+          inArray(tourRequests.status, leadStagesThatMayBecome(target)),
+        ),
+      )
+      .returning({ id: tourRequests.id, status: tourRequests.status });
+  } catch (err) {
+    console.error(`[quotes] could not move lead ${quote.tourRequestId} to ${target}`, err);
+    return null;
+  }
+
+  // Already there, archived, or gone. Not a failure: the rule is "forwards
+  // only", and this is what it looks like when there is nowhere forward to go.
+  if (!moved) return null;
+
+  await recordAuditOrWarn({
+    // Null for the webhook and the dispatcher, which are not people. The lead's
+    // Histórico renders that as the system rather than as an operator.
+    actorUserId,
+    action: "tour_request.status_changed",
+    entityType: "tour_request",
+    entityId: moved.id,
+    // No `before`: `RETURNING` hands back the row as it now is, and reading the
+    // old status first would mean the read-then-write window the `WHERE` guard
+    // exists to close. The trail's previous entry for this lead is where the
+    // stage it came from is written down.
+    after: { status: target, quoteRef: quoteRef(quote.id), source: "quote" },
+    // A machine has no client IP worth recording, and Stripe's is not the
+    // couple's. Only a send made by a signed-in operator carries one.
+    ...(actorUserId ? {} : { ipAddress: null }),
+  });
+
+  return moved.status;
 }
 
 /** Call a quote off. Terminal, and legal from any state but itself. */
@@ -821,27 +967,67 @@ export async function markPaymentPaid(
   // Already paid, refunded or cancelled — a repeat delivery, not a failure.
   if (!payment) return null;
 
-  const current = await getQuote(payment.quoteId);
+  return syncQuoteAfterPaymentChange(payment.quoteId, {
+    // Paying the deposit *through the quote* is the couple's own act, so it is
+    // the one that accepts the terms. Writing the same instalment off is the
+    // team's bookkeeping about money that arrived some other way, and evidence
+    // of an agreement the guest never made is not evidence — see
+    // {@link cancelPayment}.
+    acceptsTerms: payment.kind === "deposit",
+    now,
+  });
+}
+
+/**
+ * Bring a quote's own status, and the lead behind it, back in line with its
+ * instalments.
+ *
+ * Shared by the two writes that can settle an instalment — Stripe paying one
+ * ({@link markPaymentPaid}) and the team writing one off
+ * ({@link cancelPayment}) — because the quote's status is a function of its
+ * payments and not of which door the money came through. A transfer-paid
+ * deposit that left the quote at `sent` is precisely what this being in one
+ * place prevents.
+ *
+ * The lead move is attempted on every call rather than only when the status
+ * changed: {@link moveLeadStage} is idempotent, and a board left behind by an
+ * earlier failure is corrected by the next event rather than forever.
+ */
+async function syncQuoteAfterPaymentChange(
+  quoteId: string,
+  options: { acceptsTerms?: boolean; actorUserId?: string | null; now?: Date } = {},
+): Promise<QuoteWithPayments | null> {
+  const { acceptsTerms = false, actorUserId = null, now = new Date() } = options;
+
+  const current = await getQuote(quoteId);
   if (!current) return null;
 
   const next = nextStatusAfterPayment(current.status, current.payments);
-  const acceptsTerms = payment.kind === "deposit" && current.acceptedAt === null;
+  const accepts = acceptsTerms && current.acceptedAt === null;
 
-  if (next === current.status && !acceptsTerms) return current;
+  let quote: Quote = current;
+  if (next !== current.status || accepts) {
+    const [updated] = await db
+      .update(quotes)
+      .set({
+        status: next,
+        ...(accepts
+          ? { acceptedAt: now, acceptedTermsVersion: current.termsVersion }
+          : {}),
+        updatedAt: now,
+      })
+      .where(eq(quotes.id, current.id))
+      .returning();
+    quote = updated ?? quote;
+  }
 
-  const [quote] = await db
-    .update(quotes)
-    .set({
-      status: next,
-      ...(acceptsTerms
-        ? { acceptedAt: now, acceptedTermsVersion: current.termsVersion }
-        : {}),
-      updatedAt: now,
-    })
-    .where(eq(quotes.id, current.id))
-    .returning();
+  // The deposit is what holds the date, so it is what books the couple — and
+  // `paid` implies it. Anything short of that leaves the card where it is.
+  if (quote.status === "deposit_paid" || quote.status === "paid") {
+    await moveLeadStage(quote, "booked", { actorUserId, now });
+  }
 
-  return withPayments(quote ?? current, current.payments);
+  return withPayments(quote, current.payments);
 }
 
 /**
@@ -886,7 +1072,26 @@ export async function recordPaymentRefund(
   return payment ?? null;
 }
 
-/** Write an instalment off — settled outside Stripe, or no longer owed. */
+/**
+ * Write an instalment off — settled outside Stripe, or no longer owed.
+ *
+ * **This is the bank-transfer door, and it moves the quote too.** "The couple
+ * transferred the deposit" is recorded here, not through
+ * {@link markPaymentPaid}, because there is no Stripe payment to record; but
+ * what it means for the quote is identical, and the quote used to stay at
+ * `sent` for it. `listQuotesDueForBalance` only looks at `deposit_paid`, so
+ * those couples' balances were never asked for, and the lead behind them never
+ * reached `booked` — which then made them eligible for anonymisation two years
+ * after they had paid. {@link syncQuoteAfterPaymentChange} is the fix, and the
+ * arithmetic behind it is in {@link statusAfterPayment}.
+ *
+ * It does **not** stamp `accepted_at`. Acceptance is the couple's own act on
+ * the quote page; this is the team's bookkeeping about money that arrived some
+ * other way, and it must not manufacture evidence of an agreement.
+ *
+ * Returns the instalment, as before — the quote's new status is readable from
+ * {@link getQuote} and is not what the caller of this is holding.
+ */
 export async function cancelPayment(
   paymentId: string,
   now: Date = new Date(),
@@ -902,5 +1107,9 @@ export async function cancelPayment(
     )
     .returning();
 
-  return payment ?? null;
+  if (!payment) return null;
+
+  await syncQuoteAfterPaymentChange(payment.quoteId, { now });
+
+  return payment;
 }
