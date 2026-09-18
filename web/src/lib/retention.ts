@@ -17,11 +17,28 @@
  * answer. Deleting the rows outright would satisfy the same rule and destroy the
  * only record of the business's own history.
  *
- * **Booked enquiries are excluded.** A booking that happened may carry
- * record-keeping obligations of its own (tax, in particular), and quietly
+ * **Enquiries that turned into money are excluded.** A booking that happened may
+ * carry record-keeping obligations of its own (tax, in particular), and quietly
  * shredding it to satisfy a marketing-lead retention rule would trade one
  * compliance problem for another. Those rows are left alone pending the same
- * human decision — see the doc.
+ * human decision — see the doc. `status = 'booked'` was the whole of that test
+ * and is no longer: a couple who paid a deposit on an event quote is the same
+ * obligation, and a stage that had not been moved was the only thing standing
+ * between them and the sweep. {@link leadIsExpired} now also asks whether any
+ * quote of theirs has taken money. `lib/quotes.ts` moves the stage as well, and
+ * the two are deliberately belt and braces: the stage is what an operator can
+ * change by hand, and the deposit is what actually happened.
+ *
+ * **Quotes are anonymised with the lead they belong to.** `quotes.venue` and the
+ * labels on `quotes.line_items` are free text an operator typed about somebody's
+ * wedding — a church and a Saturday in June, "flores da Rita" — and
+ * `tour_request_id` is `ON DELETE set null`, so an erasure leaves them behind
+ * rather than taking them with it. {@link anonymiseQuotesForLead} is what the
+ * erasure calls to take them, and the sweep below does the same for every lead
+ * it anonymises. The money survives: amounts, quantities, dates and statuses
+ * are the business's own record and say nothing about a person once the name
+ * and the venue are gone — and keeping the line amounts is what keeps them
+ * adding up to the total they were quoted at.
  *
  * **Audit-log IP addresses expire too, and on a much shorter clock.** An IP is
  * personal data, and `audit_log.ip_address` was the one column in this schema
@@ -52,9 +69,9 @@
  */
 import "server-only";
 
-import { and, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
 
-import { auditLog, db, messageLog, tourRequests } from "@/db";
+import { auditLog, db, messageLog, quotes, tourRequests, type QuoteLineItem } from "@/db";
 import { expireLapsedHolds } from "@/lib/bookings";
 
 /** Proposed, **not decided**. Override with `ENQUIRY_RETENTION_DAYS`. */
@@ -170,6 +187,40 @@ export const ANONYMISED = {
   venue: null,
 } as const;
 
+/**
+ * What a line item's label becomes. The same marker {@link ANONYMISED} uses, so
+ * an anonymised row reads the same way wherever it is rendered.
+ */
+export const ANONYMISED_LINE_ITEM_LABEL = ANONYMISED.name;
+
+/**
+ * A quote's lines with the words taken out and the arithmetic left in.
+ *
+ * The label is the only part an operator types and the only part that can name
+ * a person or a place — "flores da Rita", "transfer Quinta do Hespanhol". The
+ * unit price and the quantity are the business's own record of what an event
+ * cost, and they stay for the reason the whole job anonymises rather than
+ * deletes.
+ *
+ * Keeping them is also load-bearing rather than merely nice: `validateQuoteInput`
+ * refuses a quote whose lines do not add up to its total, so dropping the lines
+ * would leave rows the application's own rules call invalid.
+ *
+ * Pure, and the statement of the rule the SQL below implements.
+ */
+export function anonymisedLineItems(items: QuoteLineItem[]): QuoteLineItem[] {
+  return items.map((item) => ({ ...item, label: ANONYMISED_LINE_ITEM_LABEL }));
+}
+
+/**
+ * The quote statuses that mean money has actually arrived.
+ *
+ * A lead with one of these is kept for the same reason a `booked` one is: the
+ * record-keeping obligations that attach to a payment are not satisfied by a
+ * marketing-retention rule. See the doc's open item 2.
+ */
+const QUOTE_STATUSES_WITH_MONEY = ["deposit_paid", "paid"] as const;
+
 export type RetentionRun = {
   cutoff: string;
   days: number;
@@ -195,6 +246,8 @@ export type RetentionRun = {
   providerIdDays: number;
   /** Sends that lost their provider message id in this run. */
   providerMessageIdsCleared: number;
+  /** Quotes that lost their venue and line-item labels in this run. */
+  quotesAnonymised: number;
 };
 
 /**
@@ -228,14 +281,12 @@ export async function runRetention(now: Date = new Date()): Promise<RetentionRun
       // The free-text preferred date can name a person ("Rita's birthday").
       preferredDate: null,
     })
-    .where(
-      and(
-        lt(tourRequests.updatedAt, cutoff),
-        ne(tourRequests.status, "booked"),
-        isNull(tourRequests.anonymisedAt),
-      ),
-    )
+    .where(expiredLeads(cutoff))
     .returning({ id: tourRequests.id });
+
+  // After the lead pass, so a quote whose couple was anonymised by this very
+  // run loses its venue in the same run rather than a day later.
+  const quotesAnonymised = await anonymiseQuotesOfAnonymisedLeads(now);
 
   const { cutoff: auditIpCutoff, days: auditIpDays, cleared } =
     await clearExpiredAuditIps(now);
@@ -262,7 +313,128 @@ export async function runRetention(now: Date = new Date()): Promise<RetentionRun
     providerIdCutoff: providerIdCutoff.toISOString(),
     providerIdDays,
     providerMessageIdsCleared,
+    quotesAnonymised,
   };
+}
+
+/**
+ * The enquiries this run may touch: expired, not already anonymised, and with
+ * nothing on them that has to be kept.
+ *
+ * One function rather than a repeated `and(...)`, because
+ * {@link countPendingRetention} renders this number to an operator on the
+ * submissions screen and a preview that does not match the job is worse than no
+ * preview at all.
+ *
+ * The money test is a `NOT IN` against a subquery, and the
+ * `tour_request_id IS NOT NULL` inside it is not decoration: a single null in
+ * the right-hand side of `NOT IN` makes the whole predicate `unknown` for every
+ * row, which would silently turn retention off the first time a quote was
+ * raised without a lead behind it.
+ */
+function expiredLeads(cutoff: Date) {
+  const leadsWithMoney = db
+    .select({ id: quotes.tourRequestId })
+    .from(quotes)
+    .where(
+      and(
+        isNotNull(quotes.tourRequestId),
+        inArray(quotes.status, [...QUOTE_STATUSES_WITH_MONEY]),
+      ),
+    );
+
+  return and(
+    lt(tourRequests.updatedAt, cutoff),
+    ne(tourRequests.status, "booked"),
+    isNull(tourRequests.anonymisedAt),
+    notInArray(tourRequests.id, leadsWithMoney),
+  );
+}
+
+/**
+ * The venue and line-item labels a quote carries, as the values an anonymised
+ * row takes.
+ *
+ * The labels are rewritten in place rather than thrown away — see
+ * {@link anonymisedLineItems}, which is this same rule in TypeScript and is
+ * what the tests hold. `jsonb_agg … with ordinality` keeps the lines in the
+ * order they were quoted in, which plain `jsonb_agg` does not promise, and the
+ * `coalesce` is what makes a quote with no lines stay `[]` instead of becoming
+ * null.
+ */
+const ANONYMISED_QUOTE_COLUMNS = {
+  venue: null,
+  lineItems: sql`(
+    select coalesce(
+      jsonb_agg(
+        jsonb_set(line.item, '{label}', to_jsonb(${ANONYMISED_LINE_ITEM_LABEL}::text))
+        order by line.ord
+      ),
+      '[]'::jsonb
+    )
+    from jsonb_array_elements(${quotes.lineItems}) with ordinality as line(item, ord)
+  )`,
+};
+
+/**
+ * Whether a quote still carries anything an anonymisation would take — the
+ * idempotency guard, in the same shape as `ipAddress IS NOT NULL` above.
+ *
+ * `IS DISTINCT FROM` rather than `<>` so a line with no label at all counts as
+ * one to rewrite rather than as an unknown that keeps the row out of the sweep.
+ */
+const quoteCarriesPersonalData = or(
+  isNotNull(quotes.venue),
+  sql`exists (
+    select 1
+    from jsonb_array_elements(${quotes.lineItems}) as line(item)
+    where line.item ->> 'label' is distinct from ${ANONYMISED_LINE_ITEM_LABEL}
+  )`,
+);
+
+/**
+ * Take the venue and the line-item labels off every quote built from one
+ * enquiry.
+ *
+ * Called by the Art. 17 erasure **before** it deletes the enquiry, because
+ * `quotes.tour_request_id` is `ON DELETE set null`: after the delete these rows
+ * are still there and no longer reachable from the person, which is the worst
+ * of both. Returns how many were touched, so the erasure can say so.
+ */
+export async function anonymiseQuotesForLead(
+  tourRequestId: string,
+  now: Date = new Date(),
+): Promise<number> {
+  const rows = await db
+    .update(quotes)
+    .set({ ...ANONYMISED_QUOTE_COLUMNS, updatedAt: now })
+    .where(and(eq(quotes.tourRequestId, tourRequestId), quoteCarriesPersonalData))
+    .returning({ id: quotes.id });
+
+  return rows.length;
+}
+
+/**
+ * The same, for every lead the sweep has already anonymised.
+ *
+ * Keyed on `tour_requests.anonymised_at` rather than on this run's own returned
+ * ids, exactly as {@link clearExpiredProviderMessageIds} is: a quote raised for
+ * a couple who were anonymised last year — or a run that died between the two
+ * passes — is caught by the next run rather than never.
+ */
+async function anonymiseQuotesOfAnonymisedLeads(now: Date): Promise<number> {
+  const anonymisedLeads = db
+    .select({ id: tourRequests.id })
+    .from(tourRequests)
+    .where(isNotNull(tourRequests.anonymisedAt));
+
+  const rows = await db
+    .update(quotes)
+    .set({ ...ANONYMISED_QUOTE_COLUMNS, updatedAt: now })
+    .where(and(inArray(quotes.tourRequestId, anonymisedLeads), quoteCarriesPersonalData))
+    .returning({ id: quotes.id });
+
+  return rows.length;
 }
 
 /**
@@ -337,12 +509,6 @@ export async function countPendingRetention(now: Date = new Date()): Promise<num
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(tourRequests)
-    .where(
-      and(
-        lt(tourRequests.updatedAt, cutoff),
-        ne(tourRequests.status, "booked"),
-        isNull(tourRequests.anonymisedAt),
-      ),
-    );
+    .where(expiredLeads(cutoff));
   return row?.n ?? 0;
 }

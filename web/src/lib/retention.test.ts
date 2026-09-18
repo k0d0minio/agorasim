@@ -1,14 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  ANONYMISED,
+  ANONYMISED_LINE_ITEM_LABEL,
   DEFAULT_AUDIT_IP_RETENTION_DAYS,
   DEFAULT_MESSAGE_PROVIDER_ID_RETENTION_DAYS,
   DEFAULT_RETENTION_DAYS,
+  anonymisedLineItems,
   auditIpRetentionDays,
   messageProviderIdRetentionDays,
   retentionCutoff,
   retentionDays,
 } from "./retention";
+import { lineItemsTotal } from "./quotes";
+import type { QuoteLineItem } from "@/db";
 
 describe("retentionDays", () => {
   it("reads the configured period", () => {
@@ -97,5 +102,57 @@ describe("retentionCutoff", () => {
     // day in February 2024 is behind the cutoff rather than inside the window.
     const now = new Date("2026-03-01T12:00:00Z");
     expect(retentionCutoff(now, 730).toISOString()).toBe("2024-03-01T12:00:00.000Z");
+  });
+});
+
+describe("anonymisedLineItems", () => {
+  const lines: QuoteLineItem[] = [
+    { label: "4 carros clássicos — Igreja de São Pedro", unitCents: 45_000, quantity: 4 },
+    { label: "Flores da Rita", unitCents: 12_000, quantity: 1 },
+  ];
+
+  it("takes the words an operator typed about somebody's day", () => {
+    expect(anonymisedLineItems(lines).map((line) => line.label)).toEqual([
+      ANONYMISED_LINE_ITEM_LABEL,
+      ANONYMISED_LINE_ITEM_LABEL,
+    ]);
+    // The same marker the enquiry columns use, so an anonymised row reads the
+    // same way wherever it is rendered.
+    expect(ANONYMISED_LINE_ITEM_LABEL).toBe(ANONYMISED.name);
+  });
+
+  it("leaves the money and the count alone, so the lines still add up", () => {
+    const anonymised = anonymisedLineItems(lines);
+    expect(lineItemsTotal(anonymised)).toBe(lineItemsTotal(lines));
+    expect(anonymised.map((line) => [line.unitCents, line.quantity])).toEqual([
+      [45_000, 4],
+      [12_000, 1],
+    ]);
+    // Order is part of the record: the lines are read back in the order they
+    // were quoted in.
+    expect(anonymised).toHaveLength(lines.length);
+  });
+
+  it("is idempotent, and a no-op on a quote that is a single agreed figure", () => {
+    expect(anonymisedLineItems(anonymisedLineItems(lines))).toEqual(
+      anonymisedLineItems(lines),
+    );
+    expect(anonymisedLineItems([])).toEqual([]);
+  });
+
+  it("does not mutate the rows it was handed", () => {
+    const original = structuredClone(lines);
+    anonymisedLineItems(lines);
+    expect(lines).toEqual(original);
+  });
+});
+
+describe("the venue the guest named", () => {
+  it("is cleared alongside the free text on the enquiry itself", () => {
+    // A church and a Saturday in June is somebody's wedding, on the same
+    // reading as `message` — the hours and the car they asked for stay.
+    expect(ANONYMISED.venue).toBeNull();
+    expect(ANONYMISED.message).toBeNull();
+    expect(ANONYMISED.internalNotes).toBeNull();
   });
 });
