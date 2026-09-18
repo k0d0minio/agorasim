@@ -170,6 +170,20 @@ function dayCount(n: number): string {
   return `${n} ${n === 1 ? "dia" : "dias"}`;
 }
 
+/**
+ * The picked stripe in words — "3 de out. 2026 a 7 de out. 2026 · 5 dias · 10 partidas".
+ *
+ * One sentence, two readers: the range card's caption and the live region the
+ * grid announces the second tap through ({@link AvailabilityCalendar}). They
+ * are the same words on purpose — a sighted operator and a screen reader
+ * hearing two different counts for one stripe is the bug, not the fix.
+ */
+function rangeSummary(range: { from: string; to: string }): string {
+  const days = spanOfDays(range.from, range.to);
+  const departures = days * 2;
+  return `${readableDay(range.from)} a ${readableDay(range.to)} · ${dayCount(days)} · ${departures} ${departures === 1 ? "partida" : "partidas"}`;
+}
+
 /** Both ends of what a sweep addresses, named so a mis-tap is visible. */
 function rangeWords(list: CalendarDay[]): string {
   if (list.length === 0) return "nenhum dia";
@@ -811,14 +825,21 @@ function RangeActions({
   const answeredSet = asked !== null && asked !== "clear" ? asked : null;
 
   return (
-    <Card className="p-4">
+    // Pinned above the bottom toolbar for as long as the stripe is picked. The
+    // card renders after the calendar card, and at 375×667 that card alone
+    // fills the space between the sticky header and the toolbar — so the two
+    // taps that picked a range used to put "Abrir / Fechar período" off-screen
+    // with nothing but the stripe to say anything had happened. Sticky and
+    // *in flow*, the same shape as {@link FormActionBar} and for the same
+    // reason (spec §5 V4): iOS's keyboard only shrinks the visual viewport and
+    // covers a `fixed` bar outright. `z-20` slides it under the header (z-30)
+    // and the toolbar (z-40) and over the sweep cards it now floats above.
+    // From `md` up the whole screen fits and it goes back to being a card.
+    <Card className="sticky bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-20 p-4 shadow-lg md:static md:shadow-none">
       <div className="flex flex-col gap-3">
         <div>
           <p className="text-sm font-medium">Período escolhido</p>
-          <p className="text-xs text-muted-foreground">
-            {span} · {dayCount(days)} · {departures}{" "}
-            {departures === 1 ? "partida" : "partidas"}
-          </p>
+          <p className="text-xs text-muted-foreground">{rangeSummary(range)}</p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -1545,6 +1566,18 @@ export function AvailabilityCalendar({
           })}
         </div>
       </Card>
+
+      {/* The second tap's only feedback was the stripe on the tiles — nothing
+          a screen reader says out loud. This region is mounted whatever the
+          pick's state and empty until a range closes, because a live region
+          inserted together with its text is announced only patchily; the text
+          has to arrive into a region already there. `sr-only`: the card below
+          carries the same sentence in ink. */}
+      <p role="status" className="sr-only">
+        {range
+          ? `Período escolhido: ${rangeSummary(range)}. As ações do período estão em baixo.`
+          : ""}
+      </p>
 
       {range ? (
         <RangeActions
