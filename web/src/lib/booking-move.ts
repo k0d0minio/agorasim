@@ -69,8 +69,9 @@ import {
   isCancellationTokenConfigured,
   issueCancellationToken,
 } from "@/lib/cancellation-token";
-import { isEmailConfigured, sendEmail } from "@/lib/email";
+import { isEmailConfigured } from "@/lib/email";
 import { listCatalogue } from "@/lib/experience-catalogue";
+import { sendLoggedEmail } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import { siteUrl } from "@/lib/site-origin";
 
@@ -301,8 +302,18 @@ export async function moveBookingToDeparture(options: {
  * longer exists, and a moved guest is exactly the one who may want out — but a
  * booking must never be left holding a digest whose only plaintext was in a
  * message that failed to send. So the token is minted, put in this mail, and
- * persisted after `sendEmail` reports success; if it does not, the row keeps
- * the digest it had and the guest's old link still works.
+ * persisted after the send reports success; if it does not, the row keeps
+ * the digest it had and the guest's old link still works. A `duplicate` is not
+ * a success here for that purpose: no mail left, so the freshly minted token's
+ * plaintext reached nobody and must not replace the digest the guest holds.
+ *
+ * **Through the message log, under `booking-moved`/`guest`, keyed on the date
+ * moved to.** A second press of the button sends nothing; a second, real move
+ * is a different date and so a different message, and the guest is told about
+ * it. The gap that leaves is a booking moved back to a day it has already been
+ * moved to — the same key, so no second notice. That is the price of having no
+ * move history to count against (`register default`), and it is the rarer
+ * mistake than telling a guest twice.
  */
 async function sendMoveEmail(booking: Booking, from: MoveTarget): Promise<void> {
   if (!isEmailConfigured()) return;
@@ -334,7 +345,15 @@ async function sendMoveEmail(booking: Booking, from: MoveTarget): Promise<void> 
 
     const issued = isCancellationTokenConfigured() ? await issueCancellationToken() : null;
 
-    const result = await sendEmail(
+    const result = await sendLoggedEmail(
+      {
+        kind: "booking-moved",
+        recipient: "guest",
+        bookingId: booking.id,
+        tourRequestId: booking.tourRequestId,
+        // The date it moved *to*, which is what this mail is about.
+        subjectDate: booking.date,
+      },
       guestMoveEmail({
         ref: bookingRef(booking.id),
         guestName: lead.name,
@@ -359,10 +378,19 @@ async function sendMoveEmail(booking: Booking, from: MoveTarget): Promise<void> 
       }),
     );
 
-    if (!result.sent) {
-      console.error(
-        `[booking] ${bookingRef(booking.id)} moved but the guest email was not sent (${result.reason})`,
-      );
+    if (result.status !== "sent") {
+      if (result.status === "duplicate") {
+        // Not an error — this booking has already been told about this date. Said
+        // out loud all the same: before the log, every move that did not mail left
+        // a line, and a silent return is the one outcome nobody could account for.
+        console.info(
+          `[booking] ${bookingRef(booking.id)} moved to ${booking.date} — already notified, no second mail`,
+        );
+      } else {
+        console.error(
+          `[booking] ${bookingRef(booking.id)} moved but the guest email was not sent (${result.reason})`,
+        );
+      }
       return;
     }
 

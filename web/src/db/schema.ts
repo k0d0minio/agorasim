@@ -1117,13 +1117,38 @@ export const messageLog = pgTable("message_log", {
   }),
   /**
    * The booking a message is *about*, and the subject its uniqueness is keyed
-   * on for every booking-shaped kind (confirmation, reminder, thank-you).
+   * on for every booking-shaped kind (confirmation, cancellation, reminder,
+   * thank-you, move) — together with {@link messageLog.subjectDate} for the
+   * kinds that are about a departure rather than the booking.
    *
    * Null for the kinds that answer an enquiry rather than a booking.
    */
   bookingId: uuid("booking_id").references(() => bookings.id, {
     onDelete: "cascade",
   }),
+
+  /**
+   * The departure a message is *about*, for the kinds whose subject is a day
+   * rather than the booking — `2026-08-15`, copied from `bookings.date` at the
+   * moment of sending.
+   *
+   * It exists because a booking's date is not fixed. A weather move
+   * (`lib/booking-move.ts`) edits `bookings.date` in place, and it is decided
+   * the afternoon before — exactly when the day-before reminder has just gone
+   * out. Keyed on the booking alone, that reminder would hold the slot for
+   * ever and the guest would never hear about the new morning; keyed on the
+   * day, the move earns a fresh reminder and the old date keeps its own row,
+   * so neither date is reminded twice. Same for `booking-moved`: a booking
+   * moved twice is told twice.
+   *
+   * Null for every kind whose subject is the booking itself (confirmation,
+   * cancellation, thank-you) or the enquiry behind it — see the two booking
+   * indexes below, which split on exactly that nullness.
+   *
+   * Not new personal data: it is a date this person's own booking already
+   * holds, and no more identifying than the row's existence.
+   */
+  subjectDate: date("subject_date"),
 
   status: messageStatusEnum("status").notNull().default("sending"),
 
@@ -1150,15 +1175,31 @@ export const messageLog = pgTable("message_log", {
    * One message of each kind per booking, per recipient — the index the
    * dispatcher's idempotency actually rests on.
    *
-   * Partial in two ways, both load-bearing. `booking_id is not null` is what
+   * Partial in three ways, all load-bearing. `booking_id is not null` is what
    * makes this the booking-shaped rule and leaves enquiry-shaped sends to the
-   * index below. `status <> 'failed'` is what lets a send be *retried*: a
-   * failed attempt stays in the log as the record of an attempt, and stops
-   * reserving the slot it did not fill.
+   * enquiry index below. `subject_date is null` leaves the date-bound kinds to
+   * the index after this one — the split is on nullness rather than a
+   * `coalesce` over one index because a unique index treats NULLs as distinct,
+   * so a single four-column key would stop keying anything at all for the
+   * kinds that carry no date. `status <> 'failed'` is what lets a send be
+   * *retried*: a failed attempt stays in the log as the record of an attempt,
+   * and stops reserving the slot it did not fill.
    */
   uniqueIndex("message_log_booking_kind_key")
     .on(table.kind, table.recipient, table.bookingId)
-    .where(sql`"booking_id" is not null and "status" <> 'failed'`),
+    .where(
+      sql`"booking_id" is not null and "subject_date" is null and "status" <> 'failed'`,
+    ),
+  /**
+   * The same rule for the kinds whose subject is a departure: one message of
+   * each kind per booking, per recipient, **per date**. This is what survives
+   * a move — see {@link messageLog.subjectDate}.
+   */
+  uniqueIndex("message_log_booking_date_kind_key")
+    .on(table.kind, table.recipient, table.bookingId, table.subjectDate)
+    .where(
+      sql`"booking_id" is not null and "subject_date" is not null and "status" <> 'failed'`,
+    ),
   /**
    * The same rule for messages whose subject is the enquiry itself (the ack),
    * scoped to rows that name no booking so a booking's mails are never keyed

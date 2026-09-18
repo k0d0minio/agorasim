@@ -482,6 +482,77 @@ describe("guestConfirmationEmail — the cancel link", () => {
   });
 });
 
+/**
+ * The confirmation is the durable medium.
+ *
+ * The checkout page already states the withdrawal position and links the terms,
+ * but a web page is not a durable medium (CJEU C-49/11) and DL 24/2014 art. 6(1)
+ * wants the art. 4 information on one. The mail is the only artefact of the sale
+ * the guest keeps, so what they were shown before paying has to be in it — in
+ * both parts, and in the language they booked in.
+ */
+describe("guestConfirmationEmail — the terms and the withdrawal right", () => {
+  const ORIGIN = "https://preview.example.com";
+
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", ORIGIN);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("links the terms of sale, at the locale's own path", () => {
+    expect(guestConfirmationEmail(facts({ locale: "pt" })).html).toContain(
+      `href="${ORIGIN}/pt/termos"`,
+    );
+    expect(guestConfirmationEmail(facts({ locale: "en" })).html).toContain(
+      `href="${ORIGIN}/en/terms"`,
+    );
+  });
+
+  it("carries the link in the plain text part too, as a bare URL", () => {
+    // The part a text-only client shows is the same durable record, so the
+    // terms cannot be an anchor the guest never sees.
+    expect(guestConfirmationEmail(facts({ locale: "pt" })).text).toContain(
+      `Termos de venda: ${ORIGIN}/pt/termos`,
+    );
+    expect(guestConfirmationEmail(facts({ locale: "en" })).text).toContain(
+      `Terms of sale: ${ORIGIN}/en/terms`,
+    );
+  });
+
+  it("states the withdrawal position, in the guest's language", () => {
+    const pt = guestConfirmationEmail(facts({ locale: "pt" }));
+    expect(pt.html).toContain("direito de livre resolução de 14 dias não se aplica");
+    expect(pt.text).toContain("direito de livre resolução de 14 dias não se aplica");
+
+    const en = guestConfirmationEmail(facts({ locale: "en" }));
+    expect(en.html).toContain("14-day right of withdrawal does not apply");
+    expect(en.text).toContain("14-day right of withdrawal does not apply");
+  });
+
+  it("names the terms the way the pay button named them", () => {
+    // One label for the same link, so a guest who read "termos de venda" at
+    // checkout meets the same words in the mail — see `content/terms.ts`.
+    expect(guestConfirmationEmail(facts({ locale: "pt" })).html).toContain(
+      ">termos de venda</a>",
+    );
+    expect(guestConfirmationEmail(facts({ locale: "en" })).html).toContain(
+      ">terms of sale</a>",
+    );
+  });
+
+  /**
+   * The cancel link is the one block this mail drops; the terms are not it.
+   * A booking with no token still bought something under terms.
+   */
+  it("is there whether or not the booking has a cancel link", () => {
+    const linkless = guestConfirmationEmail(facts({ cancelUrl: null }));
+    expect(linkless.html).toContain(`href="${ORIGIN}/pt/termos"`);
+    expect(linkless.text).toContain(`Termos de venda: ${ORIGIN}/pt/termos`);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // The team's copy when a guest cancels themselves
 // ---------------------------------------------------------------------------

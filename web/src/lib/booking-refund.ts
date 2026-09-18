@@ -73,8 +73,9 @@ import { formatDay } from "@/lib/availability";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { guestCancellationEmail, partyLabel } from "@/lib/booking-emails";
 import { bookingRef } from "@/lib/bookings";
-import { isEmailConfigured, sendEmail } from "@/lib/email";
+import { isEmailConfigured } from "@/lib/email";
 import { listCatalogue } from "@/lib/experience-catalogue";
+import { sendLoggedEmail } from "@/lib/message-log";
 import { bookingEmails } from "@/content/emails";
 import { t } from "@/i18n/config";
 import { formatPrice } from "@/lib/money";
@@ -318,6 +319,12 @@ async function issueRefund(
  * and sends its own — `teamCancellationEmail`, from
  * `lib/booking-cancellation.ts`, which is the only path that ends a booking
  * with nobody at the business in the loop.
+ *
+ * Through the message log, under `booking-cancellation`/`guest`: a booking is
+ * cancelled once, so one notice is the whole rule, and the two paths that can
+ * reach this (the Sales board and the guest's own link) can no longer both send
+ * it. `duplicate` is therefore the correct answer, not a failure — the guest
+ * has already been told.
  */
 async function sendCancellationEmail(
   booking: Booking,
@@ -349,7 +356,13 @@ async function sendCancellationEmail(
     const locale = booking.locale;
     const experience = catalogue.get(booking.experienceSlug);
 
-    const result = await sendEmail(
+    const result = await sendLoggedEmail(
+      {
+        kind: "booking-cancellation",
+        recipient: "guest",
+        bookingId: booking.id,
+        tourRequestId: booking.tourRequestId,
+      },
       guestCancellationEmail({
         ref: bookingRef(booking.id),
         guestName: lead.name,
@@ -369,7 +382,7 @@ async function sendCancellationEmail(
       }),
     );
 
-    if (!result.sent) {
+    if (result.status !== "sent" && result.status !== "duplicate") {
       console.error(
         `[booking] ${bookingRef(booking.id)} cancelled but the guest email was not sent (${result.reason})`,
       );

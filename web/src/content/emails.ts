@@ -44,8 +44,16 @@ export const bookingEmails = {
       pt: "Olá {name},",
       en: "Hello {name},",
     } as Localized,
+    /**
+     * The §2.6 welcome. The English source line is ungendered and the guest's
+     * gender is never asked for, so the Portuguese has to be ungendered too:
+     * the noun "Boas-vindas" instead of an agreeing adjective, and the
+     * reciprocal "conhecermo-nos" instead of a pronoun that has to pick one.
+     * Any new PT guest line follows the same rule — there is no gender logic
+     * anywhere in `lib/booking-emails.ts`, by design.
+     */
     lead: {
-      pt: "Bem-vinda à região do campo onde crescemos. Será um prazer conhecê-la.\n\nA sua reserva está confirmada.",
+      pt: "Boas-vindas à região do campo onde crescemos. Será um prazer conhecermo-nos.\n\nA sua reserva está confirmada.",
       en: "Welcome to the countryside where we grew up. It will be a pleasure to meet you.\n\nYour booking is confirmed.",
     } as Localized,
     detailsHeading: {
@@ -131,6 +139,31 @@ export const bookingEmails = {
     signoff: {
       pt: "Até breve,\nDiogo e Rita\nAgorasim",
       en: "See you soon,\nDiogo and Rita\nAgorasim",
+    } as Localized,
+    /**
+     * The withdrawal right and the terms of sale, in the footer — the one part
+     * of this mail that is there for the law rather than for the guest.
+     *
+     * The checkout page says both already (`terms.ts`), but a web page is not a
+     * durable medium (CJEU C-49/11) and DL 24/2014 art. 6(1) wants the art. 4
+     * information on one. A confirmation email is: it arrives, it stays, and
+     * the guest can reread it a month later. So the statement the guest was
+     * shown before paying is repeated here, with the terms one tap away.
+     *
+     * `{terms}` becomes a link to `/{locale}/termos`, labelled from
+     * `terms.ts` `checkoutNotice.linkLabel` so the terms are named the same way
+     * at the pay button and in the mail that follows it. One sentence, because
+     * the 14 days and the 48 hours are the same fact seen twice and a guest who
+     * wants the rest has the link.
+     */
+    withdrawalNote: {
+      pt: "O direito de livre resolução de 14 dias não se aplica a experiências reservadas para uma data específica (artigo 17.º, n.º 1, alínea l), do Decreto-Lei n.º 24/2014) — em vez dele aplica-se a política de cancelamento acima, descrita nos {terms}.",
+      en: "The 14-day right of withdrawal does not apply to experiences booked for a specific date (Article 17(1)(l) of Portuguese Decree-Law 24/2014) — the cancellation policy above applies instead, and is set out in the {terms}.",
+    } as Localized,
+    /** The plain-text part, where a link is a URL on its own line. */
+    termsTextLine: {
+      pt: "Termos de venda: {url}",
+      en: "Terms of sale: {url}",
     } as Localized,
     /** Why this email exists, in the footer. Transactional, so no unsubscribe. */
     footerNote: {
@@ -370,8 +403,9 @@ export const bookingEmails = {
       pt: "Olá {name},",
       en: "Hello {name},",
     } as Localized,
+    /** Same §2.6 welcome as the confirmation, ungendered for the same reason. */
     lead: {
-      pt: "Bem-vinda à região do campo onde crescemos. Será um prazer conhecê-la.\n\nRecebemos o seu pedido e a equipa entra em contacto brevemente para combinar os detalhes.",
+      pt: "Boas-vindas à região do campo onde crescemos. Será um prazer conhecermo-nos.\n\nRecebemos o seu pedido e a equipa entra em contacto brevemente para combinar os detalhes.",
       en: "Welcome to the countryside where we grew up. It will be a pleasure to meet you.\n\nWe have received your enquiry and the team will be in touch shortly to arrange the details.",
     } as Localized,
     note: {

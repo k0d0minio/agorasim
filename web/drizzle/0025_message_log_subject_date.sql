@@ -1,0 +1,42 @@
+-- ---------------------------------------------------------------------------
+-- The message log learns about dates, and the two cancellations and the move
+-- notice start going through it.
+--
+-- `message_log` keyed every booking-shaped send on (kind, recipient,
+-- booking_id) and nothing else, which was right while a booking's date was
+-- fixed. It is not: a weather move (`lib/booking-move.ts`) edits
+-- `bookings.date` in place, and the client decides those the afternoon before —
+-- exactly when the day-before reminder has just gone out. The reminder for the
+-- old date would hold that key for ever, and the guest would stand at a meeting
+-- point on the wrong morning having been told nothing.
+--
+-- `subject_date` is the departure a message is about, copied from
+-- `bookings.date` at the moment of sending. The booking-shaped rule becomes two
+-- indexes rather than one four-column key, because a unique index treats NULLs
+-- as distinct and a single key would therefore stop keying anything at all for
+-- the kinds that carry no date:
+--
+--   * `message_log_booking_kind_key`      — one per (kind, recipient, booking)
+--                                           for the kinds whose subject is the
+--                                           booking itself.
+--   * `message_log_booking_date_kind_key` — one per (kind, recipient, booking,
+--                                           date) for the kinds whose subject
+--                                           is a departure: `day-before-reminder`
+--                                           and `booking-moved`.
+--
+-- `status <> 'failed'` is unchanged in both: a failed attempt stays in the log
+-- and stops reserving the slot it did not fill.
+--
+-- Existing rows all take `subject_date` null and keep the key they had, so the
+-- rewrite of `message_log_booking_kind_key` is a rename in effect and nothing
+-- already sent can be sent again. No backfill: the kinds that use the date have
+-- no rows yet (`day-before-reminder`) or had no log rows at all
+-- (`booking-moved`, `booking-cancellation` — sent directly until this change).
+--
+-- See `src/db/schema.ts`, `src/lib/message-log.ts` and
+-- `.icm/intake/lifecycle-messages/message-log-move-safe.md`.
+-- ---------------------------------------------------------------------------
+ALTER TABLE "message_log" ADD COLUMN "subject_date" date;--> statement-breakpoint
+DROP INDEX "message_log_booking_kind_key";--> statement-breakpoint
+CREATE UNIQUE INDEX "message_log_booking_kind_key" ON "message_log" USING btree ("kind","recipient","booking_id") WHERE "booking_id" is not null and "subject_date" is null and "status" <> 'failed';--> statement-breakpoint
+CREATE UNIQUE INDEX "message_log_booking_date_kind_key" ON "message_log" USING btree ("kind","recipient","booking_id","subject_date") WHERE "booking_id" is not null and "subject_date" is not null and "status" <> 'failed';

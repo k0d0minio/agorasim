@@ -70,6 +70,13 @@ function SubmitButton({ armed }: { armed: boolean }) {
  * one hang off a pair of ≥44px buttons, and the count reads back through
  * `aria-live` for a screen reader. `id` is passed in so each stepper owns
  * distinct references and touch targets.
+ *
+ * It lays out as a *row* — label left, controls right, like the public
+ * checkout's stepper — because the three of them stacked in a column is the
+ * only shape that fits. Side by side, each `[44px][8px][32px][8px][44px]` pair
+ * needs 136px and the phone bottom sheet has ~88px per column to give
+ * (375px − 40px of sheet padding, split three ways, less the card's own
+ * border and padding), so the adults "+" and the crianças "−" overlapped.
  */
 function Stepper({
   id,
@@ -89,11 +96,15 @@ function Stepper({
   onChange: (next: number) => void;
 }) {
   return (
-    <div role="group" aria-label={label} className="flex flex-col gap-2 rounded-lg border p-2">
-      <span id={`${id}-label`} className="text-center text-xs font-medium">
+    <div
+      role="group"
+      aria-label={label}
+      className="flex items-center justify-between gap-3 px-3 py-2"
+    >
+      <span id={`${id}-label`} className="text-sm font-medium">
         {label}
       </span>
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex items-center gap-3">
         <Button
           type="button"
           variant="outline"
@@ -451,7 +462,9 @@ function ManualBookingForm({
 
           <div role="group" aria-label="Quantos vêm" className="flex flex-col gap-2">
             <span className="text-sm font-medium">Quantos vêm</span>
-            <div className="grid grid-cols-3 gap-2">
+            {/* One stepper per row, divided rather than boxed: three cards
+                side by side is what overflowed the 375px sheet. */}
+            <div className="flex flex-col divide-y rounded-lg border">
               <Stepper
                 id="manual-adults"
                 label="Adultos"

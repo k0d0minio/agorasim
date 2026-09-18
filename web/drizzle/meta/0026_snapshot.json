@@ -1,6 +1,6 @@
 {
-  "id": "2b8d5f10-6c47-4a93-8f1e-9d0a3c7b4e52",
-  "prevId": "7f3a1c62-0d54-4a8e-9c31-2b6f0a9d5e47",
+  "id": "0f3a7c21-9b64-4de2-8a1c-7c5e2f0b41d9",
+  "prevId": "2b8d5f10-6c47-4a93-8f1e-9d0a3c7b4e52",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2535,7 +2535,10 @@
         "day-before-reminder",
         "thank-you-review",
         "balance-request",
-        "balance-reminder"
+        "balance-reminder",
+        "quote-sent",
+        "deposit-received",
+        "balance-paid"
       ]
     },
     "public.message_recipient": {
