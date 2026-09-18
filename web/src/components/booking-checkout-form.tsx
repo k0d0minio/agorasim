@@ -502,7 +502,19 @@ export function BookingCheckoutForm({
                   }}
                   aria-pressed={active}
                   className={cn(
-                    "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all",
+                    /*
+                     * These cards are `<button aria-pressed>`, so they are in
+                     * the tab order and need a focus indicator of their own.
+                     * Full-strength `ring-ring` rather than the `/50` the
+                     * shared `Button` softens it to: an active card already
+                     * wears `border-primary` and `ring-primary/30`, so a 50%
+                     * halo measures 2.2:1 against the page — under the WCAG
+                     * 1.4.11 3:1 floor — where opaque it is 6.3:1. The
+                     * `focus-visible:` ring wins over the resting `ring-1` on
+                     * specificity, so an active card gets the same indicator
+                     * as an idle one.
+                     */
+                    "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
                     active
                       ? "border-primary bg-primary/5 ring-1 ring-primary/30"
                       : "border-border hover:border-primary/50",
@@ -552,7 +564,7 @@ export function BookingCheckoutForm({
                   aria-pressed={active}
                   onClick={() => update({ mode: option })}
                   className={cn(
-                    "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all",
+                    "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
                     active
                       ? "border-primary bg-primary/5 ring-1 ring-primary/30"
                       : offered
@@ -700,7 +712,7 @@ export function BookingCheckoutForm({
                     onClick={() => toggleAddOn(entry.slug)}
                     aria-pressed={active}
                     className={cn(
-                      "flex items-start justify-between gap-3 rounded-xl border p-4 text-left transition-all",
+                      "flex items-start justify-between gap-3 rounded-xl border p-4 text-left transition-all focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
                       active
                         ? "border-primary bg-primary/5 ring-1 ring-primary/30"
                         : usable

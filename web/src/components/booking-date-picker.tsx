@@ -359,8 +359,20 @@ export function BookingDatePicker({
                 aria-pressed={chosen}
                 onClick={() => chooseDay(chosen ? null : date)}
                 className={cn(
-                  // 44px floor, square-ish, still a grid at 320px.
-                  "flex min-h-11 touch-manipulation flex-col items-center justify-center rounded-lg border text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                  /*
+                   * 44px floor, square-ish, still a grid at 320px.
+                   *
+                   * The focus ring is full-strength `ring-ring`, not the `/50`
+                   * the shared `Button` softens it to: `Button` pairs that halo
+                   * with an opaque `border-ring`, and these cells cannot — a
+                   * chosen day already wears `border-primary`, so the border
+                   * carries no focus signal and the halo is the whole
+                   * indicator. At 50% over the card it measures 2.2:1, under
+                   * the WCAG 1.4.11 3:1 floor; opaque it is 6.5:1. `z-10` on
+                   * focus keeps the ring from being overpainted by the next
+                   * cell, which sits only `gap-1` away.
+                   */
+                  "relative flex min-h-11 touch-manipulation flex-col items-center justify-center rounded-lg border text-sm transition-colors focus-visible:z-10 focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
                   chosen
                     ? "border-primary bg-primary font-semibold text-primary-foreground"
                     : usable
@@ -400,7 +412,7 @@ export function BookingDatePicker({
                     chooseSlot(active ? null : (slot.slot as "morning" | "afternoon"))
                   }
                   className={cn(
-                    "flex min-h-11 touch-manipulation flex-col items-start justify-center rounded-lg border px-4 text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                    "flex min-h-11 touch-manipulation flex-col items-start justify-center rounded-lg border px-4 text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
                     active
                       ? "border-primary bg-primary font-semibold text-primary-foreground"
                       : usable
