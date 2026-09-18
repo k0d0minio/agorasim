@@ -1,0 +1,101 @@
+name: Gates
+
+# The pipeline's two human gates are checkboxes in the PR body (`.icm/_shared/github.md` →
+# Gates). This job reads them and is red while a gate that is present in the body is unticked —
+# a visible signal on the PR, so nobody has to open the body to see where a run stands. It is
+# ADVISORY to the factory's verdict, and says so in its name: `ci-status.sh` classes a check run
+# whose name ends "(advisory)" as reported-never-blocking, which is right — the stage contracts
+# read the checkbox itself out of the body, never a projection of it, and `main`'s ruleset does
+# not require this check. A lane PR carries no anchors and reads green. Nothing here ticks a box —
+# it only reads.
+#
+# `edited` is the trigger that matters: ticking a checkbox changes the body and nothing else.
+#
+# The PR body is untrusted input — anyone who can open a PR writes it. It reaches the script
+# through the environment, never interpolated into the script text, and no part of it is echoed
+# back into a log annotation. The job takes no token, checks out nothing, and calls nothing.
+on:
+  pull_request:
+    types: [opened, edited, reopened, ready_for_review, synchronize]
+
+concurrency:
+  group: gates-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    name: Pipeline gates (advisory)
+    timeout-minutes: 5
+    steps:
+      - name: Read the gate checkboxes in the PR body
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          node <<'NODE'
+          const { appendFileSync } = require("node:fs");
+
+          // The anchor comment is the contract, so parsing never depends on wording: the first
+          // checklist line after an anchor is that gate. The label is a fallback, so that deleting
+          // the anchor — visible in a diff, easy to miss in a review — cannot silently disable a
+          // gate. Neither present means "not required", never "unticked" (`_shared/github.md`).
+          const GATES = [
+            { name: "Spec approved", anchor: "gate:spec-approved", label: "spec approved" },
+            { name: "Ready to merge", anchor: "gate:ready-to-merge", label: "ready to merge" },
+          ];
+
+          const CHECKBOX = /^\s*[-*]\s*\[(.)\]\s*(.*)$/;
+          const ANCHOR = /^\s*<!--\s*gate:/;
+
+          const lines = (process.env.PR_BODY || "").replace(/\r/g, "").split("\n");
+          const parsed = lines.map((line) => ({ line, box: CHECKBOX.exec(line) }));
+
+          const readGate = ({ anchor, label }) => {
+            const start = lines.findIndex((line) => ANCHOR.test(line) && line.includes(anchor));
+            if (start !== -1) {
+              // Stop at the next anchor, so a gate whose own checklist line was deleted reports as
+              // malformed instead of borrowing the following gate's tick.
+              const rest = parsed.slice(start + 1);
+              const next = rest.findIndex(({ line }) => ANCHOR.test(line));
+              const scope = next === -1 ? rest : rest.slice(0, next);
+              const hit = scope.find(({ box }) => box);
+              if (!hit) {
+                return { present: true, ticked: false, malformed: true };
+              }
+              return { present: true, ticked: hit.box[1].toLowerCase() === "x" };
+            }
+            const hit = parsed.find(({ box }) => box && box[2].toLowerCase().startsWith(label));
+            if (!hit) {
+              return { present: false, ticked: false };
+            }
+            return { present: true, ticked: hit.box[1].toLowerCase() === "x" };
+          };
+
+          const results = GATES.map((gate) => ({ ...gate, ...readGate(gate) }));
+
+          const describe = ({ name, present, ticked, malformed }) => {
+            if (!present) {
+              return `- ⚪ **${name}** — no gate in this body; not required.`;
+            }
+            if (malformed) {
+              return `- ❌ **${name}** — anchor present but no checklist line follows it. Malformed body: fix the body.`;
+            }
+            if (ticked) {
+              return `- ✅ **${name}** — ticked.`;
+            }
+            return `- ❌ **${name}** — present and unticked. A human ticks this; the agent never does.`;
+          };
+
+          appendFileSync(
+            process.env.GITHUB_STEP_SUMMARY,
+            ["## Pipeline gates", "", ...results.map(describe), ""].join("\n"),
+          );
+
+          const blocking = results.filter(({ present, ticked }) => present && !ticked);
+          for (const { name } of blocking) {
+            console.log(`::error::Gate "${name}" is present in the PR body and not ticked.`);
+          }
+          process.exit(blocking.length > 0 ? 1 : 0);
+          NODE
