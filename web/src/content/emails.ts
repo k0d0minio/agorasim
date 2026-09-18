@@ -44,8 +44,16 @@ export const bookingEmails = {
       pt: "Olá {name},",
       en: "Hello {name},",
     } as Localized,
+    /**
+     * The §2.6 welcome. The English source line is ungendered and the guest's
+     * gender is never asked for, so the Portuguese has to be ungendered too:
+     * the noun "Boas-vindas" instead of an agreeing adjective, and the
+     * reciprocal "conhecermo-nos" instead of a pronoun that has to pick one.
+     * Any new PT guest line follows the same rule — there is no gender logic
+     * anywhere in `lib/booking-emails.ts`, by design.
+     */
     lead: {
-      pt: "Bem-vinda à região do campo onde crescemos. Será um prazer conhecê-la.\n\nA sua reserva está confirmada.",
+      pt: "Boas-vindas à região do campo onde crescemos. Será um prazer conhecermo-nos.\n\nA sua reserva está confirmada.",
       en: "Welcome to the countryside where we grew up. It will be a pleasure to meet you.\n\nYour booking is confirmed.",
     } as Localized,
     detailsHeading: {
@@ -395,8 +403,9 @@ export const bookingEmails = {
       pt: "Olá {name},",
       en: "Hello {name},",
     } as Localized,
+    /** Same §2.6 welcome as the confirmation, ungendered for the same reason. */
     lead: {
-      pt: "Bem-vinda à região do campo onde crescemos. Será um prazer conhecê-la.\n\nRecebemos o seu pedido e a equipa entra em contacto brevemente para combinar os detalhes.",
+      pt: "Boas-vindas à região do campo onde crescemos. Será um prazer conhecermo-nos.\n\nRecebemos o seu pedido e a equipa entra em contacto brevemente para combinar os detalhes.",
       en: "Welcome to the countryside where we grew up. It will be a pleasure to meet you.\n\nWe have received your enquiry and the team will be in touch shortly to arrange the details.",
     } as Localized,
     note: {
