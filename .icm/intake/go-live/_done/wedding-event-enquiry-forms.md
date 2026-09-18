@@ -5,7 +5,7 @@
 - priority: P0
 - size: M
 - depends-on: none
-- sequence: 4 of 6
+- sequence: 4 of 9
 - sources: Jamie 2026-09-11 (quote enquiry = the public enquiry forms; quoting stays by hand); `web/src/app/[locale]/casamentos/page.tsx:22` ("every field on this page is a disabled preview"), `:182`; `web/src/app/[locale]/eventos/page.tsx` (no form); `enquiry_kind` enum in `web/src/db/schema.ts` (`tour | wedding | event` — nothing public writes wedding/event); the tour enquiry path in `web/src/app/[locale]/reservar/actions.ts` (honeypot `:11`, rate limit `:12`, `enquiry-ack` send `:168`); `web/src/lib/routes.ts:74` (`liveKeys`, casamentos not in it); Sales board `web/src/components/admin/sales-board.tsx`
 
 ## Problem

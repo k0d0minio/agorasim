@@ -5,7 +5,7 @@
 - priority: P1
 - size: S
 - depends-on: none
-- sequence: 5 of 6
+- sequence: 5 of 9
 - sources: Jamie 2026-09-11 (manual booking must be reachable from the Sales board too); `web/src/components/admin/manual-booking-dialog.tsx` (`ManualBookingDialog({ date, openSlots, tours, onDone })`, action `createManualBooking` in `web/src/app/admin/calendar/actions.ts:288`); its only mount `web/src/components/admin/availability-calendar.tsx:493` (inside a day sheet, so the date and open slots are already known); `web/src/app/admin/sales/page.tsx`, `web/src/components/admin/lead-quick-actions.tsx`
 
 ## Problem

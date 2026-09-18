@@ -4,8 +4,8 @@
 - epic: go-live
 - priority: P0
 - size: M
-- depends-on: domain-transfer-tonight, stripe-connect-live, resend-sending-domain
-- sequence: 6 of 6
+- depends-on: domain-transfer-tonight, stripe-connect-live, resend-sending-domain, stripe-env-guard, launch-copy-truth
+- sequence: 9 of 9
 - blocked: human — waits for the registrar transfer to land (DNS.pt / the Portuguese registrar control the clock) and for Diogo & Rita's Stripe account to verify
 - sources: Jamie 2026-09-11 (go live when the domain is available after the transfer; Connect fee on from booking one); `.icm/docs/launch-runbook.md` § Tracks G and H; Vercel project `agorasim` (team Kodominio) already holds `agorasim.pt` + `www.agorasim.pt`; `site.domain` hardcoded to `https://agorasim.pt`
 
@@ -25,14 +25,18 @@ Jamie, per runbook § Track G: Production env set (`STRIPE_SECRET_KEY` live,
 `BACKUP_BLOB_READ_WRITE_TOKEN`), redeploy, Neon manual snapshot, then nameservers →
 the new registrar's, Vercel shows both domains valid with certificates, Track H
 verification, €1 booking → Sales board → both emails from `reservas@` → refund from the
-admin → fee taken and returned on both Stripe dashboards; mail in/out of info@ proven;
-branch protection on `main`. Session work: read back the result and report.
+admin → fee taken and returned on both Stripe dashboards; mail in/out of info@ proven.
+`main` cannot be protected on this plan (private repo, free tier — the rulesets API answers
+403): the gate is PR-only discipline and `ci-status.sh` GREEN before every merge (D21);
+moving the Production deploy behind `db:migrate` is `triage/deploy-after-migrate`. Session
+work: read back the result and report.
 
 ## Acceptance criteria (rough)
 
 - [ ] `https://agorasim.pt` serves the new site; www redirects to apex; sitemap/canonicals/hreflang say agorasim.pt; old WordPress URLs 301
 - [ ] €1 live booking confirmed → refunded; fee taken and returned; webhook 200s
 - [ ] info@ mail uninterrupted; Workspace billing page unchanged; rollback values recorded
+- [ ] `stripe-env-guard` and `launch-copy-truth` merged before the env flip; the runbook's Track H "protect main" line reads as D21 says
 
 ## Prompt
 
