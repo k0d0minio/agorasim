@@ -1,0 +1,10 @@
+{
+  "name": "agorasim",
+  "profile": "pipeline",
+  "docs_path": ".icm/docs",
+  "required_env": [],
+  "required_checks": ["Lint, typecheck, test, build"],
+  "personas": ["guest", "team", "operator"],
+  "runs_archive": ".icm/runs/_done",
+  "intake_archive": ".icm/intake/_done"
+}

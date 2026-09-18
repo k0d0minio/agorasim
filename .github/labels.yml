@@ -1,0 +1,64 @@
+# Label vocabulary for the delivery pipeline.
+#
+# Labels attach to the run's PR, projected ONE WAY from the run's spec.md by
+# .icm/scripts/project-labels.sh (see .icm/_shared/github.md → Labels): the labels job in
+# .github/workflows/pipeline.yaml re-projects the full set on every push touching .icm/runs/**.
+# This file is documentation plus one-time repo setup: create any missing label once, via
+# `gh label create` or the GitHub UI (the API also creates a label it is asked to apply).
+#
+# Keep this list small and fixed — it powers at-a-glance observability, not free-form tagging.
+# Gates are NOT labels: they are checkboxes in the PR body.
+
+# --- Stage — exactly one, moving with the work along the spine -----------------------------------
+#
+# The spine is four stages: Scope (no PR — its artifacts go straight to main) then
+# define → build → release. Only the last three project a label, because only they have a PR.
+- name: "stage:define"
+  color: "c5def5"
+  description: "Define — spec being agreed (draft PR)"
+- name: "stage:build"
+  color: "1d76db"
+  description: "Build — implementation in progress on the run's branch; CI green before hand-off"
+- name: "stage:release"
+  color: "5319e7"
+  description: "Release — review passes + docs + close-out → gated squash-merge"
+
+# --- Type — spine features and the fast lanes ----------------------------------------------------
+- name: "type:feature"
+  color: "a2eeef"
+  description: "A spec'd feature run through the pipeline spine"
+- name: "type:bug"
+  color: "d73a4a"
+  description: "Fast lane — reproduce → fix → verify; the merge button is the gate"
+- name: "type:tweak"
+  color: "bfd4f2"
+  description: "Fast lane — tiny, fully-specified adjustment; the merge button is the gate"
+- name: "type:chore"
+  color: "cfd3d7"
+  description: "Fast lane — refactor / dep bump / migration, no user-facing behaviour change"
+
+# --- Complexity — mirrors the spec header, and sets Release's code-review effort ------------------
+- name: "complexity:trivial"
+  color: "fef2c0"
+  description: "Trivial — small, low-risk change (code review at low effort)"
+- name: "complexity:standard"
+  color: "fbca04"
+  description: "Standard — typical feature scope (code review at medium effort)"
+- name: "complexity:complex"
+  color: "d93f0b"
+  description: "Complex — large or high-risk change (code review at high effort)"
+
+# --- Persona — who the change is for (one or more, from the spec's `personas:` line) ---------------
+#
+# The vocabulary is the `personas` array in .icm/project.json — the three people this repo
+# serves (`.icm/_shared/project-rules.md` → Knowledge → Personas). project-labels.sh projects
+# one label per persona named.
+- name: "persona:guest"
+  color: "ededed"
+  description: "The guest — the tourist who books, enquires, pays, cancels; PT or EN, on a phone"
+- name: "persona:team"
+  color: "ededed"
+  description: "The team — Diogo & Rita running the business from the admin, Rita phone-first"
+- name: "persona:operator"
+  color: "ededed"
+  description: "The operator — Jamie: the estate, the Stripe platform, Vercel, DNS"
