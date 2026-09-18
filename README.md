@@ -24,7 +24,9 @@ pnpm lint
 ## The website (`web/`)
 
 - **Routes**: `/[locale]` for `pt` (default) and `en` — Home, `sobre`, `experiencias`
-  (+ `[slug]` per experience), `eventos`, `contactos`.
+  (+ `[slug]` per experience), `casamentos`, `eventos`, `contactos`, `reservar` (+
+  `confirmacao`), `reserva/cancelar/[token]`, `blog`, `privacidade`, `termos`. `/admin` is the
+  console (Portuguese, phone-first).
 - **Content** lives in `web/src/content/` as `Localized<T>` objects (keep PT/EN in sync). Reviewed
   pipeline output lands in `web/src/content/generated/`.
 - **Rendering**: public pages are prerendered and revalidated hourly (ISR,
