@@ -1,12 +1,16 @@
-# Stub: agorasim.pt leaves Amen tonight — registrant their company, zone mirrored, Workspace untouched
+# Stub: agorasim.pt leaves Amen — registrant their company, zone mirrored, Workspace untouched
 
 - feature-slug: domain-transfer-tonight
 - epic: go-live
 - priority: P0
 - size: M
 - depends-on: none
-- sequence: 1 of 6
+- sequence: 1 of 9
 - sources: Jamie 2026-09-11 (full transfer tonight, receiving registrar = the Portuguese registrar at pt.pt, zone on its DNS, registrant = Diogo & Rita's company); live DNS 2026-09-11 (`.icm/docs/launch-runbook.md` §1 — NS amenworld.com, MX/DKIM/DMARC Google, SPF includes Amen's `spf.webapps.net`, facebook TXT, legacy `mail.`/`webmail.`/`ftp.`); Workspace billed directly by Google (Q14, 2026-09-10); `web/scripts/dns-snapshot.sh`
+
+> Cut for the night of 2026-09-11; the transfer had not run by 2026-09-18 (`agorasim.pt` still
+> answers from Amen's nameservers and the old WordPress host). PR #100 carries the committed
+> pre-transfer snapshot and the fixed diff tool; the runbook's Track T is unchanged. Slug kept.
 
 ## Problem
 

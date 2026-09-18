@@ -5,7 +5,7 @@
 - priority: P0
 - size: M
 - depends-on: none
-- sequence: 2 of 6
+- sequence: 2 of 9
 - blocked: human — Stripe controls the clock on Diogo & Rita's Standard-account verification (ID + IBAN). Platform account **live-activated** (Jamie, 2026-09-11); Connect platform profile and their account still to do tonight
 - sources: `web/src/lib/stripe.ts` (direct charges via `stripeAccount`; fee only when `STRIPE_CONNECTED_ACCOUNT_ID` is set), `web/src/lib/booking-checkout.ts` (`commissionOn` when connected), `web/src/app/api/stripe/webhook` event list; `.icm/docs/launch-runbook.md` § Track C; decision 2026-09-10: launch with Connect, fee on from booking one, agreement signed after
 

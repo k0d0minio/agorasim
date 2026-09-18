@@ -1,7 +1,7 @@
 # Breakdown: Go-live — agorasim.pt takes real bookings, on their domain, with the fee on
 
 - epic-slug: go-live
-- sources: Jamie's answers 2026-09-11 (this session): full registrar transfer tonight to the Portuguese registrar at pt.pt with Diogo & Rita present, registrant = their company, zone on the new registrar's DNS, site goes live when the domain lands; Stripe platform account live-activated, Connect fee on from booking one; PAX = adults only (client answered); wedding/event public enquiry forms + manual booking from the Sales board are the only feature adds. Live DNS as observed 2026-09-11 (`.icm/docs/launch-runbook.md` §1). Previous intake tree purged the same day (`git log -- .icm/intake`).
+- sources: Jamie's answers 2026-09-11: full registrar transfer tonight to the Portuguese registrar at pt.pt with Diogo & Rita present, registrant = their company, zone on the new registrar's DNS, site goes live when the domain lands; Stripe platform account live-activated, Connect fee on from booking one; PAX = adults only (client answered); wedding/event public enquiry forms + manual booking from the Sales board are the only feature adds. Live DNS as observed 2026-09-11 (`.icm/docs/launch-runbook.md` §1). Previous intake tree purged the same day (`git log -- .icm/intake`). **Amended 2026-09-18** by `/project`: the transfer had not run by then (`agorasim.pt` still at Amen; PR #100 carries the snapshot); three session stubs added from the tech and copy lenses and the purged triage lane; the switch resequenced last so it can depend on them.
 
 ## What I understood
 
@@ -28,14 +28,19 @@ PAX-vs-adults is closed: the client answered *adults only* on 2026-09-11, which 
 
 1. domain-transfer-tonight — Amen → the Portuguese registrar, zone mirrored, Workspace untouched — depends-on: none
 2. stripe-connect-live — Connect platform profile, Diogo & Rita's account, live webhook, env — depends-on: none
-3. resend-sending-domain — confirmations from `reservas@agorasim.pt`, reply-to `info@` — depends-on: none
+3. resend-sending-domain — the sending domain, alias and env flip (app half shipped in #88) — depends-on: none
 4. wedding-event-enquiry-forms — casamentos + eventos forms write `enquiry_kind` into the Sales board — depends-on: none
 5. sales-board-manual-booking — the calendar's manual booking dialog, reachable from the Sales board — depends-on: none
-6. go-live-on-landing — nameservers switch, Production env, €1 test, verification — depends-on: domain-transfer-tonight, stripe-connect-live, resend-sending-domain
+6. stripe-env-guard — refuse checkout when the key's mode contradicts `VERCEL_ENV` — depends-on: none
+7. launch-copy-truth — no engineer notes on the privacy page, no "being built", no "being recovered" — depends-on: none
+8. stripe-unset-fallback-test — the Track C contingency (no Stripe key) has a test — depends-on: none
+9. go-live-on-landing — nameservers switch, Production env, €1 test, verification — depends-on: domain-transfer-tonight, stripe-connect-live, resend-sending-domain, stripe-env-guard, launch-copy-truth
 
-Session work today: 3 (app half), 4, 5, plus the `dns-snapshot.sh` script (shipped with
-this breakdown). 1, 2 and 6 are human checklists Jamie drives tonight and when the
-domain lands; sessions verify and report, never touch DNS, registrar or keys.
+Shipped: 4 (#101), 5 (#102), the app half of 3 (#88), `dns-snapshot.sh` (#98, hardened in
+PR #100). Session work: 6, 7, 8 — before the env flip. 1, 2 and 9 are human checklists
+Jamie drives when the domain lands; sessions verify and report, never touch DNS,
+registrar or keys. `main` cannot be branch-protected on this plan; the gating line in 9
+now says so (D21).
 
 ## Out of scope (whole epic)
 
