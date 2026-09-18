@@ -1,0 +1,10 @@
+{
+  "name": "agorasim",
+  "profile": "pipeline",
+  "docs_path": "",
+  "required_env": [],
+  "required_checks": [],
+  "personas": [],
+  "runs_archive": ".icm/runs/_done",
+  "intake_archive": ".icm/intake/_done"
+}
