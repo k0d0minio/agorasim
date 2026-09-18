@@ -487,6 +487,23 @@ describe("exporting a person's data", () => {
         status: "sent",
       },
     ]);
+    // The event quotes built from those enquiries, and their instalments: the
+    // venue and the line labels are words somebody typed about this couple's
+    // day, so an export without them answers a narrower question than the one
+    // that was asked.
+    queueResult([
+      {
+        id: "11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        tourRequestId: REQUEST_ID,
+        venue: "Quinta do Hespanhol, Mafra",
+        lineItems: [{ label: "4 carros clássicos", unitCents: 45_000, quantity: 4 }],
+        totalCents: 192_000,
+      },
+    ]);
+    queueResult([
+      { id: "22222222-aaaa-4aaa-8aaa-aaaaaaaaaaaa", kind: "deposit", amountCents: 57_600 },
+      { id: "33333333-aaaa-4aaa-8aaa-aaaaaaaaaaaa", kind: "balance", amountCents: 134_400 },
+    ]);
     queueResult(undefined); // the audit insert
 
     const result = await exportSubject({}, form({ email: "Ana.Silva@example.com" }));
@@ -501,6 +518,10 @@ describe("exporting a person's data", () => {
     // "You emailed me these times" is part of the Art. 15 answer.
     expect(exported.counts.messageLog).toBe(1);
     expect(exported.records.messageLog[0].kind).toBe("booking-confirmation");
+    // So is the wedding they were quoted for, venue and lines included.
+    expect(exported.counts.quotes).toBe(1);
+    expect(exported.records.quotes[0].venue).toBe("Quinta do Hespanhol, Mafra");
+    expect(exported.counts.quotePayments).toBe(2);
 
     // The audit entry says an export happened, without repeating the address.
     const entry = insertedValues()[0]!;
