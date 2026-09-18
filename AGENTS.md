@@ -6,9 +6,9 @@ This repository is a **toolkit for operating the Agorasim business**, structured
   agorasim.pt (currently serving at **agorasim.jamienisbet.com** until Diogo & Rita
   recover the domain). Bilingual PT/EN. This is the funnel destination; all marketing
   leads here. Booking runs through `/reservar` — availability calendar + Stripe Checkout
-  into the admin Sales board — on **sandbox keys** (Jamie's Stripe account until the
-  client's exists), and has not had its end-to-end pricing pass or the handover to
-  Diogo & Rita yet (`.icm/intake/booking-live/`). The enquiry form is the fallback path.
+  with the Connect application fee, into the admin Sales board — on **sandbox keys** until
+  the domain lands and the Production env flips (`.icm/intake/go-live/`,
+  `.icm/docs/launch-runbook.md`). The enquiry form is the fallback path.
 - **`workspaces/`** — the operations engine. ICM workspaces (*Interpretable Context
   Methodology*) that generate GEO/marketing content as reviewable markdown, then publish
   it into the website.
@@ -26,8 +26,11 @@ Diogo +351 926 210 707 · Rita +351 919 272 077 · info@agorasim.pt.
   notes; content lives in `web/src/content/`).
 - Producing marketing / GEO content → open the relevant workspace under `workspaces/` and follow
   its `CONTEXT.md`. Reviewed output lands in `web/src/content/generated/`.
-- Picking up or cutting work items (tickets) → `.icm/intake/` (contract in its `README.md`;
-  finished tickets move to `.icm/intake/_done/`).
+- Changing the code, in any way → **through the pipeline** (below). Picking the next stub, fixing
+  a bug, changing a docs page: `/pipeline new`, `/pipeline bug "<report>"`,
+  `/pipeline knowledge edit "<what>"` — the map is [`.icm/CONTEXT.md`](.icm/CONTEXT.md).
+- What this project is *for*, its business rules, its decisions → the register,
+  [`.icm/project.md`](.icm/project.md) — written by `/project agorasim` in icm-board, never by hand.
 
 ## Conventions
 - **Rendering is ISR, not SSG.** Public pages are prerendered and revalidated hourly
@@ -44,3 +47,31 @@ Diogo +351 926 210 707 · Rita +351 919 272 077 · info@agorasim.pt.
   copy. See `web/src/lib/jsonld.ts` and `web/src/lib/seo.ts`.
 - ICM principle: **configure the factory, not the product.** Brand voice, facts and style live once
   in `workspaces/_config/`; each pipeline run produces a new deliverable using that configuration.
+
+## How work ships
+
+Through the pipeline, not ad hoc. The spine is **four stages — Scope → Define → Build →
+Release**, the estate's standard set: the contracts under `.icm/stages/` are synced from
+`_system/template/icm-pipeline/` in icm-board and carry no repo identity; what is true of this
+repo is in [`.icm/_shared/project-rules.md`](.icm/_shared/project-rules.md) and
+[`.icm/project.json`](.icm/project.json).
+
+| Stage       | What it owns                                                                                                            |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Scope**   | record the source, settle it with the operator in session → `scope.md` (`D-n` decisions) → cut the intake batch. No PR. |
+| **Define**  | stub → approvable `spec.md`; opens the run's one draft PR. Gate: **Spec approved**.                                    |
+| **Build**   | implement exactly the spec; CI green; flip the PR ready. Gate: **Ready to merge**, after Jamie smokes the preview.     |
+| **Release** | CI green on the full gate → review → docs → close-out on the branch → squash-merge. The merge ends the run.            |
+
+`/pipeline scope <input>` for anything new; `/pipeline new` for the next stub; `/pipeline bug |
+tweak | chore "<request>"` (or `<stub-name>` from `.icm/intake/triage/`) for the fast lanes;
+`/pipeline knowledge add|edit|remove "<what>"` to change a page under `.icm/docs/` outside a
+Release. The bare forms route the same without the slash. Every stage has a human gate at its
+boundary and the agent never crosses one on its own — and never ticks a box in
+`.icm/docs/launch-runbook.md` either: those are Jamie's, Diogo's and Rita's.
+
+**Two binding gates, both PR checkboxes, both Jamie's to tick.** **Spec approved** before Build;
+**Ready to merge** before the squash-merge. There is no branch protection on `main` (private repo,
+free plan), so `ci-status.sh` `GREEN` and the merge button are the whole discipline. CI is the
+source of truth: never run `build`, `lint`, `typecheck` or `test` locally — `.icm/scripts/lint.sh`
+gives changed-files feedback, nothing more.
