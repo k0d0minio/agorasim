@@ -48,8 +48,9 @@ import {
   looksLikeCancellationToken,
 } from "@/lib/cancellation-token";
 import { cancellationWindow, formatDeadline } from "@/lib/cancellation-window";
-import { isEmailConfigured, sendEmail, teamRecipients } from "@/lib/email";
+import { isEmailConfigured, teamRecipients } from "@/lib/email";
 import { listCatalogue } from "@/lib/experience-catalogue";
+import { sendLoggedEmail } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import { siteUrl } from "@/lib/site-origin";
 
@@ -305,6 +306,11 @@ const cancelledAtFormatter = new Intl.DateTimeFormat("pt-PT", {
  * The guest's own notice is not sent from here: `cancelAndRefundBooking` has
  * already sent it, in the guest's language, from the copy both cancellation
  * paths share.
+ *
+ * Through the message log, under `booking-cancellation`/`team` — the same kind
+ * as the guest's notice and a different recipient, which is what makes "the
+ * guest was told and the team was not" a state the Notifications page can show.
+ * One per booking: a `duplicate` means the team already has it.
  */
 async function notifyTeam(options: {
   booking: Booking;
@@ -334,7 +340,13 @@ async function notifyTeam(options: {
     const locale = booking.locale;
     const experience = catalogue.get(booking.experienceSlug);
 
-    const result = await sendEmail(
+    const result = await sendLoggedEmail(
+      {
+        kind: "booking-cancellation",
+        recipient: "team",
+        bookingId: booking.id,
+        tourRequestId: booking.tourRequestId,
+      },
       teamCancellationEmail(
         {
           ref: bookingRef(booking.id),
@@ -363,7 +375,7 @@ async function notifyTeam(options: {
       ),
     );
 
-    if (!result.sent) {
+    if (result.status !== "sent" && result.status !== "duplicate") {
       console.error(
         `[cancel] ${bookingRef(booking.id)} cancelled but the team email was not sent (${result.reason})`,
       );
