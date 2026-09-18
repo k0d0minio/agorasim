@@ -7,6 +7,11 @@
 # copy is this stub: it prints the notes and exits 0, so a repo with no channel loses nothing.
 # Wire it in this file, and say in `_shared/project-rules.md` which channel it reaches.
 #
+# THIS REPO: deliberately unwired (Jamie, 2026-09-18). Diogo & Rita hear about a change from
+# Jamie, by WhatsApp or in person; there is no changelog and no CI announce. The stub prints the
+# note and exits 0 — read `RESULT: SENT` as "written, and told by hand". Details:
+# `_shared/project-rules.md` → Announcing.
+#
 # Usage: .icm/scripts/notify.sh "<release notes summary>"
 # Exit:  0 always — a notification is never a gate.
 set -euo pipefail

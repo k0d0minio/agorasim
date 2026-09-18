@@ -38,10 +38,12 @@ if [ -z "$files" ]; then
 fi
 echo "changed files:"; printf '  %s\n' "$files"
 
-# --- wire the project's formatter here, over "$files" only ---------------------------------------
-# Example (prettier, JS/TS/MD only, write in place):
-#   printf '%s\n' "$files" | filter_ext ts tsx js jsx md json | xargs -r node_modules/.bin/prettier --write
-#   then compare `git status --porcelain` before/after to report CHANGED n.
+# --- this repo runs NO formatter, by choice (2026-09-18) ------------------------------------------
+# There is no prettier, biome or lint-staged here and CI's `Lint, typecheck, test, build` job
+# format-checks nothing — ESLint (see lint.sh) is the only style tool. Nothing is wired on
+# purpose: a formatter would have to exclude every template-owned path first (estate D17/D19),
+# and there is nothing it would catch that CI does not already fail on. If one is ever added,
+# wire it here over "$files" only and update _shared/project-rules.md → The factory.
 
-echo "no formatter is wired for this project — see _shared/project-rules.md → The factory"
+echo "this repo runs no formatter — ESLint only, see .icm/scripts/lint.sh and _shared/project-rules.md → The factory"
 echo "RESULT: SKIP"; exit 0

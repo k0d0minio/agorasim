@@ -17,6 +17,16 @@ Open work for this repo lives here as **epics and stubs**; the working contract 
 - **`## Prompt` is the pick-up contract**: it must stand alone pasted into a fresh Claude
   session at the repo root and tell that session to read the stub file.
 
+## Profile: pipeline (2026-09-18)
+
+This repo is on the estate's **pipeline** profile. The authoritative formats — breakdown, stub,
+the triage stub, the archive rules — are in the template-owned `intake/CONTEXT.md`; this file
+stays the short micro-copy. What changes for a stub here: `/pipeline new` consumes it into
+`_done/` and opens the run's draft PR, so `## Prompt` is optional; `validate-intake.sh <epic>`
+checks the bookkeeping; `close-out.sh` archives the epic when its last run merges. The `go-live/`
+stubs are the exception — human ops checklists (DNS, Stripe, Resend), never spun into a run;
+they move to `_done/` by hand when Jamie confirms the box.
+
 ## Status is positional
 
 - Open = the stub sits in a live epic or triage. Next = lowest unmet sequence.
