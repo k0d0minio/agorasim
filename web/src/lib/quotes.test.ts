@@ -7,6 +7,9 @@ import {
   DEFAULT_DEPOSIT_PERCENT,
   isEditable,
   isInsideNonRefundableWindow,
+  LEAD_STAGE_ORDER,
+  leadStageAfterQuote,
+  leadStagesThatMayBecome,
   lineItemsTotal,
   QUOTE_TRANSITIONS,
   quoteRef,
@@ -17,7 +20,7 @@ import {
   validateQuoteInput,
   type NewQuoteInput,
 } from "@/lib/quotes";
-import type { QuotePayment, QuoteStatus } from "@/db";
+import type { QuotePayment, QuoteStatus, RequestStatus } from "@/db";
 
 /**
  * The quote layer's arithmetic and its rules, without a database.
@@ -182,6 +185,21 @@ describe("statusAfterPayment", () => {
     ).toBe("paid");
   });
 
+  it("holds the date on a deposit written off — the bank-transfer case", () => {
+    /*
+      The couple transferred the deposit, so the team wrote the instalment off
+      rather than taking it through Stripe. Reading only `paid` here left the
+      quote at `sent`, which `listQuotesDueForBalance` filters out: they paid,
+      and their balance was then never asked for.
+    */
+    expect(
+      statusAfterPayment("sent", [
+        payment("deposit", "cancelled"),
+        payment("balance", "pending"),
+      ]),
+    ).toBe("deposit_paid");
+  });
+
   it("does not move on a balance paid before the deposit", () => {
     expect(
       statusAfterPayment("sent", [payment("deposit", "issued"), payment("balance", "paid")]),
@@ -191,6 +209,38 @@ describe("statusAfterPayment", () => {
   it("leaves a cancelled quote cancelled, and an empty one alone", () => {
     expect(statusAfterPayment("cancelled", [payment("deposit", "paid")])).toBe("cancelled");
     expect(statusAfterPayment("draft", [])).toBe("draft");
+  });
+});
+
+describe("leadStageAfterQuote", () => {
+  it("moves a lead forward when the offer goes out and when the deposit lands", () => {
+    expect(leadStageAfterQuote("new", "quoted")).toBe("quoted");
+    expect(leadStageAfterQuote("contacted", "quoted")).toBe("quoted");
+    expect(leadStageAfterQuote("quoted", "booked")).toBe("booked");
+    expect(leadStageAfterQuote("new", "booked")).toBe("booked");
+  });
+
+  it("never walks a lead backwards", () => {
+    // A re-sent quote must not pull a couple who have already paid out of
+    // `Reservado` and back into `Orçamentado`.
+    expect(leadStageAfterQuote("booked", "quoted")).toBeNull();
+    expect(leadStageAfterQuote("quoted", "quoted")).toBeNull();
+    expect(leadStageAfterQuote("booked", "booked")).toBeNull();
+  });
+
+  it("leaves an archived lead archived — a webhook does not overrule a person", () => {
+    expect(leadStageAfterQuote("archived", "quoted")).toBeNull();
+    expect(leadStageAfterQuote("archived", "booked")).toBeNull();
+    expect(LEAD_STAGE_ORDER).not.toContain("archived");
+  });
+
+  it("states the same rule as the set of stages the write may land on", () => {
+    const stages: RequestStatus[] = [...LEAD_STAGE_ORDER, "archived"];
+    for (const target of ["quoted", "booked"] as const) {
+      expect(leadStagesThatMayBecome(target)).toEqual(
+        stages.filter((stage) => leadStageAfterQuote(stage, target) !== null),
+      );
+    }
   });
 });
 

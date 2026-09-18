@@ -1,7 +1,7 @@
 # Data protection — the register of open decisions
 
 - status: **draft** — nothing here has been reviewed by counsel
-- cited by: `web/src/content/privacy.ts` (header comment and the retention section, both locales) and `web/src/lib/retention.ts` (header comment)
+- cited by: `web/src/content/privacy.ts` (header comment and the retention section, both locales), `web/src/lib/retention.ts` (header comment) and `web/src/lib/subject-data.ts` (the export registry)
 - history: the original file was deleted at `21d39ea` and is not reachable from this clone's history; recreated 2026-09-10 for the launch-cutover epic (`.icm/intake/launch-cutover/_done/privacy-refresh.md`)
 
 This is the one place the privacy policy's open questions live. The policy on
@@ -14,7 +14,7 @@ signed the text off. Nothing in this file is legal advice.
 | Processor | Role | Personal data it sees | Region / transfer | Where in code |
 |---|---|---|---|---|
 | Vercel | Hosting, experience photos | Request logs (IP), pages served | TODO(legal): confirm region | `web/` deploy |
-| Neon | Postgres — enquiries, bookings, audit log, message log | Everything the forms collect; booking amounts and Stripe references; audit IPs | TODO(legal): confirm region | `web/src/db/` |
+| Neon | Postgres — enquiries, bookings, quotes, audit log, message log | Everything the forms collect; booking and quote amounts and Stripe references; the venue and line labels on an event quote; audit IPs | TODO(legal): confirm region | `web/src/db/` |
 | Stripe | Payment processing via **Checkout (redirect)** — card data never touches the app | Guest email, line items (experience, date, party), amount, booking id in metadata | Stripe Payments Europe (Ireland) expected for a PT account — TODO(legal): confirm the contracting entity | `web/src/lib/booking-checkout.ts`, `web/src/lib/stripe.ts` |
 | Resend | Transactional email — booking confirmation/cancellation, enquiry reply, team copy | Recipient address, name, booking details in the body | **EU-west (Ireland)** region; US parent → standard contractual clauses as the transfer safeguard | `web/src/lib/email.ts`, `web/src/lib/message-log.ts` |
 
@@ -36,9 +36,15 @@ describes the live state, not the sandbox one.
    Related recommendations (not decisions): audit-log IPs 90 days
    (`AUDIT_IP_RETENTION_DAYS`), Resend message ids 90 days
    (`MESSAGE_PROVIDER_ID_RETENTION_DAYS`).
-2. **Retention for bookings that actually happened.** Excluded from anonymisation pending a
-   decision on tax record-keeping periods (the policy carries a `TODO(legal)` for this).
-   Needs an accountant's answer on how long invoicing records must be kept.
+2. **Retention for bookings and events that actually happened.** Excluded from anonymisation
+   pending a decision on tax record-keeping periods (the policy carries a `TODO(legal)` for
+   this). Needs an accountant's answer on how long invoicing records must be kept. Since
+   2026-09-18 the exclusion also covers an enquiry with a `deposit_paid` or `paid` quote
+   against it, not only one whose stage reads `booked` — a couple who paid a deposit on a
+   wedding is the same obligation, and relying on the stage alone meant relying on it having
+   been moved. `web/src/lib/quotes.ts` now moves it (a sent quote → `quoted`, a settled
+   deposit → `booked`) and `retention.ts` tests the quote as well; the two are deliberately
+   belt and braces.
 3. **RNAAT registration number — unanswered.** Blank in the client's info PDF (§1.1). The
    policy's controller block (`controller` in `privacy.ts`) cannot be completed without it,
    and the terms-of-sale page needs it too. Blocks the draft banner.
@@ -64,3 +70,17 @@ describes the live state, not the sandbox one.
   same PR.
 - Anonymise, don't delete: expired enquiries lose name/email/phone/message and keep the
   statistical shell (`retention.ts`).
+- **What an erasure and the sweep reach, and why the list is not obvious.** `tour_requests`
+  is the obvious row. Less obvious: `quotes.venue` and the labels on `quotes.line_items` are
+  free text an operator typed about somebody's wedding — "Quinta do Hespanhol", "flores da
+  Rita" — and a church plus a Saturday in June identifies a couple perfectly well with no
+  name attached. Both are cleared by the retention sweep when the enquiry behind them is
+  anonymised, and by the Art. 17 erasure **before** it deletes the enquiry: the foreign key
+  is `ON DELETE set null`, so anything not taken first is left behind pointing at nobody.
+  The amounts, quantities, dates and statuses stay — that is the same "anonymise, don't
+  delete" rule, and keeping the line amounts is also what keeps them adding up to the total
+  the couple were quoted.
+- **The Art. 15 export covers four tables**, not two: `tour_requests`, `message_log`,
+  `quotes` and `quote_payments` (`subject-data.ts`). A table that stores or describes a
+  person and is not in that registry makes every future export quietly wrong, so it is
+  extended in the same PR that adds the table.

@@ -215,11 +215,18 @@ export const commissionBoundEnum = pgEnum("commission_bound", ["rate", "floor", 
  * The name says the occasion, never the recipient — the same kind goes to the
  * guest and to the team, told apart by {@link messageRecipientEnum}.
  *
- * `balance-request` and `balance-reminder` are the quote flow's two chasers
- * (`.icm/intake/quote-flow/`) and have no sender yet. They are here because
- * adding a value to a Postgres enum later is a migration, and because a kind
- * is how a repeated message stays idempotent: a second chaser is its own kind,
- * never the same kind sent twice.
+ * The last five are the quote flow's own (`.icm/intake/quote-flow/`) and have
+ * no sender yet. They are here because adding a value to a Postgres enum later
+ * is a migration, and because a kind is how a repeated message stays
+ * idempotent: a second chaser is its own kind, never the same kind sent twice.
+ * `quote-sent` is the offer going out, `deposit-received` and `balance-paid`
+ * are the two receipts — the confirmations the proposal promises for car hire
+ * (§5) and the ones the Sales board already previews as "Wedding deposit
+ * received" (`lib/admin-preview.ts`).
+ *
+ * New values go on the **end** of this list, because that is where
+ * `ALTER TYPE … ADD VALUE` puts them in Postgres and the two orderings have to
+ * agree — `enumValues` is what the app validates against.
  */
 export const messageKindEnum = pgEnum("message_kind", [
   "booking-confirmation",
@@ -230,6 +237,9 @@ export const messageKindEnum = pgEnum("message_kind", [
   "thank-you-review",
   "balance-request",
   "balance-reminder",
+  "quote-sent",
+  "deposit-received",
+  "balance-paid",
 ]);
 
 /**
@@ -1239,11 +1249,18 @@ export type QuoteLineItem = {
  * A quote for an event: a hard date, a venue, a total, and the terms it was
  * offered under.
  *
- * **This table holds no personal data**, exactly as `bookings` does not. Who
- * the couple are lives on the `tour_requests` row this points at — one home for
- * names, emails and phone numbers, already covered by the retention job, the
- * subject-access export and the erasure path. What is here is commercial: what
- * was offered, for how much, on which day, and under what terms.
+ * **This table names nobody, and it is not free of personal data.** Who the
+ * couple are lives on the `tour_requests` row this points at — one home for
+ * names, emails and phone numbers. But {@link quotes.venue} and the labels on
+ * {@link quotes.lineItems} are free text an operator typed about somebody's
+ * wedding, and a church plus a Saturday in June identifies a couple perfectly
+ * well without their name on it. Both are therefore inside the retention sweep,
+ * the Art. 15 export and the Art. 17 erasure (`lib/retention.ts`,
+ * `lib/subject-data.ts`) — which matters most for the erasure, because
+ * `tour_request_id` is `ON DELETE set null` and would otherwise leave those
+ * words behind with nothing pointing at them. Everything else here is
+ * commercial: what was offered, for how much, on which day, and under what
+ * terms.
  *
  * **`eventDate` is a real `date`, and that is the point of the table.** An
  * event's only home until now was a `tour_requests` row whose `preferred_date`

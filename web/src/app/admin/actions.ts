@@ -43,6 +43,7 @@ import {
   type InviteUserField,
   type TourRequestEditField,
 } from "@/lib/form-schemas";
+import { anonymiseQuotesForLead } from "@/lib/retention";
 import { exportSubjectData, subjectExportFilename } from "@/lib/subject-data";
 
 /**
@@ -473,6 +474,16 @@ export type DataRightsState = { ok?: boolean; error?: string; message?: string }
  * — {@link redactSubject} reduces the subject to a domain and a first initial,
  * because quoting the address in the record of erasing it would defeat the
  * erasure.
+ *
+ * **The couple's quotes are scrubbed before the row goes, and the order is the
+ * whole point.** `quotes.tour_request_id` is `ON DELETE set null` so the
+ * financial record survives an erasure on purpose (tax, among others) — but
+ * `quotes.venue` and the labels on `quotes.line_items` are free text about
+ * somebody's wedding, and after the delete they are still there with nothing
+ * left pointing at them. {@link anonymiseQuotesForLead} takes the words and
+ * leaves the money. It runs after the audit entry and before the delete, and a
+ * failure stops the erasure: a half-done erasure that reports success is how a
+ * venue outlives the person who named it.
  */
 export async function deleteTourRequest(
   _prevState: DataRightsState,
@@ -519,6 +530,17 @@ export async function deleteTourRequest(
     };
   }
 
+  let quotesAnonymised = 0;
+  try {
+    quotesAnonymised = await anonymiseQuotesForLead(subject.id);
+  } catch (err) {
+    console.error("[admin] refused to delete — could not anonymise the quotes", err);
+    return {
+      error:
+        "Não foi possível anonimizar os orçamentos deste pedido, por isso nada foi apagado. Tente novamente.",
+    };
+  }
+
   try {
     await db.delete(tourRequests).where(eq(tourRequests.id, subject.id));
   } catch (err) {
@@ -526,7 +548,13 @@ export async function deleteTourRequest(
     return { error: "Não foi possível apagar esse pedido." };
   }
 
-  return { ok: true, message: "Pedido eliminado." };
+  return {
+    ok: true,
+    message:
+      quotesAnonymised > 0
+        ? `Pedido eliminado e ${quotesAnonymised} orçamento(s) anonimizado(s).`
+        : "Pedido eliminado.",
+  };
 }
 
 export type SubjectExportState = {

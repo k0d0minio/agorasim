@@ -61,6 +61,7 @@ export async function GET(request: Request): Promise<Response> {
       `[retention] anonymised ${result.anonymised} enquiry(ies) older than ${result.days} days (cutoff ${result.cutoff}); ` +
         `cleared the IP from ${result.auditIpsCleared} audit entry(ies) older than ${result.auditIpDays} days (cutoff ${result.auditIpCutoff}); ` +
         `cleared the provider id from ${result.providerMessageIdsCleared} send(s) (cutoff ${result.providerIdCutoff}); ` +
+        `anonymised ${result.quotesAnonymised} quote(s); ` +
         `relabelled ${result.holdsExpired} lapsed booking hold(s)`,
     );
 
