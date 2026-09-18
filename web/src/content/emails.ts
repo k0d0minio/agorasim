@@ -45,7 +45,7 @@ export const bookingEmails = {
       en: "Hello {name},",
     } as Localized,
     lead: {
-      pt: "Bem-vinda à região do campo onde crescemos. Será um prazer conhecê-la.\n\nA sua reserva está confirmada.",
+      pt: "Boas-vindas à região do campo onde crescemos. Será um prazer conhecermo-nos.\n\nA sua reserva está confirmada.",
       en: "Welcome to the countryside where we grew up. It will be a pleasure to meet you.\n\nYour booking is confirmed.",
     } as Localized,
     detailsHeading: {
@@ -371,7 +371,7 @@ export const bookingEmails = {
       en: "Hello {name},",
     } as Localized,
     lead: {
-      pt: "Bem-vinda à região do campo onde crescemos. Será um prazer conhecê-la.\n\nRecebemos o seu pedido e a equipa entra em contacto brevemente para combinar os detalhes.",
+      pt: "Boas-vindas à região do campo onde crescemos. Será um prazer conhecermo-nos.\n\nRecebemos o seu pedido e a equipa entra em contacto brevemente para combinar os detalhes.",
       en: "Welcome to the countryside where we grew up. It will be a pleasure to meet you.\n\nWe have received your enquiry and the team will be in touch shortly to arrange the details.",
     } as Localized,
     note: {
