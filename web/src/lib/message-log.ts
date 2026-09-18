@@ -16,6 +16,16 @@
  * is genuinely meant to go twice is two kinds — `balance-request` and
  * `balance-reminder` — never the same kind sent again.
  *
+ * **Except where the subject is a departure, not a booking.** A booking's date
+ * is not fixed: a weather move edits it in place, the afternoon before, which
+ * is exactly when the day-before reminder has just gone out. So the
+ * {@link DATE_BOUND_KINDS} carry the date they are about and are keyed on it —
+ * the moved booking earns a reminder for its new morning, the old date keeps
+ * its own row and is never reminded twice, and a booking moved twice is told
+ * twice. The type below makes that date mandatory for those kinds and
+ * impossible for the others, because the two are different indexes in
+ * `db/schema.ts` and a send that guessed wrong would quietly key on nothing.
+ *
  * **A failed send releases its claim.** The row stays as the record of an
  * attempt, but `status <> 'failed'` in the indexes means it no longer reserves
  * the slot, so tomorrow's run tries again. A row stuck in `sending` does *not*
@@ -44,17 +54,22 @@ import { db, messageLog, type MessageKind, type MessageRecipient } from "@/db";
 import { isEmailConfigured, sendEmail, type EmailMessage } from "@/lib/email";
 
 /**
- * What a message is *about* — the kind, who it went to, and the row it belongs
- * to. Together these are the uniqueness key the send is claimed under.
+ * The kinds whose subject is a *departure* rather than the booking itself.
+ *
+ * The reminder is about a morning, and the move notice is about the morning it
+ * moved to — send either again for a different date and it is a different
+ * message, not a duplicate. Everything else (a confirmation, a cancellation, a
+ * thank-you, an enquiry ack) happens once to a booking however many times its
+ * date changes, so those stay keyed on the booking alone.
  */
-export type MessageSubject = {
-  kind: MessageKind;
+export const DATE_BOUND_KINDS = ["day-before-reminder", "booking-moved"] as const;
+
+/** A kind from {@link DATE_BOUND_KINDS}. */
+export type DateBoundKind = (typeof DATE_BOUND_KINDS)[number];
+
+/** Whom a message is about, in rows — shared by both halves of the subject. */
+type SubjectRows = {
   recipient: MessageRecipient;
-  /**
-   * The booking this message is about, for the booking-shaped kinds
-   * (confirmation, reminder, thank-you, cancellation, move).
-   */
-  bookingId?: string | null;
   /**
    * The enquiry behind it — the person. Set it whenever there is one, even for
    * a booking-shaped kind: it is how the Art. 15 export finds the row and how
@@ -62,6 +77,33 @@ export type MessageSubject = {
    */
   tourRequestId?: string | null;
 };
+
+/**
+ * What a message is *about* — the kind, who it went to, and the row it belongs
+ * to. Together these are the uniqueness key the send is claimed under.
+ *
+ * A union rather than one optional field: `subjectDate` is required for the
+ * {@link DATE_BOUND_KINDS} and rejected for the rest, so `tsc` rather than a
+ * production duplicate is what catches a reminder sent without its day.
+ */
+export type MessageSubject =
+  | (SubjectRows & {
+      kind: DateBoundKind;
+      /** A date-bound message always names its booking. */
+      bookingId: string;
+      /** `2026-08-15` — the departure this message is about, from `bookings.date`. */
+      subjectDate: string;
+    })
+  | (SubjectRows & {
+      kind: Exclude<MessageKind, DateBoundKind>;
+      /**
+       * The booking this message is about, for the booking-shaped kinds
+       * (confirmation, cancellation, thank-you). Null for the kinds that answer
+       * an enquiry rather than a booking.
+       */
+      bookingId?: string | null;
+      subjectDate?: never;
+    });
 
 /** Why a send did not happen, in the provider's own terms. */
 export type SendFailure = "unconfigured" | "no-recipient" | "failed";
@@ -155,10 +197,12 @@ async function claimSend(subject: MessageSubject): Promise<string | "duplicate" 
         recipient: subject.recipient,
         bookingId: subject.bookingId ?? null,
         tourRequestId: subject.tourRequestId ?? null,
+        subjectDate: subject.subjectDate ?? null,
         status: "sending",
       })
-      // No conflict target: both partial unique indexes are arbiters, and which
-      // of the two applies depends on whether this message names a booking.
+      // No conflict target: all three partial unique indexes are arbiters, and
+      // which one applies depends on whether this message names a booking and
+      // whether it names a date.
       .onConflictDoNothing()
       .returning({ id: messageLog.id });
 
