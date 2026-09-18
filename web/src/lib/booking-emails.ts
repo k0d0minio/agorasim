@@ -19,6 +19,7 @@
 import { classicCars, site, taglines } from "@/content/site";
 import { bookingEmails } from "@/content/emails";
 import { serviceHoursLabel } from "@/content/quote-request";
+import { termsContent } from "@/content/terms";
 import type { EnquiryKind } from "@/db/schema";
 import { t, type Locale } from "@/i18n/config";
 import type { EmailMessage } from "@/lib/email";
@@ -37,6 +38,7 @@ import {
   escapeHtml,
   type DetailRow,
 } from "@/lib/email-layout";
+import { href } from "@/lib/routes";
 import { siteUrl, siteUrlLabel } from "@/lib/site-origin";
 
 /** Everything the two emails need to know, already formatted for reading. */
@@ -111,6 +113,29 @@ function footerWithSiteLink(template: string): string {
     .map(escapeHtml)
     .join(
       `<a href="${origin}" style="color:${emailPalette.textMuted};text-decoration:underline;">${escapeHtml(siteUrlLabel(origin))}</a>`,
+    );
+}
+
+/** Where the terms of sale live for this locale, absolute — a mail has no base. */
+function termsUrl(locale: Locale): string {
+  return `${siteUrl()}${href(locale, "termos")}`;
+}
+
+/**
+ * The withdrawal line, with the terms of sale linked in place of `{terms}`.
+ *
+ * Split-escape-join for the same reason as {@link footerWithSiteLink}: the
+ * anchor has to reach the client as markup while the sentence around it stays
+ * inert text. The label comes from `terms.ts`, so the link reads the same here
+ * as it does above the pay button.
+ */
+function withdrawalWithTermsLink(locale: Locale): string {
+  const label = t(termsContent.checkoutNotice.linkLabel, locale);
+  return t(bookingEmails.guest.withdrawalNote, locale)
+    .split("{terms}")
+    .map(escapeHtml)
+    .join(
+      `<a href="${termsUrl(locale)}" style="color:${emailPalette.textMuted};text-decoration:underline;">${escapeHtml(label)}</a>`,
     );
 }
 
@@ -222,6 +247,11 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     "",
     t(c.signoff, l),
     siteUrl(),
+    "",
+    // The small print, last. In text an anchor is impossible, so the sentence
+    // names the terms and the URL that reaches them is the line under it.
+    fill(t(c.withdrawalNote, l), { terms: t(termsContent.checkoutNotice.linkLabel, l) }),
+    fill(t(c.termsTextLine, l), { url: termsUrl(l) }),
   ]);
 
   const html = emailDocument({
@@ -264,7 +294,14 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
       emailSpacer(20),
       emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
     ].join(""),
-    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+    // The withdrawal statement sits in the footer rather than in the card: it
+    // is said for the law, not for the guest, and the footer is the one part of
+    // the shell that carries a link without the caller fighting the escaping.
+    footer: [
+      escapeHtml(t(taglines, l)),
+      withdrawalWithTermsLink(l),
+      footerWithSiteLink(t(c.footerNote, l)),
+    ],
   });
 
   return {
