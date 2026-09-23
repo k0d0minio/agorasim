@@ -28,7 +28,9 @@ Context budget: the Inputs table above is the budget (see `.icm/CONTEXT.md` → 
 
 1. **Pick a slug** — then the first act of every lane: `.icm/scripts/usage-snapshot.sh <slug> bug start` (`SKIP` is fine, never a stop). Pick it (`fix-<what>`, kebab-case) and **reproduce first**. State the observed vs
    expected behaviour in one line each. Can't reproduce → STOP and report what you tried; don't
-   fix blind.
+   fix blind. A request whose subject is a **template-owned file** — a `T` line of `.icm/MANIFEST`, or a
+   canonical `.claude/` asset — is not lane work: STOP before the slug, write the template change
+   request (`_shared/template-change.md`), park it, open no run.
 2. **Fix the cause, not the symptom** — minimal diff, no drive-by refactors. Prefer the matching
    capability skill where the repo ships one (`_shared/project-rules.md` → Capability skills) —
    most "bugs" here are a known trap one of them already documents. Check the fix against the
@@ -68,6 +70,10 @@ Context budget: the Inputs table above is the budget (see `.icm/CONTEXT.md` → 
    them, re-run with `--apply`, delete any that reads as a slip, and commit the appended rules
    with `notes.md` (its `- learned:` line) before the close-out. Then run the close-out:
 
+   Record the lane's end first — `.icm/scripts/usage-snapshot.sh <slug> bug end` — so the
+   line rides in the close-out commit: nothing written after the close-out reaches the PR. Then
+   run the close-out:
+
    ```bash
    .icm/scripts/close-out.sh <slug>
    ```
@@ -87,8 +93,8 @@ Context budget: the Inputs table above is the budget (see `.icm/CONTEXT.md` → 
    `session` (`_shared/project-rules.md` → Reporting); a lane never calls it, never waits, and
    never watches production. On a UAT repo the PR targets the UAT branch, the merge puts the
    change on the client's UAT address, and the announcement waits for the batch's promotion
-   (`.icm/uat/CONTEXT.md`). Last act before the stop:
-   `.icm/scripts/usage-snapshot.sh <slug> bug end`. If you
+   (`.icm/uat/CONTEXT.md`). The usage `end` line was written
+   just before the close-out (above); nothing is written now. If you
    parked a finding in `.icm/intake/triage/` on the way and the folder now holds more than 60
    active stubs (`ls .icm/intake/triage/*.md | wc -l`; `intake/CONTEXT.md` → Triage → cap), say
    so here — `triage/ holds N active stubs (cap 60) — run triage report` — and name

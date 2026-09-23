@@ -20,7 +20,8 @@
 #      entry's first line with paths and numbers stripped.
 #   2. Reads the ARCHIVE's error.logs the same way (`runs_archive` in .icm/project.json — the
 #      only other runs it looks at; a live sibling's folder is never read) and counts each
-#      signature across this run and the archive.
+#      signature across this run and the archive. A `security-check.sh` entry's signature is
+#      `security-check/<rule id>`, read from its header — its body is a redacted trace, not a class.
 #   3. Promotes this run's entry to a CANDIDATE rule when it carries a `- rule:` line (the session
 #      judged it at the moment of the fix), or when its signature was seen at least --min times
 #      (default 2) and it carries a `- resolved:` line — the resolved text is then the rule. An
@@ -153,7 +154,14 @@ parse_log() { # parse_log <file> <slug> → TSV on stdout
   local file="$1" who="$2" idx=0 header="" body="" resolved="" rule="" last="" line sig
   emit() {
     [ -n "$header" ] || return 0
-    sig="$(printf '%s' "$body" | signature)"
+    # security-check.sh names its rule ids in the header (`<ts> security-check.sh — <rule ids>`); its
+    # body is a redacted trace whose first line is scope/head/branch, not a class. The class is the
+    # first rule id, prefixed so a gate finding never collides with a compiler's or linter's.
+    if [[ "$header" =~ security-check\.sh[^A-Za-z0-9]+([a-z0-9][A-Za-z0-9_./-]*) ]]; then
+      sig="security-check/${BASH_REMATCH[1]}"
+    else
+      sig="$(printf '%s' "$body" | signature)"
+    fi
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$who" "$idx" "$header" "$sig" "$resolved" "$rule" | tr -d '\r'
   }
   while IFS= read -r line || [ -n "$line" ]; do

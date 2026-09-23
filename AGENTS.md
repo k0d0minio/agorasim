@@ -54,7 +54,9 @@ Through the pipeline, not ad hoc. The spine is **four stages — Scope → Defin
 Release**, the estate's standard set: the contracts under `.icm/stages/` are synced from
 `_system/template/icm-pipeline/` in icm-board and carry no repo identity; what is true of this
 repo is in [`.icm/_shared/project-rules.md`](.icm/_shared/project-rules.md) and
-[`.icm/project.json`](.icm/project.json).
+[`.icm/project.json`](.icm/project.json). A change to one of those contracts — or to the router, `/setup`, the
+hooks — is a **template change request** ([`.icm/_shared/template-change.md`](.icm/_shared/template-change.md)):
+a prompt for icm-board, parked as a triage stub, never an edit here; the sync brings it back.
 
 | Stage       | What it owns                                                                                                            |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------- |

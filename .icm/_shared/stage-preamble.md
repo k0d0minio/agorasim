@@ -73,6 +73,13 @@ every stage and every lane, including the two that never run the procedure above
    (`run-pack.sh --sync-rules` — append-only, so two runs closing out never rewrite each
    other's lines). Each is a file this run alone creates, moves or appends to — never an edit to
    a line another live run is writing.
+6. **No run edits the pipeline it runs in.** A file `.icm/MANIFEST` marks `T` — this preamble, a
+   stage or lane contract, a `_shared/` doctrine file, a factory script, a capability skill — and
+   the canonical `.claude/` assets are icm-board's: a change one is owed is a **template change
+   request** (`_shared/template-change.md` — a prompt for icm-board, parked as a
+   `found-by: template-change` triage stub), never an edit here. The run continues under the file
+   as it is and records the fault in its `FAILURE.md` or `error.log`; only the operator's spoken
+   "patch it here now" overrides, and the request is written even then.
 
 A conflict inside `.icm/runs/<slug>/` when `main` is merged in therefore means someone broke this
 rule, not that two runs legitimately met: **STOP** and ask, never pick a side

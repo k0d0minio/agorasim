@@ -130,14 +130,27 @@ its contract; `status` and `uat` are script verbs, not stages.
    call itself when its read fails, and parks one bug-lane stub it never commits), and the
    recovery is the human-invoked `hotfix` lane, prepared by `rollback.sh`.
 7. **Every stage and lane brackets itself with two usage lines** —
-   `usage-snapshot.sh <slug> <stage> start` as the first act after the preamble and `… end` as
-   the last before the stop. `SKIP` is a fine answer; the line is never a gate.
+   `usage-snapshot.sh <slug> <stage> start` as the first act after the preamble and `… end` just
+   before `close-out.sh` where the stage has one (Release, every lane — the archive commit carries
+   the line; nothing written after the close-out reaches the PR), else as the last act before the
+   stop. `SKIP` is a fine answer; the line is never a gate.
 8. **Every stage leaves the run resumable.** `status.md` (phase · step · ci · blocked · updated)
    and `handoff.md` (next steps, blockers, do-nots) are rewritten at every stop, including a
    STOP mid-way; a RED or a blocked gate is an `error.log` entry (`retrospective.sh` reads it),
    and what no tool logged — a wrong assumption, a STOP — is a retrospective in `FAILURE.md`.
    `security-check.sh` runs before every commit in Build and before every lane push — a
    `BLOCKED` is never committed around.
+9. **The pipeline itself is not edited from here.** A request that would change a file
+   `.icm/MANIFEST` marks `T` — a stage or lane contract, a `_shared/` doctrine file, a factory
+   script, a capability skill — or a canonical `.claude/` asset (this router, `/setup`,
+   `pr-conventions`, `ticket-craft`, the hooks) is a **template change request**, not a lane
+   and not an edit: `.icm/_shared/template-change.md`. Say the file is template-owned, write the
+   prompt for icm-board in that file's shape, park it as one `found-by: template-change` triage
+   stub (its `## Prompt` is the request; no lane here consumes it), show it whole, and carry on
+   under the file as it is. Only the operator's explicit "patch it here now" overrides, and the
+   request is written even then. The `P` lines (`project.json`, `_shared/project-rules.md`,
+   `_shared/knowledge-map.md`, the local feedback scripts, `report.sh`, `runs/README.md`) and
+   everything outside the manifest are this repo's own and change through the lanes as usual.
 
 ## Resolving `new` (one procedure, two selectors)
 
@@ -201,6 +214,9 @@ preamble. The argument is one of two things:
   stub's lane). If the token names a run in `.icm/runs/` or the archive, say that too: a lane PR
   that is open is the operator's to merge (smoke, then squash-merge from GitHub); an archived one
   has shipped. Do not re-open, re-run or "finish" it.
+- **A request whose subject is a template-owned file** — a `T` line of `.icm/MANIFEST`, or a
+  canonical `.claude/` asset — is not lane work (step 9 above): no run, no PR. Write the template
+  change request (`.icm/_shared/template-change.md`), park it, and stop.
 
 ## Resolving `triage` (the backlog's three verbs — a read, a cut, a list; never a run)
 
@@ -313,6 +329,9 @@ The contract is `.icm/uat/CONTEXT.md`; the verbs are `.icm/scripts/promote-uat.s
   uat approve "<who>" the operator records the client's sign-off → the promotion PR opens READY
                       into main (you never merge it; the operator does, then `uat sync`)
   uat sync            after the promotion merged (or a hotfix): uat takes main, the batch resets
+  The pipeline itself (a T line of .icm/MANIFEST, or a canonical .claude/ asset — never edited here):
+  a request to change one → a template change request for icm-board: .icm/_shared/template-change.md
+                      (the prompt, parked as a found-by: template-change triage stub; the sync brings it back)
 ```
 
 When listing what's available (helping pick a stub, or no batch active), show the active intake
@@ -325,4 +344,8 @@ Add a numbered folder `.icm/stages/NN_<name>/CONTEXT.md` (or `.icm/lanes/<name>/
 row to the routing table above. A **substage** — a step that belongs to a stage, carries no gate of
 its own, and would otherwise force a renumber — nests instead:
 `.icm/stages/NN_<parent>/<name>/CONTEXT.md`, plus its own routing row (none exists today). No new
-skill is created — the pipeline grows in the folder tree, not the skills list.
+skill is created — the pipeline grows in the folder tree, not the skills list. For every repo the
+change is made in icm-board's template and synced (`PIPELINE.md` → Adding a stage or lane); asked
+for in this repo, it is a template change request (`.icm/_shared/template-change.md`). Only a stage
+or lane this repo alone needs is added here, outside the manifest, and registered in
+`_shared/project-rules.md`.
