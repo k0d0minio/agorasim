@@ -64,9 +64,17 @@
   },
   "database": {
     "url_env": "DATABASE_URL",
-    "isolation": "none",
+    "isolation": "neon",
     "image": "postgres:16",
-    "name": "app"
+    "name": "app",
+    "provider": "neon",
+    "neon": {
+      "project_id": "nameless-sea-98952497",
+      "api_key_env": "NEON_API_KEY",
+      "production_branch": "main",
+      "previews": "vercel",
+      "uat_branch": ""
+    }
   },
   "security": {
     "audit_command": ""

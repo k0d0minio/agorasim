@@ -156,7 +156,11 @@ init)
   echo "  [TODO] protect $ub like main — the same required status checks (PRs into it carry them) — and allow the operator's own identity to push to it directly (sync pushes one merge commit)"
   if [ -n "$uu" ]; then echo "  [TODO] Vercel → the product project(s) → Settings → Domains: add the host of $uu and assign it to the git branch '$ub' — the address never changes, the deployment under it does"
   else echo "  [TODO] uat.url is empty in .icm/project.json — the fixed address the client opens (a domain assigned to the branch '$ub' in Vercel, or the branch alias)"; fi
-  echo "  [TODO] the UAT branch deploys on the PREVIEW environment's variables unless a custom environment is attached to it in Vercel — decide which data the client tests against"
+  if [ "$(database_provider)" = neon ] && [ -n "$(neon_uat_branch)" ]; then
+    echo "  [INFO] the UAT branch's database is the Neon branch $(neon_uat_branch), created by the Vercel integration on the branch's first deployment (a copy of production then; the build applies the branch's migrations) — .icm/scripts/db-env.sh status reads it, db-env.sh init lists the integration toggle, db-env.sh reset-uat resets it from production"
+  else
+    echo "  [TODO] the UAT branch deploys on the PREVIEW environment's variables unless a custom environment is attached to it in Vercel — decide which data the client tests against (a Neon project with previews: vercel gives it a branch of its own — .icm/uat/CONTEXT.md → The UAT database)"
+  fi
   if [ -f .github/labels.yml ] && grep -q 'type:promote' .github/labels.yml; then echo "  [OK]   type:promote in .github/labels.yml"; else echo "  [TODO] add type:promote to .github/labels.yml and create the label in GitHub once (new-run.sh dies without it)"; fi
   echo "  [INFO] run branches are cut from origin/$ub (with origin/main brought in); PRs target $ub; production is one promotion PR per batch — .icm/uat/CONTEXT.md"
   [ "$changed" -eq 1 ] && echo "RESULT: INIT" || echo "RESULT: UNCHANGED"
@@ -377,6 +381,7 @@ sync)
       echo "announce: report.sh missing — nothing announced"
     fi
     echo "production: .icm/scripts/deploy-status.sh --sha ${merge_sha:0:7} — one read, when you want it; then .icm/scripts/health-check.sh --sha ${merge_sha:0:7} — the application's own word, once (Release skipped it on the UAT merge)"
+    [ "$(database_provider)" = neon ] && [ -n "$(neon_uat_branch)" ] && echo "uat database: .icm/scripts/db-env.sh reset-uat --apply — when the client's test data should go and production's shape return (the operator's call; dry-run without --apply)"
   fi
   echo "RESULT: SYNCED $ahead commit(s)$( [ "$landed" -eq 1 ] && echo " · batch of ${promo_on:-?} promoted")"
   exit 0 ;;
