@@ -19,7 +19,35 @@ client signed off. Decision D31 (icm-board `.icm/project.md`).
   ever sent, and it shows the whole batch together, integrated, the way production will.
 - **The preview environment's variables**, unless the project attaches a custom environment to
   the branch in Vercel. Which data the client tests against is the operator's one-time decision
-  (`promote-uat.sh init` lists it with the other setup acts).
+  (`promote-uat.sh init` lists it with the other setup acts) — and where the repo declares a
+  Neon project with `database.neon.previews: vercel`, the answer is a database of the UAT
+  branch's own (below).
+
+## The UAT database (Neon repos — decision D32)
+
+Where `.icm/project.json` declares `database.provider: neon` and `database.neon.previews:
+vercel`, the Vercel integration creates a Neon branch for every git branch it deploys —
+`preview/<git-branch>`, a copy-on-write child of production — and injects its connection
+variables into that deployment alone. The UAT git branch is one such branch, so **the UAT
+database is the Neon branch `preview/<uat.branch>`**: born from production on the branch's first
+deployment, persistent for as long as the branch deploys, nothing to create and nothing per
+batch. `lib/project.sh → neon_uat_branch` names it; `db-env.sh status` reads it.
+
+- **Migrations reach it at build.** A run's migrations ride its PR into the UAT branch; the
+  deployment's build applies them to `preview/<uat>` (the build command runs the repo's migrate
+  step before the build — an operator act `db-env.sh init` lists, recorded in
+  `_shared/project-rules.md` → The factory). Production keeps whatever the repo does today.
+- **Reset from production is the operator's act.** After a promotion — when the client's test
+  data should go and production's shape return — `db-env.sh reset-uat --apply` resets the branch
+  from its parent (dry-run without `--apply`; `promote-uat.sh sync` names it). Nothing resets on
+  its own, and a reset never touches production.
+- **Run branches are children of production, never of UAT.** `db-branch.sh` (`database.isolation:
+  neon`) creates `run/<slug>` under the production branch, because Neon refuses to reset a branch
+  that has children and a run must never block the client's environment. A preview's database is
+  the integration's `preview/<run branch>`, a child of production too; each applies the run's
+  migrations at build.
+- **Nothing here deletes the UAT branch.** `lib/neon.sh` refuses its name on every delete; the
+  cleanup workflow skips the UAT git branch by name; `db-env.sh prune` never lists it.
 
 ## The path of a run (what changes, stage by stage)
 
@@ -140,4 +168,6 @@ can perform: push the branch once (`git push origin main:<uat>`), protect it lik
 same required checks; the operator's identity allowed to push — `sync` needs it), assign the
 domain to the branch in Vercel, decide the environment's variables, add `type:promote` to
 `.github/labels.yml` and create the label. `setup.sh` section 3 reports the block and the file;
-section 10 reports the label. Nothing here reaches outside the repo.
+section 10 reports the label. On a Neon repo `db-env.sh init` adds the database's acts — the
+integration's Preview-branching toggle, the migrate step in the build, the key as an Actions
+secret for the cleanup workflow. Nothing here reaches outside the repo.

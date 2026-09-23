@@ -57,6 +57,7 @@
       "Bash(.icm/scripts/select-model.sh:*)",
       "Bash(.icm/scripts/check-migrations.sh:*)",
       "Bash(.icm/scripts/db-branch.sh:*)",
+      "Bash(.icm/scripts/db-env.sh:*)",
       "Bash(.icm/scripts/security-check.sh:*)",
       "Bash(.icm/scripts/run-pack.sh:*)",
       "Bash(.icm/scripts/usage-snapshot.sh:*)",
