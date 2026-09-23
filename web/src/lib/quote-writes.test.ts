@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SQL } from "drizzle-orm";
+
 import type { Quote, QuotePayment } from "@/db";
 
 /**
@@ -89,7 +91,7 @@ const { PgDialect } = await import("drizzle-orm/pg-core");
 /** The `WHERE` of the n-th `.where()` call, rendered as Postgres would get it. */
 function whereSql(n = 0): { sql: string; params: unknown[] } {
   const clause = calls.filter((call) => call.method === "where")[n]?.args[0];
-  return new PgDialect().sqlToQuery(clause as Parameters<PgDialect["sqlToQuery"]>[0]);
+  return new PgDialect().sqlToQuery(clause as SQL);
 }
 
 const QUOTE_ID = "aaaaaaaa-1111-4111-8111-111111111111";
