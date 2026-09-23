@@ -36,6 +36,10 @@
 #                                  Without the plugin the newest session for this directory is the
 #                                  fallback; with neither → source=skip. Needs python3 or sqlite3.
 #
+# When to call `end`: just before `close-out.sh`, so the archive commit carries the line — nothing
+# written after the close-out reaches the PR. An `end` that comes later still lands in the archived
+# copy of the run (never a recreated live folder) and is the caller's to commit.
+#
 # It never estimates and never blocks: a store it cannot read is a `source=skip` line and a SKIP
 # verdict, and the stage carries on. Nothing is sent anywhere; nothing outside the repo is
 # written; the harness's own files are only ever read.
@@ -94,6 +98,11 @@ slug="${1:-}"; stage="${2:-}"; mark="${3:-}"
 [ -n "$slug" ] && [ -n "$stage" ] && [ -n "$mark" ] || die "usage: usage-snapshot.sh <slug> <stage> start|end   |   --report <slug>"
 case "$mark" in start|end) : ;; *) die "third argument must be start|end" ;; esac
 run_dir="$repo_root/.icm/runs/$slug"
+# A stage's `end` can come after close-out.sh has archived the run: the line then belongs where the
+# run now lives, never in a fresh live folder — a live folder for a closed-out run is the archive
+# alarm (runs/README.md). The contracts place `end` just before the close-out so its commit carries
+# the line; this is the safety net for a call that comes later.
+if [ ! -d "$run_dir" ] && [ -d "$repo_root/$runs_archive_rel/$slug" ]; then run_dir="$repo_root/$runs_archive_rel/$slug"; fi
 mkdir -p "$run_dir"
 out="$run_dir/usage.md"
 stamp="$(date -u +%FT%TZ)"

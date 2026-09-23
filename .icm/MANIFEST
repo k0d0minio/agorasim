@@ -20,6 +20,10 @@
 # (the seven canonical run files `run-pack.sh` seeds into every run) are template-owned like the
 # contracts: no identity, read `project.json` at runtime. A `skills/*/scripts/*.sh` is executable
 # like `scripts/*.sh`; `scripts/lib/` stays sourced-only.
+#
+# A `T` file is changed in icm-board, never in a repo: a request to change one, made in a repo,
+# is a template change request — `_shared/template-change.md` (itself T) says how it is written,
+# parked and brought back. An in-repo edit is drift the next `--apply` overwrites.
 T MANIFEST
 T stages/01_scope/CONTEXT.md
 T stages/02_define/CONTEXT.md
@@ -38,6 +42,7 @@ T _shared/ci.md
 T _shared/stage-preamble.md
 T _shared/scope-template.md
 T _shared/conventions.md
+T _shared/template-change.md
 T _shared/run-pack/project.md
 T _shared/run-pack/plan.md
 T _shared/run-pack/tasks.md
