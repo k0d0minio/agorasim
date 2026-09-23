@@ -1,5 +1,7 @@
 {
-  "stubs": [],
+  "stubs": [
+    "admin-quote-builder"
+  ],
   "client_approved": false,
   "approved_by": "",
   "approved_on": "",
