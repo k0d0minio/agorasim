@@ -55,7 +55,17 @@ done
 
 run_dir="$repo_root/.icm/runs/$slug"
 spec="$run_dir/02_define/output/spec.md"
-[ -f "$spec" ] || die "no spec at $spec — Define must write spec.md first"
+
+# A LANE run has no spec: its whole label set is `type:<lane>` (bug, tweak, chore, hotfix,
+# handover — lib/project.sh → pipeline_lanes), written once by new-run.sh and re-projected here
+# only when asked (CI's labels job skips lane runs). Read the lane from run.md, and never die on
+# the missing spec for one.
+lane_of_run=""
+if [ -f "$run_dir/run.md" ]; then
+  lane_of_run="$(grep -m1 '^- lane:' "$run_dir/run.md" | sed -E 's/^- lane:[[:space:]]*//; s/[[:space:]]+#.*$//; s/[[:space:]]*$//' || true)"
+  [ "$lane_of_run" = "feature" ] || [ "$lane_of_run" = "front" ] && lane_of_run=""
+fi
+[ -f "$spec" ] || [ -n "$lane_of_run" ] || die "no spec at $spec — Define must write spec.md first (a lane run needs a '- lane:' line in run.md)"
 
 # --stage auto: derive the current stage from which run outputs exist on disk. Newest wins.
 # Release is marked by the `## Release` section Release appends to Build's notes.md (the stage
@@ -95,6 +105,18 @@ else
     | sed -E 's/^- pr:[[:space:]]*//; s/[[:space:]]+#.*$//' \
     | grep -oE '[0-9]+' | head -n1 || true)"
   [ -n "$pr_number" ] || die "could not read a PR number from $run_md ('- pr:' line)"
+fi
+
+# --- lane run: type:<lane> and nothing else -----------------------------------------------------------
+
+if [ -n "$lane_of_run" ]; then
+  is_lane "$lane_of_run" || die "run.md names lane '$lane_of_run', which is not one of: $(pipeline_lanes)"
+  payload="$(jq -n --arg l "type:$lane_of_run" '{labels: [$l]}')"
+  echo "Projecting labels onto PR #$pr_number: type:$lane_of_run (lane run — no spec, no stage label)" >&2
+  resp="$(gh_api PUT "/repos/${repo}/issues/${pr_number}/labels" "$payload")" || exit 1
+  http="$(printf '%s' "$resp" | tail -n1)"
+  [ "$http" = "200" ] || die "label write returned HTTP $http (does 'type:$lane_of_run' exist? see .github/labels.yml)"
+  echo "RESULT: APPLIED"; exit 0
 fi
 
 # --- spec header → label set -----------------------------------------------------------------------

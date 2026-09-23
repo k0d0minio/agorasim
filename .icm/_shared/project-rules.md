@@ -6,17 +6,18 @@ factory scripts are **template-owned**: byte-identical in every pipeline repo in
 synced from `icm-board/_system/template/icm-pipeline/` by `icm-sync.sh`, and carrying no repo's
 identity. Everything specific to Agorasim lives in the project-owned files the sync never touches —
 `.icm/project.json` for the values a script reads, `_shared/knowledge-map.md` for the doc pages,
-`scripts/{format,lint,validate-knowledge-map,notify}.sh` for this repo's own hooks,
+`scripts/{format,lint,validate-knowledge-map,report}.sh` for this repo's own hooks,
 `runs/README.md`, and **this file** for the rules a stage reads. A contract that says "see
 `_shared/project-rules.md`" means: the answer is here, and it is ours. (Estate decision D20,
-2026-09-18; this repo adopted the profile the same day.)
+2026-09-18; this repo adopted the pipeline the same day and was brought up to the D31 template on
+2026-09-23 — `.icm/template-version` names the icm-board commit.)
 
 ## People and gates
 
 - **The operator** — Jamie: ticks **Spec approved** and **Ready to merge**, smoke-tests the
   preview by hand before the second tick, and merges every PR from GitHub — spine and lane alike.
-  Those two checkboxes are the only binding approvals in the system; the client's involvement
-  ends when the scope is settled at Scope.
+  Those two checkboxes are the only binding approvals in the pipeline; the client's involvement
+  is the scope (settled at Scope) and the UAT sign-off (below) — never a gate on a PR.
 - **Authors** — where a story or request comes from (`run.md` → `author/source:`): Diogo & Rita,
   the client — in person at the Friday meetings, by phone or WhatsApp, or through their own
   documents under `.icm/docs/` (the accepted proposal, the process guide, the commission
@@ -26,6 +27,25 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   Vocabulary: the site is bilingual PT/EN and the admin is Portuguese-only (register decision D4);
   the admin's one-word-per-thing glossary is `.icm/docs/admin-pt-inventory.md`; everything the
   pipeline writes is English.
+- **UAT sign-off** — declared 2026-09-23 (`uat` in `.icm/project.json`): the long-lived branch is
+  `uat` and the one fixed address is **https://uat.agorasim.jamienisbet.com** — a host on Jamie's
+  Vercel-managed `jamienisbet.com` zone, assigned to the `uat` branch in the `agorasim` project.
+  Not the branch alias, because the project's SSO protection covers every non-custom domain and
+  the client could not open it; not a host under `agorasim.pt`, because that zone's DNS is at the
+  client's registrar (amenworld) and a record there is theirs to make. Every run's PR — spine and
+  lane — targets `uat`; a hotfix and a docs-only knowledge PR still target `main`. What has merged
+  into `uat` since the last promotion is the batch (`.icm/uat/batch.json`, true on that branch).
+  Diogo & Rita test the batch at that address — on the **Preview** environment's variables, so the
+  sandbox Stripe keys and the preview database — and say yes the way the relationship works (the
+  Friday meeting, a call, WhatsApp). Jamie records it: `.icm/scripts/promote-uat.sh approve --by
+  "Diogo"` (or Rita), which opens the one promotion PR into `main`; Jamie merges it from GitHub
+  and runs `promote-uat.sh sync`. No script merges, and no message, PR comment or silence is ever
+  read as an approval (`.icm/uat/CONTEXT.md`). **One-time acts still owed** (`promote-uat.sh
+  init` lists them): push the branch once — `git push origin main:uat`; add the host to the
+  Vercel project's domains and assign it to branch `uat`; decide which data the client tests
+  against (the Preview environment's `DATABASE_URL`, unless a custom environment is attached to
+  the branch). Branch protection is unavailable on this plan (below), so `uat` is guarded exactly
+  as `main` is — by `ci-status.sh` `GREEN` and the merge button.
 - **The front pushes straight to `main`.** There is **no ruleset and no branch protection**: the
   repo is private on the GitHub free plan, where both are unavailable (the API answers 403). Anyone
   with write access pushes to `main`, and the merge settings allow merge, squash and rebase.
@@ -99,11 +119,37 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   formatter**, by choice, so there is nothing to wire and nothing that could re-drift a
   template-owned file on commit. Feedback before a push, never the verdict — CI's
   `Lint, typecheck, test, build` is the verdict (estate decision D21).
+- **The security gate** — `.icm/scripts/security-check.sh` runs before every commit in Build and
+  before every lane's push (template-owned; the one local check that is a gate). Not wired as a
+  git pre-commit hook — there is no Husky here, by choice — so the stages call it. gitleaks is
+  not installed on Jamie's machine; the built-in patterns are the floor. `security.audit_command`
+  is empty: the pnpm lockfile is audited automatically.
+- **The run's database** — `database.isolation: none` in `.icm/project.json` — **an open
+  decision for Jamie, not a stage's** (2026-09-23): the app runs on one Neon Postgres
+  (`DATABASE_URL`; Drizzle; schema `public`), previews share the Preview environment's database,
+  and a migration reaches production only through `db-migrate.yml` after a merge into `main`.
+  `schema` isolation — one `run_<slug>` schema per run on the database the variable names — is
+  the candidate for the day two runs carry migrations at once; until it is chosen `db-branch.sh`
+  answers SKIP and parallel migration work is serialised by hand.
+- **Migrations** — `migrations` in `.icm/project.json`: `web/drizzle`, generated by
+  `drizzle-kit generate` as `NNNN_<name>.sql` with `meta/_journal.json` as the order of record.
+  That is neither stamp form `check-migrations.sh` reads, so it answers SKIP ("no stamped SQL
+  migrations of this branch's own") and prints Drizzle's own ordering note; `out_of_order: false`
+  because Drizzle applies the journal in sequence, and two runs that both generated a migration
+  conflict in the journal at merge — resolved by regenerating on the merged tree, never by
+  hand-editing `idx`. Forward-only (`reversible: false`): a code revert must tolerate the newer
+  schema, and `rollback.sh` says so.
+- **Health endpoint** — `health_endpoint` in `.icm/project.json`: `https://agorasim.pt/`, the
+  home page, which answers 200 when production is up (`www.agorasim.pt` redirects to it; there
+  is no `/api/health`). `health-check.sh` reads it once after a promotion merge into `main`;
+  a run's merge into `uat` is not a production deploy and Release skips the read.
 - **Deploy project (Vercel)** — one: project `agorasim` (team Kodominio), status context
   `Vercel`, root directory `web/`. **Previews build on every push, draft or ready** — there is no
   ignore step and no draft suppression, so the contracts' "drafts build no previews" is stricter
   than what happens: a draft head's preview simply exists earlier, and nothing depends on its
-  absence. Production deploys from `main`. Environment scoping is the money rule: previews carry
+  absence. Production deploys from `main`; the `uat` branch deploys like any other branch and, once
+  the host is assigned to it, answers at https://uat.agorasim.jamienisbet.com (People and gates →
+  UAT sign-off). Environment scoping is the money rule: previews carry
   the **sandbox** Stripe keys; live keys, the connected account id, the live webhook secret and
   the live sender go into **Production only**, set by hand at go-live (`.icm/docs/launch-runbook.md`
   § Track G) — never a `sk_test_` key on the live domain, never a live key on a preview. The three
@@ -118,31 +164,65 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   commit their output rather than call `project-labels.sh` (Release excepted — it projects its
   own label at step 1). The job diffs `origin/$BASE_REF...$HEAD_SHA` — the PR's own files, never
   what `main` did in the meantime — and labels only a run whose `run.md` points at this PR. The
-  pipeline's labels do not exist on the repo yet: create them once from `.github/labels.yml`
-  (`gh label create`), or let the API create each on first apply.
+  pipeline's labels were created on GitHub from `.github/labels.yml` on 2026-09-23 (`gh label
+  create`, in the template-sync PR); a new entry in that file is created the same way, once.
 
-## Announcing
+## Reporting
 
-- **Post-merge notification** — `scripts/notify.sh` is **not wired**, by decision (Jamie,
-  2026-09-18): the client hears about a change from Jamie, by WhatsApp or in person, as for the
-  hundred PRs before the pipeline. The script stays the template's stub — it prints the one-line
-  summary Release hands it and exits 0 with `RESULT: SENT`; read that as *written, and told by
-  hand*. No CI workflow announces. The only alert channel is Sentry (`web/src/lib/observability.ts`,
-  server-side, #95), which reaches Jamie's inbox; nothing verifies the archive after the merge —
-  the close-out riding the PR is the whole guarantee.
+- **Kinds → channels** — `reporting` in `.icm/project.json`: `announce` → **github-release**
+  (the seeded default: a GitHub Release tagged `release/<date>-<slug>` on the merge SHA, the
+  summary as its name and body); `alert` → **none — the red CI job is the alert**, beside
+  Vercel's own deployment-failed email and Sentry (`web/src/lib/observability.ts`, server-side,
+  #95), all of which reach Jamie; `economics` → none (icm-board's `run-economics.sh` writes it
+  into the deal folder). Slack and email keep their variable *names* in `project.json` and are
+  mapped to no kind; `report.sh` prints SKIPPED for a mapped channel whose variable is unset.
+- **Who calls the hook** — `announce_from: session`. On a repo without UAT that is Release step
+  9; here every run merges into `uat`, Release records `announce: deferred to promotion`, and
+  `promote-uat.sh sync` calls `report.sh announce` once per promoted batch. The client still
+  hears about a change from Jamie, by WhatsApp or in person, as before — the Release is the
+  record, not the conversation. (`scripts/notify.sh`, the earlier unwired stub, was retired by
+  the 2026-09-23 sync; `report.sh` replaces it.)
 - **Changelog** — **none.** Release records `announce: none` or `announce: internal` in its
   `## Release` record and writes no page; the release-completeness step in `pipeline.yaml` reads
   the record for exactly that. What the team needs to know about a changed admin screen goes into
   the phone guide (web/docs/guia-telemovel.md) as a docs update in the same PR — a page kept
   current, not a changelog. Bug and tweak lanes likewise write no page.
+- **Workflows** — the reference `release.yaml` is **absent** on purpose (`announce_from` is
+  `session`; a workflow would announce twice) and the reference `labels.yaml` is **absent** too:
+  `.github/workflows/pipeline.yaml` already carries the same `Project run labels` job plus the
+  advisory checks (The factory, above), and `gates.yaml` is this repo's own addition.
 
 ## Capability skills the stages may call
 
-None. The contracts' fallbacks apply: Release and the knowledge lane edit `.icm/docs` pages as
-plain markdown under each page's own conventions (the runbook's human-checkbox rule — a session
-never ticks one; the data-protection register's processor table changes in the same PR as
-`web/src/content/privacy.ts`); Scope writes in the same register; there is no docs skill, no
-changelog skill and no router hook — `/pipeline` is explicit and the bare forms route through the
-skill's own description. The one repo-local script a stage may find useful outside the factory
-is `web/scripts/dns-snapshot.sh` (read-only, the runbook's zone diff); it is the go-live epic's,
-not a capability skill.
+- **Pipeline capability skills** — `.icm/skills/<name>/SKILL.md` (three-tier, loaded on a
+  trigger; `.icm/skills/README.md`; the session-start hook prints the registry, `list-skills.sh
+  --bare` on demand). Seeded and template-owned by the 2026-09-23 sync: `security-audit`,
+  `database-migration`, `preview-deploy`. This repo's own additions: none.
+- **Repo skills** — none. The contracts' fallbacks apply: Release and the knowledge lane edit
+  `.icm/docs` pages as plain markdown under each page's own conventions (the runbook's
+  human-checkbox rule — a session never ticks one; the data-protection register's processor
+  table changes in the same PR as `web/src/content/privacy.ts`); Scope writes in the same
+  register; there is no docs skill, no changelog skill and no router hook — `/pipeline` is
+  explicit and the bare forms route through the skill's own description. The one repo-local
+  script a stage may find useful outside the factory is `web/scripts/dns-snapshot.sh`
+  (read-only, the runbook's zone diff); it is the go-live epic's, not a capability skill.
+
+## Support
+
+- **Tier** — `support.tier: none` in `.icm/project.json`: the engagement is in delivery and no
+  after-handover line has been agreed yet — the handover lane records the one the deal settles
+  (`.icm/lanes/handover/CONTEXT.md`). There is no fail-safe page in `web/` today; Sentry is wired
+  server-side and its key is named `SENTRY_DSN` (`support.monitoring.sentry_dsn_env`), so moving
+  to `basic` needs the page and the tier line only.
+
+## Learned rules
+
+*The constraints earlier runs paid for, appended before each close-out by two writers with one
+shape: `.icm/scripts/retrospective.sh --apply` (at Release and at the end of every lane — one
+line per error class a run fixed and flagged with `- rule:` in its `error.log`, or fixed again
+after an earlier run already had, counted across the archive's `error.log`s) and
+`.icm/scripts/run-pack.sh --sync-rules` (called by `close-out.sh` — the `## Learned rules` a run
+wrote in its `FAILURE.md`: what no tool logged — a wrong assumption, a STOP, a skipped step).
+Each line carries the run it was learned in. Build and the lanes read this section before their
+first edit, with the same standing as the code rules. Edit or delete lines freely — this file is
+the repo's own, never synced — and delete a line that reads as a slip rather than a constraint.*
