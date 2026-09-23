@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import {
   bookingCheckoutSchema,
+  formValues,
+  quoteDraftSchema,
   quoteRequestSchema,
   setAvailabilitySchema,
 } from "@/lib/form-schemas";
@@ -324,5 +326,71 @@ describe("quoteRequestSchema", () => {
         null,
       );
     }
+  });
+});
+
+describe("quoteDraftSchema", () => {
+  const LEAD = "bbbbbbbb-2222-4222-8222-222222222222";
+
+  /** The builder's form as `FormData`, repeated line fields in row order. */
+  function form(lines: [string, string, string][], extra: Record<string, string> = {}) {
+    const data = new FormData();
+    data.set("leadId", LEAD);
+    data.set("eventDate", "2026-08-15");
+    data.set("venue", "Quinta do Hespanhol, Mafra");
+    data.set("depositPercent", "30");
+    for (const [label, quantity, unit] of lines) {
+      data.append("lineLabel", label);
+      data.append("lineQuantity", quantity);
+      data.append("lineUnit", unit);
+    }
+    for (const [key, value] of Object.entries(extra)) data.set(key, value);
+    return formValues(data);
+  }
+
+  it("parses the lines into cents, skipping the empty row the form always offers", () => {
+    const parsed = quoteDraftSchema.parse(
+      form([
+        ["Carro clássico com motorista", "2", "750"],
+        ["Deslocação Ericeira", "1", "120,50"],
+        ["", "1", ""],
+      ]),
+    );
+
+    expect(parsed.lineItems).toEqual([
+      { label: "Carro clássico com motorista", unitCents: 75_000, quantity: 2 },
+      { label: "Deslocação Ericeira", unitCents: 12_050, quantity: 1 },
+    ]);
+    expect(parsed).toMatchObject({ leadId: LEAD, quoteId: null, depositPercent: 30 });
+  });
+
+  it("names the row that is incomplete", () => {
+    const result = quoteDraftSchema.safeParse(
+      form([
+        ["Carro", "1", "750"],
+        ["", "1", "120"],
+      ]),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe("A linha 2 precisa de uma descrição.");
+  });
+
+  it("refuses a quote with no lines", () => {
+    const result = quoteDraftSchema.safeParse(form([["", "1", ""]]));
+
+    expect(result.error?.issues[0]?.message).toBe("Acrescente pelo menos uma linha ao orçamento.");
+  });
+
+  it("refuses a missing event day and a deposit outside 1–100", () => {
+    expect(
+      quoteDraftSchema.safeParse(form([["Carro", "1", "750"]], { eventDate: "" })).success,
+    ).toBe(false);
+    expect(
+      quoteDraftSchema.safeParse(form([["Carro", "1", "750"]], { depositPercent: "0" })).success,
+    ).toBe(false);
+    expect(
+      quoteDraftSchema.safeParse(form([["Carro", "1", "750"]], { depositPercent: "30.5" })).success,
+    ).toBe(false);
   });
 });

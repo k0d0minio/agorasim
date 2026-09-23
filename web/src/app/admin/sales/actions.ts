@@ -9,8 +9,25 @@ import { REFUND_CONFIRMATION } from "@/lib/admin-format";
 import { formatDay } from "@/lib/availability";
 import { moveBookingToDeparture } from "@/lib/booking-move";
 import { cancelAndRefundBooking } from "@/lib/booking-refund";
-import { cancelBookingSchema, formValues, moveBookingSchema } from "@/lib/form-schemas";
+import {
+  cancelBookingSchema,
+  formValues,
+  moveBookingSchema,
+  quoteDraftSchema,
+  quoteIdSchema,
+  resendQuoteSchema,
+} from "@/lib/form-schemas";
 import { formatPrice } from "@/lib/money";
+import {
+  createDraftForLead,
+  discardQuoteDraft,
+  resendQuote,
+  saveDraft,
+  sendQuote,
+  startNewVersion,
+  type DraftOutcome,
+  type SendOutcome,
+} from "@/lib/quote-builder";
 
 /**
  * Writes to a booking from the Sales board.
@@ -216,4 +233,182 @@ export async function moveBooking(
                 : "Essa partida não está à venda ou já está cheia. Escolha outra.",
       };
   }
+}
+
+// ---------------------------------------------------------------------------
+// The quote builder — a wedding or event lead's Orçamento card
+// ---------------------------------------------------------------------------
+
+/**
+ * What every quote action hands back to the card.
+ *
+ * The work is in `lib/quote-builder.ts`, arranged like the move above; these
+ * decide who may ask and turn an outcome into Rita's words. `requireAdmin()`
+ * for the reason moving a booking needs no more: quoting a wedding is the day
+ * job. No `revalidatePath` — the Sales detail is dynamic and the card calls
+ * `router.refresh()` on success (the note at the top of `app/admin/actions.ts`).
+ */
+export type QuoteActionState = {
+  ok?: boolean;
+  error?: string;
+  /** What happened, read back to the operator in their own words. */
+  message?: string;
+};
+
+/** A draft write's outcome, as a sentence. */
+function draftMessage(outcome: DraftOutcome, saved: string): QuoteActionState {
+  switch (outcome.status) {
+    case "saved":
+      return { ok: true, message: saved };
+    case "not-found":
+      return { error: "Esse pedido ou orçamento já não existe." };
+    case "not-quotable":
+      return { error: "Só se fazem orçamentos para casamentos e eventos com os dados do cliente." };
+    case "already-quoted":
+      // Also the second of two phones pressing "Criar" at once.
+      return { error: "Este pedido já tem um orçamento. Recarregue a página." };
+    case "not-editable":
+      return {
+        error: "Este orçamento já não é um rascunho — foi enviado ou descartado entretanto. Recarregue a página.",
+      };
+    case "invalid":
+      return {
+        error: outcome.problems.includes("zero-total")
+          ? "O total do orçamento tem de ser maior que zero."
+          : outcome.problems.includes("no-lines")
+            ? "Acrescente pelo menos uma linha ao orçamento."
+            : "O orçamento tem dados inválidos. Reveja as linhas e a data.",
+      };
+  }
+}
+
+/** "Criar orçamento" or "Guardar" — the builder's form, create or edit. */
+export async function saveQuoteDraft(
+  _prevState: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = quoteDraftSchema.safeParse(formValues(formData));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Reveja o orçamento." };
+  }
+
+  const { leadId, quoteId, ...input } = parsed.data;
+  const outcome = quoteId
+    ? await saveDraft({ quoteId, input, actorUserId: actor.id })
+    : await createDraftForLead({ leadId: leadId!, input, actorUserId: actor.id });
+
+  return draftMessage(outcome, quoteId ? "Rascunho guardado." : "Rascunho criado.");
+}
+
+/** "Descartar rascunho". */
+export async function discardQuote(
+  _prevState: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = quoteIdSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Pedido inválido." };
+
+  const discarded = await discardQuoteDraft({
+    quoteId: parsed.data.quoteId,
+    actorUserId: actor.id,
+  });
+  return discarded
+    ? { ok: true, message: "Rascunho descartado." }
+    : { error: "Este orçamento já não é um rascunho. Recarregue a página." };
+}
+
+/** "Nova versão" — a draft copied from the sent quote. */
+export async function newQuoteVersion(
+  _prevState: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = quoteIdSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Pedido inválido." };
+
+  const outcome = await startNewVersion({
+    quoteId: parsed.data.quoteId,
+    actorUserId: actor.id,
+  });
+  if (outcome.status === "not-editable") {
+    return {
+      error:
+        "Só se cria uma nova versão de um orçamento enviado e ainda por pagar, " +
+        "e só se não houver já um rascunho. Recarregue a página.",
+    };
+  }
+  return draftMessage(
+    outcome,
+    "Nova versão criada como rascunho. O orçamento enviado continua válido até enviar esta.",
+  );
+}
+
+/** A send's outcome, as a sentence — the quote, and then its email. */
+function sendMessage(outcome: SendOutcome, done: string): QuoteActionState {
+  switch (outcome.status) {
+    case "sent": {
+      const replaced = outcome.superseded > 0 ? " A versão anterior deixou de ser válida." : "";
+      if (outcome.email === "sent" || outcome.email === "duplicate") {
+        return { ok: true, message: `${done}${replaced}` };
+      }
+      // Precise, like the refund that failed after the cancellation: the quote
+      // *is* sent and the lead *has* moved; only the mail is outstanding.
+      return {
+        ok: true,
+        message:
+          `O orçamento ficou enviado, mas o email não saiu.${replaced} ` +
+          "Use «Reenviar» para mandar um novo link.",
+      };
+    }
+    case "not-found":
+      return { error: "Esse orçamento já não existe." };
+    case "not-quotable":
+      return { error: "Este pedido já não tem os dados do cliente — não é possível enviar." };
+    case "not-sendable":
+      // The second of two taps, or two phones: somebody already did this.
+      return { error: "Este orçamento já foi enviado entretanto. Recarregue a página." };
+    case "unconfigured":
+      return {
+        error: "O envio de orçamentos não está configurado neste ambiente (falta a chave dos links).",
+      };
+  }
+}
+
+/** "Enviar orçamento" — a draft goes to the couple. */
+export async function sendLeadQuote(
+  _prevState: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = quoteIdSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Pedido inválido." };
+
+  const outcome = await sendQuote({ quoteId: parsed.data.quoteId, actorUserId: actor.id });
+  return sendMessage(outcome, "Orçamento enviado ao cliente.");
+}
+
+/** "Reenviar" — the same quote behind a new link, emailed again. */
+export async function resendLeadQuote(
+  _prevState: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = resendQuoteSchema.safeParse(formValues(formData));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Pedido inválido." };
+  }
+
+  const outcome = await resendQuote({
+    quoteId: parsed.data.quoteId,
+    sentAt: parsed.data.sentAt,
+    actorUserId: actor.id,
+  });
+  return sendMessage(outcome, "Orçamento reenviado com um novo link. O link anterior deixou de funcionar.");
 }

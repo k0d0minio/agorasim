@@ -21,10 +21,19 @@ import { requestStatusMeta } from "@/lib/admin-format";
 import { bookingRef } from "@/lib/bookings";
 import { formatPrice } from "@/lib/money";
 import { refundableCents } from "@/lib/booking-refund";
-import { formatDay } from "@/lib/availability";
+import { formatDay, isDateKey } from "@/lib/availability";
 import { groupMoveTargets, listMoveTargets } from "@/lib/booking-move";
 import { listOpenDepartures, manualBookingPrefill } from "@/lib/manual-booking";
 import { bookingsForLead, bookingSummaries, enquiryRef, recordFromRequest } from "@/lib/sales";
+import { quoteEmailStates } from "@/lib/quote-builder";
+import {
+  canCopyAsNewVersion,
+  canStartQuote,
+  listQuotesForLead,
+  quoteRef,
+  wasSuperseded,
+  type QuoteWithPayments,
+} from "@/lib/quotes";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { CancelBookingDialog } from "@/components/admin/cancel-booking-dialog";
 import { MoveBookingDialog } from "@/components/admin/move-booking-dialog";
@@ -36,6 +45,7 @@ import {
 } from "@/components/admin/experience-icons";
 import { LeadEditForm, type CatalogueOption } from "@/components/admin/lead-edit-form";
 import { LeadManualBooking } from "@/components/admin/lead-manual-booking";
+import { LeadQuoteCard, type QuoteCardItem } from "@/components/admin/lead-quote-card";
 import { ArchiveLeadButton, LogContactButton } from "@/components/admin/lead-quick-actions";
 import { MarketingConsent, Received } from "@/components/admin/record-meta";
 import { RequestStatusSelect } from "@/components/admin/request-status-select";
@@ -71,14 +81,48 @@ export default async function AdminLeadPage({
   const [lead] = await db.select().from(tourRequests).where(eq(tourRequests.id, id)).limit(1);
   if (!lead) notFound();
 
-  const [catalogue, history, leadBookings, openDays] = await Promise.all([
+  const [catalogue, history, leadBookings, openDays, leadQuotes] = await Promise.all([
     listCatalogue(),
     listAuditForEntity("tour_request", lead.id),
     bookingsForLead(lead.id),
     // The "Registar reserva" picker: every departure still on sale between now
     // and the horizon, so a booking taken on the phone never needs the Calendar.
     listOpenDepartures(),
+    // Weddings and events only — a tour is sold, never quoted.
+    lead.kind === "tour"
+      ? Promise.resolve<QuoteWithPayments[]>([])
+      : listQuotesForLead(lead.id),
   ]);
+  const emailStates = await quoteEmailStates(
+    leadQuotes.filter((quote) => quote.status === "sent"),
+  );
+
+  /** The Orçamento card's rows — plain data, the days already in words. */
+  const quoteItems: QuoteCardItem[] = leadQuotes.map((quote) => ({
+    id: quote.id,
+    ref: quoteRef(quote.id),
+    status: quote.status,
+    superseded: wasSuperseded(quote, leadQuotes),
+    eventDate: quote.eventDate,
+    eventDateLabel: formatDay(quote.eventDate, "pt"),
+    venue: quote.venue,
+    lineItems: quote.lineItems,
+    totalCents: quote.totalCents,
+    currency: quote.currency,
+    depositPercent: quote.depositPercent,
+    updatedAt: quote.updatedAt.toISOString(),
+    sentAt: quote.sentAt?.toISOString() ?? null,
+    sentAtLabel: quote.sentAt ? formatDateTime(quote.sentAt) : null,
+    termsVersion: quote.termsVersion,
+    canNewVersion: canCopyAsNewVersion(quote, leadQuotes),
+    emailState: emailStates.get(quote.id) ?? null,
+    payments: quote.payments.map((payment) => ({
+      kind: payment.kind,
+      amountCents: payment.amountCents,
+      dueDateLabel: payment.dueDate ? formatDay(payment.dueDate, "pt") : null,
+      status: payment.status,
+    })),
+  }));
 
   /**
    * Where each paid booking could be moved to — the bad-weather reschedule's
@@ -354,6 +398,27 @@ export default async function AdminLeadPage({
             ) : null}
           </CardContent>
         </Card>
+
+        {/*
+          The quote, for the jobs that are quoted rather than sold — and only
+          while the person is still on file: an anonymised lead has nobody to
+          send an offer to.
+        */}
+        {isQuote && !lead.anonymisedAt ? (
+          <LeadQuoteCard
+            leadId={lead.id}
+            guestEmail={lead.email}
+            prefill={{
+              // The enquiry's date is free text ("finais de agosto"); only a
+              // real calendar day prefills the quote's.
+              eventDate:
+                lead.preferredDate && isDateKey(lead.preferredDate) ? lead.preferredDate : "",
+              venue: lead.venue ?? "",
+            }}
+            canStart={canStartQuote(leadQuotes)}
+            quotes={quoteItems}
+          />
+        ) : null}
 
         <LeadEditForm
           lead={{
