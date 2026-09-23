@@ -34,6 +34,8 @@ import "server-only";
 
 import Stripe from "stripe";
 
+import { captureAlert } from "@/lib/observability";
+
 /**
  * Pinned deliberately. Stripe's API is versioned per account, and an SDK that
  * follows whatever the dashboard is set to can change the shape of a webhook
@@ -43,9 +45,70 @@ const API_VERSION = "2026-07-29.dahlia";
 
 let client: Stripe | null = null;
 
-/** Whether this deployment can take a payment. */
+/**
+ * The one rule of the switch that nothing used to enforce: never a test key on
+ * the live domain, never a live key on a preview. The Production scope still
+ * holding the sandbox key after DNS lands would take "bookings" nobody pays
+ * for; a live key pasted into Preview would let every branch URL charge real
+ * cards. Both are one env-var slip on a busy night, so the key's mode is held
+ * against `VERCEL_ENV` here, before any session is created.
+ *
+ * Returns what is wrong in one line, or `null` when the key and the deployment
+ * agree. Local development and CI (`VERCEL_ENV` unset) are never a mismatch —
+ * a developer's test key on their own machine is the normal state. An unset key
+ * is not a mismatch either: that is the documented no-payments fallback, not a
+ * configuration error.
+ */
+export function keyModeMismatch(): string | null {
+  const key = process.env.STRIPE_SECRET_KEY?.trim();
+  if (!key) return null;
+
+  const env = process.env.VERCEL_ENV;
+  const live = key.startsWith("sk_live_");
+  if (env === "production" && !live) {
+    return "STRIPE_SECRET_KEY on the production deployment is not a live key";
+  }
+  if (env === "preview" && live) {
+    return "STRIPE_SECRET_KEY on a preview deployment is a live key";
+  }
+  return null;
+}
+
+/** So a mismatch reaches Sentry once per instance, not once per page view. */
+let mismatchReported = false;
+
+/**
+ * Say it where Jamie will see it within the minute: Sentry, and the
+ * deployment's own logs. The key itself is never in the message.
+ */
+function reportMismatch(reason: string): void {
+  if (mismatchReported) return;
+  mismatchReported = true;
+  console.error(`[stripe] refusing to take payments — ${reason}`);
+  captureAlert(`Stripe key mode contradicts the deployment: ${reason}`, {
+    area: "stripe",
+    level: "fatal",
+    tags: { deployment: process.env.VERCEL_ENV ?? "unknown" },
+  });
+}
+
+/**
+ * Whether this deployment can take a payment.
+ *
+ * A key whose mode contradicts the deployment answers `false`, exactly as no
+ * key does: every surface that asks this then takes its existing payments-off
+ * path — `/reservar` offers the enquiry form, the checkout action refuses, the
+ * webhook answers 503 — rather than half-selling on the wrong account.
+ */
 export function isStripeConfigured(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY?.trim());
+  if (!process.env.STRIPE_SECRET_KEY?.trim()) return false;
+
+  const mismatch = keyModeMismatch();
+  if (mismatch) {
+    reportMismatch(mismatch);
+    return false;
+  }
+  return true;
 }
 
 /** Whether this deployment can verify a webhook it is sent. */
@@ -58,6 +121,19 @@ export function isWebhookConfigured(): boolean {
  * asked {@link isStripeConfigured} first and offered something else.
  */
 export function stripe(): Stripe {
+  // Checked ahead of the cached client on purpose: a key that contradicts the
+  // deployment must not be reachable through a client made before anyone
+  // asked, and the check is a string prefix — cheaper than the question of
+  // whether it was worth skipping.
+  const mismatch = keyModeMismatch();
+  if (mismatch) {
+    reportMismatch(mismatch);
+    throw new Error(
+      `${mismatch} — payments are refused. Fix the deployment's environment; ` +
+        "never a sk_test_ key on the live domain, never a live key on a preview.",
+    );
+  }
+
   if (client) return client;
 
   const key = process.env.STRIPE_SECRET_KEY?.trim();

@@ -9,8 +9,10 @@ import { Section } from "@/components/section";
  *
  * The draft banner is not decoration: this copy has not been reviewed by anyone
  * qualified, and shipping unreviewed legal text without saying so would be the
- * one genuinely dishonest thing on the page. Remove the banner — and the
- * `TODO(legal)` lines it refers to — as part of sign-off, not before.
+ * one genuinely dishonest thing on the page. Remove the banner — and settle the
+ * `legalOpenItems` in `content/privacy.ts` it stands for — as part of sign-off,
+ * not before. The items themselves are never rendered: a guest reads the
+ * policy, not the engineer's notes on it.
  */
 export function PrivacyPolicy({ locale }: { locale: Locale }) {
   const c = privacyContent;

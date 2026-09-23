@@ -156,8 +156,14 @@ export default async function BookingPage({
           <h1 className="text-4xl font-semibold sm:text-5xl">{t(c.title, l)}</h1>
           <p className="mt-6 text-lg text-muted-foreground">{t(c.lead, l)}</p>
           {canCheckout ? null : (
+            /*
+             * Whichever of the three conditions failed, what is true for the
+             * guest is the same sentence: no online payment on this visit, the
+             * request still reaches the team. Never "being built" — after
+             * go-live that would be a false statement about money.
+             */
             <p className="mt-3 text-sm text-muted-foreground">
-              {t(tourRequestContent.note, l)}
+              {t(bookingContent.errors.paymentsOff, l)}
             </p>
           )}
         </div>

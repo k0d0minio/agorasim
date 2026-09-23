@@ -141,3 +141,98 @@ describe("onOwningAccount", () => {
     expect(run).toHaveBeenCalledOnce();
   });
 });
+
+/**
+ * The launch rule nothing used to enforce: never a `sk_test_` key on the live
+ * domain, never a live key on a preview. Each case reloads the module so the
+ * once-per-instance alert and the cached client start from nothing.
+ */
+describe("keyModeMismatch — the key's mode against the deployment", () => {
+  const load = async () => {
+    vi.resetModules();
+    const alert = vi.fn();
+    vi.doMock("@/lib/observability", () => ({ captureAlert: alert }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const mod = await import("./stripe");
+    return { ...mod, alert };
+  };
+
+  afterEach(() => {
+    vi.doUnmock("@/lib/observability");
+  });
+
+  it("refuses a test key on the production deployment", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    const { isStripeConfigured, keyModeMismatch, stripe, alert } = await load();
+
+    expect(keyModeMismatch()).toMatch(/production/);
+    expect(isStripeConfigured()).toBe(false);
+    expect(() => stripe()).toThrow(/production/);
+    // Once per instance, whichever surface asked first.
+    expect(alert).toHaveBeenCalledOnce();
+    expect(alert.mock.calls[0][1]).toMatchObject({ area: "stripe", level: "fatal" });
+  });
+
+  it("refuses a live key on a preview deployment", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_live_123");
+    const { isStripeConfigured, keyModeMismatch, stripe, alert } = await load();
+
+    expect(keyModeMismatch()).toMatch(/preview/);
+    expect(isStripeConfigured()).toBe(false);
+    expect(() => stripe()).toThrow(/preview/);
+    expect(alert).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the key out of the message and the alert", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_secret_value");
+    const { stripe, alert } = await load();
+
+    let thrown: unknown;
+    try {
+      stripe();
+    } catch (err) {
+      thrown = err;
+    }
+    expect((thrown as Error).message).not.toContain("sk_test_secret_value");
+    expect(String(alert.mock.calls[0][0])).not.toContain("sk_test_secret_value");
+  });
+
+  it("accepts a live key on production and a test key on a preview", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_live_123");
+    let mod = await load();
+    expect(mod.keyModeMismatch()).toBeNull();
+    expect(mod.isStripeConfigured()).toBe(true);
+    expect(mod.alert).not.toHaveBeenCalled();
+
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    mod = await load();
+    expect(mod.keyModeMismatch()).toBeNull();
+    expect(mod.isStripeConfigured()).toBe(true);
+    expect(mod.alert).not.toHaveBeenCalled();
+  });
+
+  it("leaves local development alone — no VERCEL_ENV, any key", async () => {
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_live_123");
+    const { isStripeConfigured, keyModeMismatch, alert } = await load();
+
+    expect(keyModeMismatch()).toBeNull();
+    expect(isStripeConfigured()).toBe(true);
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("is not a mismatch when there is no key — that is the documented fallback", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("STRIPE_SECRET_KEY", "");
+    const { isStripeConfigured, keyModeMismatch, alert } = await load();
+
+    expect(keyModeMismatch()).toBeNull();
+    expect(isStripeConfigured()).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
+  });
+});

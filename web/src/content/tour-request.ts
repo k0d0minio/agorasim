@@ -13,15 +13,9 @@ export const tourRequestContent = {
     en: "Tell us what you are looking for and we will take care of the rest. We reply by email or phone to arrange your outing through the Saloia region.",
   } as Localized,
 
-  /**
-   * Sets expectations on `/reservar`: the request is real and reaches the team,
-   * but the date is confirmed by a person — online payment is still being
-   * built. Remove this when checkout ships.
-   */
-  note: {
-    pt: "O pedido chega-nos de imediato e confirmamos a data consigo. O pagamento online está a ser construído.",
-    en: "Your request reaches us straight away and we confirm the date with you. Online payment is still being built.",
-  } as Localized,
+  // The line under the lead when this form stands in for checkout is
+  // `bookingContent.errors.paymentsOff` — one sentence for every reason
+  // payment is off, and never a claim that it is unbuilt.
 
   labels: {
     name: { pt: "Nome", en: "Name" } as Localized,
