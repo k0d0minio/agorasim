@@ -27,7 +27,11 @@ concurrency:
   group: neon-cleanup-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
-permissions: {}
+# `contents: read` and no more: the job's only GitHub act is checking out `.icm/project.json`. With
+# `permissions: {}` that checkout fails on a PRIVATE repo ("Repository not found"), so every PR
+# close failed and the preview branches piled up to Neon's branch cap (agorasim, 2026-09-23).
+permissions:
+  contents: read
 
 jobs:
   cleanup:

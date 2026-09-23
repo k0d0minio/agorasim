@@ -45,6 +45,9 @@
 - name: "type:promote"
   color: "5319e7"
   description: "Promotion — one PR per UAT batch into main, opened on the client's recorded sign-off"
+- name: "type:tickets"
+  color: "ededed"
+  description: "Ticket PR — .icm/intake (and a Scope front) only, merged at once into the ticket base branch (D38)"
 
 # --- Complexity — mirrors the spec header, and sets Release's code-review effort ------------------
 - name: "complexity:trivial"
