@@ -1,7 +1,8 @@
 {
   "stubs": [
     "vercel-build-migrates-previews",
-    "go-live-session-stubs"
+    "go-live-session-stubs",
+    "next-rce-advisories"
   ],
   "client_approved": false,
   "approved_by": "",
