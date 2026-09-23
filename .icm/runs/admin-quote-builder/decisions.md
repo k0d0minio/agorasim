@@ -24,3 +24,5 @@ Settled with the operator in Define, 2026-09-23 (run-local ids):
 - D-3 — The total is the sum of the line items (label × quantity × unit price); at least one line.
 - D-4 — The emailed link 404s until `quote-page-and-deposit-link` ships; accepted, no code guard, the stub may promote alone.
 - D-5 (Define's own) — "Reenviar" rotates the link and emails again, covering a failed send and a wrong address; `quote-sent` is logged per quote and per link, not per lead.
+- D-6 (Build, a spec gap) — `web/docs/guia-telemovel.md` and `web/docs/admin-mobile-design-spec.md` were deleted in `6cbf0d4` (2026-09-18); the spec's "phone guide describes the card" has no page. Not recreated (it would reverse an operator's deletion); parked as `intake/triage/knowledge-map-web-docs-deleted.md`. The design rules were read from `6cbf0d4^`.
+- D-7 (Build) — the per-send key of `quote-sent` is the quote's `sent_at` (column `message_log.quote_sent_at`), not the token digest: the log holds nothing derived from the credential.
