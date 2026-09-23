@@ -15,8 +15,10 @@ import type { Localized } from "@/i18n/config";
  * engineer to give the mechanisms something honest to point at. It is not legal
  * advice and it has not been reviewed by anyone qualified. Before this goes
  * live, a human with Portuguese/EU data-protection knowledge must read it and
- * sign it off, and every `TODO(legal)` below must be resolved. The specific open
- * questions are collected in `.icm/docs/data-protection.md`.
+ * sign it off, and every item in {@link legalOpenItems} must be resolved. The
+ * open questions are tracked in `.icm/docs/data-protection.md`; nothing in the
+ * rendered `sections` is a note to the engineer — a guest reads the policy, so
+ * the notes live in the never-rendered array at the foot of this file.
  *
  * Conventions follow the rest of `src/content/`: `Localized<T>` pairs, PT and EN
  * kept in step.
@@ -104,15 +106,13 @@ export const privacyContent = {
           "Respondemos ao seu pedido e preparamos a sua experiência com base em diligências pré-contratuais a seu pedido (artigo 6.º, n.º 1, alínea b) do RGPD). Sem estes dados não conseguimos contactá-lo nem organizar o passeio.",
           "Quando reserva e paga online, o tratamento dos dados da reserva e do pagamento — incluindo os emails de confirmação e de cancelamento — é necessário para a execução do contrato consigo (artigo 6.º, n.º 1, alínea b)).",
           "O envio de comunicações de marketing assenta exclusivamente no seu consentimento (artigo 6.º, n.º 1, alínea a)). É opcional, é dado numa caixa separada e não assinalada, e pode ser retirado a qualquer momento sem afetar o seu pedido.",
-          "TODO(legal): confirmar o fundamento indicado para o pedido de experiência e se existe algum tratamento adicional (por exemplo, obrigações fiscais associadas a reservas efetivamente realizadas) que deva ser descrito aqui.",
         ],
       },
       {
         heading: "Durante quanto tempo guardamos os dados",
         body: [
           "Pedidos que não se convertem numa reserva são anonimizados automaticamente ao fim do prazo de conservação definido — os dados que o identificam (nome, email, telefone e mensagem) são apagados e fica apenas informação estatística que não permite identificá-lo.",
-          "PROPOSTA, A CONFIRMAR: 24 meses a contar do último contacto. Este prazo ainda não foi decidido — ver a nota em .icm/docs/data-protection.md.",
-          "Dados associados a reservas efetivamente realizadas podem ter de ser conservados por prazos mais longos por obrigação legal (por exemplo, fiscal). TODO(legal): confirmar estes prazos.",
+          "Dados associados a reservas efetivamente realizadas podem ter de ser conservados por prazos mais longos por obrigação legal (por exemplo, fiscal).",
         ],
       },
       {
@@ -123,7 +123,6 @@ export const privacyContent = {
           "Resend — envio de emails transacionais: a confirmação e o cancelamento da reserva, a resposta ao seu pedido e a cópia que a equipa recebe. Os emails são processados na região europeia da Resend (eu-west, Irlanda). A Resend tem sede nos Estados Unidos; para qualquer tratamento pela empresa-mãe fora do Espaço Económico Europeu, o mecanismo de transferência aplicável são as cláusulas contratuais-tipo aprovadas pela Comissão Europeia.",
           "Usamos ainda a Sentry para monitorização de erros: quando algo falha nos nossos servidores, é-lhe enviado um relatório técnico — o erro, a operação em curso e metadados do pedido (endereço da página, método e cabeçalhos, sem cookies). Não coloca cookies, não corre nada no seu navegador e os endereços IP não são recolhidos.",
           "Não vendemos os seus dados nem os partilhamos para fins de marketing de terceiros.",
-          "TODO(legal): confirmar as regiões de alojamento da Vercel e da Neon, a entidade Stripe contratante (Stripe Payments Europe, Irlanda, para contas em Portugal) e, quando existam transferências para fora do Espaço Económico Europeu, o mecanismo aplicável (por exemplo, cláusulas contratuais-tipo).",
         ],
       },
       {
@@ -173,15 +172,13 @@ export const privacyContent = {
           "We answer your enquiry and prepare your experience on the basis of steps taken at your request prior to entering into a contract (GDPR Art. 6(1)(b)). Without this data we cannot reply to you or arrange the tour.",
           "When you book and pay online, processing the booking and payment data — including the confirmation and cancellation emails — is necessary to perform the contract with you (Art. 6(1)(b)).",
           "Marketing email is sent solely on the basis of your consent (Art. 6(1)(a)). It is optional, it is given via a separate, unticked box, and you can withdraw it at any time without affecting your enquiry.",
-          "TODO(legal): confirm the basis stated for the enquiry itself, and whether any further processing (for example tax obligations attached to bookings that actually happen) needs describing here.",
         ],
       },
       {
         heading: "How long we keep it",
         body: [
           "Enquiries that never turn into a booking are anonymised automatically once the retention period is reached — the data that identifies you (name, email, phone and message) is erased, leaving only statistical information that cannot identify you.",
-          "PROPOSED, NOT YET DECIDED: 24 months from the last contact. This period has not been signed off — see the note in .icm/docs/data-protection.md.",
-          "Data attached to bookings that actually took place may have to be kept longer to meet legal obligations (for example tax record-keeping). TODO(legal): confirm those periods.",
+          "Data attached to bookings that actually took place may have to be kept longer to meet legal obligations (for example tax record-keeping).",
         ],
       },
       {
@@ -192,7 +189,6 @@ export const privacyContent = {
           "Resend — transactional email: your booking confirmation and cancellation, the reply to your enquiry, and the copy the team receives. Emails are processed in Resend's European region (eu-west, Ireland). Resend is headquartered in the United States; for any processing by the parent company outside the European Economic Area, the transfer safeguard relied on is the standard contractual clauses approved by the European Commission.",
           "We also use Sentry for error monitoring: when something fails on our servers, a technical report is sent to it — the error, the operation under way and request metadata (page address, method and headers, without cookies). It sets no cookies, runs nothing in your browser, and IP addresses are not collected.",
           "We do not sell your data and we do not share it for third-party marketing.",
-          "TODO(legal): confirm the hosting regions for Vercel and Neon, the contracting Stripe entity (Stripe Payments Europe, Ireland, for Portuguese accounts) and, where any transfer outside the European Economic Area occurs, the safeguard relied on (for example standard contractual clauses).",
         ],
       },
       {
@@ -258,3 +254,20 @@ export const privacyContent = {
   },
 
 } as const;
+
+/**
+ * Open legal items — tracked here, never rendered, on the model of
+ * `terms.ts`. Each one gates the draft banner coming off; the register that
+ * owns them is `.icm/docs/data-protection.md`. Both locales, so a reviewer of
+ * either page sees the same list.
+ */
+export const legalOpenItems: readonly string[] = [
+  "TODO(legal): confirmar o fundamento indicado para o pedido de experiência e se existe algum tratamento adicional (por exemplo, obrigações fiscais associadas a reservas efetivamente realizadas) que deva ser descrito na secção «Porque tratamos os seus dados».",
+  "PROPOSTA, A CONFIRMAR: prazo de conservação de 24 meses a contar do último contacto para pedidos não convertidos — ainda não decidido pelo cliente (.icm/docs/data-protection.md).",
+  "TODO(legal): confirmar os prazos legais de conservação dos dados de reservas efetivamente realizadas (por exemplo, obrigações fiscais).",
+  "TODO(legal): confirmar as regiões de alojamento da Vercel e da Neon, a entidade Stripe contratante (Stripe Payments Europe, Irlanda, para contas em Portugal) e, quando existam transferências para fora do Espaço Económico Europeu, o mecanismo aplicável (por exemplo, cláusulas contratuais-tipo).",
+  "TODO(legal): confirm the basis stated for the enquiry itself, and whether any further processing (for example tax obligations attached to bookings that actually happen) needs describing under \"Why we process it\".",
+  "PROPOSED, NOT YET DECIDED: a 24-month retention period from the last contact for unconverted enquiries — not yet signed off by the client (.icm/docs/data-protection.md).",
+  "TODO(legal): confirm the statutory retention periods for data attached to bookings that took place (for example tax record-keeping).",
+  "TODO(legal): confirm the hosting regions for Vercel and Neon, the contracting Stripe entity (Stripe Payments Europe, Ireland, for Portuguese accounts) and, where any transfer outside the European Economic Area occurs, the safeguard relied on (for example standard contractual clauses).",
+];
