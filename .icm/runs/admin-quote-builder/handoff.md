@@ -15,6 +15,8 @@ stops, so nothing is carried in anyone's head.
 
 ## Blockers
 
+- Release was started on 2026-09-23 and stopped at step 2: **Ready to merge** unticked. Nothing else ran (no reviews, no merge of the base, no close-out).
+
 - The Ready to merge tick — Jamie's.
 - Acceptance criterion 10 is unticked on purpose: the phone guide it names was deleted in
   `6cbf0d4`. Release should read `decisions.md` D-6 and `intake/triage/knowledge-map-web-docs-deleted.md`.

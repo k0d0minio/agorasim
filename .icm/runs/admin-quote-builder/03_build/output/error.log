@@ -3,3 +3,7 @@ src/lib/quote-writes.test.ts(92,58): error TS2749: 'PgDialect' refers to a value
 src/lib/quote-writes.test.ts(92,37): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'SQL<unknown>'.
 - resolved: a class bound by a dynamic `await import()` is a value, not a type — the helper now casts the recorded WHERE clause to `SQL` imported as a type from `drizzle-orm`.
 - rule: `next build` type-checks the `*.test.ts` files too (the Vercel preview fails on a test-only type error before the CI job reports), so a test helper's types matter as much as the app's.
+
+## 2026-09-23T22:05:00Z session — release stopped at the gate: Ready to merge unticked
+PR #120 body: `- [ ] **Ready to merge**` on head 5a0a975
+- resolved: nothing to fix on the branch — Release waits for the operator's tick after the preview smoke, then `release admin-quote-builder` again.
