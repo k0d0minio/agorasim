@@ -376,6 +376,18 @@ describe("quoteDraftSchema", () => {
     expect(result.error?.issues[0]?.message).toBe("A linha 2 precisa de uma descrição.");
   });
 
+  it("refuses a price written with a thousands separator rather than misread it", () => {
+    // "1.500" is €1,500 to Rita and would be €1.50 to parseAmountInput.
+    const result = quoteDraftSchema.safeParse(form([["Carro clássico, 6 horas", "1", "1.500"]]));
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toContain("sem separador de milhares");
+    expect(
+      quoteDraftSchema.parse(form([["Carro clássico, 6 horas", "1", "1500,50"]])).lineItems[0]
+        ?.unitCents,
+    ).toBe(150_050);
+  });
+
   it("refuses a quote with no lines", () => {
     const result = quoteDraftSchema.safeParse(form([["", "1", ""]]));
 

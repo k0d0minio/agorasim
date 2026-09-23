@@ -692,9 +692,15 @@ function parseQuoteLines(
       });
       return [];
     }
-    const unitCents = parseAmountInput(unitText);
+    // Two decimals at most, unlike `parseAmountInput`'s three: in Portuguese
+    // "1.500" is fifteen hundred euros, and read as €1.50 it is a wedding
+    // quoted a thousand times too low. Refused, so Rita types "1500".
+    const unitCents = /[.,]\d{3}$/.test(unitText) ? null : parseAmountInput(unitText);
     if (unitCents === null) {
-      ctx.addIssue({ code: "custom", message: `Indique o preço da linha ${n}, em euros.` });
+      ctx.addIssue({
+        code: "custom",
+        message: `Indique o preço da linha ${n} em euros, sem separador de milhares (ex.: 1500 ou 1500,50).`,
+      });
       return [];
     }
     lines.push({ label: label.slice(0, 200), unitCents, quantity });

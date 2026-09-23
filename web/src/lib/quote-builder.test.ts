@@ -55,6 +55,10 @@ vi.mock("@/lib/quotes", async () => {
 const recordAuditOrWarn = vi.fn();
 vi.mock("@/lib/audit", () => ({ recordAuditOrWarn: (...args: unknown[]) => recordAuditOrWarn(...args) }));
 
+/** Whether the deployment can mail — flipped by the "unconfigured" cases. */
+let emailConfigured = true;
+vi.mock("@/lib/email", () => ({ isEmailConfigured: () => emailConfigured }));
+
 const sendLoggedEmail = vi.fn();
 vi.mock("@/lib/message-log", () => ({
   sendLoggedEmail: (...args: unknown[]) => sendLoggedEmail(...args),
@@ -132,6 +136,7 @@ function quote(overrides: Partial<Quote> = {}): QuoteWithPayments {
 
 beforeEach(() => {
   lead = weddingLead();
+  emailConfigured = true;
   for (const fn of Object.values(quotesMock)) fn.mockReset();
   recordAuditOrWarn.mockReset();
   sendLoggedEmail.mockReset();
@@ -425,6 +430,30 @@ describe("sendQuote — Enviar orçamento", () => {
     });
   });
 
+  it("refuses a new version once the couple paid a deposit on the live quote", async () => {
+    queueSend();
+    quotesMock.listQuotesForLead.mockResolvedValue([
+      quote({ id: "old", status: "deposit_paid", sentAt: NOW }),
+      quote(),
+    ]);
+
+    expect(await sendQuote({ quoteId: QUOTE_ID, actorUserId: OPERATOR_ID })).toEqual({
+      status: "already-paid",
+    });
+    expect(quotesMock.markQuoteSent).not.toHaveBeenCalled();
+    expect(sendLoggedEmail).not.toHaveBeenCalled();
+  });
+
+  it("refuses, and marks nothing sent, when the deployment cannot mail", async () => {
+    emailConfigured = false;
+    quotesMock.getQuote.mockResolvedValue(quote());
+
+    expect(await sendQuote({ quoteId: QUOTE_ID, actorUserId: OPERATOR_ID })).toEqual({
+      status: "unconfigured",
+    });
+    expect(quotesMock.markQuoteSent).not.toHaveBeenCalled();
+  });
+
   it("refuses without the link secret rather than sending an unopenable quote", async () => {
     vi.stubEnv("BOOKING_TOKEN_SECRET", "");
     quotesMock.getQuote.mockResolvedValue(quote());
@@ -462,6 +491,17 @@ describe("resendQuote — Reenviar", () => {
     expect(recordAuditOrWarn).toHaveBeenCalledWith(
       expect.objectContaining({ action: "quote.resent", entityId: LEAD_ID }),
     );
+  });
+
+  it("keeps the working link when the deployment cannot mail", async () => {
+    emailConfigured = false;
+    quotesMock.getQuote.mockResolvedValue(quote({ status: "sent", sentAt: SENT_AT }));
+
+    expect(
+      await resendQuote({ quoteId: QUOTE_ID, sentAt: SENT_AT, actorUserId: OPERATOR_ID }),
+    ).toEqual({ status: "unconfigured" });
+    // No rotation: the couple's current link still opens.
+    expect(quotesMock.markQuoteSent).not.toHaveBeenCalled();
   });
 
   it("does nothing when the quote was re-sent since — the second tap", async () => {

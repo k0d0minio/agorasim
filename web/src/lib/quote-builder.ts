@@ -32,6 +32,7 @@ import { TERMS_VERSION } from "@/content/terms";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { formatDay, type DateKey } from "@/lib/availability";
 import { guestQuoteSentEmail } from "@/lib/booking-emails";
+import { isEmailConfigured } from "@/lib/email";
 import { sendLoggedEmail, type LoggedSend } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import {
@@ -78,7 +79,19 @@ export type SendOutcome =
   | { status: "not-found" }
   | { status: "not-quotable" }
   | { status: "not-sendable" }
+  /** The lead already has a quote with money on it — the refunds path's, not a new offer's. */
+  | { status: "already-paid" }
   | { status: "unconfigured" };
+
+/**
+ * Whether this deployment can both mint a link and mail it. Asked before
+ * anything is written: a send that marks the quote sent — or a re-send that
+ * rotates the link — and then cannot mail it leaves the couple with no working
+ * link at all, which is worse than a refusal Rita can read.
+ */
+function isSendConfigured(): boolean {
+  return isQuoteTokenConfigured() && isEmailConfigured();
+}
 
 /** Only weddings and events are quoted; an anonymised person is not quoted. */
 function isQuotable(lead: Pick<TourRequest, "kind" | "anonymisedAt">): boolean {
@@ -262,7 +275,15 @@ export async function sendQuote(options: {
   const lead = await readLead(existing.tourRequestId);
   if (!lead) return { status: "not-found" };
   if (!isQuotable(lead)) return { status: "not-quotable" };
-  if (!isQuoteTokenConfigured()) return { status: "unconfigured" };
+  if (!isSendConfigured()) return { status: "unconfigured" };
+
+  // A new version replaces an offer nobody has paid on. If the couple paid a
+  // deposit on the sent quote after this draft was copied from it, sending the
+  // draft would put a second payable offer beside a live, part-paid one.
+  const siblings = await listQuotesForLead(lead.id);
+  if (siblings.some((sibling) => sibling.status === "deposit_paid" || sibling.status === "paid")) {
+    return { status: "already-paid" };
+  }
 
   const link = await issueQuoteToken();
   const quote = await markQuoteSent(quoteId, {
@@ -314,7 +335,7 @@ export async function resendQuote(options: {
   const lead = await readLead(existing.tourRequestId);
   if (!lead) return { status: "not-found" };
   if (!isQuotable(lead)) return { status: "not-quotable" };
-  if (!isQuoteTokenConfigured()) return { status: "unconfigured" };
+  if (!isSendConfigured()) return { status: "unconfigured" };
 
   const link = await issueQuoteToken();
   const quote = await markQuoteSent(quoteId, {

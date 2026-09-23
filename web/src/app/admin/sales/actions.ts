@@ -372,9 +372,16 @@ function sendMessage(outcome: SendOutcome, done: string): QuoteActionState {
     case "not-sendable":
       // The second of two taps, or two phones: somebody already did this.
       return { error: "Este orçamento já foi enviado entretanto. Recarregue a página." };
+    case "already-paid":
+      return {
+        error:
+          "Este pedido já tem um orçamento com o sinal pago — não é possível enviar outro. " +
+          "Descarte este rascunho.",
+      };
     case "unconfigured":
       return {
-        error: "O envio de orçamentos não está configurado neste ambiente (falta a chave dos links).",
+        error:
+          "O envio de orçamentos não está configurado neste ambiente (falta a chave dos links ou do email). Nada foi alterado.",
       };
   }
 }

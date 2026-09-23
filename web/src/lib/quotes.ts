@@ -59,6 +59,7 @@ import { BOOKING_CURRENCY } from "@/lib/money";
 import {
   BALANCE_DUE_DAYS_BEFORE,
   DEFAULT_DEPOSIT_PERCENT,
+  balanceDueKey,
   lineItemsTotal,
   splitTotal,
 } from "@/lib/quote-math";
@@ -110,9 +111,17 @@ export function shiftDays(key: DateKey, days: number): DateKey {
   return dateKey(new Date(date.getTime() + days * 86_400_000));
 }
 
-/** When the balance falls due for an event on this day: T−14. */
+/**
+ * When the balance falls due for an event on this day: T−14.
+ *
+ * Delegates to `balanceDueKey` in `lib/quote-math.ts`, which the builder's
+ * live preview uses in the browser — one computation, so the date Rita sees
+ * while typing is the date written to the instalment and emailed.
+ */
 export function balanceDueDate(eventDate: DateKey): DateKey {
-  return shiftDays(eventDate, -BALANCE_DUE_DAYS_BEFORE);
+  const due = balanceDueKey(eventDate);
+  if (!due) throw new Error(`balanceDueDate: ${eventDate} is not a YYYY-MM-DD date`);
+  return due;
 }
 
 /**

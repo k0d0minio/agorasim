@@ -256,3 +256,6 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
   `intake/triage/next-rce-advisories.md` ships; a lane whose diff touches no manifest parks nothing
   new, points at that stub in its `error.log` `- resolved:` line and re-runs the gate with
   `--no-audit` — never bumps a dependency inside an unrelated PR. (learned in go-live-session-stubs)
+
+<!-- Retrospective Learned Rule [2026-09-23] -->
+- `next build` type-checks the `*.test.ts` files too (the Vercel preview fails on a test-only type error before the CI job reports), so a test helper's types matter as much as the app's. (`TS2749`, seen 1× — admin-quote-builder; web/drizzle, web/src)
