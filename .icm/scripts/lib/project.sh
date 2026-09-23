@@ -51,13 +51,25 @@
 #                   `tool` flyway|prisma|drizzle|sql (default sql — what the out-of-order note is
 #                   phrased for); `out_of_order` true (the default — parallel runs merge in any
 #                   order; check-migrations.sh prints the tool's setting, `flyway.outOfOrder=true`).
-#   database        object {url_env, isolation, image, name} — the run-scoped database
-#                   db-branch.sh binds a run to. `url_env` is the NAME of the variable holding the
-#                   connection string (default DATABASE_URL; the value is never in this file);
-#                   `isolation` "none" (the default — no isolated database, the script says SKIP),
-#                   "schema" (one Postgres schema per run, `run_<slug>`, on the database the
-#                   variable names) or "container" (one local Postgres container per run,
-#                   `icm-db-<slug>`, from `image`, default postgres:16, database `name`, default app).
+#   database        object {url_env, isolation, image, name, provider, neon} — the run-scoped
+#                   database db-branch.sh binds a run to, and (D32) the provider the environments'
+#                   databases live on. `url_env` is the NAME of the variable holding the connection
+#                   string (default DATABASE_URL; the value is never in this file); `isolation`
+#                   "none" (the default — no isolated database, the script says SKIP), "schema"
+#                   (one Postgres schema per run, `run_<slug>`, on the database the variable names),
+#                   "container" (one local Postgres container per run, `icm-db-<slug>`, from
+#                   `image`, default postgres:16, database `name`, default app) or "neon" (one Neon
+#                   branch per run, `run/<slug>`, a child of the production branch with a 7-day
+#                   expiry — needs `provider: neon`, curl and the key; no psql, no docker).
+#                   `provider` "" (the default) or "neon"; `neon` {project_id — the Neon project
+#                   (not a secret; a Vercel-managed database shows it under Storage → Open in
+#                   Neon), api_key_env — the NAME of the variable holding a Neon API key (default
+#                   NEON_API_KEY), production_branch (default main — never written by a script),
+#                   previews "none" (default) | "vercel" (the Vercel integration creates
+#                   `preview/<git-branch>` per preview deployment and injects its variables; the
+#                   UAT git branch's database is then `preview/<uat.branch>`), uat_branch — an
+#                   explicit override of that name, normally empty}. lib/neon.sh, db-branch.sh,
+#                   db-env.sh, setup.sh, env-check.sh and the neon-cleanup workflow read it.
 #   security        object {audit_command} — security-check.sh's dependency audit for an
 #                   ecosystem it does not detect itself (npm/pnpm/yarn lockfiles are detected):
 #                   a shell command that exits non-zero on a high/critical finding, e.g.
@@ -107,6 +119,13 @@
 #                                         explicit `false` is false (jq's `//` would read it as absent).
 #   database_url_env · database_isolation · database_image · database_name
 #                                         the database block's scalars with their defaults.
+#   database_provider                     none | neon.
+#   neon_project_id · neon_api_key_env · neon_production_branch · neon_previews
+#                                         the neon block's scalars with their defaults ('' · NEON_API_KEY
+#                                         · main · none).
+#   neon_uat_branch                       the Neon branch behind the UAT git branch: neon.uat_branch
+#                                         when set, else `preview/<uat.branch>` when uat is declared
+#                                         and previews is vercel, else '' (no UAT database).
 #   security_audit_command                the audit override, or nothing.
 #   support_tier · support_failsafe · support_sentry_env
 #                                         the support block's scalars with their defaults.
@@ -222,10 +241,32 @@ migrations_out_of_order() {
 database_url_env()   { project_field '.database.url_env' 'DATABASE_URL'; }
 database_isolation() {
   local v; v="$(project_field '.database.isolation' 'none')"
-  case "$v" in schema|container) echo "$v" ;; *) echo none ;; esac
+  case "$v" in schema|container|neon) echo "$v" ;; *) echo none ;; esac
 }
 database_image()     { project_field '.database.image' 'postgres:16'; }
 database_name()      { project_field '.database.name' 'app'; }
+database_provider() {
+  local v; v="$(project_field '.database.provider' '')"
+  case "$v" in neon) echo neon ;; *) echo none ;; esac
+}
+
+# --- database: the Neon block (D32) ------------------------------------------------------------------
+# Names only: the project id (not a secret) and the NAME of the key's variable. The production
+# branch is read so no script ever has to guess it; nothing in the pipeline writes it.
+
+neon_project_id()        { project_field '.database.neon.project_id' ''; }
+neon_api_key_env()       { project_field '.database.neon.api_key_env' 'NEON_API_KEY'; }
+neon_production_branch() { project_field '.database.neon.production_branch' 'main'; }
+neon_previews() {
+  local v; v="$(project_field '.database.neon.previews' 'none')"
+  case "$v" in vercel) echo vercel ;; *) echo none ;; esac
+}
+neon_uat_branch() {
+  local v; v="$(project_field '.database.neon.uat_branch' '')"
+  if [ -n "$v" ]; then printf '%s' "$v"
+  elif uat_declared && [ "$(neon_previews)" = "vercel" ]; then printf 'preview/%s' "$(uat_branch)"
+  fi
+}
 
 # --- security ----------------------------------------------------------------------------------------
 

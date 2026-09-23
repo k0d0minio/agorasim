@@ -19,11 +19,12 @@
 #    2. Formatter  a formatter config that would touch T paths and no exclusion for them:
 #                  reported with the exact lines to add (D17/D19: per repo, by hand; never written).
 #    3. project.json  name, complexity, required_checks, personas, deploy, reporting, migrations
-#                  (stamp/tool/out_of_order), database (isolation), security, support,
-#                  health_endpoint, uat — missing or still at the stub's value is a line with
-#                  the question; a declared UAT environment is checked (url, batch.json, the
-#                  branch on origin) and `--fix` seeds the empty batch.json; undeclared is one
-#                  info line, never a gap.
+#                  (stamp/tool/out_of_order), database (isolation, provider — a Neon project is
+#                  read once when its key is in the shell: production branch, preview branching,
+#                  the UAT branch), security, support, health_endpoint, uat — missing or still at
+#                  the stub's value is a line with the question; a declared UAT environment is
+#                  checked (url, batch.json, the branch on origin) and `--fix` seeds the empty
+#                  batch.json; undeclared is one info line, never a gap.
 #    4. Environment   env-check.sh (route + binaries) and env.sh audit (names only).
 #    5. Tickets    validate-intake.sh over every live epic and triage/; triage-report.sh against
 #                  the cap; a loose TODO.md/BACKLOG.md at the root.
@@ -34,7 +35,9 @@
 #    8. Knowledge  validate-knowledge-map.sh.
 #    9. Reporting  kinds → channels; unset channel variables; announce_from vs the workflow.
 #   10. Workflows  the reference release.yaml / labels.yaml present, or declared absent in
-#                  _shared/project-rules.md; type:hotfix and type:handover in .github/labels.yml.
+#                  _shared/project-rules.md; neon-cleanup.yaml where a Neon project branches per
+#                  preview (`--fix` seeds it from --template); type:hotfix and type:handover (and
+#                  type:promote on a UAT repo) in .github/labels.yml.
 #   11. Support    tier none → nothing; micro → `micro: no support line`; basic|retainer → the
 #                  fail-safe page exists, the Sentry key is declared [production], alert maps to
 #                  a channel or project-rules.md records the red-job default.
@@ -218,9 +221,38 @@ if [ -f .icm/project.json ]; then
   else warn "reporting block absent — read as announce: [github-release], alert: none; add the block to change it"; fi
   if [ -n "$(migrations_paths)" ]; then ok "migrations: $(migrations_paths | paste -sd', ' -) · reversible: $(migrations_reversible) · stamp: $(migrations_stamp) · tool: $(migrations_tool) · out_of_order: $(migrations_out_of_order)"; else info "migrations.path empty — check-migrations.sh looks for tracked migrations/ folders; rollback.sh assumes forward-only (reversible: false); stamp: $(migrations_stamp), tool: $(migrations_tool)"; fi
   case "$(database_isolation)" in
-    none) warn "database.isolation: none — does this repo have a database? schema (one Postgres schema per run on \$$(database_url_env)) or container (one local Postgres per run) gives each run its own; none is right for a repo without one" ;;
+    none) warn "database.isolation: none — does this repo have a database? neon (one Neon branch per run — curl and the key named by database.neon.api_key_env, no psql), schema (one Postgres schema per run on \$$(database_url_env)) or container (one local Postgres per run) gives each run its own; none is right for a repo without one" ;;
+    neon) if [ "$(database_provider)" = neon ]; then ok "database: neon isolation — run/<slug> branches of $(neon_production_branch), via \$$(database_url_env)"; else fail "database.isolation is neon but database.provider is not — set provider: neon and database.neon.project_id"; fi ;;
     *)    ok "database: $(database_isolation) isolation via \$$(database_url_env)$( [ "$(database_isolation)" = container ] && echo " · $(database_image), db $(database_name)")" ;;
   esac
+  if [ "$(database_provider)" = neon ]; then
+    if [ -z "$(neon_project_id)" ]; then fail "database.provider is neon but database.neon.project_id is empty — the Neon project id (Neon Console → Settings; a Vercel-managed database: Storage → Open in Neon)"
+    else
+      ok "neon: project $(neon_project_id) · key \$$(neon_api_key_env) · production branch $(neon_production_branch) · previews $(neon_previews)$( [ -n "$(neon_uat_branch)" ] && echo " · UAT branch $(neon_uat_branch)")"
+      [ "$(neon_previews)" = none ] && [ -n "$(project_field .uat.branch)" ] && warn "neon.previews is none while a UAT environment is declared — the UAT branch then deploys on the Preview environment's variables (production's database unless you scoped them); previews: vercel gives it, and every preview, a branch of its own"
+      # shellcheck source=lib/neon.sh
+      if source "$here/lib/neon.sh" 2>/dev/null && neon_ready; then
+        nb="$(neon_branches 2>/dev/null)" || nb=""
+        if [ -z "$nb" ]; then warn "neon: project $(neon_project_id) could not be read via \$$(neon_api_key_env) — .icm/scripts/lib/neon.sh --check says why"
+        else
+          if printf '%s' "$nb" | jq -e --arg n "$(neon_production_branch)" '[.[] | select(.name == $n)] | length > 0' >/dev/null; then
+            ok "neon: production branch $(neon_production_branch) present, $(printf '%s' "$nb" | jq -r --arg n "$(neon_production_branch)" '[.[] | select(.name == $n)] | first | if .protected then "protected" else "not protected (db-env.sh init)" end')"
+          else fail "neon: no branch named $(neon_production_branch) in project $(neon_project_id) — database.neon.production_branch names it"; fi
+          if [ "$(neon_previews)" = vercel ]; then
+            np="$(printf '%s' "$nb" | jq '[.[] | select(.name | startswith("preview/"))] | length')"
+            if [ "$np" -gt 0 ]; then ok "neon: preview branching is live — $np preview/* branch(es)"
+            else warn "neon: no preview/* branch yet — is the Vercel integration's Preview branching enabled? (db-env.sh init lists the toggle); until it is, previews share the Preview environment's database"; fi
+          fi
+          if [ -n "$(neon_uat_branch)" ]; then
+            if printf '%s' "$nb" | jq -e --arg n "$(neon_uat_branch)" '[.[] | select(.name == $n)] | length > 0' >/dev/null; then ok "neon: UAT branch $(neon_uat_branch) present"
+            else info "neon: UAT branch $(neon_uat_branch) not created yet — the integration creates it on the UAT git branch's first deployment"; fi
+          fi
+        fi
+      else
+        info "neon: \$$(neon_api_key_env) unset in this shell (or curl missing) — names checked, branches not read; export it and re-run, or db-env.sh status"
+      fi
+    fi
+  fi
   [ -n "$(security_audit_command)" ] && ok "security.audit_command: $(security_audit_command)" || info "security.audit_command empty — security-check.sh audits npm/pnpm/yarn lockfiles it finds; set it for another ecosystem (pip-audit, cargo audit)"
   ok "support: tier $(support_tier)$( [ -n "$(support_failsafe)" ] && echo " · fail-safe $(support_failsafe)") · sentry via \$$(support_sentry_env)"
   if uat_declared; then
@@ -329,6 +361,12 @@ for wf in release labels; do
   elif grep -qiE "$wf(\.yaml|\.yml)?.*(absent|none|not (used|seeded)|no )" .icm/_shared/project-rules.md 2>/dev/null; then ok "$wf workflow declared absent in project-rules.md"
   else info "$wf workflow absent and project-rules.md does not say so — /setup seeds the reference one (announce_from: ci) or records the absence"; fi
 done
+if [ "$(database_provider)" = neon ] && [ "$(neon_previews)" = vercel ]; then
+  if [ -f .github/workflows/neon-cleanup.yaml ] || [ -f .github/workflows/neon-cleanup.yml ]; then ok "neon-cleanup workflow present (deletes preview/<branch> and run/<slug> when a PR closes)"
+  elif grep -qiE "neon-cleanup(\.yaml|\.yml)?.*(absent|none|not (used|seeded)|no )" .icm/_shared/project-rules.md 2>/dev/null; then ok "neon-cleanup workflow declared absent in project-rules.md"
+  elif [ "$FIX" -eq 1 ] && [ -n "$tmpl_dir" ] && [ -f "$tmpl_dir/github-pipeline/workflows/neon-cleanup.yaml" ]; then seed "$tmpl_dir/github-pipeline/workflows/neon-cleanup.yaml" .github/workflows/neon-cleanup.yaml
+  else warn "neon-cleanup workflow absent — the Vercel-managed integration keeps a preview branch until its deployment expires (months); setup.sh --fix --template <path> seeds the reference one, or record the absence in project-rules.md → Reporting → Workflows"; fi
+fi
 if [ -f .github/labels.yml ]; then
   lane_labels="type:hotfix type:handover"; uat_declared && lane_labels="$lane_labels type:promote"
   for l in $lane_labels; do grep -q "$l" .github/labels.yml && ok "$l in .github/labels.yml" || warn "$l missing from .github/labels.yml — add it (and create the label once in GitHub) before the lane's first PR"; done

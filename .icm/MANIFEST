@@ -49,6 +49,7 @@ T scripts/lib/gh.sh
 T scripts/lib/changed-files.sh
 T scripts/lib/project.sh
 T scripts/lib/vercel.sh
+T scripts/lib/neon.sh
 T scripts/lib/model-prices.json
 T scripts/resolve-run.sh
 T scripts/validate-spec.sh
@@ -74,6 +75,7 @@ T scripts/client-status.sh
 T scripts/promote-uat.sh
 T scripts/list-skills.sh
 T scripts/db-branch.sh
+T scripts/db-env.sh
 T scripts/security-check.sh
 T scripts/run-pack.sh
 T skills/README.md

@@ -18,9 +18,12 @@ gives the run a database of its own. Both headers are the specification.
 
 1. **Bind the run's database** — `db-branch.sh <slug> up` → `BOUND`, then
    `eval "$(.icm/scripts/db-branch.sh <slug> env)"` in the shell that will run the repo's
-   migration tool. `SKIP` means this repo declares no isolation (`.icm/project.json` →
-   `database.isolation`): then **run no migration locally** — the preview database and CI apply
-   it, and the spec's data-model change is verified there. Never point a session at production.
+   migration tool. On a Neon repo (`database.isolation: neon`) that is a branch of its own,
+   `run/<slug>`, a copy of production made now with a 7-day expiry — needs the key
+   `database.neon.api_key_env` names in the shell, nothing else. `SKIP` means this repo declares
+   no isolation (`.icm/project.json` → `database.isolation`), or the engine it names is out of
+   reach: then **run no migration locally** — the preview database and CI apply it, and the
+   spec's data-model change is verified there. Never point a session at production.
 2. **Name the file with the script, never by hand**:
    `check-migrations.sh --new "<what it does>" --apply` → `CREATED <path>`. The name carries a UTC
    millisecond stamp in the repo's declared form (`migrations.stamp`, default `millis`:
@@ -54,10 +57,21 @@ gives the run a database of its own. Both headers are the specification.
    forward-only migration in a merge with no rollback path is recorded in the `## Release`
    record's `- migrations:` line, not hidden.
 
+## Where a preview or UAT applies the migration
+
+On a Neon repo with `database.neon.previews: vercel`, every preview deployment — and the UAT
+branch's — has a database of its own (`preview/<git-branch>`, a child of production) and applies
+the branch's migrations **at build**, because the repo's build command runs the migrate step
+(`_shared/project-rules.md` → The factory → The environments' databases says so, or says it does
+not). A preview whose build does not migrate shows production's shape without this run's change;
+say so in the stop message rather than assuming the preview proved the migration.
+
 ## After the merge
 
-- `db-branch.sh <slug> down` releases the run's schema or container; `close-out.sh` archives
-  the run and its `- db:` pointer with it.
+- `db-branch.sh <slug> down` releases the run's schema, container or Neon branch; `close-out.sh`
+  archives the run and its `- db:` pointer with it. A `run/<slug>` branch a session forgot
+  expires on its own after 7 days, and the reference `neon-cleanup.yaml` deletes it when the PR
+  closes.
 
 ## References
 

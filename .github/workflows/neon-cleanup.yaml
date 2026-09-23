@@ -1,0 +1,92 @@
+name: Neon cleanup
+
+# The reference branch-cleanup workflow (decision D32) — seeded ONCE by /setup into a repo whose
+# `.icm/project.json` reads `database.provider: "neon"` with `database.neon.previews: "vercel"`,
+# never by the estate walk. The Vercel integration creates a Neon branch `preview/<git-branch>` for
+# every preview deployment and — on the Vercel-managed kind — deletes it only when the deployment
+# itself expires, which Vercel's retention policy can put months away
+# (https://neon.com/docs/guides/vercel-branch-cleanup). This job deletes that branch the moment the
+# PR closes, and the run's own `run/<slug>` branch beside it where db-branch.sh made one and the
+# session never ran `down`. It names nothing else: not production, and not the UAT branch — the
+# UAT git branch has no PR that closes, and a PR INTO it closes the head branch's copies only.
+#
+# The project id and the key's NAME come from `.icm/project.json` (one home per fact — the same
+# `database.neon` block every pipeline script reads); the key's VALUE is this repository's Actions
+# secret under that name (`printf '%s' "$KEY" | .icm/scripts/env.sh add NEON_API_KEY --ci --github
+# secret`). A missing secret fails the job — the red job is the alert, as everywhere. A branch that
+# does not exist is not a failure: a docs-only PR built no preview and made no branch.
+#
+# Same idiom as lib/neon.sh: curl reads its configuration from stdin so the key never appears in
+# argv, and every DELETE names a branch this job found under a pipeline shape (preview/*, run/*).
+
+on:
+  pull_request:
+    types: [closed]
+
+concurrency:
+  group: neon-cleanup-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    name: Delete the PR's Neon branches
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .icm/project.json
+          sparse-checkout-cone-mode: false
+
+      - name: Read the database block
+        id: cfg
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          f=.icm/project.json
+          {
+            echo "provider=$(jq -r '.database.provider // ""' "$f")"
+            echo "previews=$(jq -r '.database.neon.previews // ""' "$f")"
+            echo "project_id=$(jq -r '.database.neon.project_id // ""' "$f")"
+            echo "key_name=$(jq -r '.database.neon.api_key_env // "NEON_API_KEY"' "$f")"
+            echo "uat_branch=$(jq -r '.uat.branch // ""' "$f")"
+            echo "preview_branch=preview/${HEAD_REF}"
+            echo "run_branch=run/${HEAD_REF#claude/}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Delete preview/<branch> and run/<slug> when they exist
+        if: steps.cfg.outputs.provider == 'neon' && github.head_ref != steps.cfg.outputs.uat_branch
+        env:
+          NEON_API_KEY: ${{ secrets[steps.cfg.outputs.key_name] }}
+          KEY_NAME: ${{ steps.cfg.outputs.key_name }}
+          PROJECT_ID: ${{ steps.cfg.outputs.project_id }}
+          PREVIEWS: ${{ steps.cfg.outputs.previews }}
+          PREVIEW_BRANCH: ${{ steps.cfg.outputs.preview_branch }}
+          RUN_BRANCH: ${{ steps.cfg.outputs.run_branch }}
+        run: |
+          set -euo pipefail
+          [ -n "$PROJECT_ID" ] || { echo "::error::database.neon.project_id is empty in .icm/project.json"; exit 1; }
+          [ -n "$NEON_API_KEY" ] || { echo "::error::the secret $KEY_NAME is not set in this repository — printf '%s' \"\$KEY\" | .icm/scripts/env.sh add $KEY_NAME --ci --github secret"; exit 1; }
+          api() { # <METHOD> <path>
+            printf 'url = "https://console.neon.tech/api/v2%s"\nrequest = "%s"\nheader = "Authorization: Bearer %s"\nheader = "Accept: application/json"\nwrite-out = "\\n%%{http_code}"\nmax-time = 60\nsilent\nshow-error\n' \
+              "$2" "$1" "$NEON_API_KEY" | curl --config -
+          }
+          resp="$(api GET "/projects/$PROJECT_ID/branches")"
+          code="$(printf '%s' "$resp" | tail -n1)"
+          [ "$code" = "200" ] || { echo "::error::GET /projects/$PROJECT_ID/branches answered HTTP $code"; exit 1; }
+          branches="$(printf '%s' "$resp" | sed '$d')"
+          wanted=("$RUN_BRANCH")
+          [ "$PREVIEWS" = "vercel" ] && wanted+=("$PREVIEW_BRANCH")
+          deleted=0
+          for name in "${wanted[@]}"; do
+            case "$name" in preview/*|run/*) ;; *) echo "::error::refusing to delete '$name' — not a pipeline branch shape"; exit 1 ;; esac
+            id="$(printf '%s' "$branches" | jq -r --arg n "$name" '[.branches[] | select(.name == $n and (.default | not))] | first | .id // empty')"
+            if [ -z "$id" ]; then echo "$name: not in the project — nothing to delete"; continue; fi
+            resp="$(api DELETE "/projects/$PROJECT_ID/branches/$id")"
+            code="$(printf '%s' "$resp" | tail -n1)"
+            case "$code" in 2??) echo "deleted $name ($id)"; deleted=$((deleted + 1)) ;; *) echo "::error::DELETE $name ($id) answered HTTP $code"; exit 1 ;; esac
+          done
+          echo "Neon cleanup: $deleted branch(es) deleted for this PR" >> "$GITHUB_STEP_SUMMARY"

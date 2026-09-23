@@ -17,6 +17,14 @@
 #                         engine picks, bound to 127.0.0.1. Needs `docker` (or `podman`). The
 #                         password is generated at `up` and read back from the container at `env`;
 #                         it is never written anywhere in the repo.
+#   isolation: neon       one Neon BRANCH per run — `run/<slug>`, a copy-on-write child of the
+#                         project's production branch (`database.neon.production_branch`) with a
+#                         7-day expiry Neon enforces itself, created through lib/neon.sh with the
+#                         key `database.neon.api_key_env` names (decision D32). Needs `provider:
+#                         neon`, curl and jq — no psql, no docker. The branch's pooled connection
+#                         string is read back at `env` and never written anywhere in the repo. A
+#                         child of PRODUCTION, never of the UAT branch, so `db-env.sh reset-uat`
+#                         is never blocked by a run (uat/CONTEXT.md → The UAT database).
 #
 # Verbs:
 #   status  (default)  what this run is bound to and whether it exists right now.
@@ -37,7 +45,7 @@
 # tool does that, pointed at the run by `env`. Production is never a target: the variable it reads
 # is the development one the repo names.
 #
-# Usage: .icm/scripts/db-branch.sh <slug> [status|up|env|down]
+# Usage: .icm/scripts/db-branch.sh <slug> [status|up|env|down]   (isolation none|schema|container|neon)
 # Verdict (stdout, last line — stderr for `env`):
 #   RESULT: BOUND      exit 0  — the run's database exists (after `up`, or found by `status`)
 #   RESULT: ABSENT     exit 0  — `status`: nothing bound yet (run `up`)
@@ -81,8 +89,10 @@ dbname="$(database_name)"
 schema="run_$(printf '%s' "$slug" | tr '-' '_')"
 schema="${schema:0:63}"                                 # a Postgres identifier is at most 63 bytes
 container="icm-db-$slug"
+neon_branch_name="run/$slug"
 pointer_schema="- db: schema $schema (via \$$url_env)"
 pointer_container="- db: container $container ($image, database $dbname)"
+pointer_neon="- db: neon $neon_branch_name (via \$$url_env)"
 
 record_pointer() { # <line>
   [ -f "$run_md" ] || return 0
@@ -101,8 +111,47 @@ say "isolation:  $isolation  (.icm/project.json → database.isolation)"
 case "$isolation" in
   none)
     say "no isolated database is declared for this repo — migrations run against the shared development database, or not at all in a session"
-    say "(declare database.isolation as \"schema\" or \"container\" in .icm/project.json to bind one per run)"
+    say "(declare database.isolation as \"neon\", \"schema\" or \"container\" in .icm/project.json to bind one per run)"
     verdict SKIP ;;
+
+  neon)
+    # shellcheck source=lib/neon.sh
+    source "$(dirname "${BASH_SOURCE[0]}")/lib/neon.sh"
+    say "branch:     $neon_branch_name  in Neon project ${neon_project:-<undeclared>} (a child of $(neon_production_branch), 7-day expiry)"
+    neon_declared || { say "database.provider is not neon, or database.neon.project_id is empty — /setup declares it"; verdict SKIP; }
+    command -v curl >/dev/null 2>&1 || { say "curl not found — the neon engine needs it"; verdict SKIP; }
+    [ -n "$neon_key" ] || { say "\$$neon_key_name is unset in this environment — nothing can be read or created (export it; never in git)"; verdict SKIP; }
+    neon_load_branches || die "could not read Neon project $neon_project via \$$neon_key_name — .icm/scripts/lib/neon.sh --check says why"
+    bid="$(neon_branch_id "$neon_branch_name")"
+    case "$verb" in
+      status)
+        if [ -n "$bid" ]; then say "state:      present ($bid)"; verdict BOUND; else say "state:      absent — run: .icm/scripts/db-branch.sh $slug up"; verdict ABSENT; fi ;;
+      up)
+        if [ -z "$bid" ]; then
+          parent="$(neon_branch_id "$(neon_production_branch)")"
+          [ -n "$parent" ] || parent="$(neon_default_branch_id)"
+          [ -n "$parent" ] || die "no branch named $(neon_production_branch) in Neon project $neon_project (database.neon.production_branch)"
+          bid="$(neon_create_branch "$neon_branch_name" "$parent" "$(neon_now_plus_days 7)")"
+          [ -n "$bid" ] || die "Neon answered the create without a branch id"
+          neon_wait_ready "$bid" 90 || say "note: $neon_branch_name is still starting — the exports from \`env\` are correct; the first connection may wait a moment"
+        fi
+        record_pointer "$pointer_neon"
+        say "state:      present ($bid) — a copy of $(neon_production_branch) as of now, expiring in 7 days unless \`down\` comes first"
+        say "next:       eval \"\$(.icm/scripts/db-branch.sh $slug env)\"   then run the repo's migrations inside it"
+        verdict BOUND ;;
+      env)
+        [ -n "$bid" ] || { say "$neon_branch_name does not exist yet — run \`up\` first"; verdict SKIP; }
+        url="$(neon_connection_uri "$bid")"
+        [ -n "$url" ] || die "Neon answered without a connection string for $neon_branch_name"
+        printf 'export ICM_DB_NEON_BRANCH=%q\n' "$neon_branch_name"
+        printf 'export %s=%q\n' "$url_env" "$url"
+        printf 'export ICM_DB_URL_PRISMA=%q\n' "$url"
+        verdict ENV ;;
+      down)
+        if [ -n "$bid" ]; then neon_delete_branch "$bid" "$neon_branch_name"; say "state:      deleted ($bid)"; else say "state:      absent"; fi
+        remove_pointer
+        verdict RELEASED ;;
+    esac ;;
 
   schema)
     say "schema:     $schema  on the database named by \$$url_env"
