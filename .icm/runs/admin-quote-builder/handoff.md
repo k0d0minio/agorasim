@@ -6,17 +6,21 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Jamie reads `02_define/output/spec.md` (or PR #120) and ticks **Spec approved** on the PR.
-2. Then `build admin-quote-builder` — executor tier `opus` (complexity: complex). Follow
-   `plan.md` pass by pass; pass 1 is a migration, so load `.icm/skills/database-migration/SKILL.md`.
+1. Jamie smokes the preview — https://agorasim-git-claude-vigilant-babbage-bm0j8o-kodominio.vercel.app/admin
+   — on a **wedding or event** lead (a tour lead shows no card): create a draft (lines, live
+   total), edit, discard; create again and send to an address you own (the link 404s until stub 3,
+   D-4); Reenviar; Nova versão → send it and check the first shows Substituído; the Histórico rows.
+   The preview's own database (`preview/claude/vigilant-babbage-bm0j8o`) carries migration 0027.
+2. Tick **Ready to merge** on PR #120, then `release admin-quote-builder`.
 
 ## Blockers
 
-- The Spec approved tick — Jamie's.
+- The Ready to merge tick — Jamie's.
+- Acceptance criterion 10 is unticked on purpose: the phone guide it names was deleted in
+  `6cbf0d4`. Release should read `decisions.md` D-6 and `intake/triage/knowledge-map-web-docs-deleted.md`.
 
 ## Do not
 
-- Do not tick either gate box, and do not start Build before the tick.
-- Do not add a notes column, a `supersedes` column, a public `/orcamento` page or any Checkout
-  call — all out of scope (spec, `decisions.md` D-1…D-4).
-- Do not change the quote state machine's `sent → draft` rule.
+- Do not recreate `web/docs/` inside this run — that is the triage stub's decision.
+- Do not tick either gate box.
+- Do not build the `/orcamento/[token]` page here — stub 3.

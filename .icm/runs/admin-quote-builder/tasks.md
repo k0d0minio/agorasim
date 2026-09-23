@@ -25,4 +25,4 @@ step, so a resuming session can pick up the first unticked line.
 - [x] quote-sent email PT/EN (content/emails.ts, booking-emails.ts) — 496d65a
 - [x] form schema, server actions, Orçamento card, page mount — efbbf56
 - [x] triage stub for the deleted web/docs pages; build notes
-- [ ] cheap-tier GREEN → merge uat + main → ready flip → full GREEN
+- [x] cheap-tier GREEN → merge uat + main → ready flip → full GREEN (269b22b)
