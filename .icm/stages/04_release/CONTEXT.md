@@ -7,19 +7,36 @@ phase), and the operator has smoke-tested the post-flip previews by hand and tic
 merge** — that tick attests all manual/signed-in testing, so this stage never re-asks for it. Your
 job: confirm the factory agrees (CI green), run the review passes, park anything off-ticket, put
 the one announcement file (where the repo has a changelog) and the close-out on the branch, and
-squash-merge. **After the merge you are done** — the announcement belongs to the project's
-post-merge notification (`.icm/scripts/notify.sh`, which you hand the one-line summary and
-nothing more, or a CI workflow the repo owns — `_shared/project-rules.md` → Announcing), not to
-you.
+squash-merge. **After the merge**: one read of production (`deploy-status.sh`), one call to the
+repo's reporting hook (`report.sh announce` — unless the repo's `reporting.announce_from` is `ci`,
+in which case its release workflow calls it and you record `deferred to CI`), and you are done.
+What a channel is — a GitHub Release by default, Slack, email — is the repo's own
+(`.icm/project.json` → reporting; `_shared/project-rules.md` → Reporting), never yours.
+
+**Where the repo declares a UAT environment** (`.icm/project.json` → `uat`;
+`.icm/uat/CONTEXT.md`), the PR you merge targets the UAT branch, not `main`: the squash puts the
+run in front of the client at the one fixed UAT address, `close-out.sh` adds it to the batch, and
+production comes later — one promotion PR for the whole batch, opened by `promote-uat.sh approve`
+on the client's sign-off and merged by the operator. Everything in this stage is the same up to
+step 8; step 9 reads UAT instead of production and announces nothing (the promotion announces).
 
 **What may stop the merge — nothing else may:**
 
 1. A **blocking CI failure** (`RESULT: RED`, or a `PENDING` that will not settle).
 2. A **security-critical finding introduced by this diff** — an exploitable defect: auth bypass,
-   leaked secret, tenant-scoping hole.
-3. A **deploy-breaking config finding** — a new env var missing from wherever the repo declares
-   its environment or from Vercel, a migration without a working `down`, an index/migration
-   mismatch.
+   leaked secret, tenant-scoping hole. **Measured first** by `security-check.sh <slug> --branch
+   --audit` (step 4): a secret in what this branch added, or a high/critical advisory in the
+   repo's lockfile (the audit runs on every Release read, whether or not this branch touched the
+   dependency), is `BLOCKED n` with the redacted trace in `03_build/output/error.log`; the
+   review passes cover what a pattern cannot. The one waiver is the operator's: a pre-existing
+   advisory that cannot be bumped on this branch, recorded in the `## Release` record and
+   re-read with `--branch --no-audit`.
+3. A **deploy-breaking config finding** — measured, not eyeballed: `env.sh audit --changed`
+   reports `GAPS` (a key this branch added is missing from a surface it is scoped to); a
+   migration without a working `down` **in a repo that declares `migrations.reversible: true`**
+   (forward-only repos are exempt — a revert there is the hotfix lane's, prepared by
+   `rollback.sh`); an index/migration mismatch; a support tier of `basic` or `retainer` with no
+   fail-safe page or no Sentry key (`setup.sh` section 11 — report, never repair here).
 
 Every other finding — style, structure, "should be refactored", anything not this ticket's — is
 **parked as a stub in `.icm/intake/triage/`** (shape in `.icm/intake/CONTEXT.md`) and the merge
@@ -30,10 +47,14 @@ hold it.
 
 - `.icm/_shared/stage-preamble.md` — run it **first**: resolve the run or STOP.
 - `.icm/runs/<slug>/run.md` — branch + PR pointers.
+- `.icm/runs/<slug>/status.md` and `handoff.md` — where Build stopped (the canonical file pack);
+  `FAILURE.md` for what it learned, which the close-out copies into the repo's rules.
 - `.icm/runs/<slug>/02_define/output/spec.md` — acceptance criteria + `complexity:` (review
   effort) + `touches:` (conditional-pass triggers) + personas.
 - `.icm/runs/<slug>/03_build/output/notes.md` — what changed, known gaps; the `## Release`
   record is appended here.
+- `.icm/runs/<slug>/03_build/output/error.log` — what Build fixed on the way, entry by entry
+  (absent on a clean run); `retrospective.sh` reads it in step 7.
 - The branch diff (`git diff main...HEAD`) — what the reviews run against.
 - `.icm/_shared/github.md` — gate read, review comments, merge; **pipeline PRs are never
   subscribed to PR activity** (its PR-events rule) — CI is read via `ci-status.sh` only.
@@ -49,8 +70,11 @@ overruns on a one-line `Context budget:` note in the `## Release` record.
 
 ## Process
 
-1. **Run the shared preamble**, then confirm Build finished: `notes.md` exists and the PR is
-   open (not draft). An acceptance criterion Build already flagged as unmet → send back to
+1. **Run the shared preamble**, then the first act of every stage:
+   `.icm/scripts/usage-snapshot.sh <slug> release start` (one `- usage:` line in the run's
+   `usage.md`; `SKIP` is fine, never a stop). Read `status.md` and `handoff.md`; set `status.md`
+   to `phase: release`. Confirm Build finished: `notes.md` exists and the
+   PR is open (not draft). An acceptance criterion Build already flagged as unmet → send back to
    `/pipeline build <slug>`; don't release known-broken work. Then **project the stage label**:
 
    ```bash
@@ -86,6 +110,20 @@ overruns on a one-line `Context budget:` note in the `## Release` record.
    a licence to skip the settled-verdict read.
 
 4. **Run the review passes, then triage every finding by the rule.**
+   - **Readiness, measured first:** `.icm/scripts/env.sh audit --changed` → `RESULT: OK`. `GAPS`
+     is stop class 3 with the rows naming the fix (declare the key, add it where it is scoped —
+     the value is the operator's). A `support.tier` of `basic`/`retainer` with no fail-safe page
+     or Sentry key (`setup.sh` section 11) is the same class.
+   - **The gate, over the whole branch:** `.icm/scripts/security-check.sh <slug> --branch --audit`
+     → `RESULT: OK` — the deterministic input to stop class 2 (a leaked secret, a known-high
+     dependency this branch introduced), read before the diff is. `BLOCKED n` is stop class 2 with
+     the redacted trace in `error.log`: follow `.icm/skills/security-audit/SKILL.md` → On BLOCKED
+     and send back to Build. A `[WARN]` that gitleaks is absent goes in the record, not under it.
+     The audit runs on every Release read, whether or not this branch touched the dependency —
+     the repo ships what its lockfile pins. A pre-existing advisory that cannot be bumped on
+     this branch is the **operator's** call: a chore lane first, or their waiver — `audit
+     waived — <advisory>, <why>` in the record's `security` slot — and the re-read is
+     `security-check.sh <slug> --branch --no-audit`. The waiver is theirs, never yours.
    - **Code review — always, in-session.** Run **`/code-review`** at the spec's complexity
      (`trivial → low`, `standard → medium`, `complex → high`). There is no CI review job; this
      pass is the review.
@@ -117,22 +155,63 @@ overruns on a one-line `Context budget:` note in the `## Release` record.
    record `announce: none`.
 7. **Bring `main` in, then push the record — in two pushes, in this order.**
 
-   **(a) Merge `origin/main` into the run branch** — a merge commit, never a rebase:
+   **(a) Merge the base branch into the run branch** — a merge commit, never a rebase:
 
    ```bash
-   git fetch origin main && git merge --no-edit origin/main
+   git fetch origin && git merge --no-edit origin/main     # every repo
+   git merge --no-edit origin/<uat-branch>                  # UAT repos only — the branch this PR targets (.icm/uat/CONTEXT.md)
    ```
 
-   This is what lets the close-out's sibling-run check see runs archived on `main` since the
-   branch was cut — without it, an epic whose last sibling merged yesterday looks unfinished and
+   This is what lets the close-out's sibling-run check see runs archived on the base branch since
+   the branch was cut — without it, an epic whose last sibling merged yesterday looks unfinished and
    stays in `.icm/intake/`. Resolve conflicts if there are any; **a conflict inside
    `.icm/runs/<slug>/` itself is a STOP** — someone else wrote to this run, and you do not guess
    which record is true.
 
-   **(b) Append the `## Release` record to `notes.md`** (template below), commit it **with the
-   docs edits and the changelog page**, and push. This push is the one the Pipeline workflow's
-   release-completeness step reads — it sees `notes.md` at its `.icm/runs/` path, with the
-   record in it, next to the docs and changelog files it checks for.
+   **Then check the migration order, every time `main` was merged in** — runs are built in
+   parallel, and a sibling that merged first can leave this run's migrations stamped *before*
+   `main`'s newest, which no diff shows and no merge conflict catches:
+
+   ```bash
+   .icm/scripts/check-migrations.sh
+   ```
+
+   `RESULT: OK` or `SKIP` → carry on. `RESULT: STALE <n>` (or `MISNAMED <n>` — a migration not in
+   the repo's declared stamp form, `migrations.stamp`) → this is the deploy-breaking class
+   (stop class 3) with a mechanical, in-ticket fix, so fix it here: re-run with `--apply`, read
+   the renames it lists (and anything it says "also mentions" an old stamp — that file is yours
+   to correct), and commit them on the branch as their own commit
+   (`fix: <slug> — re-stamp migrations after main`). A rename is code — that push takes the full
+   CI path. If the repo keeps a persistent preview database that already applied the old stamps,
+   reset it the way the repo says (`_shared/project-rules.md` → The factory) before trusting a
+   preview again — and the run's own database, where `db-branch.sh` bound one, is dropped and
+   re-made (`down`, then `up`; the `database-migration` skill). The script renames and never
+   commits; it never touches a migration `main` already has.
+
+   **(b) Run the retrospective, then append the `## Release` record.** First, while the run
+   folder is still live:
+
+   ```bash
+   .icm/scripts/retrospective.sh <slug>
+   ```
+
+   It reads the run's `error.log` (what Build fixed, entry by entry — a `security-check.sh`
+   block among them) and the archive's, and names the error classes that earn a rule: one Build
+   flagged with `- rule:`, or one that recurred (`--min`, default 2, across this run and the
+   archived runs) and carries a `- resolved:` line. `RESULT: SKIP` (no `error.log` — a clean
+   run) or `NONE` → carry on. `CANDIDATES n` → read them: they are the session's own words from
+   the moment of the fix. Re-run with `--apply` to append them to `_shared/project-rules.md` →
+   Learned rules (it appends, never commits); a candidate that reads as a slip rather than a
+   constraint is deleted from the file before the commit — that edit is the editorial control,
+   and the PR is where the operator sees the rest. (`FAILURE.md`'s own `## Learned rules` — what
+   no tool logged — reach the same section through `close-out.sh` in step (c).) Then bring the
+   pack to its final state — `status.md` (`phase: release · step: done · ci: GREEN`),
+   `handoff.md` ("merged and archived; nothing to pick up"), `FAILURE.md` with any retrospective
+   this stage added — and **append the `## Release` record to `notes.md`** (template below) with
+   its `- learned:` line, commit it all **with the docs edits, the changelog page and the
+   appended rules**, and push. This push is the one the Pipeline workflow's release-completeness
+   step reads — it sees `notes.md` at its `.icm/runs/` path, with the record in it, next to the
+   docs and changelog files it checks for.
 
    **(c) Then close the run out, as its own commit and its own push:**
 
@@ -140,9 +219,13 @@ overruns on a one-line `Context budget:` note in the `## Release` record.
    .icm/scripts/close-out.sh <slug>
    ```
 
-   It `git mv`s `.icm/runs/<slug>/` into the runs archive (`runs_archive` in `.icm/project.json`;
+   It first copies the run's `FAILURE.md` → `## Learned rules` into `_shared/project-rules.md`
+   (`run-pack.sh --sync-rules`, appends only — the next run in this repo starts with them), then
+   `git mv`s `.icm/runs/<slug>/` into the runs archive (`runs_archive` in `.icm/project.json`;
    `.icm/runs/_done/` by default) — and the intake epic with it, if this stub was the last one it
-   had left unshipped — and commits that on the branch.
+   had left unshipped — and commits that on the branch. On a UAT repo it also appends the slug to
+   `.icm/uat/batch.json` in the same commit — the batch the client signs off as a whole
+   (`.icm/uat/CONTEXT.md`).
    `RESULT: CLOSED` → push. `RESULT: STOP` → read the reason and fix it; do not merge a run you
    could not close out. The move is the last thing written because the record it archives has to
    be complete first, and it travels alone so the push carries **only the move** — the rename
@@ -156,18 +239,58 @@ overruns on a one-line `Context budget:` note in the `## Release` record.
    `merge_method: "squash"`, attempted **once** (`_shared/github.md`). The squash carries the run
    record, docs, changelog **and the archive move** onto `main` — the merge is what publishes the
    close-out, which is why nothing has to run afterwards to finish the job.
-9. **Repoint, notify, report.** Update the PR body's spec link to its `blob/main/` form
-   (`update_pull_request`) — the only post-merge edit. Then hand the one-line summary of what
-   shipped (the changelog page's one-liner, where there is one) to the project's post-merge
-   notification — `.icm/scripts/notify.sh "<summary>"` — unless the record says
-   `announce: none`; what it does with it (a chat post, or nothing because a CI workflow the
-   repo owns announces on the merge) is the project's own (`_shared/project-rules.md` →
-   Announcing). **Do not wait or poll for that workflow** — it announces and, where the repo
-   wires it so, checks the archive landed; a failure reaches the project's alert channel
-   (→ Announcing), where it has one. Then tell the operator: what merged (SHA), what was parked
-   in triage (by stub name), and that the run is archived.
+9. **Repoint, read production once, announce, report.** Update the PR body's spec link to its
+   `blob/main/` form (`update_pull_request`) — the only post-merge edit. Then:
+
+   **(a) Production, once.** `.icm/scripts/deploy-status.sh --sha <merge-sha>` — it waits,
+   bounded, for the merge commit's production deployment(s) and prints the one line the record
+   takes: `- production: READY on <sha> — web dpl_… (prev dpl_…) · docs dpl_…`, or
+   `ERROR <project> — see the hotfix lane`, or `PENDING` after the bound, or
+   `not declared (no deploy block)`. An `ERROR` un-merges nothing and starts nothing: it is a
+   line in the record and the operator's call to open `/pipeline hotfix`. **On a UAT repo** the
+   PR merged into the UAT branch, so read that instead — `.icm/scripts/deploy-status.sh --sha
+   <merge-sha> --uat` — which prints `- uat: READY on <sha> — web dpl_… · <the fixed UAT
+   address>`; production is untouched and unread until the batch is promoted.
+
+   Then the application's own word, once: `.icm/scripts/health-check.sh --sha <merge-sha>` —
+   one GET per endpoint the repo declares (`health_endpoint` in `.icm/project.json`, or per
+   project under `deploy.projects[]`), expecting 200, three attempts with backoff. It prints the
+   one `- health:` line the stop message takes: `OK`, `SKIP — no health endpoint declared`, or
+   `FAIL <endpoint>` — on which it has already called `report.sh alert` (the repo's channels;
+   `SKIPPED` where none is mapped) and parked **one triage stub**
+   (`.icm/intake/triage/health-check-<date>-<sha>.md`, `lane: bug`, `complexity: high`) that it
+   did **not** commit. A `FAIL` un-merges nothing and starts nothing either: name the stub in
+   the report, and the operator opens `/pipeline hotfix` — or commits the stub for the bug lane
+   — with the recovery `rollback.sh` prepares. Never re-run it in a loop; one bounded read is
+   the whole of the pipeline's post-release health check. **On a UAT repo, skip it here** —
+   production did not change; `promote-uat.sh sync` names the read after the promotion.
+
+   **(b) Announce.** On a UAT repo, do not: record `announce: deferred to promotion` — the client
+   is told once, when the batch reaches production (`.icm/uat/CONTEXT.md`). Otherwise, unless the
+   record says `announce: none`: where `reporting.announce_from` is
+   `session` (the default), call the repo's hook —
+   `.icm/scripts/report.sh announce "<summary>" --slug <slug> --sha <merge-sha> --url <pr-url>
+   [--audience internal]` — the summary being the changelog page's one-liner where there is one,
+   else the PR's Summary line; it cuts the GitHub Release (idempotent by tag) and whatever else
+   the repo mapped, prints `SKIPPED <channel>: <VAR> unset` for a channel it could not reach,
+   and exits 0 always. Where `announce_from` is `ci`, do not call it — record
+   `announce: deferred to CI` and let the repo's release workflow make the same call. **Never
+   wait or poll for that workflow.**
+
+   **(c) The record is already merged — say it in the report instead.** The `- production:` and
+   `- health:` lines and the announce outcome go in your stop message (the record on `main`
+   cannot take a post-merge line without a second PR, and there is no second PR). Then tell the
+   operator: what merged (SHA), production's state and health, what announced where, what was
+   parked in triage (by stub name — the health stub, if one was written, is uncommitted and
+   waits for them), and that the run is archived — on a UAT repo, that it is now on the UAT
+   address and `promote-uat.sh status` shows the batch. Last act:
+   `.icm/scripts/usage-snapshot.sh <slug> release end`.
 
 ## Outputs
+
+**Run-scoped, without exception** (`.icm/_shared/stage-preamble.md` → Run-scoped isolation): Release has no folder of its own — its record is appended
+inside the run's folder, on the run's own branch `claude/<slug>`, and anything else it drafts
+while working goes under `.icm/runs/<slug>/` too, before the close-out moves the folder.
 
 Appended to `.icm/runs/<slug>/03_build/output/notes.md`:
 
@@ -176,10 +299,16 @@ Appended to `.icm/runs/<slug>/03_build/output/notes.md`:
 
 - gate: Ready to merge ticked — merge authorised
 - ci: GREEN on <sha> (ci-status.sh, after the last push)
-- reviews: code <effort> · security <run — result | n/a> · readiness <run — result | n/a>
+- reviews: code <effort> · security <security-check.sh --branch --audit: OK | BLOCKED → sent back | audit waived — <advisory>, <why> (the operator)> <+ /security-review — result | n/a> · readiness <env.sh audit --changed: OK | n/a>
 - parked: <triage stub filename(s) | none>
-- docs: <pages updated | no docs impact> · announce: <public | internal | none>
+- migrations: <ok | skip — none of this run's own | re-stamped <n> after main (check-migrations.sh --apply)>
+- learned: <n rule(s) appended to _shared/project-rules.md | none | skip — no error.log>
+- docs: <pages updated | no docs impact> · announce: <public | internal | none | deferred to CI | deferred to promotion>
 ```
+
+Plus `.icm/runs/<slug>/usage.md` gaining the `release start` and `release end` lines (the file
+travels with the archive). The post-merge `- production:` and `- health:` lines and the announce
+outcome are reported in the stop message (step 9c).
 
 Plus the changelog page, where the repo has one (unless `announce: none`), and any docs edits —
 all in the one PR.
@@ -191,6 +320,14 @@ all in the one PR.
 - The merge rested on a **settled `GREEN` from `ci-status.sh` on the exact head that merged** —
   established after your last push, never inherited, never read off a Vercel event or the
   `Vercel Preview Comments` check. Merged once; never on RED, never on PENDING.
+- `security-check.sh <slug> --branch --audit` read `OK` on the branch that merged; a `BLOCKED`
+  was never merged around. An audit waiver, where there is one, is in the record in the
+  operator's words, not yours.
+- `check-migrations.sh` read `OK` or `SKIP` on the head that merged — after the merge of `main`,
+  and after any re-stamp it asked for. A `STALE` was fixed on the branch, never merged past.
+- `retrospective.sh` ran on the live run folder **before** the close-out moved it; what it
+  appended is in the head that merged, and the record's `- learned:` line says how many. A rule
+  you judged a slip was deleted from the file, never left for the next run to obey.
 - The only holds you applied were the three stop classes. Every other finding is a triage stub
   (named in the record), not an unmerged PR and not a widened diff.
 - The conditional passes ran whenever `touches:`/the diff matched — "n/a" is recorded with the
@@ -204,6 +341,10 @@ all in the one PR.
   verification, where the repo has one, reports to the project's alert channel
   (`_shared/project-rules.md` → Announcing) — and once merged, nothing can carry the move into
   that PR. There is no recovery PR; the run's own PR is the only vehicle.
-- After the merge you touched nothing but the PR body's spec link and the one `notify.sh` call,
-  and left the announcing itself to the project's notification (`_shared/project-rules.md` →
-  Announcing).
+- After the merge you touched nothing but the PR body's spec link, made one read of production
+  — or of UAT, on a UAT repo — (`deploy-status.sh`), one health read (`health-check.sh` — its stub,
+  if it wrote one, left uncommitted and named in the report; skipped on a UAT repo until the
+  promotion) and one call to `report.sh announce` (or recorded `deferred to CI` / `deferred to
+  promotion`), and reverted nothing by your own decision — a revert is the hotfix lane's,
+  prepared by `rollback.sh` and merged by the operator.
+- Both usage lines are in `usage.md` — `release start` as the first act, `release end` as the last.

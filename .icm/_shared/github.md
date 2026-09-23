@@ -53,8 +53,9 @@ above):
   line), then `?head=<owner>:claude/<slug>`, then a head ending in `-<slug>`, then the same
   matches over the 200 most recently closed PRs. No search API — see Repository-scoped
   endpoints, above.
-- **`new-run.sh <slug> --summary "…" [--stub …] [--lane bug|tweak|chore]`** — open the run's PR +
-  write `run.md` (Define, and the fast lanes). **The only place a pipeline PR is opened or a run
+- **`new-run.sh <slug> --summary "…" [--stub …] [--lane bug|tweak|chore|hotfix|handover] [--ready]`** —
+  open the run's PR + write `run.md` (Define, and the lanes; a `hotfix` opens **ready**, every
+  other lane draft). **The only place a pipeline PR is opened or a run
   branch is named:** on `main`/detached it creates `claude/<slug>`; on any other branch it uses
   the current one (a harness-named branch is accepted and recorded in `run.md`). No other script,
   contract or hand-typed call creates a branch or a PR for a run. (The `knowledge` lane opens no
@@ -133,11 +134,13 @@ default, and never something a session opts into on its own behalf.
    archives — `runs_archive` / `intake_archive` in `.icm/project.json`, `.icm/runs/_done/` and
    `.icm/intake/_done/` by default — nothing else), and the squash-merge is what publishes it.
    **There is no second PR and no third regime** — the close-out is simply the last thing the
-   run's one PR carries. After the merge the project's post-merge notification —
-   `.icm/scripts/notify.sh`, or a CI workflow the repo owns (`_shared/project-rules.md` →
-   Announcing) — announces from the changelog page the merge brought in, and where the repo's
-   workflow also checks the archive actually landed, both are reads; either failing goes to the
-   project's alert channel (`_shared/project-rules.md` → Announcing), where it has one.
+   run's one PR carries. After the merge the repo's reporting hook announces —
+   `.icm/scripts/report.sh announce`, called by Release step 9 (`reporting.announce_from:
+   session`, the default) or by the repo's release workflow (`ci`); what a channel is — a GitHub
+   Release by default, Slack, email — is `.icm/project.json` → reporting
+   (`_shared/project-rules.md` → Reporting). A fault after the merge is `report.sh alert`, and
+   where `alert` maps to no channel the red CI job is the alert. Both are reads plus one send;
+   nothing watches.
 
    This is not the shape it started with. CI used to run `close-out.sh` after the merge and push a
    second commit straight to `main`, and that push can never land: `main`'s branch protection
@@ -153,8 +156,20 @@ default, and never something a session opts into on its own behalf.
    changelog page, which also says _this shipped_ and is also written on the branch before the
    merge.
 
+4. **The promotion — UAT repos only.** Where `.icm/project.json` declares `uat`, regimes 2 and 3
+   target the UAT branch instead of `main` (`new-run.sh` reads `pipeline_base_branch`; a hotfix
+   still targets `main`), the squash puts the run on the client's one fixed UAT address, and
+   `close-out.sh` appends the slug to `.icm/uat/batch.json`. Production is reached by one more
+   PR per batch: `promote-uat.sh approve --by "<who>"`, run on the client's sign-off — the
+   operator's act, never inferred — cuts `claude/promote-uat-<date>` from the UAT branch, brings
+   `origin/main` in, records the approval in `batch.json`, and opens a **ready** `type:promote`
+   lane PR into `main` through `new-run.sh`; the operator merges it from GitHub, and nothing
+   here merges. After the merge `promote-uat.sh sync` brings `main` back into the UAT branch and
+   resets the batch. `.icm/uat/CONTEXT.md` owns the rule.
+
 Fast-lane PRs (`--lane`) are a degenerate shape of regime 2, finished in **one invocation**: one
-PR — **opened draft, like the spine** (blind-until-ready) — whose body carries the Summary (with
+PR — **opened draft, like the spine** (blind-until-ready; the one exception is `hotfix`, which
+opens **ready** so an incident gets the full gate and the previews at once) — whose body carries the Summary (with
 a `- slug:` line, so `resolve-run.sh` finds it by body) and Steps to test, and **no gate
 checkboxes**. On a cheap-tier GREEN the lane finishes the run **while the PR is still draft** —
 the changelog page when the change is user-visible (bug/tweak; chores never; a repo with no
@@ -165,9 +180,11 @@ the lane still owes may come after it. That ordering is what an early lane run l
 while its lane was still working, and the archive move needed a sweep PR to carry it. **The merge
 is a human's, in the GitHub UI:** the operator smoke-tests the previews and presses squash-merge
 themselves — the merge button is the gate, nobody reads a checkbox, and the agent never calls
-`merge_pull_request` on a lane PR and is never re-invoked for one. After the merge the project's
-post-merge notification announces (if a changelog page rode along) and verifies the archive
-landed, as for the spine.
+`merge_pull_request` on a lane PR and is never re-invoked for one. After the merge the repo's
+reporting hook announces where the repo has wired a caller for lanes (its release workflow, or
+the operator by hand); the lane itself never calls it. **One live run per touched surface**: a
+lane or run that would edit a file another live run is editing waits or is sequenced
+(`stage-preamble.md` → Run-scoped isolation).
 
 **The PR is the run's GitHub home.** Its body and labels are one-way projections of the run's
 `spec.md` (spine) or `notes.md` summary (lanes). No issue is created — PRs carry no `Closes #`.
@@ -241,7 +258,10 @@ minutes between the record push and the merge. So Release's step 1 runs
 moment the stage starts. Lane PRs carry `type:<lane>` only and never move.
 
 - `stage:` exactly one of `define → build → release`.
-- `type:feature` on spine PRs · `type:{bug,tweak,chore}` on lane PRs.
+- `type:feature` on spine PRs · `type:{bug,tweak,chore,hotfix,handover,promote}` on lane PRs
+  (the vocabulary is `lib/project.sh` → `pipeline_lanes`; add `type:hotfix` and `type:handover`
+  to `.github/labels.yml` when adopting the lanes, and `type:promote` where a UAT environment
+  is declared).
 - `persona:<name>` (the repo's persona vocabulary, `.github/labels.yml`) and
   `complexity:{trivial,standard,complex}` from the spec header (spine only).
 
@@ -251,7 +271,8 @@ moment the stage starts. Lane PRs carry `type:<lane>` only and never move.
 .icm/scripts/new-run.sh <slug> --summary "<one plain sentence>" [--stub .icm/intake/<scope>/<feature>.md]
 ```
 
-Commits `.icm/runs/<slug>/` and pushes; opens the draft PR (`base: main`, title = spec title,
+Commits `.icm/runs/<slug>/` and pushes; opens the draft PR (`base:` the pipeline's base branch —
+`main`, or the UAT branch where the repo declares one, `.icm/uat/CONTEXT.md`; title = spec title,
 body = the template projected from `spec.md` by `project-body.sh`: Spec block, acceptance-criteria
 checklist mirrored unticked, both gate anchors, and the **link** to `spec.md` — never an embedded
 copy); writes/extends `run.md`; projects labels; `git mv`s a consumed stub into `_done/`. One PR
@@ -297,9 +318,10 @@ never a second PR.
    in-ticket fixes are commits on the same branch; everything else is a `intake/triage/` stub
    (`stages/04_release/CONTEXT.md` owns the rule). The code review itself is `/code-review`,
    in-session, at the spec's complexity — there is no CI review job.
-4. **Two pushes before the verdict, in this order** (stage 04, step 7): merge `origin/main`
-   into the branch (a merge commit, never a rebase — the close-out's sibling check must see what
-   `main` archived since the branch was cut), commit and push the `## Release` record with the
+4. **Two pushes before the verdict, in this order** (stage 04, step 7): merge `origin/main` —
+   and the UAT branch, where the PR targets one — into the branch (a merge commit, never a
+   rebase — the close-out's sibling check must see what the base branch archived since the
+   branch was cut), commit and push the `## Release` record with the
    docs and the changelog page, **then** run `close-out.sh <slug>` and push its commit on its
    own. The record push is the one the Pipeline workflow reads; the close-out push carries only
    the move.
@@ -316,8 +338,10 @@ never a second PR.
    `cancelled` run reads as a failure on a PR that is actually green. The script handles both.
 
 6. Post-merge: update the PR body's spec link to its `blob/main/` URL (`update_pull_request` —
-   the branch link dies with the squash-merge). That is the only post-merge act: the close-out
-   already rode in the PR, and the announcement is the project's post-merge notification —
-   `.icm/scripts/notify.sh`, or a CI workflow the repo owns (`_shared/project-rules.md` →
-   Announcing; regime 3). Don't wait for it. If such a workflow reports the run unarchived, that
-   is a fault in the Release that merged, not a chore for a sweep PR — read step 4 again.
+   the branch link dies with the squash-merge); read production once
+   (`.icm/scripts/deploy-status.sh --sha <merge-sha>` → the `- production:` line for the stop
+   message); announce through the repo's hook (`.icm/scripts/report.sh announce …`, or record
+   `deferred to CI` where `announce_from` is `ci`). Those are the only post-merge acts: the
+   close-out already rode in the PR. Don't wait for a workflow. A run found unarchived after
+   its merge is a fault in the Release that merged, not a chore for a sweep PR — read step 4
+   again.

@@ -31,6 +31,8 @@ Populate this exactly.
 - author/source: <the author | call with … | prototype | …>
 - personas: <from the repo's persona vocabulary — `personas` in .icm/project.json>
 - agreed: <YYYY-MM-DD — the day Scope settled it in session>
+- complexity: <low | medium | high | research — how hard the work is, judged once it is settled>
+- recommended-model: <sonnet | opus | fable — what `.icm/scripts/select-model.sh` prints for that complexity; write another only to overrule it>
 - stubs: <n> (.icm/intake/<slug>/)
 - canonical: this file, until Define writes spec.md
 
@@ -75,6 +77,41 @@ nothing is open.>
 - <the open point, and which stub it lands in>
 ```
 
+## Complexity and the model — two header lines, one helper
+
+`complexity` is a judgement about the **work**, made once the scope is settled, in four words:
+
+| complexity | what it means                                                        | model    |
+| ---------- | -------------------------------------------------------------------- | -------- |
+| `low`      | easy and well-trodden — a known pattern, one surface                 | `sonnet` |
+| `medium`   | ordinary feature work — several files, no new architecture           | `sonnet` |
+| `high`     | architecture — a new boundary, a data-model change, a risky rewrite  | `opus`   |
+| `research` | an investigation — the answer is not known yet (a spike, an audit)   | `fable`  |
+
+The mapping is not restated by hand: `.icm/scripts/select-model.sh <file>` reads the `complexity`
+line of a scope, a stub or a spec and prints the model, and `recommended-model` records what it
+printed — or the operator's different choice, which always wins. With `--stage <stage>` it also
+reads the **role**: Scope and Define are the *advisor* passes (tier 3 — `opus`, `fable` on
+research — the model that plans), Build, Release, the lanes and any subagent are the *executor*
+(tier 2 — `sonnet`, escalated to `opus` only by a `high`/`complex` line), and a formatting or
+lint fix is the *validator* (tier 1 — `haiku`, always). It is a **recommendation the
+operator reads when opening the session that will do the work**; the script starts nothing and no
+stage switches model by itself. The cut carries both lines onto every stub (`intake/CONTEXT.md` →
+Formats), where a stub may sharpen them: one `high` stub in a `medium` scope is normal.
+
+The helper also reads a front-matter block, for a source that arrives with one:
+
+```yaml
+---
+title: "Feature / Fix Title"
+complexity: "low" # options: "low", "medium", "high", "research"
+recommended_model: "sonnet" # sonnet | opus | fable
+---
+```
+
+The estate's own documents use the `- key: value` header above, because that is what every other
+script and the board already parse; both spellings of the model key are read.
+
 ## Writing rules
 
 - **The source is the body; the addendum is the agreement.** If you find yourself editing the
@@ -109,7 +146,9 @@ else.
 
 ## Verify
 
-- The header is present and complete: story, author/source, personas, agreed, stubs, canonical.
+- The header is present and complete: story, author/source, personas, agreed, complexity,
+  recommended-model, stubs, canonical — and `recommended-model` is what `select-model.sh` prints
+  for that complexity, unless the operator overruled it in session.
 - **`## The story` is `_source/story.md` as recorded.** Diff them; any difference is a bug.
 - All four addendum sections present, in order — a section that genuinely doesn't apply carries
   its one-line reason ("None").

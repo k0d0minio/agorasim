@@ -28,7 +28,55 @@ The guard below applies only to the adopting stages.
      real one. Tell the user to run `new` (the next intake stub, or `new <stub-name>`) — or to fix
      the slug — and stop. (The script itself never creates anything — it only reports `STOP`.)
 
-2. Load the stage contract (`.icm/stages/NN_*/CONTEXT.md`) and follow it.
+2. **Read where the last session stopped** — `.icm/runs/<slug>/status.md` (five lines: phase,
+   step, ci, blocked, updated), then `handoff.md` (next steps, blockers, do-nots). These are two
+   of the seven canonical files every run carries (`.icm/scripts/run-pack.sh` — `project.md`,
+   `plan.md`, `tasks.md`, `decisions.md`, `status.md`, `handoff.md`, `FAILURE.md`); a run
+   missing them is seeded with `run-pack.sh <slug> --init`, never written from memory. A
+   `blocked: yes` is a STOP until the named blocker is cleared.
+
+3. Load the stage contract (`.icm/stages/NN_*/CONTEXT.md`) and follow it. Every stage leaves
+   `status.md` and `handoff.md` true at its stop — the next session's first read.
+
+## Run-scoped isolation — the rule every stage and lane holds
+
+Several runs are in flight at once — different sessions, different machines, sometimes the same
+afternoon. What keeps them from writing over each other is not a lock and not a scheduler; it is
+that **a run only ever writes inside its own folder, on its own branch.** This is mandatory for
+every stage and every lane, including the two that never run the procedure above:
+
+1. **Working artifacts land in the run's own stage folder, and nowhere else.** Scope writes under
+   `.icm/runs/<slug>/01_scope/`, Define under `.icm/runs/<slug>/02_define/`, Build under
+   `.icm/runs/<slug>/03_build/` (Release appends its `## Release` record to Build's `notes.md` —
+   it has no folder of its own), a lane under `.icm/runs/<slug>/lane/`. `<slug>` is the stub's
+   slug: the stub, the run folder, the branch and the PR share the one name. A note, a draft, a
+   scratch list, an intermediate result — if a stage produced it while working, it goes there.
+   Never a shared file in `.icm/`, never the repo root, never another run's folder.
+2. **One run, one branch, one PR.** A spine or lane run is bound to `claude/<slug>` — created by
+   `new-run.sh` and by nothing else, which also accepts the branch a harness has already named
+   for the session and records it in `run.md` (`_shared/github.md`). A stage never commits a
+   run's work to another run's branch, and never to `main`.
+3. **One working tree per run.** Two runs are never worked in the same checkout at the same time:
+   a second run in flight gets its own clone, worktree or cloud session, on its own branch.
+   Switching one checkout back and forth between two live runs is how a run's uncommitted
+   artifacts end up in the other's commit.
+4. **The front is the one writer on `main`, and it is still run-scoped.** Scope has no branch and
+   no PR; it pushes to `main` exactly two folders that carry its slug —
+   `.icm/runs/<slug>/01_scope/` (with `run.md`) and `.icm/intake/<slug>/` — and touches nothing
+   else, so two fronts cannot collide unless they chose the same slug — which is why a slug
+   whose `.icm/runs/<slug>/` or `.icm/intake/<slug>/` already exists, live or archived, is not
+   free to pick.
+5. **What a run may write outside its folder is what its contract names**, and only that: the
+   code and docs the spec covers, the stub it consumes (`new-run.sh --stub`), a triage stub it
+   parks (its own new file), the changelog page, the archive move (`close-out.sh`) and, in that
+   same close-out commit, the learned rules it appends to `_shared/project-rules.md`
+   (`run-pack.sh --sync-rules` — append-only, so two runs closing out never rewrite each
+   other's lines). Each is a file this run alone creates, moves or appends to — never an edit to
+   a line another live run is writing.
+
+A conflict inside `.icm/runs/<slug>/` when `main` is merged in therefore means someone broke this
+rule, not that two runs legitimately met: **STOP** and ask, never pick a side
+(`stages/04_release/CONTEXT.md` step 7).
 
 The resolver reads a GitHub token (`GITHUB_TOKEN` or `GH_TOKEN`) from the environment for the PR
 lookup — and, optionally, `GITHUB_REPO` / `GITHUB_API_URL`. Its header documents the full signature,

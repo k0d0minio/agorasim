@@ -61,12 +61,14 @@ repo is in [`.icm/_shared/project-rules.md`](.icm/_shared/project-rules.md) and
 | **Scope**   | record the source, settle it with the operator in session → `scope.md` (`D-n` decisions) → cut the intake batch. No PR. |
 | **Define**  | stub → approvable `spec.md`; opens the run's one draft PR. Gate: **Spec approved**.                                    |
 | **Build**   | implement exactly the spec; CI green; flip the PR ready. Gate: **Ready to merge**, after Jamie smokes the preview.     |
-| **Release** | CI green on the full gate → review → docs → close-out on the branch → squash-merge. The merge ends the run.            |
+| **Release** | CI green on the full gate → review → docs → close-out on the branch → squash-merge into `uat`. The merge ends the run; production waits for the batch's promotion. |
 
 `/pipeline scope <input>` for anything new; `/pipeline new` for the next stub; `/pipeline bug |
 tweak | chore "<request>"` (or `<stub-name>` from `.icm/intake/triage/`) for the fast lanes;
-`/pipeline knowledge add|edit|remove "<what>"` to change a page under `.icm/docs/` outside a
-Release. The bare forms route the same without the slash. Every stage has a human gate at its
+`/pipeline hotfix "<what is wrong in production>"` when production is wrong now; `/pipeline
+knowledge add|edit|remove "<what>"` to change a page under `.icm/docs/` outside a Release;
+`/pipeline status` for the client's report; `/setup` to check the repo is complete, current and
+configured. The bare forms route the same without the slash. Every stage has a human gate at its
 boundary and the agent never crosses one on its own — and never ticks a box in
 `.icm/docs/launch-runbook.md` either: those are Jamie's, Diogo's and Rita's.
 
@@ -75,3 +77,13 @@ boundary and the agent never crosses one on its own — and never ticks a box in
 free plan), so `ci-status.sh` `GREEN` and the merge button are the whole discipline. CI is the
 source of truth: never run `build`, `lint`, `typecheck` or `test` locally — `.icm/scripts/lint.sh`
 gives changed-files feedback, nothing more.
+
+**Every run reaches UAT first; production is a promotion.** This repo declares a persistent
+client UAT environment (`uat` in `.icm/project.json`; the rule is `.icm/uat/CONTEXT.md`): run
+branches are cut from `uat`, and every PR — spine and lane alike — targets `uat`, not `main`
+(a hotfix and a docs-only knowledge PR still target `main`). What has merged into `uat` since
+the last promotion is the batch Diogo & Rita test at the one fixed address. When they say yes,
+Jamie records it — `/pipeline uat approve "<who>"` — merges the promotion PR it opens, and runs
+`/pipeline uat sync`. No agent infers an approval, no script merges, and `main` is what
+production deploys. Who signs off and how is in `.icm/_shared/project-rules.md` → People and
+gates.

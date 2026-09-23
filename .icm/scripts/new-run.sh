@@ -6,23 +6,37 @@
 #     Define writes spec.md and hands the one-line PR Summary in via --summary; this script commits
 #     the run + pushes, opens the DRAFT PR with a body projected from spec.md (project-body.sh —
 #     template headings + both gate anchors + acceptance criteria mirrored unticked; `revise <slug>`
-#     re-projects it with the same script), writes/extends run.md, projects the labels
-#     (project-labels.sh), and — if --stub was passed — git mv's the stub into _done/.
-#   • Lane (--lane bug|tweak|chore) — the fast-lane scaffold (.icm/lanes/*/CONTEXT.md). No spec
-#     required: opens a DRAFT PR whose body carries Summary (with a `- slug:` line, so
-#     resolve-run.sh finds lane PRs by body like spine ones — its branch-name fallback covers
-#     PRs without one) and Steps to test — and NO gate
-#     checkboxes: a lane PR is merged by a human from the GitHub UI, so the merge button is its
-#     gate. Labels it type:<lane> and writes run.md with a `lane:` line. Lanes open draft like the
-#     spine (blind-until-ready, deployment-economics stub 9): draft pushes run the cheap CI tier
-#     and build no previews; the lane flips ready when its fix is settled, which starts the full
-#     gate and the affected product-app previews.
+#     re-projects it with the same script), writes/extends run.md, seeds the run's canonical file
+#     pack (run-pack.sh --init: project/plan/tasks/decisions/status/handoff/FAILURE.md), projects
+#     the labels (project-labels.sh), and — if --stub was passed — git mv's the stub into _done/.
+#   • Lane (--lane bug|tweak|chore|hotfix|handover — the vocabulary is lib/project.sh's
+#     `pipeline_lanes`) — the fast-lane scaffold (.icm/lanes/*/CONTEXT.md). No spec required:
+#     opens a PR whose body carries Summary (with a `- slug:` line, so resolve-run.sh finds lane
+#     PRs by body like spine ones — its branch-name fallback covers PRs without one) and Steps to
+#     test — and NO gate checkboxes: a lane PR is merged by a human from the GitHub UI, so the
+#     merge button is its gate. Labels it type:<lane> and writes run.md with a `lane:` line.
+#     bug/tweak/chore/handover open DRAFT like the spine (blind-until-ready, deployment-economics
+#     stub 9): draft pushes run the cheap CI tier and build no previews; the lane flips ready when
+#     its fix is settled, which starts the full gate and the affected product-app previews.
+#     `hotfix` opens READY — an incident wants one full gate and the previews at once, and that
+#     first ready push's cost is accepted (agency brief §4.5). `--ready` forces it for any lane.
 #
 # The spine PR body mirrors .github/pull_request_template.md — the same sections in the same
 # order (Summary, the Spec table, Acceptance criteria, Steps to test, the Gates block), and the
 # gate anchors kept byte-identical because the pipeline parses them (see .icm/_shared/github.md).
 # The lane body carries neither anchor by design; the "missing gate:ready-to-merge anchor is
 # malformed" rule applies to spine PRs only.
+#
+# Before anything is created it reads this run's `- touches:` against every live run's spec and
+# prints `[WARN] overlaps <slug> on <path>` per shared surface (decision D26) — a warning for the
+# operator, never a refusal; the cut is where overlap is avoided, and Build merges main early.
+#
+# THE BASE BRANCH is the pipeline's, not the caller's: `main`, or the UAT branch where the repo
+# declares a persistent client UAT environment (`.icm/project.json` → uat.branch; lib/project.sh
+# → pipeline_base_branch; .icm/uat/CONTEXT.md). A hotfix targets `main` regardless — production
+# is wrong now. `--base` overrides either. When the base is the UAT branch this script also brings
+# origin/main into the run branch before anything is committed (the intake cut and any hotfix
+# land on main first), and warns when the branch was not cut from the UAT branch.
 #
 # --dry-run prints the PR body this call would open (the spine body straight from
 # project-body.sh, or the lane body) and creates NOTHING: no branch, no commit, no push, no PR,
@@ -45,8 +59,8 @@
 #
 # Usage:
 #   .icm/scripts/new-run.sh <slug> --summary "<one plain sentence>" \
-#       [--stub .icm/intake/<scope>/<feature>.md] [--steps "<steps to test>"] [--base main] \
-#       [--lane bug|tweak|chore] [--title "<PR title — lane mode, default: the slug>"] [--dry-run]
+#       [--stub .icm/intake/<scope>/<feature>.md] [--steps "<steps to test>"] [--base <branch>] \
+#       [--lane bug|tweak|chore|hotfix|handover] [--ready] [--title "<PR title — lane mode>"] [--dry-run]
 #
 #   With --lane, --stub may name a TRIAGE stub only (.icm/intake/triage/<name>.md — the parked
 #   off-ticket finding the lane is picking up); scope-epic stubs still go through Define.
@@ -54,7 +68,7 @@
 # Verdict (stdout, last line):
 #   RESULT: CREATED   exit 0  — run committed, PR opened + labelled, run.md written/extended,
 #                              stub consumed (if given). The PR URL is echoed above the verdict.
-#   (--dry-run: stdout is the body and nothing else — no verdict line — so it can be piped.)
+#   (--dry-run: stdout is the body and nothing else, so it can be piped; `RESULT: DRY-RUN` goes to stderr.)
 set -euo pipefail
 
 command -v curl >/dev/null || { echo "curl not found" >&2; exit 1; }
@@ -68,10 +82,11 @@ die() { echo "error: $*" >&2; exit 1; }
 
 # --- args ------------------------------------------------------------------------------------------
 
-slug=""; summary=""; stub=""; steps=""; base="main"; lane=""; title_flag=""; dry_run=0
+slug=""; summary=""; stub=""; steps=""; base=""; lane=""; title_flag=""; dry_run=0; ready_flag=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) dry_run=1; shift ;;
+    --ready)   ready_flag=1; shift ;;
     --summary) summary="${2:-}"; shift 2 ;;
     --stub)    stub="${2:-}"; shift 2 ;;
     --steps)   steps="${2:-}"; shift 2 ;;
@@ -82,9 +97,20 @@ while [ $# -gt 0 ]; do
     *)         [ -z "$slug" ] && slug="$1" || die "unexpected argument: $1"; shift ;;
   esac
 done
-[ -n "$slug" ]    || die "usage: new-run.sh <slug> --summary \"<one sentence>\" [--stub <path>] [--lane bug|tweak|chore] [--dry-run]"
+# shellcheck source=lib/project.sh
+source "$here/lib/project.sh"
+
+[ -n "$slug" ]    || die "usage: new-run.sh <slug> --summary \"<one sentence>\" [--stub <path>] [--lane $(pipeline_lanes | tr ' ' '|')] [--ready] [--dry-run]"
 [ -n "$summary" ] || die "--summary \"<one plain sentence>\" is required (the PR Summary — the one AI-authored line)"
-case "$lane" in ""|bug|tweak|chore) : ;; *) die "--lane must be bug|tweak|chore, got: $lane" ;; esac
+if [ -n "$lane" ] && ! is_lane "$lane"; then die "--lane must be one of: $(pipeline_lanes | tr ' ' '|'), got: $lane"; fi
+# A hotfix opens ready — the whole point of the lane is one full gate now (lib/project.sh → lanes).
+[ "$lane" = "hotfix" ] && ready_flag=1
+# The base branch: --base wins; else the pipeline's (main, or the UAT branch where one is
+# declared); a hotfix goes to main regardless — production is wrong now (lanes/hotfix/CONTEXT.md).
+if [ -z "$base" ]; then
+  base="$(pipeline_base_branch)"
+  [ "$lane" = "hotfix" ] && base="main"
+fi
 # A lane may consume a triage stub (the parking lane it exists to drain) — but never a scope-epic
 # stub, which must go through Define so the spec and the Spec-approved gate exist.
 if [ -n "$lane" ] && [ -n "$stub" ]; then
@@ -138,16 +164,45 @@ git_push() {
 # place in the pipeline that names or creates a run branch (see the header).
 
 branch="$(git_c rev-parse --abbrev-ref HEAD)"
-if [ "$branch" = "main" ] || [ "$branch" = "master" ] || [ "$branch" = "HEAD" ]; then
+if [ "$branch" = "main" ] || [ "$branch" = "master" ] || [ "$branch" = "HEAD" ] || [ "$branch" = "$base" ]; then
   branch="claude/$slug"
   if [ "$dry_run" -eq 1 ]; then
-    echo "on $base/detached — a real run would create run branch $branch (dry run: not created)" >&2
+    echo "on $(git_c rev-parse --abbrev-ref HEAD) — a real run would create run branch $branch from it, targeting $base (dry run: not created)" >&2
   else
-    echo "on $base/detached — creating run branch $branch" >&2
+    echo "on $(git_c rev-parse --abbrev-ref HEAD) — creating run branch $branch from it, targeting $base" >&2
     git_c checkout -b "$branch"
   fi
 else
   echo "on $branch — using it as the run branch (harness-named branches are accepted and recorded in run.md)" >&2
+fi
+
+# --- UAT repos: the run branch carries main (.icm/uat/CONTEXT.md) ----------------------------------------
+# Where the PR targets the UAT branch, the intake cut (Scope pushes to main) and any hotfix (its
+# lane merges into main) are on main and not yet on the UAT branch. Bring origin/main into this
+# run branch before anything is committed, so the stub the run consumes is here and the run's PR
+# carries main's newer commits into UAT. A conflict is the operator's — aborted and named, never
+# resolved by guesswork. Skipped on a dry run and when the base is main (nothing to bring in).
+if [ "$dry_run" -eq 0 ] && uat_declared && [ "$base" = "$(uat_branch)" ]; then
+  if GIT_TERMINAL_PROMPT=0 git_c fetch origin --quiet >/dev/null 2>&1; then
+    if git_c rev-parse --verify -q "origin/$base" >/dev/null 2>&1 && ! git_c merge-base --is-ancestor "origin/$base" HEAD 2>/dev/null; then
+      echo "[WARN] $branch does not contain origin/$base's tip — this run is not built on the current UAT batch; cut run branches from origin/$base (.icm/uat/CONTEXT.md)" >&2
+    fi
+    if git_c rev-parse --verify -q origin/main >/dev/null 2>&1 && ! git_c merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+      if git_c merge --no-edit origin/main >/dev/null 2>&1; then
+        echo "brought origin/main into $branch — the UAT branch was behind main (an intake cut or a hotfix travels with this run)" >&2
+      elif [ "$(git_c diff --name-only --diff-filter=U 2>/dev/null)" = ".icm/uat/batch.json" ] \
+           && git_c checkout --ours -- .icm/uat/batch.json >/dev/null 2>&1 && git_c add .icm/uat/batch.json && git_c commit -q --no-edit >/dev/null 2>&1; then
+        # The one file main and the UAT branch both write: main's copy is a promotion's snapshot,
+        # the UAT branch's is the live batch — keep the UAT branch's (promote-uat.sh does the same).
+        echo "brought origin/main into $branch — .icm/uat/batch.json kept from the UAT branch (main's copy is a promotion's snapshot)" >&2
+      else
+        git_c merge --abort >/dev/null 2>&1 || true
+        die "origin/main does not merge cleanly into $branch — bring main into the UAT branch first (.icm/scripts/promote-uat.sh sync; a conflict there is the operator's to resolve), then re-run"
+      fi
+    fi
+  else
+    echo "[WARN] git fetch origin failed — could not check whether main has moved past the UAT branch" >&2
+  fi
 fi
 
 # --- PR title + body -------------------------------------------------------------------------------
@@ -183,15 +238,52 @@ ${summary}
 ${steps}
 EOF
 )"
-  # Draft like the spine — the lane itself flips ready once its fix is settled (stub 9).
+  # Draft like the spine — the lane itself flips ready once its fix is settled (stub 9) —
+  # unless the lane is a hotfix or --ready was passed: then the PR opens ready.
   draft=true
+  [ "$ready_flag" -eq 0 ] || draft=false
+fi
+
+# --- overlap with a live run (D26): warn, never refuse ----------------------------------------------------
+# Runs are cut for disjoint surfaces. Read this run's `- touches:` (the spec's header on the spine,
+# the stub's Notes-for-Define guess in a lane) and every LIVE run's spec (`.icm/runs/*/02_define/
+# output/spec.md`, the archive excluded — the same set resolve-run.sh adopts from), and print one
+# [WARN] per shared path. A warning is information for the operator who cuts and merges; the
+# scaffold proceeds regardless, and --dry-run shows it too.
+
+touches_of() { # <file> → one path per line from its `- touches:` line
+  [ -f "$1" ] || return 0
+  grep -m1 -E '^-[[:space:]]*touches:' "$1" | sed -E 's/^-[[:space:]]*touches:[[:space:]]*//' \
+    | tr ',' '\n' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g; s/`//g' | grep -v '^$' || true
+}
+my_touches=""
+if [ -n "$spec" ]; then my_touches="$(touches_of "$spec")"
+elif [ -n "$stub" ]; then my_touches="$(touches_of "$stub"; [ -f "$stub" ] && grep -oE 'touches:[^\n]*' "$stub" | head -1 | sed -E 's/^touches:[[:space:]]*//' | tr ',' '\n' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g; s/`//g' | grep -v '^$' || true)"; fi
+if [ -n "$my_touches" ]; then
+  for other_spec in "$repo_root"/.icm/runs/*/02_define/output/spec.md; do
+    [ -f "$other_spec" ] || continue
+    other_slug="$(basename "$(dirname "$(dirname "$(dirname "$other_spec")")")")"
+    [ "$other_slug" = "$slug" ] && continue
+    while IFS= read -r mine; do
+      [ -n "$mine" ] || continue
+      while IFS= read -r theirs; do
+        [ -n "$theirs" ] || continue
+        # A shared path, or one that contains the other (apps/web vs apps/web/app/x).
+        case "$mine" in "$theirs"|"$theirs"/*) hit=1 ;; *) case "$theirs" in "$mine"/*) hit=1 ;; *) hit=0 ;; esac ;; esac
+        [ "$hit" -eq 1 ] && echo "[WARN] overlaps $other_slug on $mine — two live runs on one surface; sequence them, or merge $other_slug first (D26)" >&2
+      done <<< "$(touches_of "$other_spec")"
+    done <<< "$my_touches"
+  done
 fi
 
 # --- --dry-run: print the body, create nothing ------------------------------------------------------
 
 if [ "$dry_run" -eq 1 ]; then
-  echo "dry run — printing the ${lane:+$lane-lane }PR body for '$slug' (branch $branch, base $base); nothing created" >&2
+  label_note="type:feature"; [ -z "$lane" ] || label_note="type:$lane"
+  echo "dry run — printing the ${lane:+$lane-lane }PR body for '$slug' (branch $branch, base $base, $([ "$draft" = true ] && echo draft || echo READY), label $label_note); nothing created" >&2
   printf '%s\n' "$body"
+  # The verdict goes to stderr so stdout stays the body alone (pipeable, as the header promises).
+  echo "RESULT: DRY-RUN" >&2
   exit 0
 fi
 
@@ -256,10 +348,22 @@ if [ ! -f "$run_md" ]; then
     [ -n "$lane" ] && echo "- lane: $lane"
   } > "$run_md"
 fi
+# The stub this run was spun from — the pointer validate-decisions.sh and run-pack.sh follow to
+# the epic's scope (`intake/<epic>/<slug>.md`, without the `.icm/` prefix; it has just moved to
+# that epic's `_done/`, which both readers tolerate).
+[ -z "$stub" ] || grep -Eq '^- stub:' "$run_md" || echo "- stub: ${stub#./}" | sed 's#^- stub: \.icm/#- stub: #' >> "$run_md"
 grep -Eq '^- branch:' "$run_md" || echo "- branch: $branch" >> "$run_md"
 grep -Eq '^- pr:'     "$run_md" || echo "- pr: #$pr_number" >> "$run_md"
+# The canonical file pack (run-pack.sh header): seeded once, here, so every run has project.md,
+# plan.md, tasks.md, decisions.md, status.md, handoff.md and FAILURE.md from birth. Never
+# overwrites; a failure to seed is a warning, never a failed run.
+"$here/run-pack.sh" "$slug" --init >/dev/null 2>&1 \
+  || echo "WARNING: run-pack.sh could not seed the run's canonical files — run: .icm/scripts/run-pack.sh $slug --init" >&2
 git_c add ".icm/runs/$slug/run.md"
-git_c diff --cached --quiet || git_c commit -m "chore: $slug — run pointers (branch + PR)" >/dev/null
+for f in project.md plan.md tasks.md decisions.md status.md handoff.md FAILURE.md; do
+  [ -f "$run_dir/$f" ] && git_c add ".icm/runs/$slug/$f"
+done
+git_c diff --cached --quiet || git_c commit -m "chore: $slug — run pointers (branch + PR) and the canonical file pack" >/dev/null
 git_push "$branch"
 
 # --- labels ----------------------------------------------------------------------------------------
@@ -282,5 +386,5 @@ fi
 
 # --- verdict ---------------------------------------------------------------------------------------
 
-echo "run '$slug' created — branch: $branch, ${lane:+$lane lane }PR: $pr_url"
+echo "run '$slug' created — branch: $branch, ${lane:+$lane lane }PR: $pr_url ($([ "$draft" = true ] && echo draft || echo ready))"
 echo "RESULT: CREATED"

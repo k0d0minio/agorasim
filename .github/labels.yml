@@ -36,6 +36,15 @@
 - name: "type:chore"
   color: "cfd3d7"
   description: "Fast lane — refactor / dep bump / migration, no user-facing behaviour change"
+- name: "type:hotfix"
+  color: "b60205"
+  description: "Hotfix lane — production is wrong now; opens ready, targets main, bypasses UAT"
+- name: "type:handover"
+  color: "0e8a16"
+  description: "Handover lane — the deal's last run: the handover record, written once"
+- name: "type:promote"
+  color: "5319e7"
+  description: "Promotion — one PR per UAT batch into main, opened on the client's recorded sign-off"
 
 # --- Complexity — mirrors the spec header, and sets Release's code-review effort ------------------
 - name: "complexity:trivial"

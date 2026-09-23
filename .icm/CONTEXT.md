@@ -15,13 +15,15 @@ factory scripts are **template-owned** — byte-identical in every pipeline repo
 `icm-board/_system/template/icm-pipeline/` (its `MANIFEST` says which files; estate decision
 D20) — and carry no repo identity. What is true of _this_ repo lives in the project-owned files:
 `project.json` (the values a script reads), `_shared/project-rules.md` (the rules a stage reads),
-`_shared/knowledge-map.md` (the doc pages), `scripts/{format,lint,validate-knowledge-map,notify}.sh`
+`_shared/knowledge-map.md` (the doc pages), `scripts/{format,lint,validate-knowledge-map,report}.sh`
 and `runs/README.md`. Canonical contracts: `_system/contracts/PIPELINE.md` and `TICKETS.md` in
 icm-board.
 
 **One skill, many stages.** Adding a stage means adding a folder here, not a skill. One-job
-**capability** skills would live flat in `.claude/skills/` and be _called by_ stages — this repo
-has none (`_shared/project-rules.md` → Capability skills says what the stages do instead).
+**capability** skills live under `skills/` — three-tier, template-owned, loaded only when one of
+their triggers matches the step in front of a stage: `security-audit`, `database-migration`,
+`preview-deploy` (`skills/README.md`; the session-start hook prints the registry). This repo adds
+none of its own (`_shared/project-rules.md` → Capability skills).
 
 ## The spine — four stages, three hard gates
 
@@ -30,13 +32,17 @@ has none (`_shared/project-rules.md` → Capability skills says what the stages 
 | `scope <input>`  | `stages/01_scope/`   | record the source; settle the scope in session; write `scope.md` with its `D-n` decisions; cut the intake batch                | ✅ the operator reviews `scope.md` + the batch on `main` before running `new`        |
 | `new` (per stub) | `stages/02_define/`  | stub + `scope.md` → approvable `spec.md`, opens the one feature PR; `revise <slug> "<change>"` edits it and re-projects the PR | ✅ **Spec approved** PR checkbox (the operator ticks)                                |
 | `build <slug>`   | `stages/03_build/`   | implement the spec on the run's branch; flip draft PR → open                                                                   | ✅ **Ready to merge** PR checkbox (the operator ticks, after a smoke of the preview) |
-| `release <slug>` | `stages/04_release/` | CI green · reviews · docs + changelog + close-out → squash-merge → `notify.sh`                                                 | — (the merge ends the run)                                                           |
+| `release <slug>` | `stages/04_release/` | CI green · reviews · docs + close-out → squash-merge into `uat` (the client's batch); production by promotion                    | — (the merge ends the run)                                                           |
 
 Release is **one stage, one decision**. The operator smoke-tests the preview after Build and ticks
 **Ready to merge**; Release takes that tick as the full manual-testing attestation, holds the
 merge only for a blocking CI failure, a security-critical finding, or deploy-breaking config,
-parks every other finding as an `intake/triage/` stub, archives the run on the branch, merges,
-and hands the one-line summary to `scripts/notify.sh` (`_shared/project-rules.md` → Announcing).
+parks every other finding as an `intake/triage/` stub, archives the run on the branch and merges —
+**into `uat`, not `main`**: this repo declares a persistent client UAT environment, so every run's
+PR targets the `uat` branch, the client tests the batch at the one fixed UAT address, and
+production is one promotion PR per batch, opened on the client's recorded sign-off
+(`uat/CONTEXT.md`; the people in `_shared/project-rules.md` → People and gates). A hotfix and a
+docs-only knowledge PR still target `main`.
 
 Only two gates are PR checkboxes — **Spec approved** (before Build) and **Ready to merge**
 (before the squash-merge). Those two are the only **binding** approvals in the whole system, and
@@ -69,6 +75,8 @@ design is still Define's and Build's.
 | `bug "<report>"` / `bug <stub-name>`     | `lanes/bug/CONTEXT.md`       | reproduce → fix → green PR (+ changelog if user-visible)                                   |
 | `tweak "<change>"` / `tweak <stub-name>` | `lanes/tweak/CONTEXT.md`     | tiny fully-specified adjustment → small green PR                                           |
 | `chore "<task>"` / `chore <stub-name>`   | `lanes/chore/CONTEXT.md`     | refactor / dep-bump / migration — no behaviour change, no changelog                        |
+| `hotfix "<what is wrong in production>"` | `lanes/hotfix/CONTEXT.md`    | production is wrong now → ready PR into `main` (bypasses UAT); `uat sync` carries it back   |
+| `handover`                               | `lanes/handover/CONTEXT.md`  | the deal's last lane — the handover record, written once                                   |
 | `knowledge add\|edit\|remove "<what>"`   | `lanes/knowledge/CONTEXT.md` | one page of the docs tree changed outside a Release → docs-only PR; no run                 |
 
 A lane is **one agent invocation**: fix → draft PR → GREEN → changelog (bug/tweak, when
@@ -83,14 +91,21 @@ none of which opens a run. The `knowledge` lane is the odd one out: no run folde
 it routes through `_shared/knowledge-map.md` to one docs page and opens a plain docs-only PR. It
 is **the one sanctioned way to change project knowledge outside a Release**.
 
+Two script verbs sit beside the lanes and open no run: `status` compiles the client's report
+(`scripts/client-status.sh` → `output/client-status-latest.md`), and `uat status|approve
+"<who>"|sync` reads, records the sign-off on, and promotes the UAT batch (`scripts/promote-uat.sh`;
+`uat/CONTEXT.md`). `approve` is the operator's act — a session runs it only when the operator, in
+that session, says the client approved and names who.
+
 ## Layers (what each stage loads — keep context small)
 
 - **Layer 0** — `/AGENTS.md` (repo identity + routing; `/CLAUDE.md` imports it).
 - **Layer 1** — this file + `.claude/skills/pipeline/SKILL.md` (the router).
 - **Layer 2** — each `stages/NN_*/CONTEXT.md` / `lanes/*/CONTEXT.md` (Inputs / Process / Outputs /
-  Verify).
+  Verify) · `uat/CONTEXT.md` for the batch and the promotion.
 - **Layer 3** —
   `_shared/{project-rules,knowledge-map,github,ci,stage-preamble,scope-template,conventions}.md`
+  · `_shared/run-pack/` (the seven canonical run files) · `skills/<name>/SKILL.md` on a trigger
   · the code rules (`/AGENTS.md` § Conventions, `web/AGENTS.md`) · the docs pages a stage names ·
   `project.md`, the register, for what the project is _for_. Stable across runs.
 - **Layer 4** — `runs/<slug>/**/output/` + `intake/<slug>/`. This feature's working files.
@@ -117,13 +132,18 @@ reload the repo "to be safe".
     _done/                   # completed epics, moved whole by close-out.sh
   stages/                  # the spine — add a folder to add a stage
     01_scope/CONTEXT.md      02_define/CONTEXT.md     03_build/CONTEXT.md     04_release/CONTEXT.md
-  lanes/                   # fast lanes — bug / tweak / chore · knowledge (docs-only, no run)
+  lanes/                   # fast lanes — bug / tweak / chore / hotfix / handover · knowledge (docs-only, no run)
+  uat/                     # the client's persistent test environment — CONTEXT.md (template-owned) + batch.json (state, true on the uat branch)
+  skills/                  # capability skills a stage loads on a trigger — security-audit · database-migration · preview-deploy (template-owned)
   _shared/                 # L3: project-rules · knowledge-map (project-owned) · github · ci · stage-preamble · scope-template · conventions
   scripts/                 # the deterministic factory — one job, one RESULT line, env config
-    lib/{gh,changed-files,project}.sh
-    resolve-run.sh validate-spec.sh validate-intake.sh validate-decisions.sh new-run.sh
-    project-body.sh project-labels.sh ci-status.sh close-out.sh triage-report.sh env-check.sh
-    format.sh lint.sh validate-knowledge-map.sh notify.sh      # project-owned: this repo's own hooks
+    lib/{gh,changed-files,project,vercel}.sh lib/model-prices.json
+    resolve-run.sh validate-spec.sh validate-intake.sh validate-decisions.sh new-run.sh run-pack.sh
+    project-body.sh project-labels.sh ci-status.sh close-out.sh triage-report.sh env-check.sh env.sh
+    select-model.sh check-migrations.sh db-branch.sh security-check.sh deploy-status.sh health-check.sh
+    rollback.sh usage-snapshot.sh retrospective.sh process-raw.sh list-skills.sh setup.sh
+    client-status.sh promote-uat.sh
+    format.sh lint.sh validate-knowledge-map.sh report.sh      # project-owned: this repo's own hooks
   runs/<slug>/             # L4 working artifacts — in-flight runs only (runs/README.md)
     run.md                   # pointer index (template below)
     01_scope/_source/story.md        # the source as received — never edited
@@ -132,11 +152,15 @@ reload the repo "to be safe".
     03_build/output/notes.md         # Build's notes + Release's appended `## Release` record
     lane/output/notes.md             # fast-lane runs use this instead of the numbered folders
   runs/_done/<slug>/       # the archive — moved here by close-out.sh, on the branch, before the merge
+  raw/ processed/          # material a client sends, and what process-raw.sh made of it (media is never committed)
+  output/                  # the reports the scripts compile — client-status-latest.md, the client's view
+  MANIFEST                 # which files are template-owned (T) and which are this repo's (P)
+  template-version         # the icm-board commit the template-owned files were last synced from
 ```
 
-The one announcement artifact — the changelog page, where this repo keeps one — lives outside
-the run folder; `_shared/project-rules.md` → Announcing says where, and owns its shape. Its
-one-liner is what `scripts/notify.sh` sends after the merge.
+There is no changelog page in this repo (`_shared/project-rules.md` → Reporting). What a
+promotion announces is a GitHub Release cut by `scripts/report.sh`, called once per batch by
+`promote-uat.sh sync`; a run's own merge into `uat` announces nothing.
 
 ## State lives in two homes
 
@@ -167,7 +191,7 @@ one-liner is what `scripts/notify.sh` sends after the merge.
 ```md
 # Run: <slug>
 
-- lane: feature # or front | bug | tweak | chore
+- lane: feature # or front | bug | tweak | chore | hotfix | handover | promote
 - story: 01_scope/_source/story.md # front runs only — the source as received
 - author/source: Diogo & Rita | a call | a document under .icm/docs/ | Jamie # front runs only
 - personas: <from the repo's vocabulary — `personas` in project.json> # front runs only
@@ -196,11 +220,15 @@ all of theirs at once).
   (`_shared/stage-preamble.md`) resolves the run via `run.md` or the PR and checks out its branch.
 - **No slash needed.** The bare forms route the same as `/pipeline …`: `new`, `new <stub-name>`,
   `build <slug>`, `release <slug>`, `revise <slug> "<what to change>"`,
-  `bug|tweak|chore <stub-name or "report">`, `scope <anything>`, `triage report|batch|prune`,
-  `knowledge add|edit|remove "<what>"`. There is no router hook in this repo; the skill's own
+  `bug|tweak|chore <stub-name or "report">`, `hotfix "<incident>"`, `handover`, `scope <anything>`,
+  `triage report|batch|prune`, `knowledge add|edit|remove "<what>"`, `status` and
+  `uat status|approve "<who>"|sync`. There is no router hook in this repo; the skill's own
   description carries the routing, and `/pipeline <sub>` remains the explicit form.
 - **Pre-flight:** `.icm/scripts/env-check.sh` → `RESULT: PASS` says this machine or session can
   drive the pipeline at all — binaries, a GitHub route, the folder shape, executable bits.
+- **House-keeping:** `/setup` (`.icm/scripts/setup.sh --report`) says whether the repo is complete,
+  current and configured from the pipeline's point of view — eleven sections, `RESULT: OK | GAPS n`;
+  `template-version` names the icm-board commit the template-owned files came from.
 
 ## Conventions for this workspace
 
@@ -239,7 +267,7 @@ all of theirs at once).
 | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | Routing / a subcommand                                            | `.claude/skills/pipeline/SKILL.md` (template-owned)                        |
 | A stage's or lane's behaviour                                     | `.icm/stages/NN_*/` · `.icm/lanes/*/CONTEXT.md` (template-owned)           |
-| What is true of this repo — people, factory, announcing           | `.icm/_shared/project-rules.md`                                            |
+| What is true of this repo — people, factory, reporting, support   | `.icm/_shared/project-rules.md`                                            |
 | The values a script reads — checks, personas, docs path, archives | `.icm/project.json`                                                        |
 | What the project is for, its business rules, its decisions        | `.icm/project.md` (via `/project` in icm-board)                            |
 | Revising a spec (`revise <slug>`)                                 | `.icm/stages/02_define/CONTEXT.md` step 6 + `.icm/scripts/project-body.sh` |
@@ -247,8 +275,12 @@ all of theirs at once).
 | This repo's backlog note                                          | `.icm/intake/README.md`                                                    |
 | GitHub calls, gates, labels, the PR regime                        | `.icm/_shared/github.md` (+ `.github/labels.yml`)                          |
 | What the checks are / what green means                            | `.icm/_shared/ci.md` (+ `.icm/scripts/ci-status.sh`)                       |
-| The post-merge notification                                       | `.icm/scripts/notify.sh`                                                   |
-| The changelog's shape and home                                    | `.icm/_shared/project-rules.md` → Announcing                               |
+| The reporting hook — announce · alert · economics                 | `.icm/scripts/report.sh` (kinds → channels in `.icm/project.json` → reporting) |
+| The UAT batch, the sign-off, the promotion                        | `.icm/uat/CONTEXT.md` · `.icm/scripts/promote-uat.sh` · `.icm/uat/batch.json` |
+| The client's status report                                        | `.icm/scripts/client-status.sh` → `.icm/output/client-status-latest.md`   |
+| Is the repo complete and current                                  | `/setup` → `.icm/scripts/setup.sh` · `.icm/template-version`               |
+| A capability skill — security audit · migration · preview deploy  | `.icm/skills/<name>/SKILL.md` (template-owned)                             |
+| The changelog (none) and the announcement's shape                 | `.icm/_shared/project-rules.md` → Reporting                                |
 | Which doc pages a stage reads                                     | `.icm/_shared/knowledge-map.md`                                            |
 | Project knowledge outside a Release                               | `knowledge add\|edit\|remove "<what>"` → `.icm/lanes/knowledge/CONTEXT.md` |
 | Run adoption                                                      | `.icm/_shared/stage-preamble.md`                                           |
