@@ -13,12 +13,12 @@ general; keep the retrospectives specific; never restate an `error.log` entry he
 
 ## Retrospectives
 
-### <YYYY-MM-DD> — <what failed, one line>
+### 2026-09-23 — the security gate blocked the first commit on advisories this branch did not introduce
 
-- what happened: <the observable — the check, the error, the wrong file>
-- why: <the cause, once it was known>
-- fixed by: <the commit, or the action>
+- what happened: `security-check.sh --staged` reported `dependency-audit: 17 high/critical` and BLOCKED, because the change set touched `web/package.json` (a script line, no dependency) and the audit runs whenever a manifest is in scope
+- why: the advisories are the lockfile's own — `next` <16.3.3 (critical), `sharp`, and eslint/shadcn/postcss tooling — and predate the branch; the gate cannot tell a script edit from a dependency change
+- fixed by: parking `.icm/intake/triage/dependency-advisories-2026-09-23.md` (lane chore, P1) as the security-audit skill prescribes, completing the `error.log` entry, re-running the gate with `--no-audit` (its secrets scan ran clean), then committing 257fc8f
 
 ## Learned rules
 
-- <one sentence, imperative, general enough to apply to the next run in this repo>
+- The repo-wide rule from this run is in `error.log` and was promoted by `retrospective.sh --apply`; nothing further here.

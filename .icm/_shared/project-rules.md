@@ -244,3 +244,6 @@ wrote in its `FAILURE.md`: what no tool logged — a wrong assumption, a STOP, a
 Each line carries the run it was learned in. Build and the lanes read this section before their
 first edit, with the same standing as the code rules. Edit or delete lines freely — this file is
 the repo's own, never synced — and delete a line that reads as a slip rather than a constraint.*
+
+<!-- Retrospective Learned Rule [2026-09-23] -->
+- until triage/dependency-advisories-2026-09-23 is done, any change set touching web/package.json or the lockfile trips security-check.sh's audit on the 17 pre-existing advisories — park nothing new, re-run the gate with --no-audit, and never widen the PR to bump dependencies (`scope=staged head=nenden branch= — blocked n (redacted trace; the secr`, seen 2× — vercel-build-migrates-previews; web, web/scripts)
