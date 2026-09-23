@@ -88,8 +88,9 @@ const nextConfig: NextConfig = {
       { source: "/admin/content", destination: "/admin/blog", permanent: false },
 
       /*
-       * The WordPress site this app replaces on 2026-09-12 lived at the same
-       * hostname, and its locale-less paths are what every old link points at.
+       * The WordPress site this app replaces when the domain lands (D18) lives
+       * at the same hostname, and its locale-less paths are what every old
+       * link points at.
        * The table lives in `src/lib/legacy-redirects.ts` with its test; the
        * machinery paths (`/feed`, `/wp-json`, …) answer 410 from `route.ts`
        * files under `app/` instead, since nothing here succeeds them.

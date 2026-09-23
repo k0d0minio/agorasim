@@ -1,0 +1,12 @@
+## 2026-09-23T13:07:03Z security-check.sh — dependency-audit
+scope=branch head=b926353 branch=claude/compassionate-keller-j1mtxh — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 17 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+(unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+
+- resolved: nothing was staged that the gate objected to — the finding is the dependency
+  audit over the lockfile this branch inherits from `main` unchanged (17 high/critical
+  advisories, two of them critical in `next@16.2.12` itself). This lane's diff touches no
+  manifest, so per `.icm/skills/security-audit/SKILL.md` → Dependency findings it is parked as
+  `.icm/intake/triage/next-rce-advisories.md` (lane: chore, P0) rather than bumped here, and the
+  gate is re-run with `--no-audit` for this push. What is true now: the secret scan is clean;
+  the advisories are on `main` and in production until that chore ships.

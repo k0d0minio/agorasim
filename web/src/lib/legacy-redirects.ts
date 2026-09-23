@@ -1,8 +1,9 @@
 /**
  * The old WordPress site's URL map, 301'd onto the new routes.
  *
- * agorasim.pt served a WordPress site until the cutover of 2026-09-12. Its
- * navigation was small and locale-less — Portuguese paths at the root — and
+ * agorasim.pt serves a WordPress site until the cutover — the day the registrar
+ * transfer lands and the nameservers move (register decision D18). Its
+ * navigation is small and locale-less — Portuguese paths at the root — and
  * every inbound link, search result and Instagram bio points at one of them.
  * The moment DNS moves, each would otherwise be a 404, and a soft one at that:
  * `app/[locale]` would take `sobre` for a locale and `notFound()` it.
