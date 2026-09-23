@@ -34,7 +34,13 @@
 #        - no `- pr:` line at all    → a FRONT (Scope, which opens no PR). Its epic stands in for a
 #                                      merge: it archives once `.icm/intake/<slug>/` has moved to
 #                                      the intake archive, and is refused while that epic is live.
-#   3. Moves .icm/runs/<slug>/ -> <runs_archive>/<slug>/.
+#   3. Copies the run's learned rules (FAILURE.md → `## Learned rules`) into
+#      .icm/_shared/project-rules.md through `run-pack.sh --sync-rules` (appends only, skips what
+#      is already there), staged into the same commit — then
+#      moves .icm/runs/<slug>/ -> <runs_archive>/<slug>/ — the whole folder, so `usage.md` (the
+#      per-stage usage lines usage-snapshot.sh appended) travels with the run into the archive,
+#      where run-economics.sh (icm-board) reads it. A hotfix or handover lane run archives the
+#      same way as any lane (lib/project.sh → pipeline_lanes).
 #   4. If the run came from an intake stub, and that epic now has no active stubs left AND every
 #      one of its OTHER spun-out stubs is settled — its run's PR merged, or the stub itself retired
 #      with a `> Dropped:` / `superseded-by:` line — moves .icm/intake/<epic>/ ->
@@ -44,6 +50,12 @@
 #      which is why each sibling's PR is checked. .icm/intake/triage/ is exempt: it is a permanent
 #      backlog (intake/CONTEXT.md -> Triage), never an epic to archive.
 #   5. Commits the move on the current branch.
+#
+# Where the repo declares a UAT environment (.icm/project.json → uat; .icm/uat/CONTEXT.md) and this
+# run's PR targets the UAT branch, step 3 also appends the slug to .icm/uat/batch.json (`stubs`) in
+# the same commit — the batch the client signs off as a whole, published onto the UAT branch by the
+# same squash that publishes the archive move. A PR into main (a hotfix, a promotion) is not added.
+# This script is the only writer of that list; promote-uat.sh reads and resets it.
 #
 # It is idempotent: a run already archived is reported and skipped, and the epic step still runs —
 # so a re-run after a partial close-out (run moved, epic not) finishes the job rather than doubling
@@ -74,6 +86,7 @@ command -v jq   >/dev/null || { echo "jq not found"   >&2; exit 1; }
 command -v git  >/dev/null || { echo "git not found"  >&2; exit 1; }
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$repo_root"
 
 die()  { echo "error: $*" >&2; exit 1; }
@@ -122,6 +135,16 @@ front_only() {
 # `superseded-by:` (a triage batch folded it into another stub). Settled, not unshipped.
 stub_retired() {
   grep -qE '^> *Dropped:|^- *superseded-by:' "$1" 2>/dev/null
+}
+
+# Echoes the PR's base branch name; empty when the PR could not be read.
+pr_base() {
+  local n="$1" resp http
+  case "$n" in ''|*[!0-9]*) echo ""; return 0 ;; esac
+  resp="$(gh_get "/repos/${repo}/pulls/${n}")" || { echo ""; return 0; }
+  http="$(printf '%s' "$resp" | tail -n1)"
+  [ "$http" = "200" ] || { echo ""; return 0; }
+  printf '%s' "$resp" | sed '$d' | jq -r '.base.ref // ""'
 }
 
 # Echoes "merged" / "open" / "closed"; empty when the PR could not be read at all.
@@ -194,6 +217,17 @@ fi
 moved_run=0
 if [ -d ".icm/runs/$slug" ]; then
   [ -d "$runs_archive/$slug" ] && die "$runs_archive/$slug already exists — resolve by hand"
+  # First, what the run learned: the `## Learned rules` of its FAILURE.md go into the repo's own
+  # _shared/project-rules.md (run-pack.sh --sync-rules — idempotent, appends only, never removes),
+  # in this same commit, so the next run starts with them. A run without a FAILURE.md syncs nothing.
+  if [ -f ".icm/runs/$slug/FAILURE.md" ] && [ -x "$here/run-pack.sh" ]; then
+    if [ "$dry_run" = "1" ]; then
+      "$here/run-pack.sh" "$slug" --sync-rules --dry-run >&2 || true
+    else
+      "$here/run-pack.sh" "$slug" --sync-rules >&2 || echo "WARNING: run-pack.sh --sync-rules failed — the run's learned rules were not copied into _shared/project-rules.md" >&2
+      git diff --quiet -- .icm/_shared/project-rules.md 2>/dev/null || git add .icm/_shared/project-rules.md
+    fi
+  fi
   mkdir -p "$runs_archive"
   if [ "$dry_run" = "1" ]; then
     echo "[dry-run] would move .icm/runs/$slug/ → $runs_archive/$slug/" >&2
@@ -205,6 +239,37 @@ if [ -d ".icm/runs/$slug" ]; then
   moved_run=1
 else
   echo "run '$slug' already archived on this branch — skipping" >&2
+fi
+
+# --- 3b. the UAT batch: a run merging into the UAT branch joins the batch the client signs off --------------
+
+moved_batch=0
+if uat_declared && [ -n "$pr_number" ]; then
+  ub="$(uat_branch)"; bf=".icm/uat/batch.json"
+  base_ref="$(pr_base "$pr_number")"
+  if [ "$base_ref" = "$ub" ]; then
+    if [ ! -f "$bf" ]; then
+      mkdir -p "$(dirname "$bf")"
+      jq -n '{stubs: [], client_approved: false, approved_by: "", approved_on: "", approved_head: "", approved_note: "", promotions: []}' > "$bf"
+      echo "created $bf (promote-uat.sh init would have) — it rides in this commit" >&2
+    fi
+    jq -e . "$bf" >/dev/null 2>&1 || die "$bf is not valid JSON — fix it before closing out"
+    if jq -e --arg s "$slug" '(.stubs // []) | index($s)' "$bf" >/dev/null 2>&1; then
+      echo "'$slug' is already in the UAT batch ($bf)" >&2
+    else
+      if [ "$dry_run" = "1" ]; then
+        echo "[dry-run] would add '$slug' to $bf (stubs) — PR #$pr_number targets the UAT branch $ub" >&2
+      else
+        tmpf="$(mktemp)"
+        jq --arg s "$slug" '.stubs = ((.stubs // []) + [$s])' "$bf" > "$tmpf" && mv "$tmpf" "$bf" || die "could not write $bf"
+        git add "$bf" || die "could not stage $bf"
+        echo "added '$slug' to the UAT batch ($bf) — PR #$pr_number targets $ub; the client signs the batch off as a whole (.icm/uat/CONTEXT.md)" >&2
+      fi
+      moved_batch=1
+    fi
+  else
+    echo "PR #$pr_number targets '${base_ref:-?}', not the UAT branch '$ub' — not added to the batch (a hotfix or a promotion goes to main directly)" >&2
+  fi
 fi
 
 # --- 4. archive the epic, if this stub finished it -------------------------------------------------------
@@ -295,7 +360,7 @@ if [ "$dry_run" = "1" ]; then
   echo "RESULT: CLOSED"; exit 0
 fi
 
-if [ "$moved_run" = "0" ] && [ "$moved_epic" = "0" ] && [ "$moved_front" = "0" ]; then
+if [ "$moved_run" = "0" ] && [ "$moved_epic" = "0" ] && [ "$moved_front" = "0" ] && [ "$moved_batch" = "0" ]; then
   echo "nothing left to archive for '$slug'"
   echo "RESULT: CLOSED"; exit 0
 fi
@@ -305,6 +370,7 @@ msg="chore: close out $slug — archive the shipped run"
 [ "$moved_run" = "0" ] && [ "$moved_epic" = "1" ] && msg="chore: close out $slug — archive the completed $epic epic"
 [ "$moved_run" = "1" ] && [ "$moved_epic" = "1" ] && msg="$msg and the completed $epic epic"
 [ "$moved_front" = "1" ] && msg="$msg (front included)"
+[ "$moved_batch" = "1" ] && msg="$msg — into the UAT batch"
 
 git commit -q -m "$msg" || die "nothing staged to commit — the git mv did not take"
 

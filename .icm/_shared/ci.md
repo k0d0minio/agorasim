@@ -154,6 +154,15 @@ disable, is the repo's own (`_shared/project-rules.md` → The factory); a branc
 pattern still previews everything, so a new branch convention has to be added to each quiet
 project's file.
 
+**The UAT branch, where the repo declares one, is a preview deployment with a fixed address**
+(`.icm/project.json` → `uat`; `.icm/uat/CONTEXT.md`). A squash into it is a push like any other:
+Vercel builds the affected product projects for that commit, and the domain the operator assigned
+to the branch (or the branch alias) always serves the branch's newest READY deployment — which is
+what keeps the client's address constant while the batch under it changes. It runs on the
+**preview** environment's variables unless the project attaches a custom environment to the
+branch. It is not a PR preview and carries no PR status: Release reads it once, after the merge,
+with `deploy-status.sh --sha <merge-sha> --uat`, and production is read only after the promotion.
+
 **An absent status is not a skipped one, and neither is a pass you may quote.** Two different
 things read as "not built":
 
@@ -193,7 +202,8 @@ is an accepted failure mode, not a blind spot, and it is loud:
   branch, or in the Vercel dashboard. The post-merge notification runs after the merge and does
   not gate on it.
 - The fix is a follow-up commit to the default branch through the normal lanes, not a revert of
-  the run.
+  the run *by a session's own decision* — a revert is the hotfix lane's (`lanes/hotfix/CONTEXT.md`),
+  prepared by `rollback.sh` and merged by the operator; fix-forward stays the default.
 
 ## The verdict vocabulary — three values, not two
 
@@ -209,7 +219,10 @@ be a note; they never make a verdict RED.
 ### What GREEN means depends on the PR's phase (blind-until-ready)
 
 The three values are the same in both phases; what differs is **which signals exist to settle
-them**, and `ci-status.sh` prints which tier its verdict settled on:
+them**, and `ci-status.sh` prints which tier its verdict settled on. Where the repo declares its
+deploy projects (`.icm/project.json` → deploy.projects), the script also names a product project
+that has posted nothing yet on a ready head as `[INFO] expected, not yet posted` — a notice, never
+a wait:
 
 | Phase                | GREEN means                                                                                                                                                                                                                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

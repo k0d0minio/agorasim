@@ -98,6 +98,13 @@ smoke_name="$(project_field '.smoke_check.name' '')"
 smoke_workflow="$(project_field '.smoke_check.workflow' '')"
 smoke_status="$(project_field '.smoke_check.preview_status' '')"
 
+# The repo's product deploy projects, by the commit-status context each posts under
+# (.icm/project.json → deploy.projects[].status_context, class product). Read for ONE notice:
+# a product project with no status at all on a ready head is reported as "expected, not yet
+# posted" — so an operator can tell a preview that has not started from one the deploy skipped.
+# The verdict arithmetic is unchanged: an absent status is never waited on (`_shared/ci.md`).
+product_contexts="$([ -f "$project_json" ] && jq -r '(.deploy.projects // [])[] | select((.class // "product") == "product") | .status_context // empty' "$project_json" 2>/dev/null || true)"
+
 # A blocking GitHub GET. Echoes "<body>\n<http_code>"; the caller splits the status off the last line.
 gh_get() { gh_api GET "$1"; }
 
@@ -321,6 +328,14 @@ emit "Vercel projects skipped for this diff (no preview — not a pass; reason s
 
 if [ "$pr_draft" = "true" ]; then
   echo "Previews: suppressed — draft. Product apps preview from the ready flip; quiet apps build on merge." >&2
+elif [ -n "$product_contexts" ]; then
+  # A declared product project that posted nothing on a READY head: not skipped (that would be a
+  # status with a skip description), not failed — simply not there yet, or filtered platform-side.
+  while IFS= read -r ctx; do
+    [ -n "$ctx" ] || continue
+    printf '%s\n' "$signals" | awk -F'\t' -v c="$ctx" '$3==c' | grep -q . \
+      || echo "[INFO] $ctx: expected (deploy.projects, class product), not yet posted on ${head_sha:0:7} — not waited on; a preview that never appears is the native unaffected-skip or a build that has not started" >&2
+  done <<< "$product_contexts"
 fi
 
 case "$verdict" in

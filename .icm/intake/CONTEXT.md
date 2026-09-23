@@ -18,6 +18,23 @@ in `triage/` — the triage stub shape below, `found-by: codebase-audit · <date
 one-file PR — and never cuts an epic of its own. There is no story and no `scope.md` behind it; a
 quiet day writes nothing.
 
+Two scripts may write here as well. `.icm/scripts/process-raw.sh` turns each client asset dropped in
+`.icm/raw/` into extracted text under `.icm/processed/` and parks **one triage stub per asset** —
+the triage shape below, `lane: chore`, `found-by: process-raw · <date>`, `complexity: research` —
+so an email or a voice note that arrived is on the board until somebody scopes it
+(`.icm/raw/README.md`). The stub is a pointer, never a cut: it names the processed file as a
+source for `/pipeline scope`, and Scope retires it to `triage/_done/` with a `- superseded-by:`
+line when it records that source (`stages/01_scope/CONTEXT.md` step 2). Nothing is scoped, split or
+sequenced by a script.
+
+`.icm/scripts/health-check.sh`, when production fails its one post-merge read (Release step 9a),
+writes **one stub per merge SHA** — `triage/health-check-<date>-<short-sha>.md`, the triage shape
+below, `lane: bug`, `found-by: health-check · <date>`, `complexity: high` — carrying the endpoint,
+the code each attempt saw, the merge SHA and the recoveries `rollback.sh` prepares. It writes
+the file and commits nothing: the stage names it in its stop message and the operator decides —
+commit it for the bug lane, or open `/pipeline hotfix` by hand. Nothing parks a stub for the
+hotfix lane.
+
 **`.icm/intake/triage/` is the third resident** — the parking lane for off-ticket findings, with
 its own lighter stub shape (see **Triage** below). It is a permanent backlog folder, not an epic:
 no breakdown, no sequence, never walked by `/pipeline new`, never archived.
@@ -50,7 +67,8 @@ no breakdown, no sequence, never walked by `/pipeline new`, never archived.
 
 ## Parallelizable
 
-<Optional — the dependency shape behind the linear order. Omit if a plain chain.>
+<Derived, never asserted (decision D26): a parallel set holds only stubs whose `touches:`
+guesses do not overlap; omit if a plain chain. See "Parallelizable is derived" below.>
 
 ## Out of scope (whole scope)
 
@@ -69,6 +87,8 @@ fields map mechanically onto Define's `spec.md`.
 - initiative: <name> / objective: <current-Q objective>
 - depends-on: <other feature-slugs, or none>
 - sequence: <n of m> # what `/pipeline new` reads to find "next"
+- complexity: <low | medium | high | research> # optional — carried from scope.md, sharpened per stub
+- recommended-model: <sonnet | opus | fable> # optional — what `select-model.sh` prints, or the operator's override
 
 ## Problem
 
@@ -92,6 +112,28 @@ fields map mechanically onto Define's `spec.md`.
 `## Open for Define` in scope.md that lands here; optional `touches:` guess>
 ```
 
+**`## Parallelizable` is derived from `- touches:`, never asserted (decision D26).** Runs
+are cut for disjointness: a parallel set contains only stubs whose optional `touches:`
+guesses (in `Notes for Define`) do not overlap; two stubs that share a surface are sequenced,
+not parallelised. **The shared-file stubs go first in the build order** — the ones that touch
+the dependency manifest and lockfile (`pnpm-lock.yaml` conflicted 120 times in sustentus's
+last 300 commits, more than every other file combined), the schema and the migrations
+journal (`schema.ts` and `meta/_journal.json` lead remi-ai's list), the app layouts
+(`app/**/layout.tsx`) and the message catalogues — because every later stub merges over
+them. A stub with no `touches:` guess is sequenced after the ones that have one. Nothing
+here is a script: Scope reads the guesses and writes the section; `new-run.sh` warns when a
+new run's `touches:` overlaps a live run's; the operator decides.
+
+**`complexity` and `recommended-model` are optional, and older stubs carry neither.** Where they are
+present, `.icm/scripts/select-model.sh <epic>/<feature-slug>` reads them and prints the model the
+session that picks the stub up should be opened on — `sonnet` for `low`/`medium`, `opus` for
+`high`, `fable` for `research`; an explicit `recommended-model` wins; a stub with neither reads as
+`medium`. Add `--stage 02_define` (the advisor pass — `opus`) or `--stage 03_build` (the executor
+— `sonnet` unless `high`) and it prints the harness flag for that pass. It prints a
+recommendation and starts nothing (`_shared/scope-template.md` → Complexity and the model). The stub's word seeds Define's own `complexity:` in `spec.md`, which keeps its own
+vocabulary because the labels depend on it: `low → trivial`, `medium → standard`, `high → complex`;
+a `research` stub is a spike, and Define sets the spec's complexity from what the spike is.
+
 The order invariants — `sequence` unique and contiguous over the whole batch (`_done/` included),
 `of m` matching the stub count, every `depends-on` naming an in-batch stub sequenced first,
 `## Build order` and the stubs' `sequence:` agreeing — are checked by
@@ -113,6 +155,7 @@ conversation. Writing the stub costs a minute; that is the whole point.
 
 - lane: bug | tweak | chore
 - found-by: <run slug / review / audit / conversation> · <YYYY-MM-DD>
+- complexity: <low | medium | high | research> # optional — read by `select-model.sh`
 
 ## Problem
 

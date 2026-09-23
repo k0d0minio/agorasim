@@ -90,7 +90,8 @@ open the rest of the docs tree "for consistency"; the map plus one page is the w
    <the last line of validate-knowledge-map.sh, and any notice: lines>
    ```
 
-   No `- slug:` line, no gate checkboxes, no labels — this is not a run. Do not call
+   No `- slug:` line, no gate checkboxes, no labels, no `usage.md` — this is not a run (the
+   usage line lives in a run folder, and this lane has none). Do not call
    `subscribe_pr_activity` (`_shared/github.md` → PR events). Read CI once,
    `.icm/scripts/ci-status.sh --pr <number>` → `GREEN` (a markdown-only diff settles in about a
    minute; a CI knowledge-map step, where the repo runs one, is advisory and cannot red it), fix
