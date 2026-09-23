@@ -41,14 +41,18 @@
 #                   is announce ["github-release"], the rest empty — an empty `alert` means a red
 #                   CI job is the alert); `channels`: per-channel config carrying only the NAMES
 #                   of environment variables, never a value.
-#   migrations      object {path, reversible, stamp, tool, out_of_order}. `path` is where
-#                   timestamped migrations live (check-migrations.sh; a string or an array — the
-#                   old top-level `migrations_path` is still read); `reversible` false (the
+#   migrations      object {path, reversible, stamp, extension, tool, out_of_order}. `path` is
+#                   where timestamped migrations live (check-migrations.sh; a string or an array —
+#                   the old top-level `migrations_path` is still read); `reversible` false (the
 #                   default) scopes Release stop class 3 and makes rollback.sh warn that the
 #                   schema moved forward; `stamp` "millis" (the default — this branch's own
-#                   migrations must carry a UTC millisecond stamp, `V<17 digits>__<name>.sql`) or
-#                   "seconds" (the legacy `<14 digits>_<name>.sql`; both forms are always READ);
-#                   `tool` flyway|prisma|drizzle|sql (default sql — what the out-of-order note is
+#                   migrations must carry a UTC millisecond stamp, `V<17 digits>__<name>.sql`),
+#                   "seconds" (the legacy `<14 digits>_<name>.sql`) or "epoch" (`<13 digits>-
+#                   <name>.<extension>` — the epoch-millisecond form ts-migrate-mongoose,
+#                   migrate-mongo and their kin write; D34); all three forms are always READ.
+#                   `extension` is the file type of the epoch form (default sql; `ts` for a
+#                   TypeScript runner) — the two SQL forms are `.sql` by definition. `tool`
+#                   flyway|prisma|drizzle|mongodb|sql (default sql — what the out-of-order note is
 #                   phrased for); `out_of_order` true (the default — parallel runs merge in any
 #                   order; check-migrations.sh prints the tool's setting, `flyway.outOfOrder=true`).
 #   database        object {url_env, isolation, image, name, provider, neon} — the run-scoped
@@ -113,10 +117,11 @@
 #   migrations_paths                      one path per line: migrations.path (string or array),
 #                                         else the legacy migrations_path, else nothing.
 #   migrations_reversible                 prints true|false (default false).
-#   migrations_stamp · migrations_tool · migrations_out_of_order
-#                                         the naming form (millis|seconds), the tool word, and
-#                                         true|false (default true) — read as booleans, so an
-#                                         explicit `false` is false (jq's `//` would read it as absent).
+#   migrations_stamp · migrations_extension · migrations_tool · migrations_out_of_order
+#                                         the naming form (millis|seconds|epoch), the epoch form's
+#                                         extension (default sql), the tool word, and true|false
+#                                         (default true) — read as booleans, so an explicit
+#                                         `false` is false (jq's `//` would read it as absent).
 #   database_url_env · database_isolation · database_image · database_name
 #                                         the database block's scalars with their defaults.
 #   database_provider                     none | neon.
@@ -220,11 +225,17 @@ migrations_reversible() {
 }
 migrations_stamp() {
   local v; v="$(project_field '.migrations.stamp' 'millis')"
-  case "$v" in seconds) echo seconds ;; *) echo millis ;; esac
+  case "$v" in seconds) echo seconds ;; epoch) echo epoch ;; *) echo millis ;; esac
+}
+migrations_extension() {
+  # The epoch form's file type, without the dot: sql (default), ts, js, mjs… A value with a
+  # leading dot or a path separator is read as the default — the extension is a word.
+  local v; v="$(project_field '.migrations.extension' 'sql' | tr '[:upper:]' '[:lower:]')"
+  case "$v" in ""|*/*|.*) echo sql ;; *) echo "$v" ;; esac
 }
 migrations_tool() {
   local v; v="$(project_field '.migrations.tool' 'sql' | tr '[:upper:]' '[:lower:]')"
-  case "$v" in flyway|prisma|drizzle|sql) echo "$v" ;; *) echo sql ;; esac
+  case "$v" in flyway|prisma|drizzle|mongodb|sql) echo "$v" ;; *) echo sql ;; esac
 }
 migrations_out_of_order() {
   # A boolean read as a boolean: `false // empty` is empty in jq, so project_field cannot tell an
