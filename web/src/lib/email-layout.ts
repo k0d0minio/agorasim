@@ -75,8 +75,8 @@ const BODY_FONT =
  * The site's logo, absolute because a mail client has no origin to resolve
  * against — and resolved against the origin actually serving this deployment
  * rather than `site.domain`, which is the canonical address the site is
- * claiming and not, until the domain is recovered, one that answers. See
- * `lib/site-origin.ts`.
+ * claiming and not, until the registrar transfer lands (D18), one that serves
+ * this site. See `lib/site-origin.ts`.
  */
 const logoUrl = () => `${siteUrl()}/images/logo.png`;
 

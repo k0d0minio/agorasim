@@ -249,3 +249,10 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 - until triage/dependency-advisories-2026-09-23 is done, any change set touching web/package.json or the lockfile trips security-check.sh's audit on the 17 pre-existing advisories — park nothing new, re-run the gate with --no-audit, and never widen the PR to bump dependencies (`scope=staged head=nenden branch= — blocked n (redacted trace; the secr`, seen 2× — vercel-build-migrates-previews; web, web/scripts)
 <!-- Retrospective Learned Rule [2026-09-23] -->
 - The repo-wide rule from this run is in `error.log` and was promoted by `retrospective.sh --apply`; nothing further here. (`FAILURE.md` — vercel-build-migrates-previews)
+
+<!-- Retrospective Learned Rule [2026-09-23] -->
+- `security-check.sh --branch` blocks every lane on the dependency audit of the lockfile `main`
+  carries (17 high/critical advisories, two critical in `next@16.2.12`) until
+  `intake/triage/next-rce-advisories.md` ships; a lane whose diff touches no manifest parks nothing
+  new, points at that stub in its `error.log` `- resolved:` line and re-runs the gate with
+  `--no-audit` — never bumps a dependency inside an unrelated PR. (learned in go-live-session-stubs)

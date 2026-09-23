@@ -13,9 +13,10 @@
  *   because a canonical that pointed at whatever host served the request
  *   would invite a crawler to index the preview.
  * - **The origin serving this deployment** is what a link has to use if
- *   somebody is going to click it *today*. Until Diogo & Rita recover the
- *   domain, `agorasim.pt` answers `403` to everyone, so anything resolved
- *   against it — the logo in an email, the footer link — is dead on arrival.
+ *   somebody is going to click it *today*. Until the registrar transfer lands
+ *   and the nameservers move (register decision D18), `agorasim.pt` still
+ *   serves the old site, so anything resolved against it — the logo in an
+ *   email, the footer link — lands somewhere else.
  *
  * `siteUrl()` answers the second question, and it answers it the same way for
  * every caller: Stripe's return URLs, the admin deep-link in the team

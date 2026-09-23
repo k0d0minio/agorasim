@@ -35,6 +35,15 @@ the file and commits nothing: the stage names it in its stop message and the ope
 commit it for the bug lane, or open `/pipeline hotfix` by hand. Nothing parks a stub for the
 hotfix lane.
 
+A **template change request** is parked here too (`_shared/template-change.md`): when a request
+in this repo would change a template-owned file — a `T` line of `.icm/MANIFEST`, or a canonical
+`.claude/` asset — the session writes no edit but one stub, `triage/template-change-<what>.md`,
+the triage shape below, `lane: chore`, `found-by: template-change · <date>`, whose `## Prompt` is
+the self-contained request for an icm-board session. It is a pointer, never a cut, and **no lane
+in this repo consumes it** — a chore run on it would be the edit the rule forbids; the board's
+"Copy prompt" hands it over, and the commit that brings the changed file back (the sync) retires
+it to `triage/_done/` with a `- superseded-by: icm-board <PR or commit>` line.
+
 **`.icm/intake/triage/` is the third resident** — the parking lane for off-ticket findings, with
 its own lighter stub shape (see **Triage** below). It is a permanent backlog folder, not an epic:
 no breakdown, no sequence, never walked by `/pipeline new`, never archived.

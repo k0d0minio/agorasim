@@ -215,6 +215,10 @@ overruns on a one-line `Context budget:` note in the `## Release` record.
 
    **(c) Then close the run out, as its own commit and its own push:**
 
+   Record the stage's end first — `.icm/scripts/usage-snapshot.sh <slug> release end` — so the
+   line rides in the close-out commit: nothing written after the close-out (or after the merge)
+   reaches the run's PR. Then run the close-out:
+
    ```bash
    .icm/scripts/close-out.sh <slug>
    ```
@@ -283,8 +287,8 @@ overruns on a one-line `Context budget:` note in the `## Release` record.
    operator: what merged (SHA), production's state and health, what announced where, what was
    parked in triage (by stub name — the health stub, if one was written, is uncommitted and
    waits for them), and that the run is archived — on a UAT repo, that it is now on the UAT
-   address and `promote-uat.sh status` shows the batch. Last act:
-   `.icm/scripts/usage-snapshot.sh <slug> release end`.
+   address and `promote-uat.sh status` shows the batch. The usage `end` line was
+   written before the close-out in step 7; nothing else is written after the merge.
 
 ## Outputs
 
@@ -347,4 +351,5 @@ all in the one PR.
   promotion) and one call to `report.sh announce` (or recorded `deferred to CI` / `deferred to
   promotion`), and reverted nothing by your own decision — a revert is the hotfix lane's,
   prepared by `rollback.sh` and merged by the operator.
-- Both usage lines are in `usage.md` — `release start` as the first act, `release end` as the last.
+- Both usage lines are in `usage.md` — `release start` as the first act, `release end` just before
+  the close-out, so the archive commit carries it.

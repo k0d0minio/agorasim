@@ -71,9 +71,9 @@ Context budget: the Inputs table above is the budget (see `.icm/CONTEXT.md` → 
 5. **Finish the run on the branch.** The changelog entry, where the repo has one, is
    `audience: internal` unless the client saw the fault — then `public`. Run
    `.icm/scripts/retrospective.sh <slug>` (`CANDIDATES n` → read, `--apply`, commit the rules
-   with `notes.md`), then `.icm/scripts/close-out.sh <slug>` → `CLOSED`, push, `ci-status.sh`
+   with `notes.md`), then `usage-snapshot.sh <slug> hotfix end` (so the close-out commit carries
+   the line), then `.icm/scripts/close-out.sh <slug>` → `CLOSED`, push, `ci-status.sh`
    once more → `GREEN`.
-   `usage-snapshot.sh <slug> hotfix end`.
 6. **STOP.** Report the preview URL, the recovery chosen, and — where the operator rolled Vercel
    back — that production is on the previous deployment until this PR merges. "Smoke-test, then
    squash-merge from GitHub." After their merge, Release's rule applies to a lane too: nothing
