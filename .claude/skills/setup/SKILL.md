@@ -42,7 +42,9 @@ is icm-board's checkout (`~/Apps/_system/template`); `ICM_TEMPLATE` in the shell
 
    `--fix` creates only what is absent (D7 — the same discipline as `icm-check.sh --fix`) and
    writes `.icm/template-version`. A template-owned file that has **diverged** is reported with
-   the `icm-sync.sh --apply` command to run from icm-board; never edit a `T` file here. Without a
+   the `icm-sync.sh --apply` command to run from icm-board; never edit a `T` file here — a change
+   one is owed is a template change request (`.icm/_shared/template-change.md`: a prompt for
+   icm-board, parked as a `found-by: template-change` triage stub, never an edit). Without a
    source the report says `SKIP template (no source)` and every in-repo check still runs.
 
 3. **Ask what the report left open — and only that.** `AskUserQuestion`, rounds of ≤ 4, highest
@@ -63,9 +65,18 @@ is icm-board's checkout (`~/Apps/_system/template`); `ICM_TEMPLATE` in the shell
    - "`migrations`: where do they live, are they reversible, which tool applies them (flyway /
      prisma / drizzle / sql), and does that tool accept out-of-order stamps? New ones are named
      `V<17 digits>__<name>.sql` (`stamp: millis`) unless you keep the legacy `seconds` form."
-   - "`database`: does this repo have a database? `schema` (one Postgres schema per run on the
-     variable `url_env` names) or `container` (one local Postgres per run) gives every run its
-     own; `none` for a repo without one."
+   - "`database`: does this repo have a database, and where does it live? For a **Neon** project
+     (`provider: neon`): the project id (Neon Console → Settings; a Vercel-managed database says
+     it under Storage → Open in Neon — an id like `nameless-sea-98952497`, not a secret), the
+     NAME of the variable that holds a Neon API key (`NEON_API_KEY` unless you keep another), the
+     production branch (`main` unless renamed), and `previews: vercel` when the Vercel
+     integration should create a database per preview deployment — with a UAT environment
+     declared, that same toggle gives the UAT branch a persistent database of its own
+     (`preview/<uat>`, `.icm/uat/CONTEXT.md` → The UAT database). Isolation for a run: `neon`
+     (one Neon branch per run — curl and the key, no psql or docker), `schema` (one Postgres
+     schema per run on the variable `url_env` names), `container` (one local Postgres per run),
+     or `none` for a repo without a database. The ids and names go in `project.json`; the key's
+     value never does."
    - "`security.audit_command`: an npm/pnpm/yarn lockfile is audited automatically — another
      ecosystem needs its command (pip-audit, cargo audit), or leave it empty."
    - "`support`: `none`, `basic` or `retainer`? Where is the fail-safe page? Which variable
@@ -90,7 +101,15 @@ is icm-board's checkout (`~/Apps/_system/template`); `ICM_TEMPLATE` in the shell
    domain to it in Vercel, choose its environment's variables, add `type:promote` to the labels
    file. Record who signs off and how under `_shared/project-rules.md` → People and gates, and
    the acts still owed there. Never create the branch or touch Vercel from here
-   (`.icm/uat/CONTEXT.md`).
+   (`.icm/uat/CONTEXT.md`). **When a Neon project was declared**, also run
+   `.icm/scripts/db-env.sh init`: it prints the database's one-time acts — the API key and where
+   it lives (the shell, and this repository's Actions secrets through `env.sh add … --ci --github
+   secret`), the integration's Preview-branching toggle, the migrate step in the build, protecting
+   the production branch — and, with `previews: vercel`, `setup.sh --fix --template <path>` seeds
+   the reference `.github/workflows/neon-cleanup.yaml`. Record the topology and the acts still
+   owed under `_shared/project-rules.md` → The factory → The environments' databases. Never
+   create a Neon branch, flip the toggle or set a build command from here: `db-env.sh` reads and
+   lists, and its two writes (`reset-uat`, `prune`) run only on `--apply` from the operator.
 
 5. **Re-run `setup.sh` until `RESULT: OK`** or until every remaining line is a named decision
    the operator took (recorded in `project-rules.md`). `setup.sh --report` must print the same

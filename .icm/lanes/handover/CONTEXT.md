@@ -48,7 +48,8 @@ Context budget: the Inputs table above is the budget (see `.icm/CONTEXT.md` → 
    promotion — `.icm/uat/CONTEXT.md`; a handover normally follows the last promotion.)
 7. **The gate, then settle**: `.icm/scripts/security-check.sh <slug> --branch --audit` →
    `OK` (a handover that ships a known-high dependency or a pasted key is not a handover), the
-   cheap tier, `close-out.sh <slug>` → `CLOSED`, push, `ci-status.sh` → `GREEN`.
+   cheap tier, `usage-snapshot.sh <slug> handover end` (so the close-out commit carries the
+   line), `close-out.sh <slug>` → `CLOSED`, push, `ci-status.sh` → `GREEN`.
 8. **The record step — local only.** Where the operator's checkout has the deal folder on
    disk, write `08-handover.md` into the engagement folder there (icm-board,
    `workspaces/deals/<client>/<engagement>/`): the date, the support tier, the accounts table,
@@ -56,7 +57,7 @@ Context budget: the Inputs table above is the budget (see `.icm/CONTEXT.md` → 
    it is **not** on disk — a cloud session, a client's own machine — **STOP with the pointer**:
    "the handover record goes into the operator's deal folder; write `08-handover.md` there
    from `notes.md`". Nothing here reads or writes a path outside the repo to find it.
-9. **STOP.** `usage-snapshot.sh <slug> handover end`. Report the PR, the accounts still owed,
+9. **STOP.** (The usage `end` line was written before the close-out.) Report the PR, the accounts still owed,
    the money line, and — where it was written — the record's location. "Smoke-test, then
    squash-merge from GitHub."
 
