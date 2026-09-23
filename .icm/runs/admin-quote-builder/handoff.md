@@ -6,13 +6,17 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. Jamie reads `02_define/output/spec.md` (or PR #120) and ticks **Spec approved** on the PR.
+2. Then `build admin-quote-builder` — executor tier `opus` (complexity: complex). Follow
+   `plan.md` pass by pass; pass 1 is a migration, so load `.icm/skills/database-migration/SKILL.md`.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
+- The Spec approved tick — Jamie's.
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Do not tick either gate box, and do not start Build before the tick.
+- Do not add a notes column, a `supersedes` column, a public `/orcamento` page or any Checkout
+  call — all out of scope (spec, `decisions.md` D-1…D-4).
+- Do not change the quote state machine's `sent → draft` rule.

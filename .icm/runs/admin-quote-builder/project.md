@@ -13,9 +13,17 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- Tour leads are untouched — the card exists only for `kind` wedding/event.
+- The quote state machine in `lib/quotes.ts` is the rule: no `sent → draft`, drafts only are
+  editable, every write guarded in its `WHERE`. Extend it; do not route around it.
+- The token's plaintext lives only in the emailed link — never in a log, an audit payload, an
+  error or the Art. 15 export (`lib/cancellation-token.ts` note). No new environment variable.
+- No new personal-data column (the notes field was dropped); a `message_log` change keeps the
+  lead's cascade erasure (`.icm/docs/data-protection.md`).
+- No payment, no Checkout, no public page — stub 3. D9 window stays 30 days; D25 link target.
+- Admin strings from `.icm/docs/admin-pt-inventory.md`; ≥44px targets, ≥12px text, PT only (D4).
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read `lib/quotes.ts`, the `quotes` / `message_log` schema and the Sales detail's
+  imports to settle the new-version and message-uniqueness questions — past its Inputs table.
