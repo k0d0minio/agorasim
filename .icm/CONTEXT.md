@@ -137,10 +137,10 @@ reload the repo "to be safe".
   skills/                  # capability skills a stage loads on a trigger — security-audit · database-migration · preview-deploy (template-owned)
   _shared/                 # L3: project-rules · knowledge-map (project-owned) · github · ci · stage-preamble · scope-template · conventions
   scripts/                 # the deterministic factory — one job, one RESULT line, env config
-    lib/{gh,changed-files,project,vercel}.sh lib/model-prices.json
+    lib/{gh,changed-files,project,vercel,neon}.sh lib/model-prices.json
     resolve-run.sh validate-spec.sh validate-intake.sh validate-decisions.sh new-run.sh run-pack.sh
     project-body.sh project-labels.sh ci-status.sh close-out.sh triage-report.sh env-check.sh env.sh
-    select-model.sh check-migrations.sh db-branch.sh security-check.sh deploy-status.sh health-check.sh
+    select-model.sh check-migrations.sh db-branch.sh db-env.sh security-check.sh deploy-status.sh health-check.sh
     rollback.sh usage-snapshot.sh retrospective.sh process-raw.sh list-skills.sh setup.sh
     client-status.sh promote-uat.sh
     format.sh lint.sh validate-knowledge-map.sh report.sh      # project-owned: this repo's own hooks
@@ -278,6 +278,7 @@ all of theirs at once).
 | The reporting hook — announce · alert · economics                 | `.icm/scripts/report.sh` (kinds → channels in `.icm/project.json` → reporting) |
 | The UAT batch, the sign-off, the promotion                        | `.icm/uat/CONTEXT.md` · `.icm/scripts/promote-uat.sh` · `.icm/uat/batch.json` |
 | The client's status report                                        | `.icm/scripts/client-status.sh` → `.icm/output/client-status-latest.md`   |
+| The environments' databases — production, UAT, previews, runs     | `.icm/scripts/db-env.sh` · `.icm/project.json` → database.neon · `.icm/uat/CONTEXT.md` |
 | Is the repo complete and current                                  | `/setup` → `.icm/scripts/setup.sh` · `.icm/template-version`               |
 | A capability skill — security audit · migration · preview deploy  | `.icm/skills/<name>/SKILL.md` (template-owned)                             |
 | The changelog (none) and the announcement's shape                 | `.icm/_shared/project-rules.md` → Reporting                                |

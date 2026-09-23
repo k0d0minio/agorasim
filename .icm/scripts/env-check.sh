@@ -108,12 +108,22 @@ if [ -f ".icm/project.json" ]; then
       *)              warn ".icm/project.json migrations.stamp is \"$stamp\" (expected \"millis\" or \"seconds\" — read as \"millis\")" ;;
     esac
     iso="$(jq -r '.database.isolation // empty' .icm/project.json)"
+    nk="$(jq -r '.database.neon.api_key_env // "NEON_API_KEY"' .icm/project.json)"
     case "$iso" in
       schema)    if command -v psql >/dev/null 2>&1; then ok "database.isolation: schema (psql found)"; else warn "database.isolation is \"schema\" but psql is not in PATH — db-branch.sh will SKIP"; fi ;;
       container) if command -v docker >/dev/null 2>&1 || command -v podman >/dev/null 2>&1; then ok "database.isolation: container (docker/podman found)"; else warn "database.isolation is \"container\" but neither docker nor podman is in PATH — db-branch.sh will SKIP"; fi ;;
-      none|"")   info "database.isolation: none — db-branch.sh says SKIP; declare schema|container to give each run its own database" ;;
-      *)         warn ".icm/project.json database.isolation is \"$iso\" (expected none|schema|container — read as none)" ;;
+      neon)      if [ "$(jq -r '.database.provider // empty' .icm/project.json)" != "neon" ]; then warn "database.isolation is \"neon\" but database.provider is not — set provider: neon and database.neon.project_id (db-branch.sh will SKIP)"
+                 elif ! command -v curl >/dev/null 2>&1; then warn "database.isolation is \"neon\" but curl is not in PATH — db-branch.sh will SKIP"
+                 elif [ -z "${!nk:-}" ]; then warn "database.isolation is \"neon\" but \$$nk is unset in this environment — db-branch.sh will SKIP (export it; never in git)"
+                 else ok "database.isolation: neon (curl found, \$$nk set)"; fi ;;
+      none|"")   info "database.isolation: none — db-branch.sh says SKIP; declare neon|schema|container to give each run its own database" ;;
+      *)         warn ".icm/project.json database.isolation is \"$iso\" (expected none|schema|container|neon — read as none)" ;;
     esac
+    if [ "$(jq -r '.database.provider // empty' .icm/project.json)" = "neon" ]; then
+      if [ -z "$(jq -r '.database.neon.project_id // empty' .icm/project.json)" ]; then warn "database.provider is neon but database.neon.project_id is empty — db-env.sh and the cleanup workflow have no project to read"
+      elif [ -n "${!nk:-}" ]; then ok "Neon project declared and \$$nk set — db-env.sh status reads it"
+      else info "Neon project declared; \$$nk unset here — db-env.sh, db-branch.sh (neon) and setup.sh read nothing until it is exported"; fi
+    fi
     REQ_ENVS="$(jq -r '.required_env[]?' .icm/project.json 2>/dev/null || true)"
     if [ -n "$REQ_ENVS" ]; then
       for var in $REQ_ENVS; do
