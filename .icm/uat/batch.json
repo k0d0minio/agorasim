@@ -1,13 +1,22 @@
 {
-  "stubs": [
-    "vercel-build-migrates-previews",
-    "go-live-session-stubs",
-    "next-rce-advisories"
-  ],
+  "stubs": [],
   "client_approved": false,
   "approved_by": "",
   "approved_on": "",
   "approved_head": "",
   "approved_note": "",
-  "promotions": []
+  "promotions": [
+    {
+      "promoted_on": "2026-09-23",
+      "approved_on": "2026-09-23",
+      "approved_by": "Jamie",
+      "head": "b33321317b7ed90471b4026bb9a8100ef4bb4e85",
+      "pr": "118",
+      "stubs": [
+        "vercel-build-migrates-previews",
+        "go-live-session-stubs",
+        "next-rce-advisories"
+      ]
+    }
+  ]
 }
