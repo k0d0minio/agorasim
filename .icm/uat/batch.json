@@ -1,5 +1,7 @@
 {
-  "stubs": [],
+  "stubs": [
+    "vercel-build-migrates-previews"
+  ],
   "client_approved": false,
   "approved_by": "",
   "approved_on": "",
