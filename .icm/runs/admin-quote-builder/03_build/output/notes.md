@@ -1,7 +1,7 @@
 # Build notes: admin-quote-builder
 
 - commits: e39475d message_log per quote (+ migration 0027) · 8b8e3c7 send/re-send/new version/discard + token + TERMS_VERSION + quote-builder · 496d65a quote-sent email · efbbf56 the Orçamento card, actions, form schema
-- ci: pending — see status.md
+- ci: cheap tier GREEN on 1f01108 (after one RED: a test-helper type error, error.log); full gate on the post-flip head
 
 ## What changed
 
