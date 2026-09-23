@@ -13,12 +13,13 @@ general; keep the retrospectives specific; never restate an `error.log` entry he
 
 ## Retrospectives
 
-### <YYYY-MM-DD> — <what failed, one line>
+### 2026-09-23 — three stubs in one lane PR
 
-- what happened: <the observable — the check, the error, the wrong file>
-- why: <the cause, once it was known>
-- fixed by: <the commit, or the action>
+- what happened: the go-live epic's three session stubs (6, 7, 8) were finished in one bug-lane
+  PR instead of three, because the cloud session was bound to one harness-named branch and
+  `new-run.sh` binds one run to that branch.
+- why: the stubs share one subject (what `/reservar` and `stripe.ts` say in each key state) and
+  each is small; three sessions for three S-sized stubs was the alternative.
+- fixed by: recorded here and in `lane/output/notes.md`; the PR body names all three.
 
 ## Learned rules
-
-- <one sentence, imperative, general enough to apply to the next run in this repo>

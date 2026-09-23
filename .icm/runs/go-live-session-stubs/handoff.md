@@ -6,13 +6,16 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. PR #116 is open (ready) into `uat` — smoke the preview (Steps to test in the PR body), then
+   squash-merge from GitHub. Nothing is left for a second invocation of this lane.
+2. Then `/pipeline chore next-rce-advisories` — the P0 dependency bump this lane parked.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
+- none
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Do not re-invoke the lane or open a second PR for this run.
+- Do not bump `next` inside this PR — it is the chore stub's diff.
+- Do not tick anything: the merge button is the gate.
