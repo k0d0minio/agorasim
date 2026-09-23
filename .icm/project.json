@@ -33,7 +33,7 @@
     "url": "https://uat.agorasim.jamienisbet.com"
   },
   "reporting": {
-    "announce_from": "session",
+    "announce_from": "ci",
     "announce": [
       "github-release"
     ],

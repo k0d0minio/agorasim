@@ -453,6 +453,73 @@ export const bookingEmails = {
     },
   },
 
+  /**
+   * To the couple: the quote Rita built on the Sales board, and the link to
+   * the page where the deposit holds the date (D25).
+   *
+   * The money is stated in full here — the total, the deposit, the balance and
+   * when it falls due — because this mail is the offer, the thing a couple
+   * forwards to the parents paying for it. The page repeats it and adds the
+   * button; the mail must stand on its own if the page is never opened.
+   *
+   * Ungendered Portuguese, as every guest line: see `guest.lead`.
+   */
+  quoteSent: {
+    subject: {
+      pt: "O seu orçamento Agorasim — {date}",
+      en: "Your Agorasim quote — {date}",
+    } as Localized,
+    preheader: {
+      pt: "{total} · o sinal de {deposit} reserva a data",
+      en: "{total} · a {deposit} deposit holds the date",
+    } as Localized,
+    banner: { pt: "O seu orçamento", en: "Your quote" } as Localized,
+    greeting: { pt: "Olá {name},", en: "Hello {name}," } as Localized,
+    lead: {
+      pt: "Obrigado por pensar em nós para o seu dia. Preparámos o orçamento à medida — os detalhes estão abaixo.",
+      en: "Thank you for thinking of us for your day. Here is the quote we prepared for it — the details are below.",
+    } as Localized,
+    detailsHeading: { pt: "Orçamento", en: "Quote" } as Localized,
+    labels: {
+      reference: { pt: "Referência", en: "Reference" } as Localized,
+      date: { pt: "Data do evento", en: "Event date" } as Localized,
+      venue: { pt: "Local", en: "Venue" } as Localized,
+      total: { pt: "Total", en: "Total" } as Localized,
+      deposit: { pt: "Sinal ({percent}%)", en: "Deposit ({percent}%)" } as Localized,
+      balance: { pt: "Restante", en: "Balance" } as Localized,
+    },
+    /** The balance row's value: the amount and the day it is asked for. */
+    balanceDue: { pt: "{amount} · até {date}", en: "{amount} · due {date}" } as Localized,
+    /** A line with more than one unit: "2 × Carro clássico". */
+    lineQuantity: "{quantity} × {label}",
+    next: {
+      title: { pt: "Como reservar a data", en: "How to hold the date" } as Localized,
+      body: {
+        pt: "A data fica reservada com o pagamento do sinal, na página do orçamento. O restante é pedido automaticamente {days} dias antes do evento.",
+        en: "The date is held once the deposit is paid, on the quote page. The balance is requested automatically {days} days before the event.",
+      } as Localized,
+    },
+    cta: { pt: "Ver o orçamento", en: "View your quote" } as Localized,
+    ctaTextLine: { pt: "Ver o orçamento: {url}", en: "View your quote: {url}" } as Localized,
+    /** D9 — the default deposit terms, until the client's lawyer answers. */
+    termsNote: {
+      pt: "O sinal não é reembolsável a menos de {days} dias do evento; a data pode ser alterada sem custos, sujeita a disponibilidade.",
+      en: "The deposit is non-refundable within {days} days of the event; the date can be changed free of charge, subject to availability.",
+    } as Localized,
+    questions: {
+      pt: "Alguma dúvida? Responda a este email ou ligue-nos:",
+      en: "Any questions? Reply to this email or call us:",
+    } as Localized,
+    signoff: {
+      pt: "Até breve,\nDiogo e Rita\nAgorasim",
+      en: "See you soon,\nDiogo and Rita\nAgorasim",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque pediu um orçamento em {site}.",
+      en: "You are receiving this email because you asked for a quote at {site}.",
+    } as Localized,
+  },
+
   /** To Diogo & Rita. Portuguese — a new enquiry has arrived. */
   teamEnquiry: {
     subject: "Novo pedido — {name}",

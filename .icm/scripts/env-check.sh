@@ -104,8 +104,9 @@ if [ -f ".icm/project.json" ]; then
     stamp="$(jq -r '.migrations.stamp // empty' .icm/project.json)"
     case "$stamp" in
       millis|seconds) ok "migrations.stamp: $stamp" ;;
+      epoch)          ok "migrations.stamp: epoch (<13 digits>-<name>.$(jq -r '.migrations.extension // "sql"' .icm/project.json) for this branch's own migrations)" ;;
       "")             info "no \"migrations.stamp\" — read as \"millis\" (V<17 digits>__<name>.sql for this branch's own migrations)" ;;
-      *)              warn ".icm/project.json migrations.stamp is \"$stamp\" (expected \"millis\" or \"seconds\" — read as \"millis\")" ;;
+      *)              warn ".icm/project.json migrations.stamp is \"$stamp\" (expected \"millis\", \"seconds\" or \"epoch\" — read as \"millis\")" ;;
     esac
     iso="$(jq -r '.database.isolation // empty' .icm/project.json)"
     nk="$(jq -r '.database.neon.api_key_env // "NEON_API_KEY"' .icm/project.json)"
@@ -209,8 +210,13 @@ if [ -f ".icm/project.json" ] && jq -e '(.deploy.projects // []) | length > 0' .
   tok_var="$(jq -r '.deploy.token_env // "VERCEL_TOKEN"' .icm/project.json)"
   ok "deploy declared: $n_pj project(s) on $(jq -r '.deploy.platform // "vercel"' .icm/project.json)${tok_var:+ (token: $tok_var)}"
   if [ -n "${!tok_var:-}" ] || [ -n "${VERCEL_TOKEN:-}" ]; then
+    # --check reads every page of the team's projects and matches deploy.projects[] against them:
+    # a count the token sees below the count declared is the mismatch, named project by project.
     if out="$(bash .icm/scripts/lib/vercel.sh --check 2>/dev/null)"; then
       ok "Vercel route: $(printf '%s' "$out" | grep -m1 'GET ' || echo OK)"
+      ok "Vercel projects: $(printf '%s' "$out" | grep -m1 '^deploy.projects:' || echo 'every declared project visible')"
+    elif printf '%s' "$out" | grep -q '^RESULT: MISMATCH'; then
+      fail "Vercel projects: $(printf '%s' "$out" | grep -m1 '^deploy.projects:') — $(printf '%s' "$out" | grep -m1 '^not visible:') (env.sh audit reports those projects UNKNOWN)"
     else
       fail "Vercel route: the token named by deploy.token_env cannot list the team's projects — deploy names a team this token does not reach"
     fi

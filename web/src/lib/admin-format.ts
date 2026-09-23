@@ -7,6 +7,9 @@ import type {
   ExperienceKind,
   FeatureRequestPriority,
   FeatureRequestStatus,
+  QuotePaymentKind,
+  QuotePaymentStatus,
+  QuoteStatus,
   RequestStatus,
 } from "@/db/schema";
 import type { AuditAction } from "@/lib/audit";
@@ -100,6 +103,43 @@ export const bookingStatusMeta: Record<
   refunded: { label: "Reembolsada", variant: "destructive" },
 };
 
+/**
+ * Where a quote is, as the Orçamento card says it. `superseded` is not a
+ * database status — it is a `cancelled` quote a later version replaced
+ * (`wasSuperseded` in `lib/quotes.ts`), and it reads differently to Rita from
+ * one she called off.
+ */
+export const quoteStatusMeta: Record<
+  QuoteStatus | "superseded",
+  { label: string; variant: BadgeVariant }
+> = {
+  draft: { label: "Rascunho", variant: "secondary" },
+  sent: { label: "Enviado", variant: "default" },
+  deposit_paid: { label: "Sinal pago", variant: "default" },
+  paid: { label: "Pago", variant: "default" },
+  cancelled: { label: "Cancelado", variant: "outline" },
+  superseded: { label: "Substituído", variant: "outline" },
+};
+
+/** The two instalments of a quote, by name. */
+export const quotePaymentKindLabel: Record<QuotePaymentKind, string> = {
+  deposit: "Sinal",
+  balance: "Saldo",
+  other: "Outro pagamento",
+};
+
+/** Where one instalment is. */
+export const quotePaymentStatusMeta: Record<
+  QuotePaymentStatus,
+  { label: string; variant: BadgeVariant }
+> = {
+  pending: { label: "Por pagar", variant: "secondary" },
+  issued: { label: "Link de pagamento enviado", variant: "secondary" },
+  paid: { label: "Pago", variant: "default" },
+  refunded: { label: "Reembolsado", variant: "destructive" },
+  cancelled: { label: "Anulado", variant: "outline" },
+};
+
 export const featureRequestStatusMeta: Record<
   FeatureRequestStatus,
   { label: string; variant: BadgeVariant }
@@ -189,6 +229,12 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "booking.cancelled": "cancelou uma reserva",
   "booking.refunded": "cancelou e reembolsou uma reserva",
   "booking.moved": "mudou uma reserva de partida",
+  "quote.created": "criou um orçamento",
+  "quote.updated": "editou um orçamento",
+  "quote.discarded": "descartou um rascunho de orçamento",
+  "quote.sent": "enviou um orçamento",
+  "quote.resent": "reenviou um orçamento com um novo link",
+  "quote.superseded": "substituiu um orçamento por uma nova versão",
   "blog_post.updated": "editou um artigo do blog",
   "blog_post.published": "publicou um artigo no blog",
   "blog_post.unpublished": "retirou um artigo do blog",

@@ -5,6 +5,7 @@ import {
   guestConfirmationEmail,
   guestEnquiryAckEmail,
   guestMoveEmail,
+  guestQuoteSentEmail,
   partyLabel,
   teamCancellationEmail,
   teamEnquiryEmail,
@@ -13,6 +14,7 @@ import {
   type BookingEmailFacts,
   type BookingMoveFacts,
   type EnquiryEmailFacts,
+  type QuoteSentEmailFacts,
   type TeamCancellationFacts,
 } from "@/lib/booking-emails";
 import { emailPalette } from "@/lib/email-layout";
@@ -791,5 +793,101 @@ describe("teamEnquiryEmail", () => {
     expect(message.replyTo).toBe("sofia@example.com");
     expect(message.subject).not.toMatch(/\{/);
     expect(message.text).not.toMatch(/\{/);
+  });
+});
+
+/**
+ * The quote, as the couple receive it. Every figure a couple will be asked to
+ * pay is in it, in their language, and the link to the page is the one
+ * credential the mail carries.
+ */
+describe("guestQuoteSentEmail", () => {
+  const QUOTE_URL = "https://agorasim.pt/pt/orcamento/Tok3n_valu3-abcdefghijklmnopqrstuvwxyz0123";
+
+  function quoteFacts(overrides: Partial<QuoteSentEmailFacts> = {}): QuoteSentEmailFacts {
+    return {
+      ref: "QT-A1B2C3",
+      guestName: "Inês & Tomás",
+      guestEmail: "ines@example.com",
+      locale: "pt",
+      date: "sábado, 15 de agosto de 2026",
+      venue: "Quinta do Hespanhol, Mafra",
+      lines: [
+        { label: "Carro clássico com motorista, 6 horas", quantity: 2, amount: "1500 €" },
+        { label: "Deslocação Ericeira", quantity: 1, amount: "120 €" },
+      ],
+      total: "1620 €",
+      deposit: "486 €",
+      depositPercent: 30,
+      balance: "1134 €",
+      balanceDue: "sábado, 1 de agosto de 2026",
+      balanceDueDaysBefore: 14,
+      termsWindowDays: 30,
+      quoteUrl: QUOTE_URL,
+      ...overrides,
+    };
+  }
+
+  it("addresses the couple and replies to the business inbox", () => {
+    const mail = guestQuoteSentEmail(quoteFacts());
+
+    expect(mail.to).toEqual(["ines@example.com"]);
+    expect(mail.replyTo).toBe(site.email);
+    expect(mail.subject).toBe("O seu orçamento Agorasim — sábado, 15 de agosto de 2026");
+  });
+
+  it("states every figure and the link, in both parts", () => {
+    const mail = guestQuoteSentEmail(quoteFacts());
+
+    for (const part of [mail.text, mail.html ?? ""]) {
+      expect(part).toContain("QT-A1B2C3");
+      expect(part).toContain("Quinta do Hespanhol, Mafra");
+      expect(part).toContain("1620 €");
+      expect(part).toContain("486 €");
+      expect(part).toContain("1134 €");
+      expect(part).toContain("sábado, 1 de agosto de 2026");
+      expect(part).toContain(QUOTE_URL);
+    }
+    expect(mail.text).toContain("2 × Carro clássico com motorista, 6 horas: 1500 €");
+    expect(mail.text).toContain("Deslocação Ericeira: 120 €");
+    expect(mail.text).toContain("Sinal (30%): 486 €");
+    expect(mail.text).toContain("Ver o orçamento: " + QUOTE_URL);
+    expect(mail.text).toContain("a menos de 30 dias do evento");
+    expect(mail.text).not.toMatch(/\{\w+\}/);
+  });
+
+  it("is written in English for a couple who enquired in English", () => {
+    const mail = guestQuoteSentEmail(
+      quoteFacts({
+        locale: "en",
+        date: "Saturday, 15 August 2026",
+        balanceDue: "Saturday, 1 August 2026",
+        total: "€1,620",
+        deposit: "€486",
+        balance: "€1,134",
+      }),
+    );
+
+    expect(mail.subject).toBe("Your Agorasim quote — Saturday, 15 August 2026");
+    expect(mail.text).toContain("Deposit (30%): €486");
+    expect(mail.text).toContain("Balance: €1,134 · due Saturday, 1 August 2026");
+    expect(mail.text).toContain("View your quote: " + QUOTE_URL);
+    expect(mail.text).not.toContain("orçamento à medida");
+    expect(mail.html).toContain('lang="en"');
+  });
+
+  it("leaves out the venue row when the quote has none", () => {
+    const mail = guestQuoteSentEmail(quoteFacts({ venue: null }));
+
+    expect(mail.text).not.toContain("Local:");
+  });
+
+  it("escapes what Rita typed, so a line label cannot become markup", () => {
+    const mail = guestQuoteSentEmail(
+      quoteFacts({ lines: [{ label: "<b>Flores</b> & fitas", quantity: 1, amount: "50 €" }] }),
+    );
+
+    expect(mail.html).not.toContain("<b>Flores</b>");
+    expect(mail.html).toContain("&lt;b&gt;Flores&lt;/b&gt; &amp; fitas");
   });
 });

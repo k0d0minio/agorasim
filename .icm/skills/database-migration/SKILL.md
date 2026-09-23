@@ -2,7 +2,7 @@
 name: database-migration
 description: Write, name, isolate and order a schema migration so parallel runs merge in any order and never touch a shared database.
 triggers:
-  - migration, migrations/, schema, prisma, drizzle, flyway
+  - migration, migrations/, schema, prisma, drizzle, flyway, mongodb, mongoose
   - check-migrations.sh, db-branch.sh
   - touches a data model
   - migrations.reversible, stop class 3
@@ -23,13 +23,20 @@ gives the run a database of its own. Both headers are the specification.
    `database.neon.api_key_env` names in the shell, nothing else. `SKIP` means this repo declares
    no isolation (`.icm/project.json` → `database.isolation`), or the engine it names is out of
    reach: then **run no migration locally** — the preview database and CI apply it, and the
-   spec's data-model change is verified there. Never point a session at production.
+   spec's data-model change is verified there. Never point a session at production. A MongoDB
+   repo is always this case today — the three engines are Postgres-shaped, so it stays
+   `isolation: none` and the preview database is the one the branch's migrations reach.
 2. **Name the file with the script, never by hand**:
    `check-migrations.sh --new "<what it does>" --apply` → `CREATED <path>`. The name carries a UTC
    millisecond stamp in the repo's declared form (`migrations.stamp`, default `millis`:
    `V20260922070000104__add_tokens.sql`), after everything `main` and this branch already have.
    A tool that generates its own files (prisma, drizzle) keeps its own naming inside its folder;
-   the stamp rule applies to the SQL migrations `migrations.path` names.
+   the stamp rule applies to the migrations `migrations.path` names. A MongoDB repo on
+   ts-migrate-mongoose or migrate-mongo declares `stamp: epoch` and `extension: ts` (or `js`):
+   the same call names `1782500000000-add-tokens.ts` — kebab-case, the epoch-millisecond stamp
+   those runners write — and orders it exactly like a SQL one. Prefer the script over the
+   runner's own `create`: the runner reads the clock now, the script reads it after `main`'s
+   newest stamp.
 
 ## Writing it
 
