@@ -1,7 +1,7 @@
 # Build notes: quote-refunds
 
 - commits: 5d93ff7 (schema + migration 0029) · 8a3d35a (refund library, email, tests) · d6fa61e (webhook) · cd19c95 (admin card)
-- ci: see status.md — settled by `ci-status.sh` after the ready flip
+- ci: GREEN on e55cefe — full gate (Vercel preview) and the advisory Quality job both pass
 
 ## What changed
 
@@ -26,7 +26,7 @@
 - [x] "Event still held" warning + Cancelar evento (typed `CANCELAR`)
 - [x] One `quote-refunded` email per refund from either door; echo and redelivery send nothing; a second partial sends again (message-log.test.ts key cases, quote-refund.test.ts); PT and EN content (booking-emails.test.ts)
 - [x] Audit rows per refund (`quote.payment_refunded`, via admin/stripe) and per cancellation (`quote.cancelled`)
-- [ ] Tests written for all the above; CI green — pending the ready flip
+- [x] Tests written for all the above; CI green — Quality (advisory) passed on the draft head and on e55cefe
 
 ## Notes for Release
 

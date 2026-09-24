@@ -16,7 +16,7 @@ step, so a resuming session can pick up the first unticked line.
 - [x] When the deposit is fully refunded and the quote is not cancelled, the card shows the "event still held" warning with a Cancelar evento action (typed confirmation). The action cancels the quote and writes off its open instalments
 - [x] Every refund, from the admin or the dashboard, sends the couple exactly one `quote-refunded` email in the lead's language through the message log. The email carries the quote ref, event date, instalment, amount this time, total refunded and whether the event is cancelled. The admin refund's webhook echo and any redelivery send nothing more. A second deliberate partial refund sends a second email. The `quote-refunded` kind is appended to `message_kind` by a new migration
 - [x] Each refund writes one audit row on the quote with instalment kind, amounts, fee taken and returned, refund and charge ids, and `via` (admin with the operator, or stripe with no actor). Each cancellation writes its own audit row
-- [ ] Unit tests cover the admin refund (full, partial, refusals, idempotency key, cancel-with-refund and refund-failure-cancels-nothing), the webhook quote-refund branch (full, partial, redelivery, admin echo, unknown charge still alerts, tour path untouched), the instalment status rule, and the email's once-per-refund key and content in PT and EN. CI is green
+- [x] Unit tests cover the admin refund (full, partial, refusals, idempotency key, cancel-with-refund and refund-failure-cancels-nothing), the webhook quote-refund branch (full, partial, redelivery, admin echo, unknown charge still alerts, tour path untouched), the instalment status rule, and the email's once-per-refund key and content in PT and EN. CI is green
 
 ## Queue
 
@@ -24,4 +24,4 @@ step, so a resuming session can pick up the first unticked line.
 - [x] `lib/quotes.ts` refund rules + CAS write, `lib/booking-refund.ts` shared fee top-up, `lib/quote-refund.ts`, the refund email, audit actions, tests — 8a3d35a
 - [x] Webhook refund branch tries the instalments before alerting, routing tests — d6fa61e
 - [x] Admin actions, form schemas, the card's Reembolsar / Cancelar evento dialogs — cd19c95
-- [ ] CI GREEN on the ready head (full gate) — then tick the last definition-of-done line
+- [x] CI GREEN on the ready head (full gate, advisory quality passed) — e55cefe

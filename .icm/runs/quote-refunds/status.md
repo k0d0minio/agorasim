@@ -4,7 +4,7 @@ Where the run is, in five lines. Updated at every stage start and stop, and when
 flips. A resuming session reads this first, then `handoff.md` (`_shared/stage-preamble.md`).
 
 - phase: build
-- step: 12 (ready flipped; full verdict next)
-- ci: GREEN on the draft head (cheap tier, quality advisory passed)
-- blocked: no
+- step: done
+- ci: GREEN (full gate on e55cefe; advisory quality passed)
+- blocked: yes — on operator: smoke the preview, tick Ready to merge on PR #142
 - updated: 2026-09-24
