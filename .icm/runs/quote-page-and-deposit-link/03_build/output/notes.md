@@ -1,7 +1,7 @@
 # Build notes: quote-page-and-deposit-link
 
 - commits: 1e5e440 (terms + receipt index), 095486a (page, mint, webhook, receipts, bar), then the return-path extraction and CI fixes that follow
-- ci: see `status.md` — settled by `ci-status.sh`
+- ci: cheap tier GREEN on 095486a and f6808ae; full gate — see `status.md`
 
 ## What changed
 
