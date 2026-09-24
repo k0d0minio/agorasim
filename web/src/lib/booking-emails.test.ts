@@ -1000,8 +1000,7 @@ describe("guestQuoteSentEmail", () => {
       total: "1620 €",
       deposit: "486 €",
       depositPercent: 30,
-      balance: "1134 €",
-      balanceDue: "sábado, 1 de agosto de 2026",
+      balance: { amount: "1134 €", dueDate: "sábado, 1 de agosto de 2026" },
       balanceDueDaysBefore: 14,
       termsWindowDays: 30,
       quoteUrl: QUOTE_URL,
@@ -1042,10 +1041,9 @@ describe("guestQuoteSentEmail", () => {
       quoteFacts({
         locale: "en",
         date: "Saturday, 15 August 2026",
-        balanceDue: "Saturday, 1 August 2026",
         total: "€1,620",
         deposit: "€486",
-        balance: "€1,134",
+        balance: { amount: "€1,134", dueDate: "Saturday, 1 August 2026" },
       }),
     );
 
@@ -1070,6 +1068,18 @@ describe("guestQuoteSentEmail", () => {
 
     expect(mail.html).not.toContain("<b>Flores</b>");
     expect(mail.html).toContain("&lt;b&gt;Flores&lt;/b&gt; &amp; fitas");
+  });
+
+  it("says there is nothing left to pay at a 100% deposit, and drops the balance date", () => {
+    const mail = guestQuoteSentEmail(
+      quoteFacts({ deposit: "1620 €", depositPercent: 100, balance: null }),
+    );
+
+    for (const part of [mail.text, mail.html ?? ""]) {
+      expect(part).toContain("Nada — o sinal cobre o valor total");
+      expect(part).not.toContain("restante é pedido automaticamente");
+    }
+    expect(mail.text).toContain("A data fica reservada com o pagamento do sinal, na página do orçamento.");
   });
 });
 
