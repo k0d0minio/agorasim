@@ -8,9 +8,9 @@ import { cn } from "@/lib/utils"
  * to be pasted into every form component by hand. `Textarea` and `Select` build
  * on it too, so a styling decision here reaches every field in the app.
  *
- * Two rules live here on purpose (docs/admin-mobile-design-spec.md §8, §4):
- * text is 16px in every size, because iOS Safari zooms the page on focusing any
- * field whose computed size is 15px or less; and the border is the darker
+ * Two rules live here on purpose: text is 16px in every size, because iOS
+ * Safari zooms the page on focusing any field whose computed size is 15px or
+ * less; and the border is the darker
  * `--input` token, because a field's border is the only thing announcing it can
  * be typed in and the decorative `--border` grey fails the 3:1 non-text floor.
  */

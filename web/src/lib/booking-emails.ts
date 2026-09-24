@@ -19,7 +19,7 @@
 import { classicCars, site, taglines } from "@/content/site";
 import { bookingEmails } from "@/content/emails";
 import { serviceHoursLabel } from "@/content/quote-request";
-import { termsContent } from "@/content/terms";
+import { termsContent, termsSection } from "@/content/terms";
 import type { EnquiryKind } from "@/db/schema";
 import { t, type Locale } from "@/i18n/config";
 import type { EmailMessage } from "@/lib/email";
@@ -458,6 +458,139 @@ export function guestMoveEmail(facts: BookingMoveFacts): EmailMessage {
       emailDivider(),
       emailSpacer(20),
       emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+  };
+}
+
+/** Which morning a reminder is sent on, relative to the tour. */
+export type ReminderWhen = "tomorrow" | "today";
+
+/**
+ * Everything the day-before reminder needs — the confirmation's facts minus
+ * the money and the cancel link, which this mail never carries (see
+ * `bookingEmails.reminder`), plus which morning it is.
+ */
+export type ReminderEmailFacts = Pick<
+  BookingEmailFacts,
+  | "ref"
+  | "guestName"
+  | "guestEmail"
+  | "locale"
+  | "date"
+  | "experience"
+  | "departure"
+  | "departureTimeFollows"
+  | "meetingPoint"
+  | "addOns"
+  | "partyLabel"
+> & { when: ReminderWhen };
+
+/**
+ * The §2.6 reminder, in the language the guest booked in.
+ *
+ * **The meeting point is the point.** The client's own line ends on it, so it
+ * sits right under the departure, linked to the pin in the HTML and printed as
+ * a bare URL in the text part, where a client makes it tappable.
+ *
+ * `replyTo` is the business inbox, as on every guest mail: "we are running
+ * late" has to reach a person.
+ */
+export function guestReminderEmail(facts: ReminderEmailFacts): EmailMessage {
+  const c = bookingEmails.reminder;
+  const w = c[facts.when];
+  // The labels are the confirmation's — one word for "Ponto de encontro".
+  const g = bookingEmails.guest;
+  const l = facts.locale;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    ref: facts.ref,
+    experience: facts.experience,
+    date: facts.date,
+    site: siteUrl(),
+    diogoPhone: diogo.phoneDisplay,
+    ritaPhone: rita.phoneDisplay,
+  };
+
+  const subject = fill(t(w.subject, l), values);
+  const greeting = fill(t(c.greeting, l), values);
+  const departureTime = facts.departureTimeFollows
+    ? fill(t(c.departureTime.body, l), values)
+    : null;
+
+  const rows: DetailRow[] = [
+    { label: t(g.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(g.labels.experience, l), value: facts.experience },
+    { label: t(g.labels.date, l), value: facts.date },
+    { label: t(g.labels.departure, l), value: facts.departure },
+    ...(facts.meetingPoint
+      ? [
+          {
+            label: t(g.labels.meetingPoint, l),
+            value: facts.meetingPoint.address,
+            href: facts.meetingPoint.mapsUrl,
+          },
+        ]
+      : []),
+    { label: t(g.labels.party, l), value: facts.partyLabel },
+    ...(facts.addOns.length > 0
+      ? [{ label: t(g.labels.addOns, l), value: facts.addOns.join(", ") }]
+      : []),
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    t(w.lead, l),
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    facts.meetingPoint ? `${t(g.labels.meetingPoint, l)}: ${facts.meetingPoint.mapsUrl}` : null,
+    "",
+    departureTime ? `${t(c.departureTime.title, l)}: ${departureTime}` : null,
+    departureTime ? "" : null,
+    t(c.changeNote, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(w.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader, l), values),
+    banner: { text: t(w.banner, l) },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(t(w.lead, l), { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      ...(departureTime
+        ? [emailSpacer(24), emailNote({ title: t(c.departureTime.title, l), body: departureTime })]
+        : []),
+      emailSpacer(24),
+      emailParagraph(t(c.changeNote, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(w.signoff, l), { muted: true, spaceBelow: 0 }),
     ].join(""),
     footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
   });
@@ -1064,6 +1197,401 @@ export function teamEnquiryEmail(
     subject,
     text,
     html,
+    replyTo: facts.guestEmail,
+  };
+}
+
+/**
+ * Everything the quote-sent email needs, already formatted in the couple's
+ * language by the caller (`lib/quote-send.ts`) — this builder stays pure.
+ */
+export type QuoteSentEmailFacts = {
+  /** `QT-1A2B3C` — what the couple quote on the phone. */
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  /** The quote's own language, which is the enquiry's. */
+  locale: Locale;
+  /** "sábado, 15 de agosto de 2026" — the event day. */
+  date: string;
+  /** Their venue, as typed on the quote. Omitted when there is none. */
+  venue: string | null;
+  /** The priced lines, amounts already formatted. */
+  lines: { label: string; quantity: number; amount: string }[];
+  total: string;
+  deposit: string;
+  depositPercent: number;
+  balance: string;
+  /** "sábado, 1 de agosto de 2026" — T−14. */
+  balanceDue: string;
+  /** How many days before the event the balance is asked for. */
+  balanceDueDaysBefore: number;
+  /** The non-refundable window the quote was written under (D9). */
+  termsWindowDays: number;
+  /**
+   * The quote page, absolute, carrying the plaintext token this mail is the
+   * only place that will ever hold (`lib/quote-token.ts`).
+   */
+  quoteUrl: string;
+};
+
+/**
+ * The quote, sent to the couple in the language they enquired in.
+ *
+ * Shaped like the booking confirmation — a greeting, the facts table, what
+ * happens next, the phone numbers — because it is read the same way: on a
+ * phone, forwarded, and kept. The link to the quote page is the one action,
+ * below the money rather than above it; nobody should be asked to pay before
+ * they have read what for.
+ *
+ * `replyTo` is the business inbox: the next thing a couple does with a quote is
+ * ask about it.
+ */
+export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
+  const c = bookingEmails.quoteSent;
+  const l = facts.locale;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    date: facts.date,
+    total: facts.total,
+    deposit: facts.deposit,
+    site: siteUrl(),
+  };
+
+  const subject = fill(t(c.subject, l), values);
+  const greeting = fill(t(c.greeting, l), values);
+  const nextBody = fill(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) });
+  const termsNote = fill(t(c.termsNote, l), { days: String(facts.termsWindowDays) });
+
+  const rows: DetailRow[] = [
+    { label: t(c.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(c.labels.date, l), value: facts.date },
+    ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
+    ...facts.lines.map((line) => ({
+      label:
+        line.quantity > 1
+          ? fill(c.lineQuantity, { quantity: String(line.quantity), label: line.label })
+          : line.label,
+      value: line.amount,
+    })),
+    { label: t(c.labels.total, l), value: facts.total, emphasis: true },
+    {
+      label: fill(t(c.labels.deposit, l), { percent: String(facts.depositPercent) }),
+      value: facts.deposit,
+    },
+    {
+      label: t(c.labels.balance, l),
+      value: fill(t(c.balanceDue, l), { amount: facts.balance, date: facts.balanceDue }),
+    },
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    t(c.lead, l),
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    nextBody,
+    "",
+    // The URL on its own line, as the cancel link is — a text client makes a
+    // bare line tappable and breaks one wrapped in a sentence.
+    fill(t(c.ctaTextLine, l), { url: facts.quoteUrl }),
+    "",
+    termsNote,
+    "",
+    t(c.questions, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(c.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader, l), values),
+    banner: { text: t(c.banner, l) },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(t(c.lead, l), { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      emailSpacer(24),
+      emailNote({ title: t(c.next.title, l), body: nextBody }),
+      emailSpacer(20),
+      emailButton({ label: t(c.cta, l), href: facts.quoteUrl }),
+      emailSpacer(20),
+      emailParagraph(termsNote, { muted: true, spaceBelow: 16 }),
+      emailParagraph(t(c.questions, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+  };
+}
+
+/** Which instalment a quote receipt is for — the two kinds the log keys apart. */
+export type QuoteReceiptInstalment = "deposit" | "balance";
+
+/**
+ * Everything the two quote receipts need, already formatted in the couple's
+ * language by the caller (`lib/quote-checkout.ts`) — this builder stays pure.
+ */
+export type QuoteReceiptEmailFacts = {
+  instalment: QuoteReceiptInstalment;
+  /** `QT-1A2B3C`. */
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string | null;
+  /** The quote's own language, which is the enquiry's. */
+  locale: Locale;
+  /** The event day, formatted. */
+  date: string;
+  venue: string | null;
+  /** What this payment was, formatted. */
+  amount: string;
+  /** The day it landed, formatted. */
+  paidOn: string;
+  total: string;
+  /** What is still owed and by when, or `null` when nothing is. */
+  remaining: { amount: string; dueDate: string } | null;
+  /** How many days before the event the balance link is sent. */
+  balanceDueDaysBefore: number;
+  /** The fee Stripe routed, formatted — `null` on a platform-only charge. Team copy only. */
+  fee: string | null;
+  /** Deep link to the lead on the Sales board, for the team's copy. */
+  adminUrl: string;
+};
+
+/**
+ * The couple's receipt for one paid instalment — and their durable copy of
+ * the event terms.
+ *
+ * The events section of the terms of sale is reproduced here verbatim, under
+ * the version it carries, because a page we control is not a durable medium
+ * (DL 24/2014 art. 4(1)) and this email is. It is read from `terms.ts`, the
+ * same object the quote page renders above the pay button, so the two cannot
+ * disagree about what was agreed.
+ *
+ * No link to the quote page: the plaintext token lives only in the quote-sent
+ * email, and the webhook that usually sends this never has it.
+ */
+export function guestQuoteReceiptEmail(facts: QuoteReceiptEmailFacts): EmailMessage {
+  const c = bookingEmails.quoteReceipt;
+  const l = facts.locale;
+  const which = facts.instalment;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    date: facts.date,
+    amount: facts.amount,
+    due: facts.remaining?.dueDate ?? "",
+    site: siteUrl(),
+  };
+
+  const subject = fill(t(c.subject[which], l), values);
+  const greeting = fill(t(c.greeting, l), values);
+  const events = termsSection("events", l);
+  const termsHeading = fill(t(c.termsHeading, l), {
+    version: t(termsContent.lastUpdated, l),
+  });
+  const nextBody = fill(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) });
+  const fullTermsUrl = termsUrl(l);
+
+  const rows: DetailRow[] = [
+    { label: t(c.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(c.labels.date, l), value: facts.date },
+    ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
+    { label: t(c.labels.paidOn, l), value: facts.paidOn },
+    { label: t(c.labels.total, l), value: facts.total },
+    {
+      label: t(c.labels.remaining, l),
+      value: facts.remaining
+        ? fill(t(c.remainingDue, l), {
+            amount: facts.remaining.amount,
+            date: facts.remaining.dueDate,
+          })
+        : t(c.fullyPaid, l),
+    },
+    { label: t(c.labels.paid[which], l), value: facts.amount, emphasis: true },
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    t(c.lead[which], l),
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    facts.remaining ? nextBody : null,
+    facts.remaining ? "" : null,
+    termsHeading,
+    events.heading,
+    ...events.body,
+    "",
+    fill(t(c.fullTerms, l), { url: fullTermsUrl }),
+    "",
+    t(c.questions, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(c.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader[which], l), values),
+    banner: { text: t(c.banner[which], l) },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(t(c.lead[which], l), { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      emailSpacer(24),
+      ...(facts.remaining
+        ? [emailNote({ title: t(c.next.title, l), body: nextBody }), emailSpacer(24)]
+        : []),
+      emailDivider(),
+      emailSpacer(20),
+      emailEyebrow(termsHeading),
+      emailParagraph(events.heading, { spaceBelow: 8 }),
+      ...events.body.map((paragraph) => emailParagraph(paragraph, { muted: true, spaceBelow: 12 })),
+      // The link as markup, the words around it inert — as in the withdrawal line.
+      `<p style="margin:4px 0 20px;"><a href="${escapeHtml(fullTermsUrl)}" style="color:${emailPalette.textMuted};text-decoration:underline;">${escapeHtml(t(c.fullTermsLink, l))}</a></p>`,
+      emailParagraph(t(c.questions, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+  };
+}
+
+/**
+ * The team's notice of the same payment. Portuguese, with the fee Stripe took
+ * and the couple's contact details — the mail Rita reads on her phone.
+ */
+export function teamQuoteReceiptEmail(
+  facts: QuoteReceiptEmailFacts,
+  recipients: string[],
+): EmailMessage {
+  const c = bookingEmails.teamQuoteReceipt;
+  const which = facts.instalment;
+
+  const values: Record<string, string> = {
+    ref: facts.ref,
+    name: facts.guestName,
+    date: facts.date,
+    amount: facts.amount,
+    adminUrl: facts.adminUrl,
+  };
+
+  const subject = fill(c.subject[which], values);
+  const heading = fill(c.heading[which], values);
+
+  const rows: DetailRow[] = [
+    { label: c.labels.reference, value: facts.ref, mono: true },
+    { label: c.labels.date, value: facts.date },
+    ...(facts.venue ? [{ label: c.labels.venue, value: facts.venue }] : []),
+    { label: c.labels.total, value: facts.total },
+    {
+      label: c.labels.remaining,
+      value: facts.remaining
+        ? fill(c.remainingDue, { amount: facts.remaining.amount, date: facts.remaining.dueDate })
+        : c.fullyPaid,
+    },
+    { label: c.labels.fee, value: facts.fee ?? c.noFee },
+    { label: c.labels.amount, value: facts.amount, emphasis: true },
+  ];
+
+  const phone = facts.guestPhone ?? "—";
+  const guestRows: DetailRow[] = [
+    { label: c.guestLabels.name, value: facts.guestName },
+    { label: c.guestLabels.email, value: facts.guestEmail, href: `mailto:${facts.guestEmail}` },
+    {
+      label: c.guestLabels.phone,
+      value: phone,
+      ...(facts.guestPhone ? { href: `tel:${facts.guestPhone}` } : {}),
+    },
+  ];
+
+  const text = textLines([
+    heading,
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    c.guestHeading,
+    ...guestRows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    fill(c.ctaLine, values),
+  ]);
+
+  const html = emailDocument({
+    lang: "pt",
+    title: subject,
+    preheader: fill(c.preheader, values),
+    banner: { text: c.banner[which], background: emailPalette.primaryDark },
+    content: [
+      emailHeading(facts.guestName),
+      emailParagraph(heading, { muted: true, spaceBelow: 24 }),
+      emailEyebrow(c.detailsHeading),
+      emailDetails(rows),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(24),
+      emailEyebrow(c.guestHeading),
+      emailDetails(guestRows.slice(1)),
+      emailSpacer(28),
+      emailButton({ label: c.cta, href: facts.adminUrl }),
+    ].join(""),
+    footer: [escapeHtml(c.footerNote)],
+  });
+
+  return {
+    to: recipients,
+    subject,
+    text,
+    html,
+    // Reply writes to the couple, as on every team notification.
     replyTo: facts.guestEmail,
   };
 }

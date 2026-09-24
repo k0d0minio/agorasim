@@ -41,6 +41,19 @@ export const home = {
   } as Localized,
 } as const;
 
+/** Experiences page copy. */
+export const experiences = {
+  title: { pt: "Experiências", en: "Experiences" } as Localized,
+  lead: {
+    pt: "Passeios guiados em carro clássico pela região Saloia, entre Sintra, Mafra e a Ericeira — escolha o Rural Saloia ou o Óbidos & Aldeias Medievais e componha o seu dia com os nossos complementos.",
+    en: "Guided classic-car tours through the Saloia region, between Sintra, Mafra and Ericeira — choose Rural Saloia or Óbidos & Medieval Villages and compose your day with our add-ons.",
+  } as Localized,
+  metaDescription: {
+    pt: "Passeios guiados em carro clássico pela região Saloia: Rural Saloia e Óbidos & Aldeias Medievais, com complementos de gastronomia e vinho.",
+    en: "Guided classic-car tours through the Saloia region: Rural Saloia and Óbidos & Medieval Villages, with food and wine add-ons.",
+  } as Localized,
+} as const;
+
 /** About page copy. */
 export const about = {
   title: { pt: "Sobre a Agorasim", en: "About Agorasim" } as Localized,

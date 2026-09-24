@@ -1150,6 +1150,28 @@ export const messageLog = pgTable("message_log", {
    */
   subjectDate: date("subject_date"),
 
+  /**
+   * The quote a message is *about*, for the kinds whose subject is an offer
+   * rather than a booking or the enquiry itself — `quote-sent` today.
+   *
+   * A lead can be quoted more than once: a sent quote is replaced by a new
+   * version, and a quote whose email went to a mistyped address is re-sent
+   * behind a fresh link (`lib/quotes.ts`). Keyed on the lead, as the enquiry
+   * ack is, the second of those emails would lose its claim for ever. `cascade`
+   * for the same reason as `tour_request_id`: a log row has no life of its own.
+   */
+  quoteId: uuid("quote_id").references(() => quotes.id, { onDelete: "cascade" }),
+  /**
+   * Which send of that quote this row is — the quote's `sent_at` at the moment
+   * of sending, copied like {@link messageLog.subjectDate} copies a departure.
+   *
+   * A quote is sent once per link, and every send (the first, a re-send, the
+   * version that replaces it) stamps a new `sent_at` under a guarded update, so
+   * the stamp names the link without this table holding anything derived from
+   * the token. Null for every kind that is not quote-shaped.
+   */
+  quoteSentAt: timestamp("quote_sent_at", { withTimezone: true }),
+
   status: messageStatusEnum("status").notNull().default("sending"),
 
   /**
@@ -1202,18 +1224,47 @@ export const messageLog = pgTable("message_log", {
     ),
   /**
    * The same rule for messages whose subject is the enquiry itself (the ack),
-   * scoped to rows that name no booking so a booking's mails are never keyed
-   * on the lead behind them.
+   * scoped to rows that name no booking and no quote so neither's mails are
+   * ever keyed on the lead behind them.
    */
   uniqueIndex("message_log_enquiry_kind_key")
     .on(table.kind, table.recipient, table.tourRequestId)
     .where(
-      sql`"booking_id" is null and "tour_request_id" is not null and "status" <> 'failed'`,
+      sql`"booking_id" is null and "quote_id" is null and "tour_request_id" is not null and "status" <> 'failed'`,
+    ),
+  /**
+   * One message of each kind per quote, per recipient, **per send** — the
+   * quote's `sent_at` names the link the mail carried, so a re-send and a new
+   * version each get exactly one email and a double tap gets none.
+   */
+  uniqueIndex("message_log_quote_kind_key")
+    .on(table.kind, table.recipient, table.quoteId, table.quoteSentAt)
+    .where(
+      sql`"booking_id" is null and "quote_id" is not null and "quote_sent_at" is not null and "status" <> 'failed'`,
+    ),
+  /**
+   * One receipt of each kind per quote, per recipient — the rule for the
+   * messages whose subject is a paid instalment rather than a send
+   * (`deposit-received`, `balance-paid`). A quote has one deposit and one
+   * balance, and the two are different kinds, so the kind and the quote are
+   * the whole key: the webhook redelivering, or the return page racing it,
+   * finds the claim and sends nothing.
+   *
+   * Split from the index above on `quote_sent_at`'s nullness, for the reason
+   * the two booking indexes split on `subject_date`'s: a unique index treats
+   * NULLs as distinct, so one key over both shapes would key nothing here.
+   */
+  uniqueIndex("message_log_quote_receipt_key")
+    .on(table.kind, table.recipient, table.quoteId)
+    .where(
+      sql`"booking_id" is null and "quote_id" is not null and "quote_sent_at" is null and "status" <> 'failed'`,
     ),
   // "What did we send about this booking / this lead?" — the Notifications page
   // and the admin's per-row history.
   index("message_log_booking_idx").on(table.bookingId),
   index("message_log_tour_request_idx").on(table.tourRequestId),
+  // "Did this quote's email go?" — the Sales detail's quote card.
+  index("message_log_quote_idx").on(table.quoteId),
   // The log reads newest-first, like the audit trail it sits beside.
   index("message_log_created_at_idx").on(table.createdAt),
 ]);

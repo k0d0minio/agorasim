@@ -17,6 +17,8 @@ type Dict = {
     book: string;
     learnMore: string;
     bookExperience: string;
+    /** The phone booking bar on /casamentos and /eventos. */
+    requestQuote: string;
     viewExperiences: string;
     contactUs: string;
   };
@@ -66,6 +68,7 @@ const dictionaries: Record<Locale, Dict> = {
       book: "Reserve agora",
       learnMore: "Saber mais",
       bookExperience: "Reservar experiência",
+      requestQuote: "Pedir orçamento",
       viewExperiences: "Ver experiências",
       contactUs: "Fale connosco",
     },
@@ -107,6 +110,7 @@ const dictionaries: Record<Locale, Dict> = {
       book: "Book now",
       learnMore: "Learn more",
       bookExperience: "Book an experience",
+      requestQuote: "Request a quote",
       viewExperiences: "View experiences",
       contactUs: "Talk to us",
     },

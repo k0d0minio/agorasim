@@ -9,11 +9,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * uses) so `eq()` builds genuine SQL against genuine columns and a renamed
  * column fails the suite rather than passing it quietly.
  *
- * The fake below re-states the three partial unique indexes from
+ * The fake below re-states the five partial unique indexes from
  * `db/schema.ts` as a key function, so "is this message already claimed?" is
  * answered here the way Postgres answers it. That is deliberately not a proof
  * that the indexes exist — they are in
- * `drizzle/0025_message_log_subject_date.sql` and only a database can check
+ * `drizzle/0025_message_log_subject_date.sql`,
+ * `drizzle/0027_quote_sent_per_quote.sql` and
+ * `drizzle/0028_quote_receipt_per_quote.sql`, and only a database can check
  * them. What it does prove is the half of the mechanism that lives in this
  * file: the key each send is claimed under. A reminder that forgot its date
  * would land under the wrong index in production and be silently permanent,
@@ -30,6 +32,8 @@ type LogRow = {
   bookingId: string | null;
   tourRequestId: string | null;
   subjectDate: string | null;
+  quoteId: string | null;
+  quoteSentAt: string | null;
   status: string;
 };
 
@@ -56,6 +60,14 @@ function indexKey(row: LogRow): string | null {
       ? `booking:${row.kind}:${row.recipient}:${row.bookingId}`
       : `booking-date:${row.kind}:${row.recipient}:${row.bookingId}:${row.subjectDate}`;
   }
+  if (row.quoteId !== null) {
+    // message_log_quote_kind_key — one row per send of a quote, the send named
+    // by the `sent_at` it stamped. message_log_quote_receipt_key — a receipt
+    // carries no stamp, and is one per kind per quote.
+    return row.quoteSentAt === null
+      ? `quote-receipt:${row.kind}:${row.recipient}:${row.quoteId}`
+      : `quote:${row.kind}:${row.recipient}:${row.quoteId}:${row.quoteSentAt}`;
+  }
   // message_log_enquiry_kind_key
   return row.tourRequestId === null
     ? null
@@ -81,6 +93,9 @@ const fakeDb = {
           bookingId: text(values.bookingId),
           tourRequestId: text(values.tourRequestId),
           subjectDate: text(values.subjectDate),
+          quoteId: text(values.quoteId),
+          quoteSentAt:
+            values.quoteSentAt instanceof Date ? values.quoteSentAt.toISOString() : null,
           status: String(values.status),
         };
         return {
@@ -194,6 +209,8 @@ describe("sendLoggedEmail", () => {
       // Null, not absent: it is what puts this row under the booking-shaped
       // index rather than the date-bound one.
       subjectDate: null,
+      quoteId: null,
+      quoteSentAt: null,
       status: "sending",
     });
     expect(updatedPatches[0]).toMatchObject({
@@ -388,5 +405,138 @@ describe("the cancellation kinds", () => {
       status: "sent",
     });
     expect(sendEmail).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * A lead quoted more than once — the reason `quote_id` and `quote_sent_at`
+ * exist. Keyed on the lead, as the enquiry ack is, the second version's email
+ * would have lost its claim to the first and the couple would never see it.
+ */
+describe("the quote-sent kind", () => {
+  const QUOTE_V1 = "aaaaaaaa-0000-0000-0000-000000000001";
+  const QUOTE_V2 = "aaaaaaaa-0000-0000-0000-000000000002";
+
+  const quoteSent = (quoteId: string, sentAt: string) =>
+    ({
+      kind: "quote-sent",
+      recipient: "guest",
+      tourRequestId: LEAD,
+      quoteId,
+      quoteSentAt: new Date(sentAt),
+    }) as const;
+
+  it("claims under the quote and its send, not under the lead", async () => {
+    await sendLoggedEmail(quoteSent(QUOTE_V1, "2026-09-24T10:00:00Z"), MESSAGE);
+
+    expect(insertedRows[0]).toMatchObject({
+      kind: "quote-sent",
+      tourRequestId: LEAD,
+      bookingId: null,
+      quoteId: QUOTE_V1,
+      quoteSentAt: new Date("2026-09-24T10:00:00Z"),
+    });
+  });
+
+  it("emails each version of a lead's quote once", async () => {
+    expect(
+      await sendLoggedEmail(quoteSent(QUOTE_V1, "2026-09-24T10:00:00Z"), MESSAGE),
+    ).toMatchObject({ status: "sent" });
+    // The new version replaces the first: same lead, same kind, same guest.
+    expect(
+      await sendLoggedEmail(quoteSent(QUOTE_V2, "2026-09-25T09:30:00Z"), MESSAGE),
+    ).toMatchObject({ status: "sent" });
+
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it("emails a re-sent link, and never the same link twice", async () => {
+    const first = quoteSent(QUOTE_V1, "2026-09-24T10:00:00Z");
+    expect(await sendLoggedEmail(first, MESSAGE)).toMatchObject({ status: "sent" });
+    // A double tap, or an action retried by the browser.
+    expect(await sendLoggedEmail(first, MESSAGE)).toEqual({ status: "duplicate" });
+
+    // "Reenviar" rotated the link, which stamped a new `sent_at`.
+    expect(
+      await sendLoggedEmail(quoteSent(QUOTE_V1, "2026-09-24T18:15:00Z"), MESSAGE),
+    ).toMatchObject({ status: "sent" });
+
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves a failed quote email free to be tried again", async () => {
+    sendEmail.mockResolvedValue({ sent: false, reason: "failed" });
+    const send = quoteSent(QUOTE_V1, "2026-09-24T10:00:00Z");
+    expect(await sendLoggedEmail(send, MESSAGE)).toMatchObject({ status: "failed" });
+
+    sendEmail.mockResolvedValue({ sent: true, id: "re_2" });
+    expect(await sendLoggedEmail(send, MESSAGE)).toMatchObject({ status: "sent" });
+  });
+
+  it("does not take the enquiry ack's claim on the same lead", async () => {
+    const ack = { kind: "enquiry-ack", recipient: "guest", tourRequestId: LEAD } as const;
+    await sendLoggedEmail(ack, MESSAGE);
+
+    expect(
+      await sendLoggedEmail(quoteSent(QUOTE_V1, "2026-09-24T10:00:00Z"), MESSAGE),
+    ).toMatchObject({ status: "sent" });
+    expect(await sendLoggedEmail(ack, MESSAGE)).toEqual({ status: "duplicate" });
+  });
+});
+
+describe("the quote receipt kinds", () => {
+  const QUOTE = "aaaaaaaa-0000-0000-0000-000000000001";
+  const OTHER_QUOTE = "aaaaaaaa-0000-0000-0000-000000000002";
+
+  const receipt = (
+    kind: "deposit-received" | "balance-paid",
+    recipient: "guest" | "team",
+    quoteId = QUOTE,
+  ) => ({ kind, recipient, tourRequestId: LEAD, quoteId }) as const;
+
+  it("claims under the quote alone, with no send stamp", async () => {
+    await sendLoggedEmail(receipt("deposit-received", "guest"), MESSAGE);
+
+    expect(insertedRows[0]).toMatchObject({
+      kind: "deposit-received",
+      recipient: "guest",
+      tourRequestId: LEAD,
+      bookingId: null,
+      quoteId: QUOTE,
+      quoteSentAt: null,
+    });
+  });
+
+  it("sends each receipt once per recipient, however often it is asked for", async () => {
+    // The webhook, its redelivery, and the return page racing both.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await sendLoggedEmail(receipt("deposit-received", "guest"), MESSAGE);
+      await sendLoggedEmail(receipt("deposit-received", "team"), MESSAGE);
+    }
+
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the deposit and the balance receipts apart, and quotes apart", async () => {
+    await sendLoggedEmail(receipt("deposit-received", "guest"), MESSAGE);
+
+    expect(
+      await sendLoggedEmail(receipt("balance-paid", "guest"), MESSAGE),
+    ).toMatchObject({ status: "sent" });
+    expect(
+      await sendLoggedEmail(receipt("deposit-received", "guest", OTHER_QUOTE), MESSAGE),
+    ).toMatchObject({ status: "sent" });
+  });
+
+  it("leaves a failed receipt free to be tried again", async () => {
+    sendEmail.mockResolvedValue({ sent: false, reason: "failed" });
+    expect(
+      await sendLoggedEmail(receipt("balance-paid", "guest"), MESSAGE),
+    ).toMatchObject({ status: "failed" });
+
+    sendEmail.mockResolvedValue({ sent: true, id: "re_2" });
+    expect(
+      await sendLoggedEmail(receipt("balance-paid", "guest"), MESSAGE),
+    ).toMatchObject({ status: "sent" });
   });
 });

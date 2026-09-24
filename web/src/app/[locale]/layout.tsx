@@ -20,8 +20,7 @@ export function generateStaticParams() {
 
 /**
  * Mirrors the admin's viewport (`app/admin/layout.tsx`) — guests browse from
- * phones just as the team does, so the public site gets the same treatment
- * (docs/admin-mobile-design-spec.md §5).
+ * phones just as the team does, so the public site gets the same treatment.
  *
  * Note what is *not* here: no `maximumScale` or `userScalable`. Capping zoom
  * would be the quick way to stop iOS zooming into a focused field, and it
@@ -96,7 +95,11 @@ export default async function LocaleLayout({
         <SiteHeader locale={typedLocale} />
         <main className="flex-1">{children}</main>
         <SiteFooter locale={typedLocale} />
-        <BookingBar locale={typedLocale} label={dict.cta.bookExperience} />
+        <BookingBar
+          locale={typedLocale}
+          label={dict.cta.bookExperience}
+          quoteLabel={dict.cta.requestQuote}
+        />
       </body>
     </html>
   );

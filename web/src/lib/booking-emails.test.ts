@@ -5,16 +5,24 @@ import {
   guestConfirmationEmail,
   guestEnquiryAckEmail,
   guestMoveEmail,
+  guestQuoteReceiptEmail,
+  guestQuoteSentEmail,
+  guestReminderEmail,
   partyLabel,
   teamCancellationEmail,
   teamEnquiryEmail,
   teamNotificationEmail,
+  teamQuoteReceiptEmail,
   type BookingCancellationFacts,
   type BookingEmailFacts,
   type BookingMoveFacts,
   type EnquiryEmailFacts,
+  type QuoteReceiptEmailFacts,
+  type QuoteSentEmailFacts,
+  type ReminderEmailFacts,
   type TeamCancellationFacts,
 } from "@/lib/booking-emails";
+import { termsContent, termsSection } from "@/content/terms";
 import { emailPalette } from "@/lib/email-layout";
 import { site } from "@/content/site";
 import { siteUrl } from "@/lib/site-origin";
@@ -366,6 +374,181 @@ describe("guestMoveEmail", () => {
 
   it("replies to a person, not to the sending domain", () => {
     expect(guestMoveEmail(moved()).replyTo).toBe(site.email);
+  });
+});
+
+/** The Óbidos meeting point, from `content/logistics.ts`. */
+const OBIDOS_PIN = {
+  address: "Alameda Cardeal Cerejeira, Lisboa",
+  mapsUrl: "https://maps.app.goo.gl/ucMojM5V7eGhcvn4A",
+};
+
+function reminder(overrides: Partial<ReminderEmailFacts> = {}): ReminderEmailFacts {
+  const base = facts();
+  return {
+    when: "tomorrow",
+    ref: base.ref,
+    guestName: base.guestName,
+    guestEmail: base.guestEmail,
+    locale: base.locale,
+    date: base.date,
+    experience: base.experience,
+    departure: base.departure,
+    departureTimeFollows: base.departureTimeFollows,
+    meetingPoint: base.meetingPoint,
+    addOns: base.addOns,
+    partyLabel: base.partyLabel,
+    ...overrides,
+  };
+}
+
+/** The same guest on Óbidos, whose departures still have no clock time. */
+function obidos(overrides: Partial<ReminderEmailFacts> = {}): ReminderEmailFacts {
+  return reminder({
+    experience: "Óbidos & Aldeias Medievais — partida partilhada",
+    departure: "Partida da manhã — hora exata confirmada por email",
+    departureTimeFollows: true,
+    meetingPoint: OBIDOS_PIN,
+    ...overrides,
+  });
+}
+
+describe("guestReminderEmail", () => {
+  const [diogo, rita] = site.contacts;
+
+  it("substitutes every placeholder — no stray braces reach a guest", () => {
+    for (const message of [
+      guestReminderEmail(reminder()),
+      guestReminderEmail(obidos({ when: "today", locale: "en" })),
+    ]) {
+      expect(message.subject).not.toMatch(/\{/);
+      expect(message.text).not.toMatch(/\{/);
+      expect(message.html).not.toMatch(
+        /\{(name|ref|experience|date|site|diogoPhone|ritaPhone)\}/,
+      );
+    }
+  });
+
+  it("says tomorrow is the big day, in the client's words, in both languages", () => {
+    const pt = guestReminderEmail(reminder());
+    expect(pt.subject).toContain("Amanhã é o grande dia");
+    expect(pt.html).toContain('lang="pt"');
+    expect(pt.text).toContain("Aqui fica a informação sobre o ponto de encontro");
+
+    const en = guestReminderEmail(reminder({ locale: "en", date: "Saturday, 15 August 2026" }));
+    expect(en.subject).toContain("Tomorrow is the big day");
+    expect(en.html).toContain('lang="en"');
+    expect(en.text).toContain("Here is some information about the meeting point");
+  });
+
+  it("says today, not tomorrow, on the same-morning catch-up", () => {
+    const pt = guestReminderEmail(reminder({ when: "today" }));
+    expect(pt.subject).toContain("Hoje é o grande dia");
+    expect(pt.text).not.toContain("Amanhã");
+    expect(pt.html).not.toContain("Amanhã é o grande dia");
+
+    const en = guestReminderEmail(reminder({ when: "today", locale: "en" }));
+    expect(en.subject).toContain("Today is the big day");
+    expect(en.text).not.toMatch(/tomorrow/i);
+  });
+
+  it("carries the meeting point linked to its pin, and the rest of the booking", () => {
+    const message = guestReminderEmail(reminder());
+    expect(message.to).toEqual(["sofia@example.com"]);
+    for (const part of [message.text, message.html!]) {
+      expect(part).toContain("Sofia Almeida");
+      expect(part).toContain("BK-A1B2C3");
+      expect(part).toContain("sábado, 15 de agosto de 2026");
+      expect(part).toContain("Manhã · 10h00");
+      expect(part).toContain("Av. Mário Firmino Miguel, Sintra (Portela de Sintra)");
+      expect(part).toContain("2 adultos");
+      expect(part).toContain("Manzwine");
+    }
+    expect(message.html).toContain('href="https://maps.app.goo.gl/zufzHo8QpmspvzqC9"');
+    expect(message.text).toContain("https://maps.app.goo.gl/zufzHo8QpmspvzqC9");
+  });
+
+  it("omits the meeting-point and add-ons rows when there is nothing to say", () => {
+    const message = guestReminderEmail(reminder({ meetingPoint: null, addOns: [] }));
+    expect(message.text).not.toContain("Ponto de encontro");
+    expect(message.text).not.toContain("Extras");
+  });
+
+  it("carries no money line and no cancel link, in either language", () => {
+    for (const locale of ["pt", "en"] as const) {
+      for (const message of [
+        guestReminderEmail(reminder({ locale })),
+        guestReminderEmail(obidos({ locale })),
+      ]) {
+        for (const part of [message.text, message.html!]) {
+          expect(part).not.toContain("€");
+          expect(part).not.toMatch(/Total pago|Total paid/);
+          expect(part).not.toMatch(/Cancelar a reserva|Cancel this booking/);
+          expect(part).not.toContain("/cancelar/");
+        }
+      }
+    }
+  });
+
+  it("tells an Óbidos guest whom to call for the hour, with both numbers", () => {
+    const pt = guestReminderEmail(obidos());
+    for (const part of [pt.text, pt.html!]) {
+      expect(part).toContain("Se ainda não recebeu de nós a hora exata da partida");
+      expect(part).toContain(`Diogo (${diogo.phoneDisplay})`);
+      expect(part).toContain(`Rita (${rita.phoneDisplay})`);
+      expect(part).toContain("Alameda Cardeal Cerejeira, Lisboa");
+    }
+    expect(pt.text).toContain(OBIDOS_PIN.mapsUrl);
+
+    const en = guestReminderEmail(obidos({ locale: "en" }));
+    // The HTML escapes the apostrophe, as it escapes every copy string.
+    expect(en.text).toContain("If you haven't had the exact departure time from us yet");
+    expect(en.html).toContain("If you haven&#39;t had the exact departure time from us yet");
+    for (const part of [en.text, en.html!]) {
+      expect(part).toContain(`Diogo (${diogo.phoneDisplay})`);
+      expect(part).toContain(`Rita (${rita.phoneDisplay})`);
+    }
+  });
+
+  it("says nothing about an hour to come on Rural Saloia, which has one", () => {
+    const pt = guestReminderEmail(reminder());
+    const en = guestReminderEmail(reminder({ locale: "en" }));
+    expect(pt.text).not.toContain("hora exata");
+    expect(pt.html).not.toContain("A hora da partida");
+    expect(en.text).not.toContain("exact departure time");
+  });
+
+  it("greets every guest without guessing their gender", () => {
+    // The §2.6 source line is ungendered and the booking never asks, so no PT
+    // line may agree with the guest — see `bookingEmails.guest.lead`.
+    const gendered =
+      /\b(bem-vind[oa]s?|car[oa]s?|querid[oa]s?|pront[oa]s?|obrigad[oa]s?|convidad[oa]s?)\b/i;
+    for (const when of ["tomorrow", "today"] as const) {
+      for (const message of [
+        guestReminderEmail(reminder({ when })),
+        guestReminderEmail(obidos({ when })),
+      ]) {
+        expect(message.subject).not.toMatch(gendered);
+        expect(message.text).not.toMatch(gendered);
+      }
+    }
+  });
+
+  it("escapes anything a guest could have typed", () => {
+    const message = guestReminderEmail(
+      reminder({ guestName: `<script>alert("x")</script> O'Brien` }),
+    );
+    expect(message.html).not.toContain("<script>");
+    expect(message.html).toContain("&lt;script&gt;");
+    expect(message.html).toContain("O&#39;Brien");
+    expect(message.text).toContain("O'Brien");
+  });
+
+  it("gives them both phone numbers, dialable, and replies to a person", () => {
+    const message = guestReminderEmail(reminder());
+    expect(message.html).toContain(`href="tel:${diogo.phone}"`);
+    expect(message.html).toContain(`href="tel:${rita.phone}"`);
+    expect(message.replyTo).toBe(site.email);
   });
 });
 
@@ -791,5 +974,182 @@ describe("teamEnquiryEmail", () => {
     expect(message.replyTo).toBe("sofia@example.com");
     expect(message.subject).not.toMatch(/\{/);
     expect(message.text).not.toMatch(/\{/);
+  });
+});
+
+/**
+ * The quote, as the couple receive it. Every figure a couple will be asked to
+ * pay is in it, in their language, and the link to the page is the one
+ * credential the mail carries.
+ */
+describe("guestQuoteSentEmail", () => {
+  const QUOTE_URL = "https://agorasim.pt/pt/orcamento/Tok3n_valu3-abcdefghijklmnopqrstuvwxyz0123";
+
+  function quoteFacts(overrides: Partial<QuoteSentEmailFacts> = {}): QuoteSentEmailFacts {
+    return {
+      ref: "QT-A1B2C3",
+      guestName: "Inês & Tomás",
+      guestEmail: "ines@example.com",
+      locale: "pt",
+      date: "sábado, 15 de agosto de 2026",
+      venue: "Quinta do Hespanhol, Mafra",
+      lines: [
+        { label: "Carro clássico com motorista, 6 horas", quantity: 2, amount: "1500 €" },
+        { label: "Deslocação Ericeira", quantity: 1, amount: "120 €" },
+      ],
+      total: "1620 €",
+      deposit: "486 €",
+      depositPercent: 30,
+      balance: "1134 €",
+      balanceDue: "sábado, 1 de agosto de 2026",
+      balanceDueDaysBefore: 14,
+      termsWindowDays: 30,
+      quoteUrl: QUOTE_URL,
+      ...overrides,
+    };
+  }
+
+  it("addresses the couple and replies to the business inbox", () => {
+    const mail = guestQuoteSentEmail(quoteFacts());
+
+    expect(mail.to).toEqual(["ines@example.com"]);
+    expect(mail.replyTo).toBe(site.email);
+    expect(mail.subject).toBe("O seu orçamento Agorasim — sábado, 15 de agosto de 2026");
+  });
+
+  it("states every figure and the link, in both parts", () => {
+    const mail = guestQuoteSentEmail(quoteFacts());
+
+    for (const part of [mail.text, mail.html ?? ""]) {
+      expect(part).toContain("QT-A1B2C3");
+      expect(part).toContain("Quinta do Hespanhol, Mafra");
+      expect(part).toContain("1620 €");
+      expect(part).toContain("486 €");
+      expect(part).toContain("1134 €");
+      expect(part).toContain("sábado, 1 de agosto de 2026");
+      expect(part).toContain(QUOTE_URL);
+    }
+    expect(mail.text).toContain("2 × Carro clássico com motorista, 6 horas: 1500 €");
+    expect(mail.text).toContain("Deslocação Ericeira: 120 €");
+    expect(mail.text).toContain("Sinal (30%): 486 €");
+    expect(mail.text).toContain("Ver o orçamento: " + QUOTE_URL);
+    expect(mail.text).toContain("a menos de 30 dias do evento");
+    expect(mail.text).not.toMatch(/\{\w+\}/);
+  });
+
+  it("is written in English for a couple who enquired in English", () => {
+    const mail = guestQuoteSentEmail(
+      quoteFacts({
+        locale: "en",
+        date: "Saturday, 15 August 2026",
+        balanceDue: "Saturday, 1 August 2026",
+        total: "€1,620",
+        deposit: "€486",
+        balance: "€1,134",
+      }),
+    );
+
+    expect(mail.subject).toBe("Your Agorasim quote — Saturday, 15 August 2026");
+    expect(mail.text).toContain("Deposit (30%): €486");
+    expect(mail.text).toContain("Balance: €1,134 · due Saturday, 1 August 2026");
+    expect(mail.text).toContain("View your quote: " + QUOTE_URL);
+    expect(mail.text).not.toContain("orçamento à medida");
+    expect(mail.html).toContain('lang="en"');
+  });
+
+  it("leaves out the venue row when the quote has none", () => {
+    const mail = guestQuoteSentEmail(quoteFacts({ venue: null }));
+
+    expect(mail.text).not.toContain("Local:");
+  });
+
+  it("escapes what Rita typed, so a line label cannot become markup", () => {
+    const mail = guestQuoteSentEmail(
+      quoteFacts({ lines: [{ label: "<b>Flores</b> & fitas", quantity: 1, amount: "50 €" }] }),
+    );
+
+    expect(mail.html).not.toContain("<b>Flores</b>");
+    expect(mail.html).toContain("&lt;b&gt;Flores&lt;/b&gt; &amp; fitas");
+  });
+});
+
+describe("the quote receipts — deposit-received and balance-paid", () => {
+  function receiptFacts(overrides: Partial<QuoteReceiptEmailFacts> = {}): QuoteReceiptEmailFacts {
+    return {
+      instalment: "deposit",
+      ref: "QT-A1B2C3",
+      guestName: "Inês & Tomás",
+      guestEmail: "ines@example.com",
+      guestPhone: "+351912345678",
+      locale: "pt",
+      date: "sábado, 15 de agosto de 2026",
+      venue: "Quinta do Hespanhol, Mafra",
+      amount: "486 €",
+      paidOn: "segunda, 1 de junho de 2026",
+      total: "1620 €",
+      remaining: { amount: "1134 €", dueDate: "sábado, 1 de agosto de 2026" },
+      balanceDueDaysBefore: 14,
+      fee: "29,16 €",
+      adminUrl: "https://agorasim.pt/admin/sales/abc",
+      ...overrides,
+    };
+  }
+
+  it("carries the events terms verbatim, with their version — the durable copy", () => {
+    for (const locale of ["pt", "en"] as const) {
+      const mail = guestQuoteReceiptEmail(receiptFacts({ locale }));
+      const events = termsSection("events", locale);
+
+      for (const paragraph of events.body) expect(mail.text).toContain(paragraph);
+      expect(mail.text).toContain(events.heading);
+      expect(mail.text).toContain(termsContent.lastUpdated[locale]);
+      // The HTML part escapes, so the headline paragraph is checked escaped.
+      expect(mail.html).toContain(
+        events.body[1].replace(/&/g, "&amp;").replace(/'/g, "&#39;"),
+      );
+    }
+  });
+
+  it("says what was paid and what is still owed, in the couple's language", () => {
+    const pt = guestQuoteReceiptEmail(receiptFacts());
+    expect(pt.subject).toBe("Sinal recebido — a data de sábado, 15 de agosto de 2026 está reservada");
+    expect(pt.text).toContain("Sinal pago: 486 €");
+    expect(pt.text).toContain("Por pagar: 1134 € · até sábado, 1 de agosto de 2026");
+    expect(pt.to).toEqual(["ines@example.com"]);
+    expect(pt.replyTo).toBe(site.email);
+
+    const en = guestQuoteReceiptEmail(
+      receiptFacts({ locale: "en", date: "Saturday, 15 August 2026", remaining: null, instalment: "balance" }),
+    );
+    expect(en.subject).toBe("Paid in full — Saturday, 15 August 2026");
+    expect(en.text).toContain("Balance paid: 486 €");
+    expect(en.text).toContain("Nothing — everything is paid");
+    // Nothing left to pay: no "what happens next" about a balance.
+    expect(en.text).not.toContain("We will send you the link");
+  });
+
+  it("links the full terms and never a quote link — the webhook has no token", () => {
+    const mail = guestQuoteReceiptEmail(receiptFacts());
+    expect(mail.text).toContain(`${siteUrl()}/pt/termos`);
+    expect(mail.text).not.toContain("/orcamento/");
+    expect(mail.html).not.toContain("/orcamento/");
+    expect(mail.text).not.toMatch(/\{\w+\}/);
+  });
+
+  it("gives the team the fee and the couple's details, in Portuguese", () => {
+    const mail = teamQuoteReceiptEmail(receiptFacts({ locale: "en" }), ["equipa@agorasim.pt"]);
+    expect(mail.subject).toBe("Sinal recebido — Inês & Tomás · sábado, 15 de agosto de 2026");
+    expect(mail.text).toContain("Comissão (6%): 29,16 €");
+    expect(mail.text).toContain("ines@example.com");
+    expect(mail.to).toEqual(["equipa@agorasim.pt"]);
+    // Reply writes to the couple.
+    expect(mail.replyTo).toBe("ines@example.com");
+
+    const platformOnly = teamQuoteReceiptEmail(
+      receiptFacts({ fee: null, instalment: "balance", remaining: null }),
+      ["equipa@agorasim.pt"],
+    );
+    expect(platformOnly.subject).toMatch(/^Restante pago/);
+    expect(platformOnly.text).toContain("Comissão (6%): —");
   });
 });

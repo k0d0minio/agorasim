@@ -648,6 +648,131 @@ export const moveBookingSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// The quote builder (a wedding or event lead, on the Sales detail)
+// ---------------------------------------------------------------------------
+
+/** One priced line as the builder parsed it — `quotes.line_items`' shape. */
+export type QuoteLineInput = { label: string; unitCents: number; quantity: number };
+
+/**
+ * The lines, from three repeated fields walked in step — `lineLabel`,
+ * `lineQuantity`, `lineUnit` (euros, as typed).
+ *
+ * A row left entirely blank is not a line: the builder always offers one empty
+ * row to type into, and saving with it untouched is not a mistake. A row with
+ * anything in it must be whole — a description, a whole quantity above zero, a
+ * price in euros — and the first incomplete row is named by its number, so the
+ * message points at the row Rita has to fix rather than at the form.
+ */
+function parseQuoteLines(
+  labels: string[],
+  quantities: string[],
+  units: string[],
+  ctx: z.RefinementCtx,
+): QuoteLineInput[] {
+  const lines: QuoteLineInput[] = [];
+  const rows = Math.max(labels.length, quantities.length, units.length);
+
+  for (let i = 0; i < rows; i++) {
+    const label = (labels[i] ?? "").trim();
+    const quantityText = (quantities[i] ?? "").trim();
+    const unitText = (units[i] ?? "").trim();
+    if (!label && !unitText && (!quantityText || quantityText === "1")) continue;
+
+    const n = i + 1;
+    if (!label) {
+      ctx.addIssue({ code: "custom", message: `A linha ${n} precisa de uma descrição.` });
+      return [];
+    }
+    const quantity = Number(quantityText || "1");
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) {
+      ctx.addIssue({
+        code: "custom",
+        message: `A quantidade da linha ${n} tem de ser um número inteiro maior que zero.`,
+      });
+      return [];
+    }
+    // Two decimals at most, unlike `parseAmountInput`'s three: in Portuguese
+    // "1.500" is fifteen hundred euros, and read as €1.50 it is a wedding
+    // quoted a thousand times too low. Refused, so Rita types "1500".
+    const unitCents = /[.,]\d{3}$/.test(unitText) ? null : parseAmountInput(unitText);
+    if (unitCents === null) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Indique o preço da linha ${n} em euros, sem separador de milhares (ex.: 1500 ou 1500,50).`,
+      });
+      return [];
+    }
+    lines.push({ label: label.slice(0, 200), unitCents, quantity });
+  }
+
+  if (lines.length === 0) {
+    ctx.addIssue({ code: "custom", message: "Acrescente pelo menos uma linha ao orçamento." });
+  }
+  return lines;
+}
+
+/**
+ * Saving a quote draft — "Criar orçamento" (with `leadId`) or "Guardar" on an
+ * existing draft (with `quoteId`).
+ *
+ * The total is not a field: it is the sum of the lines (D-3, settled at
+ * Define), so there is no figure to disagree with them. The deposit share is a
+ * whole percentage, 30 by default in the form; the non-refundable window is
+ * not offered at all and stays at D9's 30 days.
+ */
+export const quoteDraftSchema = z
+  .object({
+    leadId: z.uuid().optional(),
+    quoteId: z.uuid().optional(),
+    eventDate: z
+      .string()
+      .trim()
+      .refine((value) => isDateKey(value), "Indique a data do evento."),
+    venue: z
+      .string()
+      .trim()
+      .catch("")
+      .transform((value) => (value ? value.slice(0, 300) : null)),
+    depositPercent: z
+      .string()
+      .trim()
+      .transform((value) => Number(value))
+      .refine(
+        (n) => Number.isInteger(n) && n >= 1 && n <= 100,
+        "O sinal tem de ser uma percentagem entre 1 e 100.",
+      ),
+    lineLabel: repeated,
+    lineQuantity: repeated,
+    lineUnit: repeated,
+  })
+  .refine((value) => Boolean(value.leadId) !== Boolean(value.quoteId), "Pedido inválido.")
+  .transform((value, ctx) => ({
+    leadId: value.leadId ?? null,
+    quoteId: value.quoteId ?? null,
+    eventDate: value.eventDate,
+    venue: value.venue,
+    depositPercent: value.depositPercent,
+    lineItems: parseQuoteLines(value.lineLabel, value.lineQuantity, value.lineUnit, ctx),
+  }));
+
+/** A button on one quote — discard, new version, send. */
+export const quoteIdSchema = z.object({ quoteId: z.uuid() });
+
+/**
+ * "Reenviar" — the quote, and the `sent_at` the operator's screen showed, so a
+ * second tap (or a second phone) finds a newer stamp and does nothing.
+ */
+export const resendQuoteSchema = z.object({
+  quoteId: z.uuid(),
+  sentAt: z
+    .string()
+    .trim()
+    .transform((value) => new Date(value))
+    .refine((date) => !Number.isNaN(date.getTime()), "Recarregue a página e tente outra vez."),
+});
+
+// ---------------------------------------------------------------------------
 // Manual booking (a cash sale, from the calendar day sheet)
 // ---------------------------------------------------------------------------
 
