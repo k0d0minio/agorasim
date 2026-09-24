@@ -1,26 +1,49 @@
 name: CI
 
-# Checks the `web/` workspace on every pull request, and on main so the default
-# branch stays known-good. Nothing here needs a database: the admin pages are all
-# `force-dynamic`, and the public pages read the experience catalogue through a
-# resolver that falls back to the copy shipped in `src/content/experiences.ts`
-# when there is no `DATABASE_URL` to read (see `lib/experience-catalogue.ts`). So
-# `next build` renders the shipped catalogue here and the live one in production.
+# The ONE quality job this repo runs in CI — the estate's cost floor (icm-board decision D43,
+# `.icm/_shared/ci.md` → What CI is for). The repo is private on Jamie's personal pool, and
+# GitHub bills per job rounded up to the minute, so everything about this shape is a cost
+# decision:
+#
+#   • ADVISORY, by name. The job is `Quality (advisory)`: `ci-status.sh` reports it and never
+#     reds on it. The verdict is the `Vercel` status — Vercel already built the head, which is
+#     why the `next build` step is gone. (Private on GitHub Free: no ruleset can require
+#     anything here anyway.)
+#   • READY HEADS ONLY. A draft owes CI nothing: `lint.sh` / `security-check.sh` over the
+#     changed files are the session's pre-flip check. The `types:` list REPLACES GitHub's
+#     default — `ready_for_review` is named so the flip itself runs it, and the job-level
+#     `if:` keeps a draft's `synchronize` free.
+#   • NEVER ON `main`. The merge commit's proof is Vercel's build of `main` (the `uat`
+#     environment's and the Staged production deployment). No `push:` trigger.
+#   • PATH-FILTERED. Nothing waits on this job, so it skips `.icm/**`, markdown and `.github/**`.
+#   • ONE JOB, cheapest first: ESLint, `tsc --noEmit`, the vitest suite, inside `web/`.
+#   • SUPERSEDED RUNS ARE CANCELLED. One run per branch; a newer push replaces the one in flight.
+#
+# A red run here is a finding the stage fixes on the branch — advisory means the merge never
+# waits on it, not that it may be ignored.
 
 on:
   pull_request:
-  push:
-    branches: [main]
+    types: [ready_for_review, synchronize, reopened]
+    paths-ignore:
+      - ".icm/**"
+      - "**/*.md"
+      - ".github/**"
+  workflow_dispatch:
 
 concurrency:
-  # One run per branch; a new push supersedes the one still in flight.
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   check:
-    name: Lint, typecheck, test, build
+    name: Quality (advisory)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
     defaults:
       run:
         working-directory: web
@@ -44,7 +67,6 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: .
 
-      # Cheapest first, so an obvious mistake fails fast.
       - name: Lint
         run: pnpm lint
 
@@ -53,6 +75,3 @@ jobs:
 
       - name: Test
         run: pnpm test
-
-      - name: Build
-        run: pnpm build

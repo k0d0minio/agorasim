@@ -292,6 +292,6 @@ all of theirs at once).
 | The shape of the settled scope                                    | `.icm/_shared/scope-template.md`                                           |
 | What may stop a merge                                             | `.icm/stages/04_release/CONTEXT.md`                                        |
 | Local feedback before a push                                      | `.icm/scripts/format.sh` · `.icm/scripts/lint.sh`                          |
-| The labels job and the advisory checks                            | `.github/workflows/pipeline.yaml` · `.github/workflows/gates.yaml`         |
+| The labels and the validations — the session's, at the step that changes the thing (D43) | `.icm/scripts/project-labels.sh` · `.icm/scripts/validate-spec.sh` · `validate-intake.sh` · `validate-knowledge-map.sh` |
 | How a source becomes `scope.md` + a batch                         | `.icm/stages/01_scope/CONTEXT.md`                                          |
 | Code rules                                                        | `/AGENTS.md` § Conventions · `web/AGENTS.md`                               |
