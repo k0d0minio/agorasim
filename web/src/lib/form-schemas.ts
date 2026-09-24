@@ -46,6 +46,7 @@ import {
   isDateKey,
   MAX_DRIVERS,
   MAX_RANGE_DAYS,
+  todayKey,
   TOUR_SLOTS,
 } from "@/lib/availability";
 import { MAX_PARTY_ONLINE } from "@/lib/fleet";
@@ -732,7 +733,8 @@ export const quoteDraftSchema = z
     eventDate: z
       .string()
       .trim()
-      .refine((value) => isDateKey(value), "Indique a data do evento."),
+      .refine((value) => isDateKey(value), "Indique a data do evento.")
+      .refine((value) => !isDateKey(value) || value >= todayKey(), "A data do evento já passou."),
     venue: z
       .string()
       .trim()

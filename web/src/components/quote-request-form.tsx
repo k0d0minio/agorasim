@@ -112,9 +112,16 @@ export function QuoteRequestForm({
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="name">{t(copy.labels.names, locale)}</Label>
-          <Input id="name" name="name" required autoComplete="name" />
+          <Input
+            id="name"
+            name="name"
+            required
+            autoComplete="name"
+            aria-invalid={Boolean(state.fieldErrors?.name)}
+            aria-describedby={state.fieldErrors?.name ? "name-error" : undefined}
+          />
           {state.fieldErrors?.name ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p id="name-error" className="text-sm text-destructive" role="alert">
               {state.fieldErrors.name}
             </p>
           ) : null}
@@ -122,9 +129,17 @@ export function QuoteRequestForm({
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="email">{t(copy.labels.email, locale)}</Label>
-          <Input id="email" name="email" type="email" required autoComplete="email" />
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            aria-invalid={Boolean(state.fieldErrors?.email)}
+            aria-describedby={state.fieldErrors?.email ? "email-error" : undefined}
+          />
           {state.fieldErrors?.email ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p id="email-error" className="text-sm text-destructive" role="alert">
               {state.fieldErrors.email}
             </p>
           ) : null}
@@ -138,7 +153,9 @@ export function QuoteRequestForm({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="preferredDate">{t(copy.labels.date, locale)}</Label>
+          <Label htmlFor="preferredDate">
+            {t(copy.labels.date, locale)} {optional}
+          </Label>
           {/*
             The column behind this is `preferred_date`, the same free-text one
             the tour enquiry writes — so the Sales board already leads the card
@@ -148,7 +165,9 @@ export function QuoteRequestForm({
         </div>
 
         <div className="flex flex-col gap-1.5 sm:col-span-2">
-          <Label htmlFor="venue">{t(copy.labels.venue, locale)}</Label>
+          <Label htmlFor="venue">
+            {t(copy.labels.venue, locale)} {optional}
+          </Label>
           <Input
             id="venue"
             name="venue"
@@ -157,7 +176,9 @@ export function QuoteRequestForm({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="serviceHours">{t(copy.labels.hours, locale)}</Label>
+          <Label htmlFor="serviceHours">
+            {t(copy.labels.hours, locale)} {optional}
+          </Label>
           <Select id="serviceHours" name="serviceHours" defaultValue="">
             <option value="">—</option>
             {SERVICE_HOURS.map((option) => (
@@ -169,7 +190,9 @@ export function QuoteRequestForm({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="preferredCar">{t(copy.labels.car, locale)}</Label>
+          <Label htmlFor="preferredCar">
+            {t(copy.labels.car, locale)} {optional}
+          </Label>
           <Select id="preferredCar" name="preferredCar" defaultValue="">
             <option value="">{t(copy.labels.carNone, locale)}</option>
             {classicCars.map((car) => (
@@ -196,7 +219,9 @@ export function QuoteRequestForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="message">{t(copy.labels.message, locale)}</Label>
+        <Label htmlFor="message">
+          {t(copy.labels.message, locale)} {optional}
+        </Label>
         <Textarea
           id="message"
           name="message"

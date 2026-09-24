@@ -394,8 +394,14 @@ async function emailQuote(
     total: money(quote.totalCents),
     deposit: money(deposit?.amountCents ?? 0),
     depositPercent: quote.depositPercent,
-    balance: money(balance?.amountCents ?? 0),
-    balanceDue: formatDay(balance?.dueDate ?? balanceDueDate(quote.eventDate), locale),
+    // `null` at a 100% deposit, which writes no balance row at all — see the
+    // note on `createQuote` in `lib/quotes.ts`.
+    balance: balance
+      ? {
+          amount: money(balance.amountCents),
+          dueDate: formatDay(balance.dueDate ?? balanceDueDate(quote.eventDate), locale),
+        }
+      : null,
     balanceDueDaysBefore: BALANCE_DUE_DAYS_BEFORE,
     termsWindowDays: quote.termsWindowDays,
     quoteUrl: `${siteUrl()}${quotePath(locale, token)}`,
