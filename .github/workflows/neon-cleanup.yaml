@@ -10,6 +10,12 @@ name: Neon cleanup
 # session never ran `down`. It names nothing else: not production, and not the UAT database — a
 # project's default branch, which the job never selects.
 #
+# Which run: `<slug>` is the run FOLDER's name, not the git branch's — a harness-named branch
+# (`claude/sleepy-turing-k3vdjt`: a cloud session, OpenCode, Actions) carries a run with any slug.
+# So the job reads every `.icm/runs/*/run.md` and `<runs_archive>/*/run.md` on the PR and takes
+# each folder whose `- branch:` line equals the PR's head ref (the read resolve-run.sh does). Only
+# when no run.md names the branch does it guess `run/<head ref without claude/>`, as before.
+#
 # Which project (D41): where the repo declares UAT (`uat.target` and `uat.url`), previews and runs
 # live in the NON-PRODUCTION project — `database.neon.nonprod_project_id`, the second Marketplace
 # database — and this job looks there and nowhere else; production's project is never written. A
@@ -47,7 +53,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: .icm/project.json
+          # run.md at any depth: `runs_archive` may name any folder, and project.json is not read yet.
+          sparse-checkout: |
+            .icm/project.json
+            **/run.md
           sparse-checkout-cone-mode: false
 
       - name: Read the database block
@@ -72,10 +81,28 @@ jobs:
             fi
             echo "key_name=$(jq -r '.database.neon.api_key_env // "NEON_API_KEY"' "$f")"
             echo "preview_branch=preview/${HEAD_REF}"
-            echo "run_branch=run/${HEAD_REF#claude/}"
+            # The run's slug from the run.md recording this branch (live and archived runs); else
+            # the old guess. Space-separated: a slug is a folder name, never a space.
+            archive="$(jq -r '.runs_archive // ".icm/runs/_done"' "$f")"
+            archive="${archive%/}"
+            slugs=""
+            for md in .icm/runs/*/run.md "$archive"/*/run.md; do
+              [ -f "$md" ] || continue
+              b="$(grep -m1 '^- branch:' "$md" | sed -E 's/^- branch:[[:space:]]*//; s/[[:space:]]+#.*$//; s/[[:space:]]*$//')" || true
+              [ "$b" = "$HEAD_REF" ] || continue
+              s="$(basename "$(dirname "$md")")"
+              case " $slugs " in *" run/$s "*) ;; *) slugs="${slugs:+$slugs }run/$s" ;; esac
+            done
+            if [ -n "$slugs" ]; then
+              echo "::notice::run.md names $HEAD_REF for: $slugs" >&2
+            else
+              slugs="run/${HEAD_REF#claude/}"
+              echo "::notice::no run.md names $HEAD_REF — guessing $slugs" >&2
+            fi
+            echo "run_branches=$slugs"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Delete preview/<branch> and run/<slug> when they exist
+      - name: Delete preview/<branch> and each run/<slug> when they exist
         if: steps.cfg.outputs.provider == 'neon'
         env:
           NEON_API_KEY: ${{ secrets[steps.cfg.outputs.key_name] }}
@@ -83,7 +110,7 @@ jobs:
           PROJECT_ID: ${{ steps.cfg.outputs.project_id }}
           PREVIEWS: ${{ steps.cfg.outputs.previews }}
           PREVIEW_BRANCH: ${{ steps.cfg.outputs.preview_branch }}
-          RUN_BRANCH: ${{ steps.cfg.outputs.run_branch }}
+          RUN_BRANCHES: ${{ steps.cfg.outputs.run_branches }}
         run: |
           set -euo pipefail
           [ -n "$PROJECT_ID" ] || { echo "::error::database.neon.project_id is empty in .icm/project.json"; exit 1; }
@@ -96,7 +123,7 @@ jobs:
           code="$(printf '%s' "$resp" | tail -n1)"
           [ "$code" = "200" ] || { echo "::error::GET /projects/$PROJECT_ID/branches answered HTTP $code"; exit 1; }
           branches="$(printf '%s' "$resp" | sed '$d')"
-          wanted=("$RUN_BRANCH")
+          read -ra wanted <<< "$RUN_BRANCHES"
           [ "$PREVIEWS" = "vercel" ] && wanted+=("$PREVIEW_BRANCH")
           deleted=0
           for name in "${wanted[@]}"; do
