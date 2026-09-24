@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const constructEventAsync = vi.fn();
+const chargesRetrieve = vi.fn();
 
 vi.mock("@/lib/stripe", () => ({
   isStripeConfigured: () => true,
@@ -22,6 +23,7 @@ vi.mock("@/lib/stripe", () => ({
   onOwningAccount: (run: (options?: unknown) => unknown) => run(undefined),
   stripe: () => ({
     webhooks: { constructEventAsync: (...args: unknown[]) => constructEventAsync(...args) },
+    charges: { retrieve: (...args: unknown[]) => chargesRetrieve(...args) },
   }),
 }));
 
@@ -31,7 +33,15 @@ vi.mock("@/lib/booking-checkout", () => ({
   confirmPaidBooking: (...args: unknown[]) => confirmPaidBooking(...args),
   closeUnpaidBooking: (...args: unknown[]) => closeUnpaidBooking(...args),
 }));
-vi.mock("@/lib/booking-refund", () => ({ syncRefundFromStripe: vi.fn() }));
+const syncRefundFromStripe = vi.fn();
+vi.mock("@/lib/booking-refund", () => ({
+  syncRefundFromStripe: (...args: unknown[]) => syncRefundFromStripe(...args),
+}));
+const syncQuotePaymentRefundFromStripe = vi.fn();
+vi.mock("@/lib/quote-refund", () => ({
+  syncQuotePaymentRefundFromStripe: (...args: unknown[]) =>
+    syncQuotePaymentRefundFromStripe(...args),
+}));
 vi.mock("@/lib/experience-catalogue", () => ({ listCatalogue: async () => [] }));
 vi.mock("@/lib/observability", () => ({ captureAlert: vi.fn(), captureError: vi.fn() }));
 
@@ -190,5 +200,79 @@ describe("POST /api/stripe/webhook — a tour session, unchanged", () => {
       sessionId: "cs_test_tour",
       status: "expired",
     });
+  });
+});
+
+describe("POST /api/stripe/webhook — a refund on a quote instalment", () => {
+  const charge = {
+    id: "ch_test_quote",
+    object: "charge",
+    amount: 60_000,
+    amount_refunded: 60_000,
+    refunded: true,
+    payment_intent: "pi_test_quote",
+    application_fee: "fee_test_quote",
+    application_fee_amount: 3_600,
+    refunds: { data: [{ id: "re_test_quote" }] },
+  };
+
+  it("is tried against the instalments once no booking matches, and alarms nobody", async () => {
+    syncRefundFromStripe.mockResolvedValue({ status: "unknown-charge" });
+    syncQuotePaymentRefundFromStripe.mockResolvedValue({ status: "synced", payment: {} });
+
+    const response = await post(sessionEvent("charge.refunded", charge));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true, outcome: "synced", quote: true });
+    expect(syncQuotePaymentRefundFromStripe).toHaveBeenCalledWith({
+      charge: expect.objectContaining({ id: "ch_test_quote" }),
+      refundId: null,
+    });
+    expect(captureAlert).not.toHaveBeenCalled();
+  });
+
+  it("passes the refund id a refund.updated event carries", async () => {
+    syncRefundFromStripe.mockResolvedValue({ status: "unknown-charge" });
+    syncQuotePaymentRefundFromStripe.mockResolvedValue({ status: "already-synced", payment: {} });
+    // `refund.updated` carries the refund only; the route re-reads its charge.
+    chargesRetrieve.mockResolvedValue(charge);
+
+    const response = await post(
+      sessionEvent("refund.updated", { id: "re_test_quote", object: "refund", charge: charge.id }),
+    );
+
+    expect(await response.json()).toEqual({
+      received: true,
+      outcome: "already-synced",
+      quote: true,
+    });
+    expect(syncQuotePaymentRefundFromStripe).toHaveBeenCalledWith(
+      expect.objectContaining({ refundId: "re_test_quote" }),
+    );
+  });
+
+  it("never reaches the instalments when a booking matched", async () => {
+    syncRefundFromStripe.mockResolvedValue({ status: "synced", booking: {} });
+
+    const response = await post(sessionEvent("charge.refunded", charge));
+
+    expect(await response.json()).toEqual({ received: true, outcome: "synced" });
+    expect(syncQuotePaymentRefundFromStripe).not.toHaveBeenCalled();
+  });
+
+  it("still alarms on a refund that matches neither a booking nor an instalment", async () => {
+    syncRefundFromStripe.mockResolvedValue({ status: "unknown-charge" });
+    syncQuotePaymentRefundFromStripe.mockResolvedValue({ status: "unknown-charge" });
+
+    const response = await post(sessionEvent("charge.refunded", charge));
+
+    expect(await response.json()).toEqual({ received: true, outcome: "unknown-charge" });
+    expect(captureAlert).toHaveBeenCalledWith(
+      expect.stringContaining("no booking or quote instalment"),
+      expect.objectContaining({
+        tags: expect.objectContaining({ outcome: "unknown-charge" }),
+        extra: { chargeId: "ch_test_quote" },
+      }),
+    );
   });
 });

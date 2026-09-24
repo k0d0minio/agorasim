@@ -277,3 +277,7 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 
 <!-- Retrospective Learned Rule [2026-09-24] -->
 - In web/src/lib/booking-emails.test.ts, assert copy containing an apostrophe, quote or ampersand against `message.text` literally and against `message.html` in its escapeHtml form (&#39; &quot; &amp;) — never loop both parts over one raw string. (`(empty)`, seen 1× — day-before-reminder; web/drizzle, web/src)
+<!-- Retrospective Learned Rule [2026-09-24] -->
+- An admin dialog that closes on `useActionState`'s `state.ok` stays closed for good unless its component is keyed on the row value the action changes — key it, or derive `open` from a fresh state (as `ConfirmedQuoteAction` does), whenever the action leaves its trigger on screen. (`FAILURE.md` — quote-refunds)
+<!-- Retrospective Learned Rule [2026-09-24] -->
+- In a cloud session, run `git remote set-head origin main` before `/security-review` — it diffs against `origin/HEAD`, which a fresh clone lacks. (`FAILURE.md` — quote-refunds)

@@ -29,6 +29,8 @@ import { quoteEmailStates } from "@/lib/quote-builder";
 import {
   canCopyAsNewVersion,
   canStartQuote,
+  depositRefundedInFull,
+  instalmentRefundableCents,
   listQuotesForLead,
   quoteRef,
   wasSuperseded,
@@ -116,11 +118,21 @@ export default async function AdminLeadPage({
     termsVersion: quote.termsVersion,
     canNewVersion: canCopyAsNewVersion(quote, leadQuotes),
     emailState: emailStates.get(quote.id) ?? null,
+    depositRefundedInFull: depositRefundedInFull(quote.payments),
     payments: quote.payments.map((payment) => ({
+      id: payment.id,
       kind: payment.kind,
       amountCents: payment.amountCents,
+      refundedAmountCents: payment.refundedAmountCents,
       dueDateLabel: payment.dueDate ? formatDay(payment.dueDate, "pt") : null,
       status: payment.status,
+      // "Reembolsar" is offered only where it can work: money taken through
+      // Stripe and not all of it given back. A transfer written off has no
+      // charge to refund against.
+      refundable:
+        payment.status === "paid" &&
+        payment.stripePaymentIntentId !== null &&
+        instalmentRefundableCents(payment) > 0,
     })),
   }));
 

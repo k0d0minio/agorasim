@@ -43,6 +43,15 @@ export const DELETE_CONFIRMATION = "APAGAR";
 export const REFUND_CONFIRMATION = "REEMBOLSAR";
 
 /**
+ * The word an operator types to call off an event whose deposit has already
+ * gone back — the quote card's "Cancelar evento". It moves no money, but it
+ * ends a couple's booking of their day and cannot be undone. The dialog's own
+ * way out says "Voltar", so the word on the button is not also the word on the
+ * exit, which is the trap {@link REFUND_CONFIRMATION} avoids.
+ */
+export const EVENT_CANCEL_CONFIRMATION = "CANCELAR";
+
+/**
  * Badge variant, taken straight from `ui/badge.tsx`. The hand-written mirror
  * this replaces had already fallen behind — it never gained `ghost` or `link`,
  * both of which the admin uses. Type-only import, so nothing is bundled.
@@ -235,6 +244,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "quote.sent": "enviou um orçamento",
   "quote.resent": "reenviou um orçamento com um novo link",
   "quote.superseded": "substituiu um orçamento por uma nova versão",
+  "quote.payment_refunded": "reembolsou um pagamento de um orçamento",
+  "quote.cancelled": "cancelou um evento",
   "blog_post.updated": "editou um artigo do blog",
   "blog_post.published": "publicou um artigo no blog",
   "blog_post.unpublished": "retirou um artigo do blog",
