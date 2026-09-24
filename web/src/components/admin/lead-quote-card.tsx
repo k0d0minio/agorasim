@@ -263,6 +263,9 @@ function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: s
               ) : null}
               {payment.refundable ? (
                 <RefundQuotePaymentDialog
+                  // Remounts once the refund lands and the row's total moves, so the
+                  // dialog opens again for a second refund with the new maximum.
+                  key={`${payment.id}:${payment.refundedAmountCents}`}
                   payment={{
                     id: payment.id,
                     label: quotePaymentKindLabel[payment.kind],
@@ -287,8 +290,15 @@ function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: s
       {quote.depositRefundedInFull && quote.status !== "cancelled" ? (
         <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 p-3">
           <p className="text-sm text-destructive" role="status">
-            O sinal foi reembolsado na totalidade, mas o evento continua marcado e o saldo
-            ainda vai ser pedido. Se o evento não se realiza, cancele-o.
+            O sinal foi reembolsado na totalidade, mas o evento continua marcado
+            {quote.payments.some(
+              (payment) =>
+                payment.kind === "balance" &&
+                (payment.status === "pending" || payment.status === "issued"),
+            )
+              ? " e o saldo ainda vai ser pedido"
+              : ""}
+            . Se o evento não se realiza, cancele-o.
           </p>
           <div>
             <CancelHeldQuoteDialog
