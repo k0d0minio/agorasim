@@ -70,10 +70,11 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   of record** is the register, `.icm/project.md` — what the project is for, its business rules,
   its decisions (`D1…`) — written by `/project` in icm-board, never by a stage; where a docs page
   and the register disagree, the register wins and the page is the thing to fix (`knowledge
-  edit`). Three pages of product knowledge live **outside** the tree and are named in the map in
-  prose: the facts of record (prices, cars, capacity, contacts) in workspaces/_config/business-facts.md,
-  the admin's design rules in web/docs/admin-mobile-design-spec.md, and the client's phone guide
-  in web/docs/guia-telemovel.md. Release keeps all of them current when a change makes one stale.
+  edit`). One page of product knowledge lives **outside** the tree and is named in the map in
+  prose: the facts of record (prices, cars, capacity, contacts) in workspaces/_config/business-facts.md.
+  Release keeps it current when a change makes it stale. The admin's design rules and the client's
+  phone guide (formerly web/docs/admin-mobile-design-spec.md and web/docs/guia-telemovel.md) were
+  deleted in `6cbf0d4` (2026-09-18, confirmed intentional) and no longer have a page of record.
 - **Code rules** — `/AGENTS.md` § Conventions (ISR not SSG; `Localized<T>` content with PT and EN
   in sync; GEO first-class — JSON-LD, canonical, hreflang on every page; configure the factory,
   not the product) plus `web/AGENTS.md` (Next.js 16: read `node_modules/next/dist/docs/` before
@@ -202,9 +203,9 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   the 2026-09-23 sync; `report.sh` replaces it.)
 - **Changelog** — **none.** Release records `announce: none` or `announce: internal` in its
   `## Release` record and writes no page; the release-completeness step in `pipeline.yaml` reads
-  the record for exactly that. What the team needs to know about a changed admin screen goes into
-  the phone guide (web/docs/guia-telemovel.md) as a docs update in the same PR — a page kept
-  current, not a changelog. Bug and tweak lanes likewise write no page.
+  the record for exactly that. The phone guide that once carried admin-screen changes
+  (web/docs/guia-telemovel.md) was deleted in `6cbf0d4` and has no replacement — a changed admin
+  screen currently has no page kept current for it. Bug and tweak lanes likewise write no page.
 - **Workflows** — the reference `release.yaml` is **absent** on purpose (`announce_from` is
   `session`; a workflow would announce twice) and the reference `labels.yaml` is **absent** too:
   `.github/workflows/pipeline.yaml` already carries the same `Project run labels` job plus the
