@@ -38,6 +38,7 @@
 - **Refunds of quote instalments** still reach `syncRefundFromStripe`, which finds no booking and raises "Refunded Stripe charge matches no booking" — expected until `quote-refunds` (stub 4).
 - **The migration** (`0028`) reaches the preview and UAT databases through the Vercel build's migrate step, and production after the promotion (`migrate` on `main`).
 - **Stripe return URLs hold the token.** `success_url` / `cancel_url` are the quote page, so Stripe (already the payment processor) holds the link for the session's hour; it is in no metadata, log or audit row.
+- **Env audit** (`env.sh audit --changed`) reports `STRIPE_WEBHOOK_SECRET` missing on Vercel's Development target. The key predates this run (no commit here touches `web/.env.example`); it is the operator's to set if `vercel dev` is ever used. Logged in `error.log`.
 - **Sandbox smoke:** with `STRIPE_CONNECTED_ACCOUNT_ID` set on the preview the fee shows on both dashboards; without it the payment is platform-only with no fee, as the tour checkout behaves.
 
 Context budget: beyond `touches:`, read `booking-checkout.ts` (session creation, commission audit), `/reservar/confirmacao` and `/reserva/cancelar/[token]` (the precedents), `email-layout.ts`, `rate-limit.ts`, the webhook's tests, and Next 16's `redirect`, `not-found` and streaming notes.
