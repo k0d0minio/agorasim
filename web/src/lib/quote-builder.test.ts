@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Quote, QuoteLineItem, TourRequest } from "@/db";
-import { QuoteDraftConflictError, type QuoteWithPayments } from "@/lib/quotes";
+import type { QuoteWithPayments } from "@/lib/quotes";
 
 /**
  * The quote builder's rules — what each button on the Orçamento card may do —
@@ -72,6 +72,7 @@ const {
   sendQuote,
   startNewVersion,
 } = await import("./quote-builder");
+const { QuoteDraftConflictError } = await import("./quotes");
 const { quoteTokenDigest } = await import("./quote-token");
 const { TERMS_VERSION } = await import("@/content/terms");
 
