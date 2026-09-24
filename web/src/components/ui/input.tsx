@@ -8,14 +8,17 @@ import { cn } from "@/lib/utils"
  * to be pasted into every form component by hand. `Textarea` and `Select` build
  * on it too, so a styling decision here reaches every field in the app.
  *
- * Two rules live here on purpose: text is 16px in every size, because iOS
+ * Three rules live here on purpose: text is 16px in every size, because iOS
  * Safari zooms the page on focusing any field whose computed size is 15px or
- * less; and the border is the darker
+ * less; the border is the darker
  * `--input` token, because a field's border is the only thing announcing it can
- * be typed in and the decorative `--border` grey fails the 3:1 non-text floor.
+ * be typed in and the decorative `--border` grey fails the 3:1 non-text floor;
+ * and the placeholder is pinned to `--muted-foreground`, because Tailwind
+ * preflight's default (`currentcolor` at 50% alpha) blends to ~3.1:1 against
+ * the background, under WCAG 1.4.3's 4.5:1.
  */
 export const fieldBase =
-  "w-full rounded-lg border border-input bg-background text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+  "w-full rounded-lg border border-input bg-background text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
 /** Box metrics shared by the single-line fields (`Input`, `Select`). The
  * default is the 48px touch size; the compact sizes keep the 16px text. */
