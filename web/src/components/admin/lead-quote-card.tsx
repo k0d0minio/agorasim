@@ -468,6 +468,12 @@ function QuoteForm({
       : null;
   const due = balanceDueKey(eventDate);
   const money = (cents: number) => formatPrice(cents, "pt");
+  // Advisory only — the schema is the real refusal of a past date, and this is
+  // Rita's own clock, not the business's Europe/Lisbon one; close enough for a
+  // hint she can act on before saving.
+  const today = new Date().toISOString().slice(0, 10);
+  const hasBalance = split !== null && split.balanceCents > 0;
+  const balanceAlreadyDue = hasBalance && due !== null && due <= today;
 
   const update = (index: number, patch: Partial<LineDraft>) =>
     setLines((current) => current.map((line, i) => (i === index ? { ...line, ...patch } : line)));
@@ -490,6 +496,7 @@ function QuoteForm({
             name="eventDate"
             type="date"
             required
+            min={today}
             value={eventDate}
             onChange={(event) => setEventDate(event.target.value)}
           />
@@ -594,11 +601,18 @@ function QuoteForm({
         <dt className="text-muted-foreground">Saldo</dt>
         <dd className="text-right tabular-nums">
           {split ? money(split.balanceCents) : "—"}
-          {split && due ? (
+          {hasBalance && due ? (
             <span className="block text-xs text-muted-foreground">até {dayLabel(due)}</span>
           ) : null}
         </dd>
       </dl>
+
+      {balanceAlreadyDue ? (
+        <p className="text-xs text-primary" role="status">
+          A menos de 14 dias do evento, o saldo ficaria devido de imediato — confirme o prazo com o
+          cliente antes de enviar.
+        </p>
+      ) : null}
 
       {state.error ? (
         <p className="text-sm text-destructive" role="alert">
