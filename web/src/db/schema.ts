@@ -222,7 +222,9 @@ export const commissionBoundEnum = pgEnum("commission_bound", ["rate", "floor", 
  * `quote-sent` is the offer going out, `deposit-received` and `balance-paid`
  * are the two receipts — the confirmations the proposal promises for car hire
  * (§5) and the ones the Sales board already previews as "Wedding deposit
- * received" (`lib/admin-preview.ts`).
+ * received" (`lib/admin-preview.ts`). `quote-refunded` is the couple's notice
+ * that money went back on an instalment — one per refund, keyed on
+ * {@link messageLog.quotePaymentId} and {@link messageLog.refundedTotalCents}.
  *
  * New values go on the **end** of this list, because that is where
  * `ALTER TYPE … ADD VALUE` puts them in Postgres and the two orderings have to
@@ -240,6 +242,7 @@ export const messageKindEnum = pgEnum("message_kind", [
   "quote-sent",
   "deposit-received",
   "balance-paid",
+  "quote-refunded",
 ]);
 
 /**
@@ -1183,6 +1186,26 @@ export const messageLog = pgTable("message_log", {
    */
   quoteSentAt: timestamp("quote_sent_at", { withTimezone: true }),
 
+  /**
+   * The instalment a refund notice is about — `quote-refunded` only.
+   *
+   * A quote can be refunded more than once: the deposit and then the balance,
+   * or one instalment in two goes. Keyed on the quote, as the receipts are, the
+   * second notice would find the first one's claim and never go out.
+   */
+  quotePaymentId: uuid("quote_payment_id").references(() => quotePayments.id, {
+    onDelete: "cascade",
+  }),
+  /**
+   * What had gone back on that instalment in total once this refund landed —
+   * the instalment's `refunded_amount_cents` at the moment of sending.
+   *
+   * It names the refund without a Stripe id: the admin action and the webhook
+   * echo of the same refund arrive at the same total and so at one claim, while
+   * a second, deliberate partial refund reaches a new total and a new notice.
+   */
+  refundedTotalCents: integer("refunded_total_cents"),
+
   status: messageStatusEnum("status").notNull().default("sending"),
 
   /**
@@ -1268,8 +1291,18 @@ export const messageLog = pgTable("message_log", {
   uniqueIndex("message_log_quote_receipt_key")
     .on(table.kind, table.recipient, table.quoteId)
     .where(
-      sql`"booking_id" is null and "quote_id" is not null and "quote_sent_at" is null and "status" <> 'failed'`,
+      sql`"booking_id" is null and "quote_id" is not null and "quote_sent_at" is null and "quote_payment_id" is null and "status" <> 'failed'`,
     ),
+  /**
+   * One refund notice per instalment, per recipient, **per refunded total** —
+   * the rule for `quote-refunded`. Split from the receipt index above on
+   * `quote_payment_id`'s nullness, for the reason the booking indexes split on
+   * `subject_date`'s: one key over both shapes would stop a second refund of
+   * the same quote from ever being told.
+   */
+  uniqueIndex("message_log_quote_refund_key")
+    .on(table.kind, table.recipient, table.quotePaymentId, table.refundedTotalCents)
+    .where(sql`"quote_payment_id" is not null and "status" <> 'failed'`),
   // "What did we send about this booking / this lead?" — the Notifications page
   // and the admin's per-row history.
   index("message_log_booking_idx").on(table.bookingId),

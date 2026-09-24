@@ -36,7 +36,11 @@ import {
   localeEnum,
   requestStatusEnum,
 } from "@/db/schema";
-import { DELETE_CONFIRMATION, REFUND_CONFIRMATION } from "@/lib/admin-format";
+import {
+  DELETE_CONFIRMATION,
+  EVENT_CANCEL_CONFIRMATION,
+  REFUND_CONFIRMATION,
+} from "@/lib/admin-format";
 import {
   DEFAULT_DRIVERS,
   isDateKey,
@@ -767,6 +771,41 @@ export const quoteDraftSchema = z
 
 /** A button on one quote — discard, new version, send. */
 export const quoteIdSchema = z.object({ quoteId: z.uuid() });
+
+/**
+ * "Reembolsar" on one instalment of a quote.
+ *
+ * Unlike the tour's, `0` is not an answer here: this refunds and does nothing
+ * else unless the box says so, and a refund of nothing is a no-op dressed as an
+ * action. The ceiling is the action's to check, against the row, for the
+ * reason {@link cancelBookingSchema} gives. The box arrives as `"on"` or not at
+ * all, the way a checkbox posts.
+ */
+export const refundQuotePaymentSchema = z.object({
+  paymentId: z.uuid(),
+  refundAmount: z
+    .string()
+    .transform((value) => parseAmountInput(value))
+    .refine((cents) => cents !== null && cents > 0, "Indique o valor a reembolsar.")
+    .transform((cents) => cents as number),
+  cancelEvent: z
+    .string()
+    .optional()
+    .transform((value) => value === "on"),
+  confirm: z.literal(
+    REFUND_CONFIRMATION,
+    `Escreva ${REFUND_CONFIRMATION} para confirmar.`,
+  ),
+});
+
+/** "Cancelar evento" on a quote whose deposit has gone back in full. */
+export const cancelHeldQuoteSchema = z.object({
+  quoteId: z.uuid(),
+  confirm: z.literal(
+    EVENT_CANCEL_CONFIRMATION,
+    `Escreva ${EVENT_CANCEL_CONFIRMATION} para confirmar.`,
+  ),
+});
 
 /**
  * "Reenviar" — the quote, and the `sent_at` the operator's screen showed, so a

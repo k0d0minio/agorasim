@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { departureLabel } from "@/content/logistics";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
-import { REFUND_CONFIRMATION } from "@/lib/admin-format";
+import { EVENT_CANCEL_CONFIRMATION, REFUND_CONFIRMATION } from "@/lib/admin-format";
 import { formatDay } from "@/lib/availability";
 import { moveBookingToDeparture } from "@/lib/booking-move";
 import { setNoShow } from "@/lib/booking-no-show";
@@ -13,10 +13,12 @@ import { cancelAndRefundBooking } from "@/lib/booking-refund";
 import {
   bookingNoShowSchema,
   cancelBookingSchema,
+  cancelHeldQuoteSchema,
   formValues,
   moveBookingSchema,
   quoteDraftSchema,
   quoteIdSchema,
+  refundQuotePaymentSchema,
   resendQuoteSchema,
 } from "@/lib/form-schemas";
 import { formatPrice } from "@/lib/money";
@@ -30,6 +32,7 @@ import {
   type DraftOutcome,
   type SendOutcome,
 } from "@/lib/quote-builder";
+import { cancelHeldQuote, refundQuotePayment } from "@/lib/quote-refund";
 
 /**
  * Writes to a booking from the Sales board.
@@ -462,4 +465,124 @@ export async function resendLeadQuote(
     actorUserId: actor.id,
   });
   return sendMessage(outcome, "Orçamento reenviado com um novo link. O link anterior deixou de funcionar.");
+}
+
+/**
+ * "Reembolsar" on one instalment of a quote — the deposit, the balance or an
+ * extra, in full or in part, and the event called off with it when the box
+ * says so.
+ *
+ * The work is in `lib/quote-refund.ts`, which the webhook shares for a refund
+ * made in the Stripe dashboard, so the two cannot write the books differently.
+ * `requireAdmin()` for the reason the tour refund gives: the typed
+ * confirmation, not the role, stands between a mis-tap and the money.
+ */
+export async function refundLeadQuotePayment(
+  _prevState: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = refundQuotePaymentSchema.safeParse(formValues(formData));
+  if (!parsed.success) {
+    return {
+      error:
+        parsed.error.issues[0]?.message ??
+        `Escreva ${REFUND_CONFIRMATION} para confirmar.`,
+    };
+  }
+
+  const { paymentId, refundAmount, cancelEvent } = parsed.data;
+  const outcome = await refundQuotePayment({
+    paymentId,
+    refundCents: refundAmount,
+    cancelEvent,
+    actorUserId: actor.id,
+  });
+
+  switch (outcome.status) {
+    case "refunded": {
+      const money = formatPrice(outcome.refundedCents, "pt", outcome.payment.currency);
+      return {
+        ok: true,
+        message: outcome.eventCancelled
+          ? `Reembolso de ${money} enviado e evento cancelado. O cliente foi avisado.`
+          : `Reembolso de ${money} enviado. O cliente foi avisado.`,
+      };
+    }
+
+    case "not-found":
+      return { error: "Esse pagamento já não existe. Recarregue a página." };
+
+    case "not-refundable":
+      // Also what a double-submitted form gets once the first one has given
+      // everything back.
+      return {
+        error:
+          outcome.payment.status === "refunded"
+            ? "Este pagamento já foi reembolsado na totalidade."
+            : "Só é possível reembolsar um pagamento que foi pago.",
+      };
+
+    case "amount-invalid":
+      return {
+        error: `O valor tem de estar entre 0,01 € e ${formatPrice(outcome.maxCents, "pt", outcome.payment.currency)}.`,
+      };
+
+    case "refund-unavailable":
+      return {
+        error:
+          "Este pagamento não foi feito pelo Stripe, por isso não há nada para reembolsar aqui. " +
+          "Devolva o dinheiro pela mesma via em que o recebeu.",
+      };
+
+    case "refund-failed":
+      // Nothing was written: the row, the quote and the couple's inbox are as
+      // they were, which is what makes "try again" the right advice.
+      return {
+        error:
+          "O Stripe recusou o reembolso — nada foi alterado e o evento não foi cancelado. " +
+          "Tente de novo daqui a pouco, ou emita-o no painel do Stripe.",
+      };
+  }
+}
+
+/**
+ * "Cancelar evento" — call off a quote whose deposit has already gone back in
+ * full, so its balance is never asked for. No money moves and no email goes:
+ * the couple were told about the refund when it happened.
+ */
+export async function cancelLeadHeldQuote(
+  _prevState: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = cancelHeldQuoteSchema.safeParse(formValues(formData));
+  if (!parsed.success) {
+    return {
+      error:
+        parsed.error.issues[0]?.message ??
+        `Escreva ${EVENT_CANCEL_CONFIRMATION} para confirmar.`,
+    };
+  }
+
+  const outcome = await cancelHeldQuote({
+    quoteId: parsed.data.quoteId,
+    actorUserId: actor.id,
+  });
+
+  switch (outcome.status) {
+    case "cancelled":
+      return { ok: true, message: "Evento cancelado. O saldo já não será pedido." };
+    case "not-found":
+      return { error: "Este orçamento já não existe. Recarregue a página." };
+    case "not-held":
+      return {
+        error:
+          outcome.quote.status === "cancelled"
+            ? "Este evento já está cancelado."
+            : "Só é possível cancelar aqui um evento cujo sinal foi reembolsado na totalidade.",
+      };
+  }
 }

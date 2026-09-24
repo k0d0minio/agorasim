@@ -5,7 +5,7 @@
 
 ## What changed
 
-- `web/src/db/schema.ts`, `web/drizzle/0029_thank_you_opt_out_no_show.sql`: `email_opt_outs` (HMAC address hash PK, `via` enum `page|one-click`, `created_at`) and `bookings.no_show_at`. Additive only; applied cleanly on the run's Neon branch `run/thankyou-review-email`.
+- `web/src/db/schema.ts`, `web/drizzle/0030_thank_you_opt_out_no_show.sql` (first generated as 0029; re-numbered at Release): `email_opt_outs` (HMAC address hash PK, `via` enum `page|one-click`, `created_at`) and `bookings.no_show_at`. Additive only; applied cleanly on the run's Neon branch `run/thankyou-review-email`.
 - `web/src/lib/email-opt-out-token.ts`: the address hash and the signed link token under `EMAIL_OPT_OUT_SECRET` (domain-separated HMACs, Web Crypto, stateless — any code holding the address can mint its link); paths for the page and the one-click endpoint.
 - `web/src/lib/email-opt-out.ts`: `isOptedOut`, `isAddressHashOptedOut`, `optedOutAt`, `recordOptOut` (insert-if-missing, withdraws `marketingConsent` on every enquiry with that address, audits `email.opted_out` with no address or hash).
 - `web/src/lib/audit.ts`, `web/src/lib/admin-format.ts`: actions `booking.no_show_marked`, `booking.no_show_cleared`, `email.opted_out`; entity type `email_opt_out`; PT labels.
@@ -51,7 +51,7 @@
 - ci: GREEN — settled by ci-status.sh after the last push (the close-out); see the stop report for the SHA
 - reviews: code high (/code-review: 9 findings — 4 fixed in-ticket: a move clears `no_show_at`, the no-show write guarded on status/date/mark, one-click on its own throttle key and limit, a misplaced JSDoc; 5 parked) · security security-check.sh --branch --audit: OK + /security-review — no findings at confidence ≥ 8 · production-readiness n/a — the skill is not installed in this session (the diff touches DB and env: covered by check-migrations.sh SKIP/OK and env.sh audit) · readiness env.sh audit --changed: GAPS 4, none a key this branch added — `RESEND_API_KEY`, `BOOKING_EMAIL_FROM`, `BOOKING_NOTIFICATION_EMAILS`, `CRON_SECRET` missing only on Vercel's development target (pre-existing; listed because files that read them changed); `EMAIL_OPT_OUT_SECRET` present on every declared target
 - parked: opt-out-hashing-cost.md · suppression-in-send-path.md · cron-job-and-crypto-helpers-dedupe.md · email-keys-development-target.md (plus template-change-env-audit-empty-targets.md from Build)
-- migrations: ok — 0029 additive, forward-only (check-migrations.sh SKIP: drizzle numbering, no stamped migrations); no collision after main
+- migrations: re-numbered 0029 → 0030 after main merged `0029_quote_refunds` (#142) — regenerated with drizzle-kit on main's journal (`when` strictly after), and made idempotent (`DO … duplicate_object`, `IF NOT EXISTS`) because the old 0029 had already been applied to `run/thankyou-review-email` and `preview/claude/sweet-bohr-jdugh1`; the three statements re-run cleanly on the run branch (Neon); forward-only, additive
 - learned: 1 rule appended to _shared/project-rules.md (retrospective.sh) · 2 from FAILURE.md via close-out
 - docs: `.icm/docs/data-protection.md` updated in Build (Resend row, open item 5, the erasure exception, never-rotate, Art. 15) · announce: deferred to promotion
 - Context budget: Release read the code-review and security-review outputs and the move's update in `lib/booking-move.ts` to fix the finding.

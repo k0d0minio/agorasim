@@ -7,7 +7,10 @@ import {
   canStartQuote,
   canTransition,
   DEFAULT_DEPOSIT_PERCENT,
+  depositRefundedInFull,
   dueInstalment,
+  instalmentRefundableCents,
+  instalmentStatusAfterRefund,
   isEditable,
   isInsideNonRefundableWindow,
   LEAD_STAGE_ORDER,
@@ -449,5 +452,59 @@ describe("dueInstalment — what the quote page offers to pay", () => {
         dueInstalment({ status, payments: [row("deposit", "pending")] }, AFTER_DUE),
       ).toEqual({ kind: "not-live" });
     }
+  });
+});
+
+describe("refunds on an instalment", () => {
+  const deposit = { kind: "deposit" as const, amountCents: 57_600 };
+
+  it("can give back what was paid, less what already went back", () => {
+    expect(instalmentRefundableCents({ amountCents: 57_600, refundedAmountCents: 0 })).toBe(
+      57_600,
+    );
+    expect(
+      instalmentRefundableCents({ amountCents: 57_600, refundedAmountCents: 28_800 }),
+    ).toBe(28_800);
+    expect(
+      instalmentRefundableCents({ amountCents: 57_600, refundedAmountCents: 57_600 }),
+    ).toBe(0);
+  });
+
+  it("leaves a partly refunded instalment paid, and marks a whole one refunded", () => {
+    const paid = { ...deposit, status: "paid" as const };
+    expect(instalmentStatusAfterRefund(paid, 28_800)).toBe("paid");
+    expect(instalmentStatusAfterRefund(paid, 57_600)).toBe("refunded");
+    expect(instalmentStatusAfterRefund(paid, 0)).toBe("paid");
+  });
+
+  it("never walks a refunded instalment back when Stripe's total drops", () => {
+    expect(instalmentStatusAfterRefund({ ...deposit, status: "refunded" }, 0)).toBe("refunded");
+    expect(instalmentStatusAfterRefund({ ...deposit, status: "refunded" }, 28_800)).toBe(
+      "refunded",
+    );
+  });
+
+  it("moves nothing that was never paid", () => {
+    for (const status of ["pending", "issued", "cancelled"] as const) {
+      expect(instalmentStatusAfterRefund({ ...deposit, status }, 57_600)).toBe(status);
+    }
+  });
+
+  it("knows when the deposit has all gone back", () => {
+    const balance = { kind: "balance" as const, amountCents: 134_400, refundedAmountCents: 0 };
+    expect(depositRefundedInFull([{ ...deposit, refundedAmountCents: 57_600 }, balance])).toBe(
+      true,
+    );
+    expect(depositRefundedInFull([{ ...deposit, refundedAmountCents: 28_800 }, balance])).toBe(
+      false,
+    );
+    // The balance going back is not the deposit going back.
+    expect(
+      depositRefundedInFull([
+        { ...deposit, refundedAmountCents: 0 },
+        { ...balance, refundedAmountCents: 134_400 },
+      ]),
+    ).toBe(false);
+    expect(depositRefundedInFull([balance])).toBe(false);
   });
 });

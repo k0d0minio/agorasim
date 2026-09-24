@@ -6,6 +6,7 @@ import {
   guestEnquiryAckEmail,
   guestMoveEmail,
   guestQuoteReceiptEmail,
+  guestQuoteRefundEmail,
   guestQuoteSentEmail,
   guestReminderEmail,
   guestThankYouEmail,
@@ -19,6 +20,7 @@ import {
   type BookingMoveFacts,
   type EnquiryEmailFacts,
   type QuoteReceiptEmailFacts,
+  type QuoteRefundEmailFacts,
   type QuoteSentEmailFacts,
   type ReminderEmailFacts,
   type TeamCancellationFacts,
@@ -1287,5 +1289,72 @@ describe("the quote receipts — deposit-received and balance-paid", () => {
     );
     expect(platformOnly.subject).toMatch(/^Restante pago/);
     expect(platformOnly.text).toContain("Comissão (6%): —");
+  });
+});
+
+describe("guestQuoteRefundEmail — quote-refunded", () => {
+  function refundFacts(overrides: Partial<QuoteRefundEmailFacts> = {}): QuoteRefundEmailFacts {
+    return {
+      instalment: "deposit",
+      ref: "QT-A1B2C3",
+      guestName: "Inês & Tomás",
+      guestEmail: "ines@example.com",
+      locale: "pt",
+      date: "sábado, 15 de agosto de 2026",
+      venue: "Quinta do Hespanhol, Mafra",
+      paid: "486 €",
+      amount: "243 €",
+      totalRefunded: "243 €",
+      eventCancelled: false,
+      ...overrides,
+    };
+  }
+
+  it("says what went back and that the event is still on, in Portuguese", () => {
+    const mail = refundFacts();
+    const pt = guestQuoteRefundEmail(mail);
+
+    expect(pt.subject).toBe("Reembolso do seu orçamento — sábado, 15 de agosto de 2026");
+    expect(pt.text).toContain(
+      "Devolvemos 243 € do seu orçamento para sábado, 15 de agosto de 2026. O seu evento continua marcado.",
+    );
+    expect(pt.text).toContain("Referência: QT-A1B2C3");
+    expect(pt.text).toContain("Pagamento: Sinal");
+    expect(pt.text).toContain("Valor pago: 486 €");
+    expect(pt.text).toContain("Reembolso agora: 243 €");
+    expect(pt.text).toContain("Total reembolsado neste orçamento: 243 €");
+    expect(pt.text).toContain("O evento: Continua marcado");
+    expect(pt.to).toEqual(["ines@example.com"]);
+    expect(pt.replyTo).toBe(site.email);
+  });
+
+  it("says the event is off when it was cancelled with the refund, in English", () => {
+    const en = guestQuoteRefundEmail(
+      refundFacts({
+        locale: "en",
+        instalment: "balance",
+        date: "Saturday, 15 August 2026",
+        amount: "€1,134",
+        totalRefunded: "€1,620",
+        eventCancelled: true,
+      }),
+    );
+
+    expect(en.subject).toBe("Event cancelled and refunded — Saturday, 15 August 2026");
+    expect(en.text).toContain(
+      "Your event on Saturday, 15 August 2026 has been cancelled and we have returned €1,134.",
+    );
+    expect(en.text).toContain("Payment: Balance");
+    expect(en.text).toContain("Total refunded on this quote: €1,620");
+    expect(en.text).toContain("The event: Cancelled");
+    expect(en.html).toContain('lang="en"');
+  });
+
+  it("carries no quote link — the webhook that sends it has no token", () => {
+    const mail = guestQuoteRefundEmail(refundFacts());
+    expect(mail.text).not.toContain("/orcamento/");
+    expect(mail.html).not.toContain("/orcamento/");
+    // The couple's names are escaped in the HTML part, as every name is.
+    expect(mail.html).toContain("Inês &amp; Tomás");
   });
 });

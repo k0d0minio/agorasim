@@ -1,0 +1,3 @@
+## 2026-09-24T22:40:00Z env.sh audit --changed — STRIPE_WEBHOOK_SECRET scoped to development in .env.example but not on Vercel
+[GAP]  STRIPE_WEBHOOK_SECRET: declared for [production,preview,development] but Vercel/agorasim has it only for [preview,production] — missing development
+- resolved: the key's block in web/.env.example now ends in `[production,preview]` (local development reads the `stripe listen` secret from .env.local), and its subscription list names charge.refunded and refund.updated; the audit reads OK. The key was pulled into this branch's audit because a changed test sets process.env.STRIPE_WEBHOOK_SECRET.
