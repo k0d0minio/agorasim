@@ -2,8 +2,10 @@
 
 import { usePathname } from "next/navigation";
 import type { Locale } from "@/i18n/config";
-import { href } from "@/lib/routes";
+import { bookingBarTarget } from "@/lib/booking-bar-target";
+import { cn } from "@/lib/utils";
 import { BookingButton } from "@/components/booking-button";
+import { buttonVariants } from "@/components/ui/button";
 
 /**
  * Persistent "book" CTA, phones only.
@@ -18,17 +20,33 @@ import { BookingButton } from "@/components/booking-button";
  * the bar's height so nothing is permanently hidden underneath, and the root
  * `scroll-pb` keeps focused elements clear of it.
  */
-export function BookingBar({ locale, label }: { locale: Locale; label: string }) {
+export function BookingBar({
+  locale,
+  label,
+  quoteLabel,
+}: {
+  locale: Locale;
+  label: string;
+  /** "Pedir orçamento" — the label on the weddings and events pages. */
+  quoteLabel: string;
+}) {
   const pathname = usePathname();
-  const target = href(locale, "reservar");
-
-  // Not on the booking page itself: there the form *is* the page, and a floating
-  // duplicate of its own call to action would only cover the fields.
-  if (pathname === target) return null;
+  // Where it points, by page — see `lib/booking-bar-target.ts`: hidden on the
+  // booking page and on a couple's quote page, the page's own quote form on
+  // `/casamentos` and `/eventos`, the tour checkout everywhere else.
+  const target = bookingBarTarget(pathname, locale);
+  if (target.kind === "hidden") return null;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/90 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] backdrop-blur supports-backdrop-filter:bg-background/75 lg:hidden">
-      <BookingButton locale={locale} label={label} className="w-full" />
+      {target.kind === "quote" ? (
+        // A plain anchor: the form is on this page, so this is a scroll, not a navigation.
+        <a href={target.href} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
+          {quoteLabel}
+        </a>
+      ) : (
+        <BookingButton locale={locale} label={label} className="w-full" />
+      )}
     </div>
   );
 }

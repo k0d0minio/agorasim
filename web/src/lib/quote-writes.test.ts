@@ -81,9 +81,11 @@ const {
   cancelPayment,
   copyQuoteAsDraft,
   discardDraft,
+  markPaymentIssued,
   markPaymentPaid,
   markQuoteSent,
   quoteRef,
+  reissuePayment,
   supersedeSentQuotes,
 } = await import("./quotes");
 const { PgDialect } = await import("drizzle-orm/pg-core");
@@ -278,6 +280,19 @@ describe("markPaymentPaid — the deposit through Stripe", () => {
     expect(auditRows()).toEqual([]);
   });
 
+  it("stamps the terms version the page showed at the tap, over the one sent", async () => {
+    queueResult([instalment(DEPOSIT_ID, "deposit", "paid")]);
+    queueSyncAfter("paid");
+
+    // Sent under 2026-09-01; the terms moved before the couple paid, and the
+    // page they read — and the session's metadata — said 2026-09-24.
+    await markPaymentPaid(DEPOSIT_ID, { acceptedTermsVersion: "2026-09-24" }, NOW);
+
+    expect(updatedValues()[1]).toMatchObject({ acceptedTermsVersion: "2026-09-24" });
+    // The send-time stamp is left where it was.
+    expect(updatedValues()[1]).not.toHaveProperty("termsVersion");
+  });
+
   it("stays idempotent: a repeat webhook delivery moves nothing", async () => {
     queueResult([]);
 
@@ -457,5 +472,41 @@ describe("copyQuoteAsDraft", () => {
     expect(inserted).not.toHaveProperty("accessTokenHash");
     expect(inserted).not.toHaveProperty("termsVersion");
     expect(inserted).not.toHaveProperty("status");
+  });
+});
+
+describe("the Checkout session an instalment carries", () => {
+  it("records a first session only on an instalment that has none", async () => {
+    queueResult([instalment(DEPOSIT_ID, "deposit", "issued")]);
+
+    await markPaymentIssued(DEPOSIT_ID, {
+      stripeSessionId: "cs_test_first",
+      commissionRateBps: 600,
+      now: NOW,
+    });
+
+    expect(updatedValues()[0]).toMatchObject({
+      status: "issued",
+      stripeSessionId: "cs_test_first",
+      commissionRateBps: 600,
+    });
+    // Two taps that both minted a first session: the second finds one here.
+    expect(whereSql().sql).toContain('"stripe_session_id" is null');
+  });
+
+  it("replaces a session only while the row still holds the one it replaces", async () => {
+    queueResult([]);
+
+    const swapped = await reissuePayment(DEPOSIT_ID, {
+      stripeSessionId: "cs_test_second",
+      replacing: "cs_test_expired",
+      now: NOW,
+    });
+
+    // Another tap swapped it first: this write lands nowhere and says so.
+    expect(swapped).toBeNull();
+    const where = whereSql();
+    expect(where.sql).toContain('"stripe_session_id" = $');
+    expect(where.params).toContain("cs_test_expired");
   });
 });

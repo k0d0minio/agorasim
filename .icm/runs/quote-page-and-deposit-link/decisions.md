@@ -22,3 +22,8 @@ Settled with the operator at Define, 2026-09-24:
 - RD-5 — the team gets an email on each paid instalment, as for tour bookings.
 - RD-6 — superseded, cancelled, unknown and malformed links share one neutral "no longer valid" page with contacts (404 status).
 - RD-7 — the stub's open point (the events "we cancel" rule): its default — state what the terms state, no more.
+
+Made at Build, 2026-09-24 (spec gaps — carried into `03_build/output/notes.md` → Notes for Release):
+- RD-8 — the receipt emails carry no link to the quote page: the server stores only the token's digest and the webhook, which usually sends the receipt, never holds the plaintext. The receipt points at the quote email instead. Asked of the operator in session; they chose this over a `revise`.
+- RD-9 — a dead quote link is a `noindex` page with a 200 status, not a 404: the locale's `loading.tsx` streams every page under `[locale]`, and a streamed response has sent its status before the token lookup finishes (Next 16's streaming note). A true 404 would need the lookup in `proxy.ts`; not done in this run.
+- RD-10 — the "reuse an open session" rule reuses it only when its metadata's terms version is today's; an open session minted under older terms is expired first and replaced, which is the spec's "a replaced open session is expired at Stripe first".
