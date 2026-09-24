@@ -22,9 +22,12 @@
 #                         7-day expiry Neon enforces itself, created through lib/neon.sh with the
 #                         key `database.neon.api_key_env` names (decision D32). Needs `provider:
 #                         neon`, curl and jq — no psql, no docker. The branch's pooled connection
-#                         string is read back at `env` and never written anywhere in the repo. A
-#                         child of PRODUCTION, never of the UAT database, so `db-env.sh reset-uat`
-#                         is never blocked by a run (_shared/promotion.md → The UAT database).
+#                         string is read back at `env` and never written anywhere in the repo.
+#                         Where uat is declared (D41) the run branch lives in the NON-PRODUCTION
+#                         project (`database.neon.nonprod_project_id`), a child of its default
+#                         branch — the UAT database — so no production row ever reaches a run, and
+#                         production's project is never written (_shared/promotion.md → The UAT
+#                         database).
 #   isolation: database   one MongoDB DATABASE per run — `run_<slug>` (lib/db-name.mjs normalises
 #                         it to MongoDB's rules: `-` → `_`, 63 bytes at most) on the ONE cluster the
 #                         variable `url_env` (default MONGODB_URI) points at, beside the repo's
@@ -166,8 +169,9 @@ case "$isolation" in
   neon)
     # shellcheck source=lib/neon.sh
     source "$(dirname "${BASH_SOURCE[0]}")/lib/neon.sh"
-    say "branch:     $neon_branch_name  in Neon project ${neon_project:-<undeclared>} (a child of $(neon_production_branch), 7-day expiry)"
-    neon_declared || { say "database.provider is not neon, or database.neon.project_id is empty — /setup declares it"; verdict SKIP; }
+    if neon_split; then parent_label="its default branch — the UAT database"; else parent_label="$(neon_production_branch)"; fi
+    say "branch:     $neon_branch_name  in Neon project ${neon_project:-<undeclared>} ($(neon_split && echo "non-production, ")a child of $parent_label, 7-day expiry)"
+    neon_declared || { say "$(neon_undeclared_why | grep . || echo "database.provider is not neon, or database.neon.project_id is empty — /setup declares it")"; verdict SKIP; }
     command -v curl >/dev/null 2>&1 || { say "curl not found — the neon engine needs it"; verdict SKIP; }
     [ -n "$neon_key" ] || { say "\$$neon_key_name is unset in this environment — nothing can be read or created (export it; never in git)"; verdict SKIP; }
     neon_load_branches || die "could not read Neon project $neon_project via \$$neon_key_name — .icm/scripts/lib/neon.sh --check says why"
@@ -177,15 +181,20 @@ case "$isolation" in
         if [ -n "$bid" ]; then say "state:      present ($bid)"; verdict BOUND; else say "state:      absent — run: .icm/scripts/db-branch.sh $slug up"; verdict ABSENT; fi ;;
       up)
         if [ -z "$bid" ]; then
-          parent="$(neon_branch_id "$(neon_production_branch)")"
-          [ -n "$parent" ] || parent="$(neon_default_branch_id)"
-          [ -n "$parent" ] || die "no branch named $(neon_production_branch) in Neon project $neon_project (database.neon.production_branch)"
+          if neon_split; then
+            parent="$(neon_default_branch_id)"
+            [ -n "$parent" ] || die "Neon project $neon_project has no default branch — is database.neon.nonprod_project_id the UAT database's project?"
+          else
+            parent="$(neon_branch_id "$(neon_production_branch)")"
+            [ -n "$parent" ] || parent="$(neon_default_branch_id)"
+            [ -n "$parent" ] || die "no branch named $(neon_production_branch) in Neon project $neon_project (database.neon.production_branch)"
+          fi
           bid="$(neon_create_branch "$neon_branch_name" "$parent" "$(neon_now_plus_days 7)")"
           [ -n "$bid" ] || die "Neon answered the create without a branch id"
           neon_wait_ready "$bid" 90 || say "note: $neon_branch_name is still starting — the exports from \`env\` are correct; the first connection may wait a moment"
         fi
         record_pointer "$pointer_neon"
-        say "state:      present ($bid) — a copy of $(neon_production_branch) as of now, expiring in 7 days unless \`down\` comes first"
+        say "state:      present ($bid) — a copy of $(neon_split && echo "the UAT database" || neon_production_branch) as of now, expiring in 7 days unless \`down\` comes first"
         say "next:       eval \"\$(.icm/scripts/db-branch.sh $slug env)\"   then run the repo's migrations inside it"
         verdict BOUND ;;
       env)
