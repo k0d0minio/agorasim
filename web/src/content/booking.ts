@@ -24,8 +24,10 @@ export const bookingContent = {
     yourDetails: { pt: "Os seus dados", en: "Your details" } as Localized,
     name: { pt: "Nome", en: "Name" } as Localized,
     email: { pt: "Email", en: "Email" } as Localized,
-    phone: { pt: "Telefone (opcional)", en: "Phone (optional)" } as Localized,
-    message: { pt: "Alguma nota para nós? (opcional)", en: "Anything we should know? (optional)" } as Localized,
+    phone: { pt: "Telefone", en: "Phone" } as Localized,
+    message: { pt: "Alguma nota para nós?", en: "Anything we should know?" } as Localized,
+    /** Appended after a field's own label, same convention as the quote form. */
+    optional: { pt: "(opcional)", en: "(optional)" } as Localized,
     messagePlaceholder: {
       pt: "Alergias, aniversários, cadeira de bebé…",
       en: "Allergies, birthdays, a child seat…",
