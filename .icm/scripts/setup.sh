@@ -21,8 +21,10 @@
 #    3. project.json  name, complexity, required_checks, personas, deploy, reporting, migrations
 #                  (stamp/tool/out_of_order), database (isolation, provider — a Neon project is
 #                  read once when its key is in the shell: production branch, preview branching,
-#                  and with UAT the non-production project too; a MongoDB cluster's names and
-#                  commands, and the cluster read once when its URI is in the shell — D35),
+#                  and with UAT the non-production project too — where it holds no preview/*,
+#                  the open PRs are read once: none open is INFO, an open one is the gap; a
+#                  MongoDB cluster's names and commands, and the cluster read once when its URI
+#                  is in the shell — D35),
 #                  security, support, health_endpoint, uat — missing or still at the stub's value
 #                  is a line with the question. A declared UAT environment (D39: `uat: {target,
 #                  url}`, both or neither) is checked — the UAT database declared (Neon, D41: a
@@ -263,6 +265,19 @@ if [ -f .icm/project.json ]; then
           if [ "$(neon_previews)" = vercel ]; then
             np="$(printf '%s' "$nnb" | jq '[.[] | select(.name | startswith("preview/"))] | length')"
             if [ "$np" -gt 0 ]; then ok "neon: preview branching is live — $np preview/* branch(es)"
+            elif neon_split; then
+              # Zero is the right count when no PR is open: neon-cleanup deletes preview/<branch> on close.
+              # Only an open PR without its preview/<branch> is a gap — one bounded read of the open PRs.
+              prs="$( ( source "$here/lib/gh.sh" >/dev/null 2>&1 || exit 1
+                        { [ -n "${gh_token:-}" ] || (command -v gh >/dev/null 2>&1 && env -u GITHUB_TOKEN -u GH_TOKEN gh auth status >/dev/null 2>&1); } || exit 1
+                        r="$(gh_api GET "/repos/${repo}/pulls?state=open&per_page=100")" || exit 1
+                        [ "$(printf '%s' "$r" | tail -n1)" = "200" ] || exit 1
+                        printf '%s' "$r" | sed '$d' | jq -r '[.[] | "#\(.number) (\(.head.ref))"] | join(", ")' ) 2>/dev/null )" || prs="?"
+              if [ "$prs" = "?" ]; then info "neon: no preview/* branch — open PRs not read (no GitHub route in this environment); none is expected until a PR is open"
+              elif [ -z "$prs" ]; then info "neon: no preview/* branch — none expected: no PR is open (neon-cleanup deletes preview/<branch> when its PR closes)"
+              else
+                warn "neon: open PR(s) without their preview/<branch>: $prs — is the Vercel integration's Preview branching enabled? (db-env.sh init lists the toggle); until it is, previews share the Preview environment's database"
+              fi
             else warn "neon: no preview/* branch yet — is the Vercel integration's Preview branching enabled? (db-env.sh init lists the toggle); until it is, previews share the Preview environment's database"; fi
           fi
         fi
