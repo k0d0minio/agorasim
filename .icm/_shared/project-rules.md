@@ -134,9 +134,10 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   (store `agorasim`; `database.neon` in `.icm/project.json`), its `main` branch — **not yet
   protected** (Jamie's, in the Neon Console) — connected to the **Production** environment only,
   preview branching off. **UAT and previews**: the second database `uat-agorasim` (Neon project
-  `lingering-frog-97017403`, Postgres 18 — production is 17; kept apart on purpose, Jamie 2026-09-24:
-  Drizzle's plain SQL runs on both, and Neon has no in-place major upgrade), connected to the `uat` environment, Preview and Development with preview
-  branching on: UAT reads its default branch, a PR preview gets `preview/<git-branch>` inside it.
+  `lingering-frog-97017403`, Postgres 18 — production is 17; kept apart on purpose, Jamie
+  2026-09-24: Drizzle's plain SQL runs on both, and Neon has no in-place major upgrade), connected
+  to the `uat` environment, Preview and Development with preview branching on: UAT reads its
+  default branch, a PR preview gets `preview/<git-branch>` inside it.
   Nothing non-production is wired to production's project, and no database variable is set by
   hand — every one is the integration's. The UAT database starts empty and is built by the
   migrations the UAT build runs (the catalogue seeds are migrations); it holds no copy of
