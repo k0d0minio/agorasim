@@ -139,6 +139,29 @@ export const CANCELLATION_RATE_LIMIT: RateLimitRule = {
   windowSeconds: 10 * 60,
 };
 
+/**
+ * The couple's quote link, on the way in: 20 lookups per IP per 10 minutes —
+ * the cancel link's reasoning exactly (`CANCELLATION_LOOKUP_RATE_LIMIT`): a
+ * real couple reload and share the link, and 32 bytes of token make a walk
+ * hopeless anyway. The limit makes a walk cost a request, not a query.
+ */
+export const QUOTE_LOOKUP_RATE_LIMIT: RateLimitRule = {
+  limit: 20,
+  windowSeconds: 10 * 60,
+};
+
+/**
+ * The quote page's pay button: 10 taps per IP per 10 minutes.
+ *
+ * Each tap may mint a Stripe session, so it is tighter than the lookup; a
+ * couple who changes their mind at Stripe and comes back, twice, spends
+ * three of these.
+ */
+export const QUOTE_PAY_RATE_LIMIT: RateLimitRule = {
+  limit: 10,
+  windowSeconds: 10 * 60,
+};
+
 /** Record a hit against the shared store. */
 export function rateLimit(
   key: string,
