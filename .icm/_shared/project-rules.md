@@ -257,3 +257,6 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 - A token stored as a digest (quote links, cancel links) can be put in a URL only by the code that minted it; never spec a later email, webhook or job that links back with it. (`FAILURE.md` — quote-page-and-deposit-link)
 <!-- Retrospective Learned Rule [2026-09-24] -->
 - When code reads a Stripe object to decide whether to mint a payable session, treat only `resource_missing` as "gone" and check a completed-but-unpaid session's payment intent — a delayed method can fail after `complete`. (`FAILURE.md` — quote-page-and-deposit-link)
+
+<!-- Retrospective Learned Rule [2026-09-24] -->
+- In web/src/lib/booking-emails.test.ts, assert copy containing an apostrophe, quote or ampersand against `message.text` literally and against `message.html` in its escapeHtml form (&#39; &quot; &amp;) — never loop both parts over one raw string. (`(empty)`, seen 1× — day-before-reminder; web/drizzle, web/src)

@@ -3,9 +3,8 @@ import { recordAudit } from "@/lib/audit";
 import { runAllJobs } from "@/lib/cron/jobs";
 import { captureError } from "@/lib/observability";
 
-// Side-effect: registers the placeholder job. Remove this import once a real
-// job (day-before-reminder, thankyou-review) registers itself here instead.
-import "@/lib/cron/noop";
+// Side-effect imports: each job module registers itself with `register()`.
+import "@/lib/cron/day-before-reminder";
 
 /**
  * Daily dispatcher — one cron, every registered job.

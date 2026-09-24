@@ -314,6 +314,95 @@ export const bookingEmails = {
     } as Localized,
   },
 
+  /**
+   * The §2.6 reminder — "Olá, Tomorrow is the big day, here is some
+   * information about the meeting point" — sent by the daily dispatcher
+   * (`lib/cron/day-before-reminder.ts`).
+   *
+   * **Two mornings, one message.** The run at 06:00 UTC reminds tomorrow's
+   * bookings; it also catches today's bookings nobody reminded yet — a booking
+   * made, or a tour moved, after yesterday's run — with the `today` wording.
+   * Everything but the words for *when* is shared.
+   *
+   * **No money and no cancel link.** A reminder is logistics: cash and card
+   * bookings read the same, and by the day before the 48-hour free
+   * cancellation has closed, so offering the link would offer nothing.
+   *
+   * The PT is ungendered, as every guest line is (see `guest.lead`).
+   */
+  reminder: {
+    tomorrow: {
+      subject: {
+        pt: "Amanhã é o grande dia — {experience}, {date}",
+        en: "Tomorrow is the big day — {experience}, {date}",
+      } as Localized,
+      banner: {
+        pt: "Amanhã é o grande dia",
+        en: "Tomorrow is the big day",
+      } as Localized,
+      lead: {
+        pt: "Amanhã é o grande dia! Aqui fica a informação sobre o ponto de encontro.",
+        en: "Tomorrow is the big day! Here is some information about the meeting point.",
+      } as Localized,
+      signoff: {
+        pt: "Até amanhã,\nDiogo e Rita\nAgorasim",
+        en: "See you tomorrow,\nDiogo and Rita\nAgorasim",
+      } as Localized,
+    },
+    today: {
+      subject: {
+        pt: "Hoje é o grande dia — {experience}, {date}",
+        en: "Today is the big day — {experience}, {date}",
+      } as Localized,
+      banner: {
+        pt: "Hoje é o grande dia",
+        en: "Today is the big day",
+      } as Localized,
+      lead: {
+        pt: "Hoje é o grande dia! Aqui fica a informação sobre o ponto de encontro.",
+        en: "Today is the big day! Here is some information about the meeting point.",
+      } as Localized,
+      signoff: {
+        pt: "Até já,\nDiogo e Rita\nAgorasim",
+        en: "See you soon,\nDiogo and Rita\nAgorasim",
+      } as Localized,
+    },
+    preheader: {
+      pt: "Referência {ref} · onde nos encontramos e a que horas",
+      en: "Reference {ref} · where we meet and when",
+    } as Localized,
+    greeting: {
+      pt: "Olá {name},",
+      en: "Hello {name},",
+    } as Localized,
+    detailsHeading: {
+      pt: "A sua experiência",
+      en: "Your experience",
+    } as Localized,
+    /**
+     * Only for a tour whose departures still have no clock time — Óbidos
+     * today (`content/logistics.ts`). The confirmation promised the hour "by
+     * email or WhatsApp"; this is the morning that promise must have been kept,
+     * so the guest who has not had it is told whom to call, with the numbers in
+     * the sentence rather than somewhere below it.
+     */
+    departureTime: {
+      title: { pt: "A hora da partida", en: "Your departure time" } as Localized,
+      body: {
+        pt: "Se ainda não recebeu de nós a hora exata da partida, ligue ou envie mensagem ao Diogo ({diogoPhone}) ou à Rita ({ritaPhone}).",
+        en: "If you haven't had the exact departure time from us yet, call or message Diogo ({diogoPhone}) or Rita ({ritaPhone}).",
+      } as Localized,
+    },
+    changeNote: {
+      pt: "Se precisar de alguma coisa, responda a este email ou ligue-nos:",
+      en: "If you need anything, reply to this email or call us:",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque tem uma reserva em {site}.",
+      en: "You are receiving this email because you have a booking at {site}.",
+    } as Localized,
+  },
+
   /** To Diogo & Rita. Portuguese only — see the note above. */
   team: {
     subject: "Nova reserva paga — {date} · {name} ({party}p)",

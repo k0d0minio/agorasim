@@ -2,7 +2,8 @@
   "stubs": [
     "admin-quote-builder",
     "retire-stale-dependency-advisories",
-    "experiencias-heading-meta"
+    "experiencias-heading-meta",
+    "day-before-reminder"
   ],
   "client_approved": false,
   "approved_by": "",

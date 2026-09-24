@@ -7,6 +7,7 @@ import {
   guestMoveEmail,
   guestQuoteReceiptEmail,
   guestQuoteSentEmail,
+  guestReminderEmail,
   partyLabel,
   teamCancellationEmail,
   teamEnquiryEmail,
@@ -18,6 +19,7 @@ import {
   type EnquiryEmailFacts,
   type QuoteReceiptEmailFacts,
   type QuoteSentEmailFacts,
+  type ReminderEmailFacts,
   type TeamCancellationFacts,
 } from "@/lib/booking-emails";
 import { termsContent, termsSection } from "@/content/terms";
@@ -372,6 +374,181 @@ describe("guestMoveEmail", () => {
 
   it("replies to a person, not to the sending domain", () => {
     expect(guestMoveEmail(moved()).replyTo).toBe(site.email);
+  });
+});
+
+/** The Óbidos meeting point, from `content/logistics.ts`. */
+const OBIDOS_PIN = {
+  address: "Alameda Cardeal Cerejeira, Lisboa",
+  mapsUrl: "https://maps.app.goo.gl/ucMojM5V7eGhcvn4A",
+};
+
+function reminder(overrides: Partial<ReminderEmailFacts> = {}): ReminderEmailFacts {
+  const base = facts();
+  return {
+    when: "tomorrow",
+    ref: base.ref,
+    guestName: base.guestName,
+    guestEmail: base.guestEmail,
+    locale: base.locale,
+    date: base.date,
+    experience: base.experience,
+    departure: base.departure,
+    departureTimeFollows: base.departureTimeFollows,
+    meetingPoint: base.meetingPoint,
+    addOns: base.addOns,
+    partyLabel: base.partyLabel,
+    ...overrides,
+  };
+}
+
+/** The same guest on Óbidos, whose departures still have no clock time. */
+function obidos(overrides: Partial<ReminderEmailFacts> = {}): ReminderEmailFacts {
+  return reminder({
+    experience: "Óbidos & Aldeias Medievais — partida partilhada",
+    departure: "Partida da manhã — hora exata confirmada por email",
+    departureTimeFollows: true,
+    meetingPoint: OBIDOS_PIN,
+    ...overrides,
+  });
+}
+
+describe("guestReminderEmail", () => {
+  const [diogo, rita] = site.contacts;
+
+  it("substitutes every placeholder — no stray braces reach a guest", () => {
+    for (const message of [
+      guestReminderEmail(reminder()),
+      guestReminderEmail(obidos({ when: "today", locale: "en" })),
+    ]) {
+      expect(message.subject).not.toMatch(/\{/);
+      expect(message.text).not.toMatch(/\{/);
+      expect(message.html).not.toMatch(
+        /\{(name|ref|experience|date|site|diogoPhone|ritaPhone)\}/,
+      );
+    }
+  });
+
+  it("says tomorrow is the big day, in the client's words, in both languages", () => {
+    const pt = guestReminderEmail(reminder());
+    expect(pt.subject).toContain("Amanhã é o grande dia");
+    expect(pt.html).toContain('lang="pt"');
+    expect(pt.text).toContain("Aqui fica a informação sobre o ponto de encontro");
+
+    const en = guestReminderEmail(reminder({ locale: "en", date: "Saturday, 15 August 2026" }));
+    expect(en.subject).toContain("Tomorrow is the big day");
+    expect(en.html).toContain('lang="en"');
+    expect(en.text).toContain("Here is some information about the meeting point");
+  });
+
+  it("says today, not tomorrow, on the same-morning catch-up", () => {
+    const pt = guestReminderEmail(reminder({ when: "today" }));
+    expect(pt.subject).toContain("Hoje é o grande dia");
+    expect(pt.text).not.toContain("Amanhã");
+    expect(pt.html).not.toContain("Amanhã é o grande dia");
+
+    const en = guestReminderEmail(reminder({ when: "today", locale: "en" }));
+    expect(en.subject).toContain("Today is the big day");
+    expect(en.text).not.toMatch(/tomorrow/i);
+  });
+
+  it("carries the meeting point linked to its pin, and the rest of the booking", () => {
+    const message = guestReminderEmail(reminder());
+    expect(message.to).toEqual(["sofia@example.com"]);
+    for (const part of [message.text, message.html!]) {
+      expect(part).toContain("Sofia Almeida");
+      expect(part).toContain("BK-A1B2C3");
+      expect(part).toContain("sábado, 15 de agosto de 2026");
+      expect(part).toContain("Manhã · 10h00");
+      expect(part).toContain("Av. Mário Firmino Miguel, Sintra (Portela de Sintra)");
+      expect(part).toContain("2 adultos");
+      expect(part).toContain("Manzwine");
+    }
+    expect(message.html).toContain('href="https://maps.app.goo.gl/zufzHo8QpmspvzqC9"');
+    expect(message.text).toContain("https://maps.app.goo.gl/zufzHo8QpmspvzqC9");
+  });
+
+  it("omits the meeting-point and add-ons rows when there is nothing to say", () => {
+    const message = guestReminderEmail(reminder({ meetingPoint: null, addOns: [] }));
+    expect(message.text).not.toContain("Ponto de encontro");
+    expect(message.text).not.toContain("Extras");
+  });
+
+  it("carries no money line and no cancel link, in either language", () => {
+    for (const locale of ["pt", "en"] as const) {
+      for (const message of [
+        guestReminderEmail(reminder({ locale })),
+        guestReminderEmail(obidos({ locale })),
+      ]) {
+        for (const part of [message.text, message.html!]) {
+          expect(part).not.toContain("€");
+          expect(part).not.toMatch(/Total pago|Total paid/);
+          expect(part).not.toMatch(/Cancelar a reserva|Cancel this booking/);
+          expect(part).not.toContain("/cancelar/");
+        }
+      }
+    }
+  });
+
+  it("tells an Óbidos guest whom to call for the hour, with both numbers", () => {
+    const pt = guestReminderEmail(obidos());
+    for (const part of [pt.text, pt.html!]) {
+      expect(part).toContain("Se ainda não recebeu de nós a hora exata da partida");
+      expect(part).toContain(`Diogo (${diogo.phoneDisplay})`);
+      expect(part).toContain(`Rita (${rita.phoneDisplay})`);
+      expect(part).toContain("Alameda Cardeal Cerejeira, Lisboa");
+    }
+    expect(pt.text).toContain(OBIDOS_PIN.mapsUrl);
+
+    const en = guestReminderEmail(obidos({ locale: "en" }));
+    // The HTML escapes the apostrophe, as it escapes every copy string.
+    expect(en.text).toContain("If you haven't had the exact departure time from us yet");
+    expect(en.html).toContain("If you haven&#39;t had the exact departure time from us yet");
+    for (const part of [en.text, en.html!]) {
+      expect(part).toContain(`Diogo (${diogo.phoneDisplay})`);
+      expect(part).toContain(`Rita (${rita.phoneDisplay})`);
+    }
+  });
+
+  it("says nothing about an hour to come on Rural Saloia, which has one", () => {
+    const pt = guestReminderEmail(reminder());
+    const en = guestReminderEmail(reminder({ locale: "en" }));
+    expect(pt.text).not.toContain("hora exata");
+    expect(pt.html).not.toContain("A hora da partida");
+    expect(en.text).not.toContain("exact departure time");
+  });
+
+  it("greets every guest without guessing their gender", () => {
+    // The §2.6 source line is ungendered and the booking never asks, so no PT
+    // line may agree with the guest — see `bookingEmails.guest.lead`.
+    const gendered =
+      /\b(bem-vind[oa]s?|car[oa]s?|querid[oa]s?|pront[oa]s?|obrigad[oa]s?|convidad[oa]s?)\b/i;
+    for (const when of ["tomorrow", "today"] as const) {
+      for (const message of [
+        guestReminderEmail(reminder({ when })),
+        guestReminderEmail(obidos({ when })),
+      ]) {
+        expect(message.subject).not.toMatch(gendered);
+        expect(message.text).not.toMatch(gendered);
+      }
+    }
+  });
+
+  it("escapes anything a guest could have typed", () => {
+    const message = guestReminderEmail(
+      reminder({ guestName: `<script>alert("x")</script> O'Brien` }),
+    );
+    expect(message.html).not.toContain("<script>");
+    expect(message.html).toContain("&lt;script&gt;");
+    expect(message.html).toContain("O&#39;Brien");
+    expect(message.text).toContain("O'Brien");
+  });
+
+  it("gives them both phone numbers, dialable, and replies to a person", () => {
+    const message = guestReminderEmail(reminder());
+    expect(message.html).toContain(`href="tel:${diogo.phone}"`);
+    expect(message.html).toContain(`href="tel:${rita.phone}"`);
+    expect(message.replyTo).toBe(site.email);
   });
 });
 
