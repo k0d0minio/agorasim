@@ -22,4 +22,5 @@ step, so a resuming session can pick up the first unticked line.
 - [x] Copy + template — `bookingEmails.reminder` in `web/src/content/emails.ts`, `guestReminderEmail` in `web/src/lib/booking-emails.ts`, tests (594850f)
 - [x] Job — `web/src/lib/cron/day-before-reminder.ts` registered on the dispatcher, `noop.ts` deleted, route import swapped, job test (594850f)
 - [x] Privacy — PT/EN email lists + last-updated date in `web/src/content/privacy.ts` (594850f)
-- [ ] CI GREEN on the draft head → merge `origin/main` + `origin/uat` → flip ready → push → full GREEN
+- [x] CI GREEN on the draft head → merge `origin/main` + `origin/uat` → flip ready (bc770c4)
+- [ ] Full gate GREEN on the post-flip head

@@ -1,7 +1,7 @@
 # Build notes: day-before-reminder
 
-- commits: 594850f feat: day-before-reminder — the §2.6 reminder with the pin, sent by the daily dispatcher
-- ci: pending
+- commits: 594850f feat (query, copy, template, job, privacy, tests) · 50a903d chore (notes) · 133eb73 fix (test: escaped apostrophe in HTML) · 8b6f877 + bc770c4 merges of origin/main and origin/uat
+- ci: GREEN (cheap tier) on bc770c4; full gate settled after the ready flip — see status.md
 
 ## What changed
 
@@ -29,4 +29,6 @@
 - The dispatcher runs at 06:00 UTC: 06:00 Lisbon in winter, 07:00 in summer — before both departures, so the catch-up is always sent before the tour.
 - `bookingsBetween` (the day sheet) is unchanged; the reminder has its own query on purpose (holds excluded).
 - Privacy policy text changed (and its date): Release should check `.icm/docs/data-protection.md` still matches the policy's email list.
+- `env.sh audit --changed` reports `GAPS 1`: `CRON_SECRET` declared in `web/.env.example` but missing on Vercel/agorasim. Not this branch's — its commits never touch `.env.example`; the audit diffs against `main`, and the key comes with the `uat` branch. It matters to this feature all the same: the dispatch route refuses to run without `CRON_SECRET` (503), so **no reminder goes out in an environment where it is unset**. The operator sets the value in Vercel (all targets the example declares); the value is never an agent's.
+- Build hit one CI red (a test asserting a raw apostrophe in the HTML part) — `03_build/output/error.log`, resolved in 133eb73.
 - Preview smoke: the dispatcher is cron-only and `CRON_SECRET`-guarded; the reminder can be seen by calling `/api/cron/dispatch` with the preview's `CRON_SECRET` against a preview database holding a confirmed booking for tomorrow, or by reading the rendered copy in the tests.
