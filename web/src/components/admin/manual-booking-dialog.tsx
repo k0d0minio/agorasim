@@ -196,6 +196,12 @@ function FieldError({ message }: { message?: string }) {
  * is what the operator was doing), this dialog rises over it as its own sheet
  * and closes itself once the reservation lands — the refresh `onDone` triggers
  * is that landing, showing the new booking dot or the moved card.
+ *
+ * `open`/`onOpenChange` are optional: left out, the sheet tracks its own
+ * open state (the Sales board's mount). The Calendar's day sheet passes them
+ * so it can hide itself for the one modal admin spec S7 asks for, and hands
+ * `showTrigger={false}` because it renders its own "Nova reserva" button in
+ * the day sheet's own layout flow — see `DayEditor`.
  */
 export function ManualBookingDialog({
   departure,
@@ -204,6 +210,9 @@ export function ManualBookingDialog({
   triggerLabel = "Nova reserva",
   triggerVariant = "secondary",
   triggerClassName = "w-full gap-2 sm:w-auto",
+  showTrigger = true,
+  open: controlledOpen,
+  onOpenChange,
   onDone,
 }: {
   departure: ManualBookingDeparture;
@@ -218,21 +227,29 @@ export function ManualBookingDialog({
   triggerLabel?: string;
   triggerVariant?: React.ComponentProps<typeof Button>["variant"];
   triggerClassName?: string;
+  /** False when the caller renders its own trigger and only wants the form. */
+  showTrigger?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onDone: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
 
   return (
     <>
-      <Button
-        type="button"
-        variant={triggerVariant}
-        onClick={() => setOpen(true)}
-        className={triggerClassName}
-      >
-        <UserRoundPlus className="size-4" />
-        {triggerLabel}
-      </Button>
+      {showTrigger ? (
+        <Button
+          type="button"
+          variant={triggerVariant}
+          onClick={() => setOpen(true)}
+          className={triggerClassName}
+        >
+          <UserRoundPlus className="size-4" />
+          {triggerLabel}
+        </Button>
+      ) : null}
 
       {open ? (
         <ManualBookingForm
