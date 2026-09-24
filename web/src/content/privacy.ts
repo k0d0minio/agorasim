@@ -79,7 +79,7 @@ export const privacyContent = {
   } as Localized,
 
   lastUpdatedLabel: { pt: "Última atualização", en: "Last updated" } as Localized,
-  lastUpdated: { pt: "10 de setembro de 2026", en: "10 September 2026" } as Localized,
+  lastUpdated: { pt: "24 de setembro de 2026", en: "24 September 2026" } as Localized,
 
   sections: {
     pt: [
@@ -104,7 +104,7 @@ export const privacyContent = {
         heading: "Porque tratamos os seus dados (fundamento de licitude)",
         body: [
           "Respondemos ao seu pedido e preparamos a sua experiência com base em diligências pré-contratuais a seu pedido (artigo 6.º, n.º 1, alínea b) do RGPD). Sem estes dados não conseguimos contactá-lo nem organizar o passeio.",
-          "Quando reserva e paga online, o tratamento dos dados da reserva e do pagamento — incluindo os emails de confirmação e de cancelamento — é necessário para a execução do contrato consigo (artigo 6.º, n.º 1, alínea b)).",
+          "Quando reserva e paga online, o tratamento dos dados da reserva e do pagamento — incluindo os emails de confirmação, de lembrete na véspera e de cancelamento — é necessário para a execução do contrato consigo (artigo 6.º, n.º 1, alínea b)).",
           "O envio de comunicações de marketing assenta exclusivamente no seu consentimento (artigo 6.º, n.º 1, alínea a)). É opcional, é dado numa caixa separada e não assinalada, e pode ser retirado a qualquer momento sem afetar o seu pedido.",
         ],
       },
@@ -120,7 +120,7 @@ export const privacyContent = {
         body: [
           "Recorremos a prestadores de serviços que tratam dados por nossa conta: a Vercel (alojamento do site e armazenamento das fotografias das experiências), a Neon (base de dados onde os pedidos e as reservas ficam guardados), a Stripe (processamento de pagamentos) e a Resend (envio de emails).",
           "Stripe — processamento de pagamentos. Quando paga uma reserva é encaminhado para uma página de pagamento da Stripe; os dados do cartão são introduzidos aí e nunca passam pelo nosso site. A Stripe recebe o seu email, a descrição do que está a reservar (experiência, data, número de pessoas) e o montante, e devolve-nos a confirmação do pagamento e as referências para o associar à sua reserva. O pagamento é cobrado na conta Stripe da Agorasim, que é o comerciante registado e a quem o valor pertence; a plataforma que opera este site recebe, através da Stripe, uma comissão de serviço sobre cada pagamento e nunca vê os dados do seu cartão. A política de privacidade da Stripe está em stripe.com/privacy.",
-          "Resend — envio de emails transacionais: a confirmação e o cancelamento da reserva, a resposta ao seu pedido e a cópia que a equipa recebe. Os emails são processados na região europeia da Resend (eu-west, Irlanda). A Resend tem sede nos Estados Unidos; para qualquer tratamento pela empresa-mãe fora do Espaço Económico Europeu, o mecanismo de transferência aplicável são as cláusulas contratuais-tipo aprovadas pela Comissão Europeia.",
+          "Resend — envio de emails transacionais: a confirmação da reserva, o lembrete na véspera e o cancelamento, a resposta ao seu pedido e a cópia que a equipa recebe. Os emails são processados na região europeia da Resend (eu-west, Irlanda). A Resend tem sede nos Estados Unidos; para qualquer tratamento pela empresa-mãe fora do Espaço Económico Europeu, o mecanismo de transferência aplicável são as cláusulas contratuais-tipo aprovadas pela Comissão Europeia.",
           "Usamos ainda a Sentry para monitorização de erros: quando algo falha nos nossos servidores, é-lhe enviado um relatório técnico — o erro, a operação em curso e metadados do pedido (endereço da página, método e cabeçalhos, sem cookies). Não coloca cookies, não corre nada no seu navegador e os endereços IP não são recolhidos.",
           "Não vendemos os seus dados nem os partilhamos para fins de marketing de terceiros.",
         ],
@@ -170,7 +170,7 @@ export const privacyContent = {
         heading: "Why we process it (lawful basis)",
         body: [
           "We answer your enquiry and prepare your experience on the basis of steps taken at your request prior to entering into a contract (GDPR Art. 6(1)(b)). Without this data we cannot reply to you or arrange the tour.",
-          "When you book and pay online, processing the booking and payment data — including the confirmation and cancellation emails — is necessary to perform the contract with you (Art. 6(1)(b)).",
+          "When you book and pay online, processing the booking and payment data — including the confirmation, day-before reminder and cancellation emails — is necessary to perform the contract with you (Art. 6(1)(b)).",
           "Marketing email is sent solely on the basis of your consent (Art. 6(1)(a)). It is optional, it is given via a separate, unticked box, and you can withdraw it at any time without affecting your enquiry.",
         ],
       },
@@ -186,7 +186,7 @@ export const privacyContent = {
         body: [
           "We use service providers who process data on our behalf: Vercel (website hosting and storage of the experience photos), Neon (the database the enquiries and bookings are stored in), Stripe (payment processing) and Resend (email delivery).",
           "Stripe — payment processing. When you pay for a booking you are redirected to a payment page hosted by Stripe; your card details are entered there and never pass through our site. Stripe receives your email address, a description of what you are booking (experience, date, number of people) and the amount, and returns to us confirmation of the payment and the references to match it to your booking. The payment is taken on Agorasim's own Stripe account — Agorasim is the merchant of record and the money is theirs; the platform that operates this site receives, through Stripe, a service fee on each payment and never sees your card details. Stripe's privacy policy is at stripe.com/privacy.",
-          "Resend — transactional email: your booking confirmation and cancellation, the reply to your enquiry, and the copy the team receives. Emails are processed in Resend's European region (eu-west, Ireland). Resend is headquartered in the United States; for any processing by the parent company outside the European Economic Area, the transfer safeguard relied on is the standard contractual clauses approved by the European Commission.",
+          "Resend — transactional email: your booking confirmation, the day-before reminder and any cancellation, the reply to your enquiry, and the copy the team receives. Emails are processed in Resend's European region (eu-west, Ireland). Resend is headquartered in the United States; for any processing by the parent company outside the European Economic Area, the transfer safeguard relied on is the standard contractual clauses approved by the European Commission.",
           "We also use Sentry for error monitoring: when something fails on our servers, a technical report is sent to it — the error, the operation under way and request metadata (page address, method and headers, without cookies). It sets no cookies, runs nothing in your browser, and IP addresses are not collected.",
           "We do not sell your data and we do not share it for third-party marketing.",
         ],

@@ -234,6 +234,85 @@ export async function bookingsBetween(options: {
 }
 
 /**
+ * One booking the day-before reminder is about — the row, the guest behind it,
+ * and nothing about the money.
+ *
+ * Name and email come from the enquiry and are null when there is none (a row
+ * whose lead was erased keeps the booking and loses the person): the caller
+ * counts that as a reminder it could not send, never as a failure.
+ */
+export type BookingToRemind = {
+  id: string;
+  tourRequestId: string | null;
+  name: string | null;
+  email: string | null;
+  locale: Booking["locale"];
+  date: DateKey;
+  experienceSlug: string;
+  slot: "morning" | "afternoon";
+  mode: Booking["mode"];
+  adults: number;
+  children: number;
+  infants: number;
+  partySize: number;
+  addOns: string[];
+};
+
+/**
+ * Which bookings on `date` are owed a reminder: the paid ones, and only those.
+ *
+ * Deliberately *not* {@link holdsCapacitySql}. A pending hold occupies a car
+ * for thirty minutes while somebody is on Stripe's page; it is nobody's tour
+ * yet, and "tomorrow is the big day" to a guest who never paid is a mail that
+ * reads as a booking they did not make. Cancelled, expired and refunded rows
+ * are history. Cash bookings are `confirmed` from birth, so they are in.
+ *
+ * Split out of the query so the filter can be read as SQL in a test — the
+ * status list is the whole decision, and it is one word.
+ */
+export function remindableOnSql(date: DateKey) {
+  return and(
+    eq(bookings.date, date),
+    eq(bookings.status, "confirmed"),
+    // `full_day` is enum history — see {@link bookingsBetween}.
+    inArray(bookings.slot, ["morning", "afternoon"]),
+  );
+}
+
+/**
+ * The confirmed bookings on one day, with what the reminder needs to be
+ * written — see {@link remindableOnSql} for which ones.
+ */
+export async function confirmedBookingsOn(date: DateKey): Promise<BookingToRemind[]> {
+  const rows = await db
+    .select({
+      id: bookings.id,
+      tourRequestId: bookings.tourRequestId,
+      name: tourRequests.name,
+      email: tourRequests.email,
+      locale: bookings.locale,
+      date: bookings.date,
+      experienceSlug: bookings.experienceSlug,
+      slot: bookings.slot,
+      mode: bookings.mode,
+      adults: bookings.adults,
+      children: bookings.children,
+      infants: bookings.infants,
+      partySize: bookings.partySize,
+      addOns: bookings.addOns,
+    })
+    .from(bookings)
+    .leftJoin(tourRequests, eq(bookings.tourRequestId, tourRequests.id))
+    .where(remindableOnSql(date))
+    .orderBy(bookings.slot, bookings.createdAt);
+
+  return rows.map((row) => ({
+    ...row,
+    slot: row.slot === "full_day" ? "morning" : row.slot,
+  }));
+}
+
+/**
  * Occupancy of one departure — what the checkout re-checks against, in the
  * same statement shape as the bulk count above.
  */

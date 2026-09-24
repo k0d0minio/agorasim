@@ -471,6 +471,139 @@ export function guestMoveEmail(facts: BookingMoveFacts): EmailMessage {
   };
 }
 
+/** Which morning a reminder is sent on, relative to the tour. */
+export type ReminderWhen = "tomorrow" | "today";
+
+/**
+ * Everything the day-before reminder needs — the confirmation's facts minus
+ * the money and the cancel link, which this mail never carries (see
+ * `bookingEmails.reminder`), plus which morning it is.
+ */
+export type ReminderEmailFacts = Pick<
+  BookingEmailFacts,
+  | "ref"
+  | "guestName"
+  | "guestEmail"
+  | "locale"
+  | "date"
+  | "experience"
+  | "departure"
+  | "departureTimeFollows"
+  | "meetingPoint"
+  | "addOns"
+  | "partyLabel"
+> & { when: ReminderWhen };
+
+/**
+ * The §2.6 reminder, in the language the guest booked in.
+ *
+ * **The meeting point is the point.** The client's own line ends on it, so it
+ * sits right under the departure, linked to the pin in the HTML and printed as
+ * a bare URL in the text part, where a client makes it tappable.
+ *
+ * `replyTo` is the business inbox, as on every guest mail: "we are running
+ * late" has to reach a person.
+ */
+export function guestReminderEmail(facts: ReminderEmailFacts): EmailMessage {
+  const c = bookingEmails.reminder;
+  const w = c[facts.when];
+  // The labels are the confirmation's — one word for "Ponto de encontro".
+  const g = bookingEmails.guest;
+  const l = facts.locale;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    ref: facts.ref,
+    experience: facts.experience,
+    date: facts.date,
+    site: siteUrl(),
+    diogoPhone: diogo.phoneDisplay,
+    ritaPhone: rita.phoneDisplay,
+  };
+
+  const subject = fill(t(w.subject, l), values);
+  const greeting = fill(t(c.greeting, l), values);
+  const departureTime = facts.departureTimeFollows
+    ? fill(t(c.departureTime.body, l), values)
+    : null;
+
+  const rows: DetailRow[] = [
+    { label: t(g.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(g.labels.experience, l), value: facts.experience },
+    { label: t(g.labels.date, l), value: facts.date },
+    { label: t(g.labels.departure, l), value: facts.departure },
+    ...(facts.meetingPoint
+      ? [
+          {
+            label: t(g.labels.meetingPoint, l),
+            value: facts.meetingPoint.address,
+            href: facts.meetingPoint.mapsUrl,
+          },
+        ]
+      : []),
+    { label: t(g.labels.party, l), value: facts.partyLabel },
+    ...(facts.addOns.length > 0
+      ? [{ label: t(g.labels.addOns, l), value: facts.addOns.join(", ") }]
+      : []),
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    t(w.lead, l),
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    facts.meetingPoint ? `${t(g.labels.meetingPoint, l)}: ${facts.meetingPoint.mapsUrl}` : null,
+    "",
+    departureTime ? `${t(c.departureTime.title, l)}: ${departureTime}` : null,
+    departureTime ? "" : null,
+    t(c.changeNote, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(w.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader, l), values),
+    banner: { text: t(w.banner, l) },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(t(w.lead, l), { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      ...(departureTime
+        ? [emailSpacer(24), emailNote({ title: t(c.departureTime.title, l), body: departureTime })]
+        : []),
+      emailSpacer(24),
+      emailParagraph(t(c.changeNote, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(w.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+  };
+}
+
 /** Everything the cancellation notice needs, already formatted for reading. */
 export type BookingCancellationFacts = {
   ref: string;
