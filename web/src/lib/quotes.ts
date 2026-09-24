@@ -38,6 +38,7 @@
  */
 import "server-only";
 
+import { NeonDbError } from "@neondatabase/serverless";
 import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 
 import {
@@ -604,6 +605,32 @@ export class QuoteError extends Error {
 }
 
 /**
+ * Thrown by {@link createQuote} when `quotes_one_draft_per_lead_key` refuses
+ * the insert — the race `canStartQuote` and `canCopyAsNewVersion` check for
+ * but cannot close by themselves: two taps ("Criar orçamento" on two phones,
+ * or one of those racing a "Nova versão") both read "no draft yet" and both
+ * reach the insert. The database is what actually stops the second one; kept
+ * distinct from {@link QuoteError} so a caller can tell "the input was bad"
+ * from "someone else's tap won" and answer with the outcome its own pre-check
+ * would have given losing that race.
+ */
+export class QuoteDraftConflictError extends Error {
+  constructor() {
+    super("createQuote: a draft already exists for this lead");
+    this.name = "QuoteDraftConflictError";
+  }
+}
+
+/** Whether `err` is the unique violation {@link QuoteDraftConflictError} maps. */
+function isDraftConflict(err: unknown): boolean {
+  return (
+    err instanceof NeonDbError &&
+    err.code === "23505" &&
+    err.constraint === "quotes_one_draft_per_lead_key"
+  );
+}
+
+/**
  * Validate an offer without writing it — the check a form runs before saving.
  *
  * Returns the problems in the order a person would meet them, empty when there
@@ -680,21 +707,27 @@ export async function createQuote(input: NewQuoteInput): Promise<QuoteWithPaymen
   const currency = input.currency ?? BOOKING_CURRENCY;
   const { depositCents, balanceCents } = splitTotal(input.totalCents, depositPercent);
 
-  const [quote] = await db
-    .insert(quotes)
-    .values({
-      tourRequestId: input.tourRequestId,
-      createdByUserId: input.createdByUserId ?? null,
-      eventDate: input.eventDate,
-      venue: input.venue ?? null,
-      locale: input.locale ?? "pt",
-      lineItems: input.lineItems ?? [],
-      totalCents: input.totalCents,
-      currency,
-      depositPercent,
-      termsWindowDays: input.termsWindowDays ?? DEFAULT_TERMS_WINDOW_DAYS,
-    })
-    .returning();
+  let quote: Quote;
+  try {
+    [quote] = await db
+      .insert(quotes)
+      .values({
+        tourRequestId: input.tourRequestId,
+        createdByUserId: input.createdByUserId ?? null,
+        eventDate: input.eventDate,
+        venue: input.venue ?? null,
+        locale: input.locale ?? "pt",
+        lineItems: input.lineItems ?? [],
+        totalCents: input.totalCents,
+        currency,
+        depositPercent,
+        termsWindowDays: input.termsWindowDays ?? DEFAULT_TERMS_WINDOW_DAYS,
+      })
+      .returning();
+  } catch (err) {
+    if (isDraftConflict(err)) throw new QuoteDraftConflictError();
+    throw err;
+  }
 
   const payments = await db
     .insert(quotePayments)

@@ -37,6 +37,7 @@ import { sendLoggedEmail, type LoggedSend } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import {
   BALANCE_DUE_DAYS_BEFORE,
+  QuoteDraftConflictError,
   QuoteError,
   balanceDueDate,
   canCopyAsNewVersion,
@@ -150,6 +151,9 @@ export async function createDraftForLead(options: {
       depositPercent: input.depositPercent,
     });
   } catch (err) {
+    // The other phone's tap landed between the check above and this insert —
+    // the database's own unique index is what actually caught it.
+    if (err instanceof QuoteDraftConflictError) return { status: "already-quoted" };
     if (err instanceof QuoteError) return { status: "invalid", problems: [err.message] };
     throw err;
   }
@@ -239,7 +243,16 @@ export async function startNewVersion(options: {
   const siblings = await listQuotesForLead(source.tourRequestId);
   if (!canCopyAsNewVersion(source, siblings)) return { status: "not-editable" };
 
-  const copy = await copyQuoteAsDraft(source.id, options.actorUserId);
+  let copy: QuoteWithPayments | null;
+  try {
+    copy = await copyQuoteAsDraft(source.id, options.actorUserId);
+  } catch (err) {
+    // The other phone's "Criar orçamento" (or its own "Nova versão") landed
+    // between the check above and this insert — same race, same outcome
+    // `canCopyAsNewVersion` would have given it.
+    if (err instanceof QuoteDraftConflictError) return { status: "not-editable" };
+    throw err;
+  }
   if (!copy) return { status: "not-editable" };
 
   await recordAuditOrWarn({
