@@ -95,7 +95,7 @@ export const pricingContent = {
     en: "See every group size ({low} to {high})",
   } as Localized,
 
-  addOnsTitle: { pt: "Complementos", en: "Add-ons" } as Localized,
+  addOnsTitle: { pt: "Extras", en: "Add-ons" } as Localized,
   addOnsHint: {
     pt: "Paragens extra de sabores da região, só em partidas privadas desta rota.",
     en: "Extra stops for regional flavours, on private departures of this route only.",
