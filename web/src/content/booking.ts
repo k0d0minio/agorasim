@@ -361,6 +361,19 @@ export const bookingContent = {
       en: "It may already have been used, or the booking may have been handled with us. If you need anything, get in touch and we'll sort it out.",
     } as Localized,
 
+    /**
+     * A throttled lookup, not a dead link — a guest on shared venue Wi-Fi or
+     * a carrier's CGNAT can trip this without their booking ever changing.
+     */
+    throttledTitle: {
+      pt: "Demasiadas tentativas",
+      en: "Too many attempts",
+    } as Localized,
+    throttledBody: {
+      pt: "Recebemos vários pedidos desta ligação. Aguarde alguns minutos e tente novamente.",
+      en: "We've had several requests from this connection. Please wait a few minutes and try again.",
+    } as Localized,
+
     errors: {
       rateLimited: {
         pt: "Recebemos vários pedidos seus. Aguarde alguns minutos antes de tentar novamente.",

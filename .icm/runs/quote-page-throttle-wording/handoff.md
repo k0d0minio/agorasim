@@ -6,18 +6,21 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. PR #147 is complete and closed out on the branch; nothing left for a session to do. Once the
+   Neon branch quota frees up (a concurrent PR merges/closes, or the plan is raised), re-run
+   `ci-status.sh quote-page-throttle-wording` — a clean push isn't needed, only the quota
+   clearing.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
-- blocked on operator: <the human-only act that unblocks the run — tick a gate, merge, a
-  dashboard or env change>
-
-A blocking operator act is written here **and** in the stop report's `Operator:` list; a
-non-blocking one lives only in that list, never here (`_shared/output.md` → Split by actor).
+- none for this run's own work — the code is done and reviewed-ready.
+- blocked on operator: the Vercel preview can't build until `uat-agorasim`'s Neon branch count
+  drops below its 10-branch cap (other sessions' `preview/*`/`run/*` closing) or Jamie raises
+  the plan — see the parked stub
+  `.icm/intake/triage/neon-uat-branch-limit-blocks-previews.md`. Smoke the preview once it
+  builds, before ticking anything.
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Do not re-push to try to "fix" the RED — it is a Neon org quota, not this PR's code
+  (`lane/output/error.log`). A re-push will not build a preview until the quota clears.

@@ -147,4 +147,16 @@ export const quotePageContent = {
       en: "The quote may have been replaced by a new version, or the link may be incomplete. Talk to us and we will send you the right one.",
     } as Localized,
   },
+
+  /**
+   * A throttled lookup, not a dead link — a couple on shared Wi-Fi or a
+   * carrier's CGNAT can trip this without their quote ever having changed.
+   */
+  throttled: {
+    title: { pt: "Demasiadas tentativas", en: "Too many attempts" } as Localized,
+    body: {
+      pt: "Recebemos vários pedidos desta ligação. Aguarde alguns minutos e tente novamente.",
+      en: "We've had several requests from this connection. Please wait a few minutes and try again.",
+    } as Localized,
+  },
 } as const;
