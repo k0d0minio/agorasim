@@ -6,18 +6,21 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. The operator reads `02_define/output/spec.md` (or the Spec block on PR #141); a change goes
+   through `revise thankyou-review-email "<what>"`.
+2. Once **Spec approved** is ticked on PR #141: `/pipeline build thankyou-review-email`,
+   executing `plan.md` pass by pass (complexity complex → opus).
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
-- blocked on operator: <the human-only act that unblocks the run — tick a gate, merge, a
-  dashboard or env change>
-
-A blocking operator act is written here **and** in the stop report's `Operator:` list; a
-non-blocking one lives only in that list, never here (`_shared/output.md` → Split by actor).
+- blocked on operator: tick **Spec approved** in the body of
+  https://github.com/k0d0minio/agorasim/pull/141
+- Before the preview smoke: `EMAIL_OPT_OUT_SECRET` must exist in Vercel (Preview, uat,
+  Production) — without it the thank-you job fails closed and sends nothing.
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Do not start Build before the Spec approved tick; never tick it.
+- Do not rotate or derive `EMAIL_OPT_OUT_SECRET` from `BOOKING_TOKEN_SECRET`.
+- Do not touch the Notifications page — `lifecycle-messages/notifications-page-real` owns it.
+- Do not subscribe PR #141 to PR activity (`_shared/github.md`).

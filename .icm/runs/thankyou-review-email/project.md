@@ -13,9 +13,16 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- D24: the thank-you is soft opt-in — one send per booking, opt-out line, policy updated in
+  the same PR. D5: email only, no SMS.
+- The opt-out never suppresses booking mail (confirmation, reminder, cancellation, moved).
+- `email_opt_outs` stores no plaintext address; `EMAIL_OPT_OUT_SECRET` is never rotated.
+- The no-show mark changes nothing but the thank-you — no money, status or capacity effect.
+- `privacyContent.marketing.label` untouched → `MARKETING_CONSENT_VERSION` unchanged.
+- Admin strings from `.icm/docs/admin-pt-inventory.md` ("falta").
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read `db/schema.ts` (enums, `message_log` indexes), `lib/message-log.ts`,
+  `lib/cron/*`, `content/privacy.ts` excerpts and the info PDF §2.6 — needed to settle the
+  opt-out storage, the catch-up window and the no-show question.
