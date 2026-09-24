@@ -13,9 +13,12 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- D9 (30-day non-refundable default, [LAWYER]) is not computed anywhere: the amount is the team's call.
+- The tour refund path (bookings, `cancelAndRefundBooking`, `syncRefundFromStripe` on bookings) keeps its behaviour exactly.
+- The deposit/balance receipts stay once-per-quote; the refund email alone is once-per-refund.
+- A quote is cancelled only by an explicit operator act (the dialog box or the card action), never by a dashboard refund.
+- No terms-text change; no capacity release here (`event-holds-capacity` reads `cancelled`).
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read targeted slices of `lib/booking-refund.ts`, `lib/quotes.ts`, `db/schema.ts` (quote enums, `quote_payments`, `message_log` indexes), the webhook route and the admin quote card/cancel dialog, to settle the message-key and cancel questions — beyond the stage's Inputs table, deliberately.
