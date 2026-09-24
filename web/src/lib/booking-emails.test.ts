@@ -46,7 +46,7 @@ function facts(overrides: Partial<BookingEmailFacts> = {}): BookingEmailFacts {
     guestPhone: "+351912345678",
     locale: "pt",
     date: "sábado, 15 de agosto de 2026",
-    experience: "Rural Saloia — experiência privada",
+    experience: "Rural Saloia — por grupo",
     departure: "Manhã · 10h00",
     departureTimeFollows: false,
     meetingPoint: {
@@ -291,7 +291,7 @@ function cancelled(
     guestEmail: "sofia@example.com",
     locale: "pt",
     date: "sábado, 15 de agosto de 2026",
-    experience: "Rural Saloia — experiência privada",
+    experience: "Rural Saloia — por grupo",
     partyLabel: "2 adultos",
     total: "€340",
     refund: "€340",
@@ -405,7 +405,7 @@ function reminder(overrides: Partial<ReminderEmailFacts> = {}): ReminderEmailFac
 /** The same guest on Óbidos, whose departures still have no clock time. */
 function obidos(overrides: Partial<ReminderEmailFacts> = {}): ReminderEmailFacts {
   return reminder({
-    experience: "Óbidos & Aldeias Medievais — partida partilhada",
+    experience: "Óbidos & Aldeias Medievais — por pessoa",
     departure: "Partida da manhã — hora exata confirmada por email",
     departureTimeFollows: true,
     meetingPoint: OBIDOS_PIN,
@@ -750,7 +750,7 @@ function guestCancelled(
     guestPhone: "+351912345678",
     locale: "pt",
     date: "sábado, 15 de agosto de 2026",
-    experience: "Rural Saloia — experiência privada",
+    experience: "Rural Saloia — por grupo",
     departure: "Manhã · 10h00",
     partyLabel: "2 adultos",
     total: "€340",
@@ -1000,8 +1000,7 @@ describe("guestQuoteSentEmail", () => {
       total: "1620 €",
       deposit: "486 €",
       depositPercent: 30,
-      balance: "1134 €",
-      balanceDue: "sábado, 1 de agosto de 2026",
+      balance: { amount: "1134 €", dueDate: "sábado, 1 de agosto de 2026" },
       balanceDueDaysBefore: 14,
       termsWindowDays: 30,
       quoteUrl: QUOTE_URL,
@@ -1042,10 +1041,9 @@ describe("guestQuoteSentEmail", () => {
       quoteFacts({
         locale: "en",
         date: "Saturday, 15 August 2026",
-        balanceDue: "Saturday, 1 August 2026",
         total: "€1,620",
         deposit: "€486",
-        balance: "€1,134",
+        balance: { amount: "€1,134", dueDate: "Saturday, 1 August 2026" },
       }),
     );
 
@@ -1070,6 +1068,18 @@ describe("guestQuoteSentEmail", () => {
 
     expect(mail.html).not.toContain("<b>Flores</b>");
     expect(mail.html).toContain("&lt;b&gt;Flores&lt;/b&gt; &amp; fitas");
+  });
+
+  it("says there is nothing left to pay at a 100% deposit, and drops the balance date", () => {
+    const mail = guestQuoteSentEmail(
+      quoteFacts({ deposit: "1620 €", depositPercent: 100, balance: null }),
+    );
+
+    for (const part of [mail.text, mail.html ?? ""]) {
+      expect(part).toContain("Nada — o sinal cobre o valor total");
+      expect(part).not.toContain("restante é pedido automaticamente");
+    }
+    expect(mail.text).toContain("A data fica reservada com o pagamento do sinal, na página do orçamento.");
   });
 });
 

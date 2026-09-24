@@ -448,7 +448,7 @@ function ManualBookingForm({
           )}
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="manual-booking-experience">Passeio</Label>
+            <Label htmlFor="manual-booking-experience">Experiência</Label>
             <Select
               id="manual-booking-experience"
               name="experience"

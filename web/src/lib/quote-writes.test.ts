@@ -107,6 +107,7 @@ const {
   QuoteDraftConflictError,
   reissuePayment,
   supersedeSentQuotes,
+  updateQuoteDraft,
 } = await import("./quotes");
 const { PgDialect } = await import("drizzle-orm/pg-core");
 
@@ -518,6 +519,73 @@ describe("createQuote — the second phone's insert", () => {
     await expect(
       createQuote({ tourRequestId: LEAD_ID, eventDate: "2026-08-15", totalCents: 100_000 }),
     ).rejects.toBe(other);
+  });
+});
+
+/**
+ * A 100% deposit leaves nothing for the balance ({@link splitTotal}), and a
+ * `0`-cent balance row is not a real instalment — it is a row the T−14 job
+ * would still try to issue a link for. Neither write inserts one.
+ */
+describe("createQuote and updateQuoteDraft — the 100% deposit exception", () => {
+  it("createQuote writes only the deposit when it covers the whole total", async () => {
+    queueResult([quote({ depositPercent: 100, totalCents: 50_000, status: "draft" })]);
+    queueResult([instalment(DEPOSIT_ID, "deposit", "pending")]);
+
+    const created = await createQuote({
+      tourRequestId: LEAD_ID,
+      eventDate: "2026-08-15",
+      totalCents: 50_000,
+      depositPercent: 100,
+      lineItems: [{ label: "Tudo incluído", unitCents: 50_000, quantity: 1 }],
+    });
+
+    expect(created.payments.map((payment) => payment.kind)).toEqual(["deposit"]);
+    const insertedPayments = calls.filter((call) => call.method === "values")[1]
+      ?.args[0] as Record<string, unknown>[];
+    expect(insertedPayments).toHaveLength(1);
+  });
+
+  it("createQuote writes both instalments below a 100% deposit", async () => {
+    queueResult([quote({ depositPercent: 30, status: "draft" })]);
+    queueResult([
+      instalment(DEPOSIT_ID, "deposit", "pending"),
+      instalment(BALANCE_ID, "balance", "pending"),
+    ]);
+
+    await createQuote({
+      tourRequestId: LEAD_ID,
+      eventDate: "2026-08-15",
+      totalCents: 192_000,
+      depositPercent: 30,
+      lineItems: [{ label: "Carro", unitCents: 192_000, quantity: 1 }],
+    });
+
+    const insertedPayments = calls.filter((call) => call.method === "values")[1]
+      ?.args[0] as Record<string, unknown>[];
+    expect(insertedPayments).toHaveLength(2);
+  });
+
+  it("updateQuoteDraft removes the balance row when the deposit is raised to 100%", async () => {
+    queueResult([quote({ depositPercent: 30, status: "draft" })]);
+    queueResult([
+      instalment(DEPOSIT_ID, "deposit", "pending"),
+      instalment(BALANCE_ID, "balance", "pending"),
+    ]);
+    queueResult([quote({ depositPercent: 100, totalCents: 192_000, status: "draft" })]);
+    queueResult([]);
+    queueResult([instalment(DEPOSIT_ID, "deposit", "pending")]);
+
+    const updated = await updateQuoteDraft(QUOTE_ID, {
+      totalCents: 192_000,
+      depositPercent: 100,
+      lineItems: [{ label: "Tudo incluído", unitCents: 192_000, quantity: 1 }],
+    });
+
+    expect(updated?.payments.map((payment) => payment.kind)).toEqual(["deposit"]);
+    const insertedPayments = calls.filter((call) => call.method === "values")[0]
+      ?.args[0] as Record<string, unknown>[];
+    expect(insertedPayments).toHaveLength(1);
   });
 });
 

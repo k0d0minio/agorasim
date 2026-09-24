@@ -684,13 +684,17 @@ export function validateQuoteInput(input: NewQuoteInput): string[] {
 }
 
 /**
- * Write a draft quote and the two instalments it implies.
+ * Write a draft quote and the instalments it implies.
  *
  * Both payment rows exist from the start, `pending` and unissued: the balance
  * is a thing that is owed on a date from the moment the offer is made, and the
  * T−14 job's query is "the balance rows that are due and not yet issued" — a
  * row that only appears when the job first runs would make that query mean
- * something else.
+ * something else. The one exception is a 100% deposit: {@link splitTotal}
+ * leaves nothing for the balance, and a balance row of `0` is not a real
+ * instalment — it is a row the T−14 job would still try to issue a link for,
+ * to no one's benefit. No row is written for it, and the quote reaches `paid`
+ * the moment the deposit does ({@link statusAfterPayment}).
  *
  * Throws {@link QuoteError} on invalid input rather than returning a result
  * type, because every caller is a server action whose error path is already
@@ -740,13 +744,17 @@ export async function createQuote(input: NewQuoteInput): Promise<QuoteWithPaymen
         // The deposit is owed on acceptance, not on a date.
         dueDate: null,
       },
-      {
-        quoteId: quote.id,
-        kind: "balance" as const,
-        amountCents: balanceCents,
-        currency,
-        dueDate: balanceDueDate(input.eventDate),
-      },
+      ...(balanceCents > 0
+        ? [
+            {
+              quoteId: quote.id,
+              kind: "balance" as const,
+              amountCents: balanceCents,
+              currency,
+              dueDate: balanceDueDate(input.eventDate),
+            },
+          ]
+        : []),
     ])
     .returning();
 
@@ -827,13 +835,18 @@ export async function updateQuoteDraft(
         currency: existing.currency,
         dueDate: null,
       },
-      {
-        quoteId: id,
-        kind: "balance" as const,
-        amountCents: balanceCents,
-        currency: existing.currency,
-        dueDate: balanceDueDate(merged.eventDate),
-      },
+      // No balance row at a 100% deposit — see the note on `createQuote`.
+      ...(balanceCents > 0
+        ? [
+            {
+              quoteId: id,
+              kind: "balance" as const,
+              amountCents: balanceCents,
+              currency: existing.currency,
+              dueDate: balanceDueDate(merged.eventDate),
+            },
+          ]
+        : []),
     ])
     .returning();
 

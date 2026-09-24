@@ -83,8 +83,8 @@ export const bookingEmails = {
     },
     /** How the departure was sold, appended to the experience row. */
     modeWords: {
-      public: { pt: "partida partilhada", en: "shared departure" } as Localized,
-      private: { pt: "experiência privada", en: "private experience" } as Localized,
+      public: { pt: "por pessoa", en: "per person" } as Localized,
+      private: { pt: "por grupo", en: "per group" } as Localized,
     },
     next: {
       title: { pt: "O que acontece a seguir", en: "What happens next" } as Localized,
@@ -579,6 +579,11 @@ export const bookingEmails = {
     },
     /** The balance row's value: the amount and the day it is asked for. */
     balanceDue: { pt: "{amount} · até {date}", en: "{amount} · due {date}" } as Localized,
+    /** The balance row at a 100% deposit — there is nothing left to ask for. */
+    noBalance: {
+      pt: "Nada — o sinal cobre o valor total",
+      en: "Nothing — the deposit covers the full amount",
+    } as Localized,
     /** A line with more than one unit: "2 × Carro clássico". */
     lineQuantity: "{quantity} × {label}",
     next: {
@@ -586,6 +591,11 @@ export const bookingEmails = {
       body: {
         pt: "A data fica reservada com o pagamento do sinal, na página do orçamento. O restante é pedido automaticamente {days} dias antes do evento.",
         en: "The date is held once the deposit is paid, on the quote page. The balance is requested automatically {days} days before the event.",
+      } as Localized,
+      /** A 100% deposit: nothing is collected automatically later. */
+      bodyFull: {
+        pt: "A data fica reservada com o pagamento do sinal, na página do orçamento.",
+        en: "The date is held once the deposit is paid, on the quote page.",
       } as Localized,
     },
     cta: { pt: "Ver o orçamento", en: "View your quote" } as Localized,
