@@ -29,6 +29,7 @@ export default defineConfig({
     env: {
       ADMIN_SESSION_SECRET: "test-session-secret",
       BOOKING_TOKEN_SECRET: "test-booking-token-secret",
+      EMAIL_OPT_OUT_SECRET: "test-email-opt-out-secret",
     },
   },
 });
