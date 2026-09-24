@@ -48,6 +48,14 @@ gives the run a database of its own. Both headers are the specification.
   no `down` script is expected, so a code revert must tolerate the newer schema — additive
   columns with defaults, no drops in the same release as the code that stops using them. Where
   `reversible` is `true`, write the `down` and test it against the run's own database.
+- **A single migration may be irreversible on a reversible repo** (D42) — a manual backfill, a
+  destructive rename, anything with no honest `down`: declare it with `irreversible = true` in
+  the migration file itself (an exported const, or the CommonJS `exports.irreversible = true`),
+  and skip writing a `down` for it. `prove` reads the marker without running anything, proves
+  that migration's `up` and its idempotency only, and names it in the output. Nothing at or
+  before it in this branch's own migrations is down-tested either — a down assumes an unbroken
+  chain back from the current state, and skipping one mid-chain breaks that for every down
+  beneath it.
 - One migration per concern; the spec's `touches:` names the data model, so a migration the
   spec does not imply is a spec gap → `revise`.
 - Never edit a migration `main` already has. A fix is a new migration.
@@ -70,8 +78,9 @@ gives the run a database of its own. Both headers are the specification.
    stamped before some of `main`'s, those go up — and this branch's come down — one at a time,
    `--single`) it runs this branch's own migrations up → down → up and compares the collection list and every
    index spec: `down` must restore them where `migrations.reversible` is true (and every file
-   must export a `down`); the second `up` must reproduce the first; and, the runner's records of
-   them forgotten the way a re-stamp forgets them, one more `up` must change nothing.
+   must export a `down`, unless it declares itself irreversible); the second `up` must reproduce
+   the first; and, the runner's records of them forgotten the way a re-stamp forgets them, one
+   more `up` must change nothing.
    `UNPROVEN n` names what failed — fix it on this branch. The seed runs only after `PROVEN`.
 6. Release stop class 3 asks `env.sh audit --changed` and reads `migrations.reversible`: a
    forward-only migration in a merge with no rollback path is recorded in the `## Release`

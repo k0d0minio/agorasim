@@ -43,8 +43,10 @@
 #                  usage.md pairs with a start and no end. Needs a GitHub route; says so without.
 #    8. Knowledge  validate-knowledge-map.sh.
 #    9. Reporting  kinds → channels; unset channel variables; announce_from vs the workflow.
-#   10. Workflows  the reference release.yaml / labels.yaml present, or declared absent in
-#                  _shared/project-rules.md; neon-cleanup.yaml where a Neon project branches per
+#   10. Workflows  the reference release.yaml / quality.yaml present, or declared absent in
+#                  _shared/project-rules.md; the retired chore workflows (pipeline, gates, labels)
+#                  and a quality workflow that still fires on push: main or on drafts, named for
+#                  the operator to remove (D43); neon-cleanup.yaml where a Neon project branches per
 #                  preview, mongodb-cleanup.yaml where a MongoDB repo has a database per preview
 #                  (`--fix` seeds either from --template); type:hotfix and type:handover in
 #                  .github/labels.yml. On a UAT repo the release workflow is REQUIRED (it is the
@@ -430,10 +432,29 @@ else [ "$has_release" -eq 1 ] && warn "announce_from: session but .github/workfl
 
 # --- 10. workflows -----------------------------------------------------------------------------------------------------
 echo "[10/11] Workflows — the reference workflows, present or declared absent"
-for wf in release labels; do
+for wf in release quality; do
   if [ -f ".github/workflows/$wf.yaml" ] || [ -f ".github/workflows/$wf.yml" ]; then ok "$wf workflow present"
   elif grep -qiE "$wf(\.yaml|\.yml)?.*(absent|none|not (used|seeded)|no )" .icm/_shared/project-rules.md 2>/dev/null; then ok "$wf workflow declared absent in project-rules.md"
-  else info "$wf workflow absent and project-rules.md does not say so — /setup seeds the reference one (announce_from: ci) or records the absence"; fi
+  else info "$wf workflow absent and project-rules.md does not say so — /setup seeds the reference one or records the absence"; fi
+done
+# The cost floor (D43, _shared/ci.md): the pipeline's chores run in-session, so the chore
+# workflows are retired; the quality job is advisory, ready-only and never on main. Named,
+# never removed here — the operator git rm's them.
+for wf in pipeline gates labels; do
+  for f in ".github/workflows/$wf.yaml" ".github/workflows/$wf.yml"; do
+    [ -f "$f" ] && warn "$f is a retired chore workflow — the session runs project-labels.sh / validate-*.sh itself (D43); git rm it"
+  done
+done
+for f in .github/workflows/*.y*ml; do
+  [ -f "$f" ] || continue
+  case "$(basename "$f")" in release.*|db-migrate.*|db-migrations.*|uat-deploy.*|neon-cleanup.*|mongodb-cleanup.*) continue ;; esac
+  grep -qiE 'run:.*(lint|typecheck|tsc|vitest|jest|next build)' "$f" 2>/dev/null || continue
+  if awk '/^on:/{on=1;next} on&&/^[^[:space:]#]/{on=0} on' "$f" | grep -qE '^\s*push:'; then
+    warn "$f runs a quality job on push (main) — the merge is proven by the deploy; drop the push trigger (D43)"
+  fi
+  if grep -qE 'run:.*(next build|pnpm (-r )?build|npm run build)' "$f" 2>/dev/null; then
+    warn "$f builds the app — Vercel already does; drop the build step (D43)"
+  fi
 done
 if [ "$(database_provider)" = neon ] && [ "$(neon_previews)" = vercel ]; then
   if [ -f .github/workflows/neon-cleanup.yaml ] || [ -f .github/workflows/neon-cleanup.yml ]; then ok "neon-cleanup workflow present (deletes preview/<branch> and run/<slug> when a PR closes)"
