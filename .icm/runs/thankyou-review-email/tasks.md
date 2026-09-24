@@ -27,4 +27,4 @@ step, so a resuming session can pick up the first unticked line.
 - [x] Opt-out page + actions + panel, one-click route (ab91ada)
 - [x] No-show mark: `lib/booking-no-show.ts`, `setBookingNoShow`, toggle, Sales detail (3b305d9)
 - [x] Art. 15, backup registry, privacy PT+EN, data-protection.md, `.env.example` (cf799b7)
-- [ ] Merge main, flip ready, full-gate GREEN
+- [x] Merge main, flip ready, full-gate GREEN (fb20201)

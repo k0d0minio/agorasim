@@ -1,7 +1,7 @@
 # Build notes: thankyou-review-email
 
 - commits: 5dd402b schema + migration · 731cef6 opt-out list, tokens, audit actions · 7085d22 template, review link, List-Unsubscribe · a3a50cc the dispatcher job · ab91ada opt-out page + one-click endpoint · 3b305d9 no-show mark · cf799b7 policy, register, Art. 15, backup, env
-- ci: see status.md (settled by ci-status.sh after the ready flip)
+- ci: GREEN on fb20201 — full gate (Vercel preview pass, Quality (advisory) pass)
 
 ## What changed
 
