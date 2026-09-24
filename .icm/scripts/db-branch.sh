@@ -62,12 +62,22 @@
 #                      epoch-form files the base branch does not have, as check-migrations.sh
 #                      counts them) up → down → up:
 #                        down must bring the shape back to the snapshot before them, and every own
-#                        file must export a `down` — only where migrations.reversible is true;
+#                        file must export a `down` — only where migrations.reversible is true, and
+#                        only where it is not declared irreversible (below);
 #                        up again must reproduce the shape after them;
 #                        and, the runner's records of them forgotten (what a re-stamp does —
 #                        check-migrations.sh), up once more must change nothing: the idempotency
 #                        a re-stamped migration relies on.
 #                      A forward-only repo (reversible false) proves the up and the idempotency.
+#                      A single own migration may be DECLARED IRREVERSIBLE (D42) — `irreversible =
+#                      true` in the file itself (an exported const, or the CommonJS `exports.
+#                      irreversible = true`), read without running anything. It needs no `down`
+#                      export, is proven up and idempotent only, and is named in the output as
+#                      "declared irreversible" — never silently passed. The round trip's down then
+#                      stops at the newest such migration: nothing at or before it is down-tested
+#                      either, because a down script assumes an unbroken chain back from the
+#                      current state, and skipping one mid-chain breaks that assumption for every
+#                      down beneath it.
 #                      The seed runs only after a PROVEN, so the run's database is left migrated
 #                      and seeded, as `up` leaves it; the proof itself never sees the seed (its
 #                      models would build the head's indexes into the "base shape").
@@ -278,6 +288,11 @@ case "$isolation" in
         rname() { local b; b="$(basename "$1")"; b="${b#*-}"; printf '%s' "${b%.*}"; }  # the runner's name
         stamp_of() { local b; b="$(basename "$1")"; printf '%s' "${b:0:13}"; }            # the runner's createdAt
         first="$(rname "${own[0]}")"; own_oldest="$(stamp_of "${own[0]}")"
+        is_irreversible() { grep -Eq 'irreversible[[:space:]]*[:=][[:space:]]*true' "$1"; }  # D42
+        boundary_idx=-1  # index in own[] of the NEWEST declared-irreversible migration, or -1
+        for (( i=${#own[@]}-1; i>=0; i-- )); do
+          if is_irreversible "${own[$i]}"; then boundary_idx=$i; break; fi
+        done
         # The runner orders by stamp. The base's migrations stamped before this branch's oldest go up
         # in one `up <newest of them>`; any stamped at or after it (a rebase over newer base work) go
         # up one at a time, since a bulk `up` would take this branch's own with them.
@@ -294,10 +309,15 @@ case "$isolation" in
           say "order:      ${#interleaved[@]} of the base's migration(s) stamped at or after this branch's oldest ($(basename "${own[0]}")) — the runner follows the stamp, so the base shape goes up one at a time past it and the round trip reverts this branch's own one at a time (--single)"
         fi
         say "reversible: $reversible (migrations.reversible)"
+        if [ "$boundary_idx" -ge 0 ]; then
+          irr_names=(); for f in "${own[@]}"; do is_irreversible "$f" && irr_names+=("$(basename "$f")"); done
+          say "irreversible: $(IFS=', '; echo "${irr_names[*]}") declared irreversible — proven up and idempotent only; the round trip's down stops at $(basename "${own[$boundary_idx]}"), nothing at or before it is down-tested"
+        fi
         fails=()
         if [ "$reversible" = true ]; then
           for f in "${own[@]}"; do
-            grep -Eq '(export[^;]*[^a-z_]down[^a-z_]|export default[^;]*[^a-z_]down[^a-z_]|exports\.down|down[[:space:]]*[:=(])' "$f" || fails+=("$(basename "$f"): no down export — reversible: true means every migration carries one")
+            is_irreversible "$f" && continue
+            grep -Eq '(export[^;]*[^a-z_]down[^a-z_]|export default[^;]*[^a-z_]down[^a-z_]|exports\.down|down[[:space:]]*[:=(])' "$f" || fails+=("$(basename "$f"): no down export — reversible: true means every migration carries one, unless it declares itself irreversible")
           done
         fi
         # A fresh run database at exactly the base's shape: dropped (only run_*), migrated through the
@@ -309,12 +329,13 @@ case "$isolation" in
         [ -z "$base_bulk" ] || in_db "$migrate_cmd up $(rname "$base_bulk")"
         for f in "${interleaved[@]}"; do in_db "$migrate_cmd up $(rname "$f") --single"; done
         record_pointer "$pointer_database"
-        down_own() { # this branch's own migrations, and only those, reverted
-          if [ "${#interleaved[@]}" -eq 0 ]; then
+        downable_from=$((boundary_idx + 1))  # first own[] index a down may reach back to
+        down_own() { # this branch's own migrations back to $downable_from, and only those, reverted
+          if [ "${#interleaved[@]}" -eq 0 ] && [ "$downable_from" -eq 0 ]; then
             ( export "$name_env=$db"; bash -c "$migrate_cmd down $first" 2>&1 | redact >&2 )
           else
             local i
-            for (( i=${#own[@]}-1; i>=0; i-- )); do
+            for (( i=${#own[@]}-1; i>=downable_from; i-- )); do
               ( export "$name_env=$db"; bash -c "$migrate_cmd down $(rname "${own[$i]}") --single" 2>&1 | redact >&2 ) || return 1
             done
           fi
@@ -322,11 +343,17 @@ case "$isolation" in
         snap() { mongo snapshot "$db" || die "could not snapshot $db"; }
         diff_of() { diff <(printf '%s' "$1" | jq -S .) <(printf '%s' "$2" | jq -S .) | head -20 | sed 's/^/            /' >&2 || true; }
         s0="$(snap)";                 say "step:       base shape — $(printf '%s' "$s0" | jq 'length') collection(s)"
+        if [ "$boundary_idx" -ge 0 ]; then
+          in_db "$migrate_cmd up $(rname "${own[$boundary_idx]}")"
+          s_boundary="$(snap)"
+        else
+          s_boundary="$s0"
+        fi
         in_db "$migrate_cmd up";      s1="$(snap)"; say "step:       up    — $(printf '%s' "$s1" | jq 'length') collection(s)"
         if [ "$reversible" = true ] && [ "${#fails[@]}" -eq 0 ]; then
           if down_own; then
-            s2="$(snap)"; say "step:       down  — back to before $first"
-            [ "$s2" = "$s0" ] || { fails+=("down does not restore the shape before this branch's migrations (collections or indexes differ)"); diff_of "$s0" "$s2"; }
+            s2="$(snap)"; say "step:       down  — back to $([ "$downable_from" -eq 0 ] && echo "before $first" || echo "after $(basename "${own[$boundary_idx]}")")"
+            [ "$s2" = "$s_boundary" ] || { fails+=("down does not restore the shape before this branch's down-tested migrations (collections or indexes differ)"); diff_of "$s_boundary" "$s2"; }
             in_db "$migrate_cmd up";  s3="$(snap)"; say "step:       up    — again"
             [ "$s3" = "$s1" ] || { fails+=("up after down does not reproduce the shape of the first up"); diff_of "$s1" "$s3"; }
           else
