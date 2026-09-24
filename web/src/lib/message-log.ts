@@ -26,6 +26,14 @@
  * impossible for the others, because the two are different indexes in
  * `db/schema.ts` and a send that guessed wrong would quietly key on nothing.
  *
+ * **And except where the subject is a quote.** A lead is quoted more than
+ * once — a new version replaces a sent quote, a re-send rotates a link that
+ * went to a mistyped address — and every one of those is an email the couple
+ * must get. So the {@link QUOTE_SEND_KINDS} are keyed on the quote and on the
+ * `sent_at` the send stamped, which names the link the mail carries: one
+ * email per link, never two, and never refused because an earlier link to
+ * the same lead already went out.
+ *
  * **A failed send releases its claim.** The row stays as the record of an
  * attempt, but `status <> 'failed'` in the indexes means it no longer reserves
  * the slot, so tomorrow's run tries again. A row stuck in `sending` does *not*
@@ -67,7 +75,19 @@ export const DATE_BOUND_KINDS = ["day-before-reminder", "booking-moved"] as cons
 /** A kind from {@link DATE_BOUND_KINDS}. */
 export type DateBoundKind = (typeof DATE_BOUND_KINDS)[number];
 
-/** Whom a message is about, in rows — shared by both halves of the subject. */
+/**
+ * The kinds whose subject is one send of a quote — see the module note.
+ *
+ * The later quote-flow messages (deposit received, balance paid) are about a
+ * quote too, but once each rather than once per link; they join a shape of
+ * their own when they are written, rather than borrowing this one's key.
+ */
+export const QUOTE_SEND_KINDS = ["quote-sent"] as const;
+
+/** A kind from {@link QUOTE_SEND_KINDS}. */
+export type QuoteSendKind = (typeof QUOTE_SEND_KINDS)[number];
+
+/** Whom a message is about, in rows — shared by every shape of the subject. */
 type SubjectRows = {
   recipient: MessageRecipient;
   /**
@@ -93,9 +113,20 @@ export type MessageSubject =
       bookingId: string;
       /** `2026-08-15` — the departure this message is about, from `bookings.date`. */
       subjectDate: string;
+      quoteId?: never;
+      quoteSentAt?: never;
     })
   | (SubjectRows & {
-      kind: Exclude<MessageKind, DateBoundKind>;
+      kind: QuoteSendKind;
+      /** The quote this send is of. */
+      quoteId: string;
+      /** The quote's `sent_at` as this send stamped it — which link the mail carries. */
+      quoteSentAt: Date;
+      bookingId?: never;
+      subjectDate?: never;
+    })
+  | (SubjectRows & {
+      kind: Exclude<MessageKind, DateBoundKind | QuoteSendKind>;
       /**
        * The booking this message is about, for the booking-shaped kinds
        * (confirmation, cancellation, thank-you). Null for the kinds that answer
@@ -103,6 +134,8 @@ export type MessageSubject =
        */
       bookingId?: string | null;
       subjectDate?: never;
+      quoteId?: never;
+      quoteSentAt?: never;
     });
 
 /** Why a send did not happen, in the provider's own terms. */
@@ -198,11 +231,13 @@ async function claimSend(subject: MessageSubject): Promise<string | "duplicate" 
         bookingId: subject.bookingId ?? null,
         tourRequestId: subject.tourRequestId ?? null,
         subjectDate: subject.subjectDate ?? null,
+        quoteId: subject.quoteId ?? null,
+        quoteSentAt: subject.quoteSentAt ?? null,
         status: "sending",
       })
-      // No conflict target: all three partial unique indexes are arbiters, and
-      // which one applies depends on whether this message names a booking and
-      // whether it names a date.
+      // No conflict target: all four partial unique indexes are arbiters, and
+      // which one applies depends on whether this message names a booking, a
+      // date or a quote.
       .onConflictDoNothing()
       .returning({ id: messageLog.id });
 

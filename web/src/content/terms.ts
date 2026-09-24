@@ -48,6 +48,18 @@ export const seller = {
   rnaat: null as string | null,
 } as const;
 
+/**
+ * The version of these terms, as a quote records it — the ISO day of the
+ * "last updated" line below.
+ *
+ * A quote is sent under a version (`quotes.terms_version`) and a paid deposit
+ * copies it into `accepted_terms_version`, so the couple's agreement names the
+ * text they were shown. Derived from nothing and checked against the date the
+ * page prints (`terms.test.ts`): change the terms, change both, or the test
+ * says the version and the page have come apart.
+ */
+export const TERMS_VERSION = "2026-09-10";
+
 type Section = { heading: string; body: string[] };
 
 export const termsContent = {
