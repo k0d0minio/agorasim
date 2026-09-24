@@ -237,9 +237,10 @@ export async function bookingsBetween(options: {
  * One booking the day-before reminder is about — the row, the guest behind it,
  * and nothing about the money.
  *
- * Name and email come from the enquiry and are null when there is none (a row
- * whose lead was erased keeps the booking and loses the person): the caller
- * counts that as a reminder it could not send, never as a failure.
+ * Name and email come from the enquiry and are null when there is none, or
+ * when retention has anonymised it (a row whose lead was erased keeps the
+ * booking and loses the person): the caller counts that as a reminder it could
+ * not send, never as a failure.
  */
 export type BookingToRemind = {
   id: string;
@@ -290,6 +291,7 @@ export async function confirmedBookingsOn(date: DateKey): Promise<BookingToRemin
       tourRequestId: bookings.tourRequestId,
       name: tourRequests.name,
       email: tourRequests.email,
+      anonymisedAt: tourRequests.anonymisedAt,
       locale: bookings.locale,
       date: bookings.date,
       experienceSlug: bookings.experienceSlug,
@@ -306,8 +308,12 @@ export async function confirmedBookingsOn(date: DateKey): Promise<BookingToRemin
     .where(remindableOnSql(date))
     .orderBy(bookings.slot, bookings.createdAt);
 
-  return rows.map((row) => ({
+  return rows.map(({ anonymisedAt, ...row }) => ({
     ...row,
+    // Retention overwrites an anonymised enquiry's address with a placeholder;
+    // that is nobody to write to, the same as no enquiry at all.
+    name: anonymisedAt ? null : row.name,
+    email: anonymisedAt ? null : row.email,
     slot: row.slot === "full_day" ? "morning" : row.slot,
   }));
 }

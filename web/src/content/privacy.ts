@@ -104,7 +104,7 @@ export const privacyContent = {
         heading: "Porque tratamos os seus dados (fundamento de licitude)",
         body: [
           "Respondemos ao seu pedido e preparamos a sua experiência com base em diligências pré-contratuais a seu pedido (artigo 6.º, n.º 1, alínea b) do RGPD). Sem estes dados não conseguimos contactá-lo nem organizar o passeio.",
-          "Quando reserva e paga online, o tratamento dos dados da reserva e do pagamento — incluindo os emails de confirmação, de lembrete na véspera e de cancelamento — é necessário para a execução do contrato consigo (artigo 6.º, n.º 1, alínea b)).",
+          "Quando reserva uma experiência — online, ou connosco por telefone —, o tratamento dos dados da reserva e do pagamento — incluindo os emails sobre a reserva: a confirmação, o lembrete na véspera e o cancelamento — é necessário para a execução do contrato consigo (artigo 6.º, n.º 1, alínea b)).",
           "O envio de comunicações de marketing assenta exclusivamente no seu consentimento (artigo 6.º, n.º 1, alínea a)). É opcional, é dado numa caixa separada e não assinalada, e pode ser retirado a qualquer momento sem afetar o seu pedido.",
         ],
       },
@@ -170,7 +170,7 @@ export const privacyContent = {
         heading: "Why we process it (lawful basis)",
         body: [
           "We answer your enquiry and prepare your experience on the basis of steps taken at your request prior to entering into a contract (GDPR Art. 6(1)(b)). Without this data we cannot reply to you or arrange the tour.",
-          "When you book and pay online, processing the booking and payment data — including the confirmation, day-before reminder and cancellation emails — is necessary to perform the contract with you (Art. 6(1)(b)).",
+          "When you book an experience — online, or with us by phone — processing the booking and payment data — including the emails about your booking: the confirmation, the day-before reminder and any cancellation — is necessary to perform the contract with you (Art. 6(1)(b)).",
           "Marketing email is sent solely on the basis of your consent (Art. 6(1)(a)). It is optional, it is given via a separate, unticked box, and you can withdraw it at any time without affecting your enquiry.",
         ],
       },

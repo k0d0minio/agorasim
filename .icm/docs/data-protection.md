@@ -16,7 +16,7 @@ signed the text off. Nothing in this file is legal advice.
 | Vercel | Hosting, experience photos | Request logs (IP), pages served | TODO(legal): confirm region | `web/` deploy |
 | Neon | Postgres — enquiries, bookings, quotes, audit log, message log | Everything the forms collect; booking and quote amounts and Stripe references; the venue and line labels on an event quote; audit IPs | TODO(legal): confirm region | `web/src/db/` |
 | Stripe | Payment processing via **Checkout (redirect)** — card data never touches the app | Guest email, line items (experience, date, party), amount, booking id in metadata | Stripe Payments Europe (Ireland) expected for a PT account — TODO(legal): confirm the contracting entity | `web/src/lib/booking-checkout.ts`, `web/src/lib/stripe.ts` |
-| Resend | Transactional email — booking confirmation/cancellation, enquiry reply, team copy | Recipient address, name, booking details in the body | **EU-west (Ireland)** region; US parent → standard contractual clauses as the transfer safeguard | `web/src/lib/email.ts`, `web/src/lib/message-log.ts` |
+| Resend | Transactional email — booking confirmation/cancellation, the day-before reminder (every confirmed booking, online or by phone), enquiry reply, team copy | Recipient address, name, booking details in the body | **EU-west (Ireland)** region; US parent → standard contractual clauses as the transfer safeguard | `web/src/lib/email.ts`, `web/src/lib/message-log.ts` |
 
 Money model, as the policy states it: the charge is a **direct charge on the client's own
 Stripe account** (`STRIPE_CONNECTED_ACCOUNT_ID`), so Agorasim is merchant of record; the
@@ -51,7 +51,9 @@ describes the live state, not the sandbox one.
 4. **Liability insurance (provider + policy number) — unanswered.** Same source, same
    blocker. Chase alongside the RNAAT number.
 5. **Lawful basis wording.** The policy states Art. 6(1)(b) for enquiries (pre-contractual
-   steps) and for paid bookings (contract performance), Art. 6(1)(a) for marketing email.
+   steps) and for bookings — online or taken by phone — (contract performance, which since
+   2026-09-24 names the day-before reminder beside the confirmation and cancellation),
+   Art. 6(1)(a) for marketing email.
    Counsel to confirm, and to say whether tax obligations attached to paid bookings need
    describing as a separate purpose.
 6. **Hosting regions and transfer mechanisms.** Confirm Vercel and Neon regions, the Stripe

@@ -44,6 +44,7 @@ import { bookingRef, confirmedBookingsOn, type BookingToRemind } from "@/lib/boo
 import { register, type CronJobResult } from "@/lib/cron/jobs";
 import { listCatalogue } from "@/lib/experience-catalogue";
 import { sendLoggedEmail } from "@/lib/message-log";
+import { captureError } from "@/lib/observability";
 
 /** The job's stable name in the dispatcher's audit row. */
 export const DAY_BEFORE_REMINDER_JOB = "day-before-reminder";
@@ -144,9 +145,31 @@ async function remindDay(
 }
 
 /**
- * The dispatcher job. Throws only when a day's bookings cannot be read at all,
- * which the dispatcher reports as a failed job; every per-booking outcome is a
- * count in the summary instead.
+ * One pass, sealed off from the other. A day whose bookings cannot be read at
+ * all — the database timed out — is reported (the log, the error tracker, the
+ * summary) and the other pass still runs: the morning's catch-up is the more
+ * urgent of the two, since its tours leave in a few hours and there is no later
+ * run, and a failed read of tomorrow must not cost it.
+ */
+async function runPass(
+  date: DateKey,
+  when: ReminderWhen,
+  titleOf: (slug: string, locale: BookingToRemind["locale"]) => string,
+): Promise<string> {
+  try {
+    return summarise(when, date, await remindDay(date, when, titleOf));
+  } catch (err) {
+    console.error(`[reminder] ${when} ${date} — bookings could not be read`, err);
+    captureError(err, { area: "cron", tags: { job: DAY_BEFORE_REMINDER_JOB, pass: when } });
+    return `${when} ${date}: not run — bookings could not be read`;
+  }
+}
+
+/**
+ * The dispatcher job. It does not throw: every per-booking outcome is a count
+ * in the summary, and a pass whose bookings could not be read says so there
+ * and in the error tracker. (The catalogue cannot fail it either —
+ * `listCatalogue` falls back to the shipped array.)
  */
 export async function dayBeforeReminder(now: Date = new Date()): Promise<CronJobResult> {
   const { today, tomorrow } = reminderDays(now);
@@ -159,13 +182,10 @@ export async function dayBeforeReminder(now: Date = new Date()): Promise<CronJob
     return entry ? t(entry.title, locale) : slug;
   };
 
-  const ahead = await remindDay(tomorrow, "tomorrow", titleOf);
-  const catchUp = await remindDay(today, "today", titleOf);
+  const ahead = await runPass(tomorrow, "tomorrow", titleOf);
+  const catchUp = await runPass(today, "today", titleOf);
 
-  return {
-    name: DAY_BEFORE_REMINDER_JOB,
-    summary: `${summarise("tomorrow", tomorrow, ahead)} · ${summarise("today", today, catchUp)}`,
-  };
+  return { name: DAY_BEFORE_REMINDER_JOB, summary: `${ahead} · ${catchUp}` };
 }
 
 register(dayBeforeReminder);

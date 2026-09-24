@@ -29,6 +29,8 @@ let delivered: { subject: MessageSubject; message: EmailMessage }[] = [];
 let failNext = new Set<string>();
 /** Booking ids whose message cannot even be built — the per-booking throw. */
 let throwFor = new Set<string>();
+/** Days whose bookings cannot be read at all — the database timed out. */
+let unreadable = new Set<string>();
 
 const claimKey = (subject: MessageSubject) =>
   `${subject.kind}:${subject.recipient}:${subject.bookingId}:${subject.subjectDate}`;
@@ -37,7 +39,10 @@ vi.mock("@/lib/bookings", async () => {
   const actual = await vi.importActual<typeof import("@/lib/bookings")>("@/lib/bookings");
   return {
     ...actual,
-    confirmedBookingsOn: async (date: string) => bookingsByDate[date] ?? [],
+    confirmedBookingsOn: async (date: string) => {
+      if (unreadable.has(date)) throw new Error("connection timeout");
+      return bookingsByDate[date] ?? [];
+    },
   };
 });
 
@@ -66,6 +71,11 @@ vi.mock("@/lib/experience-catalogue", () => ({
     },
     { slug: "manzwine", title: { pt: "Prova Manzwine", en: "Manzwine tasting" } },
   ],
+}));
+
+const captureError = vi.fn();
+vi.mock("@/lib/observability", () => ({
+  captureError: (...args: unknown[]) => captureError(...args),
 }));
 
 const register = vi.fn();
@@ -119,6 +129,8 @@ beforeEach(() => {
   delivered = [];
   failNext = new Set();
   throwFor = new Set();
+  unreadable = new Set();
+  captureError.mockClear();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -262,6 +274,25 @@ describe("dayBeforeReminder", () => {
 
     expect(delivered.map((d) => d.subject.bookingId)).toEqual([fine.id]);
     expect(result.summary).toContain("1 sent, 0 already reminded, 0 skipped, 1 failed");
+  });
+
+  it("still runs the catch-up when tomorrow's bookings cannot be read", async () => {
+    // The catch-up's tours leave in a few hours and there is no later run.
+    const lateBooking = booking({ date: TODAY });
+    seed(booking(), lateBooking);
+    unreadable.add(TOMORROW);
+
+    const result = await dayBeforeReminder(NOW);
+
+    expect(delivered.map((d) => d.subject.bookingId)).toEqual([lateBooking.id]);
+    expect(result.summary).toBe(
+      `tomorrow ${TOMORROW}: not run — bookings could not be read · today ${TODAY}: 1 sent, 0 already reminded, 0 skipped, 0 failed`,
+    );
+    expect(captureError).toHaveBeenCalledTimes(1);
+    expect(captureError).toHaveBeenCalledWith(expect.any(Error), {
+      area: "cron",
+      tags: { job: "day-before-reminder", pass: "tomorrow" },
+    });
   });
 
   it("names itself and its counts per morning in the dispatcher's summary", async () => {
