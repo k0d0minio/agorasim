@@ -6,13 +6,13 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. PR open — smoke, then squash-merge from GitHub: https://github.com/k0d0minio/agorasim/pull/125
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
+- none
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- do not bump `next`/`sharp` again here — they were already patched on `main`/`uat` before this
+  run started; this run only retired the stale finding and its Learned rules.
