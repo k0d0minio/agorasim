@@ -5,6 +5,11 @@ import { syncRefundFromStripe } from "@/lib/booking-refund";
 import { listCatalogue } from "@/lib/experience-catalogue";
 import { captureAlert, captureError } from "@/lib/observability";
 import {
+  alertUnknownQuoteSession,
+  quoteSessionMetadata,
+  recordQuotePayment,
+} from "@/lib/quote-checkout";
+import {
   connectedAccountId,
   isStripeConfigured,
   isWebhookConfigured,
@@ -46,6 +51,14 @@ import {
  *    nothing. Both are legitimate — bookings taken before Connect was
  *    configured still live on the platform — so the check is not that an
  *    account is present but that it is *ours*.
+ *
+ * **Quote sessions branch off first.** A wedding or event instalment is paid
+ * through a session the quote page minted (`lib/quote-checkout.ts`), labelled
+ * by its metadata. Those never reach `confirmPaidBooking` — which would find
+ * no booking and raise the unknown-session alert over a perfectly good
+ * deposit — nor `closeUnpaidBooking`: an expired quote session changes
+ * nothing, and the next tap on the quote page mints another. Refunds of quote
+ * instalments are not handled here yet (`quote-flow/quote-refunds`).
  *
  * The same five hold for money going the other way. `charge.refunded` is how a
  * refund issued in the Stripe dashboard — the way most of them will be, from a
@@ -163,6 +176,12 @@ export async function POST(request: Request): Promise<Response> {
         return Response.json({ received: true, pending: true });
       }
 
+      if (quoteSessionMetadata(session)) {
+        const outcome = await recordQuotePayment(session);
+        if (outcome.status === "unknown") alertUnknownQuoteSession(session.id, event.type);
+        return Response.json({ received: true, outcome: outcome.status });
+      }
+
       const catalogue = new Map(
         (await listCatalogue()).map((entry) => [entry.slug, entry]),
       );
@@ -195,6 +214,11 @@ export async function POST(request: Request): Promise<Response> {
 
     if (FAILED_EVENTS.has(event.type)) {
       const session = event.data.object as Stripe.Checkout.Session;
+      // A quote session that lapsed or failed leaves its instalment payable:
+      // the quote page mints a fresh session on the next tap.
+      if (quoteSessionMetadata(session)) {
+        return Response.json({ received: true, quote: true });
+      }
       await closeUnpaidBooking({
         sessionId: session.id,
         status: event.type === "checkout.session.expired" ? "expired" : "cancelled",

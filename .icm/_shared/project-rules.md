@@ -251,3 +251,9 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 
 <!-- Retrospective Learned Rule [2026-09-23] -->
 - `next build` type-checks the `*.test.ts` files too (the Vercel preview fails on a test-only type error before the CI job reports), so a test helper's types matter as much as the app's. (`TS2749`, seen 1× — admin-quote-builder; web/drizzle, web/src)
+<!-- Retrospective Learned Rule [2026-09-24] -->
+- A page under `web/src/app/[locale]/` cannot answer with a 404 status after an `await`: the locale's `loading.tsx` streams it, so a real 404 needs the check in `web/src/proxy.ts` — spec it there or accept a `noindex` 200. (`FAILURE.md` — quote-page-and-deposit-link)
+<!-- Retrospective Learned Rule [2026-09-24] -->
+- A token stored as a digest (quote links, cancel links) can be put in a URL only by the code that minted it; never spec a later email, webhook or job that links back with it. (`FAILURE.md` — quote-page-and-deposit-link)
+<!-- Retrospective Learned Rule [2026-09-24] -->
+- When code reads a Stripe object to decide whether to mint a payable session, treat only `resource_missing` as "gone" and check a completed-but-unpaid session's payment intent — a delayed method can fail after `complete`. (`FAILURE.md` — quote-page-and-deposit-link)

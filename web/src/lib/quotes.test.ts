@@ -7,6 +7,7 @@ import {
   canStartQuote,
   canTransition,
   DEFAULT_DEPOSIT_PERCENT,
+  dueInstalment,
   isEditable,
   isInsideNonRefundableWindow,
   LEAD_STAGE_ORDER,
@@ -344,5 +345,109 @@ describe("the quote builder's rules for one lead", () => {
     // A discarded draft was never sent, so it was never replaced.
     expect(wasSuperseded({ ...old, sentAt: null }, [old, newer])).toBe(false);
     expect(wasSuperseded({ ...old, status: "sent" }, [old, newer])).toBe(false);
+  });
+});
+
+describe("dueInstalment — what the quote page offers to pay", () => {
+  /** A full instalment row; only the fields the rule reads vary. */
+  const row = (
+    kind: QuotePayment["kind"],
+    status: QuotePayment["status"],
+    overrides: Partial<QuotePayment> = {},
+  ): QuotePayment =>
+    ({
+      id: `${kind}-id`,
+      quoteId: "quote-id",
+      kind,
+      status,
+      amountCents: kind === "deposit" ? 57_600 : 134_400,
+      dueDate: kind === "balance" ? "2026-08-01" : null,
+      ...overrides,
+    }) as QuotePayment;
+
+  // Europe/Lisbon: 23:30 UTC on 31 July is already 1 August there (UTC+1).
+  const BEFORE_DUE = new Date("2026-07-20T10:00:00Z");
+  const ON_DUE_DAY_LISBON = new Date("2026-07-31T23:30:00Z");
+  const AFTER_DUE = new Date("2026-08-05T10:00:00Z");
+
+  it("offers the deposit first, whatever the date", () => {
+    const due = dueInstalment(
+      { status: "sent", payments: [row("deposit", "pending"), row("balance", "pending")] },
+      AFTER_DUE,
+    );
+    expect(due).toMatchObject({ kind: "due", payment: { kind: "deposit" } });
+  });
+
+  it("still offers a deposit whose session was issued and not paid", () => {
+    const due = dueInstalment(
+      { status: "sent", payments: [row("deposit", "issued"), row("balance", "pending")] },
+      BEFORE_DUE,
+    );
+    expect(due).toMatchObject({ kind: "due", payment: { kind: "deposit" } });
+  });
+
+  it("holds the balance back until its due date, and says which day", () => {
+    const due = dueInstalment(
+      { status: "deposit_paid", payments: [row("deposit", "paid"), row("balance", "pending")] },
+      BEFORE_DUE,
+    );
+    expect(due).toEqual({
+      kind: "not-yet",
+      payment: expect.objectContaining({ kind: "balance" }),
+      dueDate: "2026-08-01",
+    });
+  });
+
+  it("offers the balance from its due day in Lisbon on", () => {
+    for (const now of [ON_DUE_DAY_LISBON, AFTER_DUE]) {
+      expect(
+        dueInstalment(
+          { status: "deposit_paid", payments: [row("deposit", "paid"), row("balance", "issued")] },
+          now,
+        ),
+      ).toMatchObject({ kind: "due", payment: { kind: "balance" } });
+    }
+  });
+
+  it("treats a written-off deposit as settled, as the quote status does", () => {
+    expect(
+      dueInstalment(
+        {
+          status: "deposit_paid",
+          payments: [row("deposit", "cancelled"), row("balance", "pending")],
+        },
+        AFTER_DUE,
+      ),
+    ).toMatchObject({ kind: "due", payment: { kind: "balance" } });
+  });
+
+  it("has nothing to offer once everything is settled, or when there is no balance", () => {
+    expect(
+      dueInstalment(
+        { status: "paid", payments: [row("deposit", "paid"), row("balance", "paid")] },
+        AFTER_DUE,
+      ),
+    ).toEqual({ kind: "settled" });
+    // A 100% deposit: no balance row at all, or one of nothing.
+    expect(
+      dueInstalment({ status: "deposit_paid", payments: [row("deposit", "paid")] }, AFTER_DUE),
+    ).toEqual({ kind: "settled" });
+    expect(
+      dueInstalment(
+        {
+          status: "deposit_paid",
+          payments: [row("deposit", "paid"), row("balance", "pending", { amountCents: 0 })],
+        },
+        AFTER_DUE,
+      ),
+    ).toEqual({ kind: "settled" });
+  });
+
+  it("offers nothing on a draft or a cancelled quote", () => {
+    for (const status of ["draft", "cancelled"] as const) {
+      expect(
+        dueInstalment({ status, payments: [row("deposit", "pending")] }, AFTER_DUE),
+      ).toEqual({ kind: "not-live" });
+    }
   });
 });
