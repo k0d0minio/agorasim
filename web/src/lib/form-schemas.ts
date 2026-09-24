@@ -625,6 +625,13 @@ export const cancelBookingSchema = z.object({
   ),
 });
 
+/** Mark or clear a no-show on one booking — the Sales board's "Faltou". */
+export const bookingNoShowSchema = z.object({
+  bookingId: z.uuid(),
+  /** "1" marks the no-show, "0" clears it. */
+  mark: z.enum(["1", "0"]).transform((value) => value === "1"),
+});
+
 /**
  * Moving a booking to another departure.
  *
@@ -638,13 +645,6 @@ export const cancelBookingSchema = z.object({
  * against the enum, which still carries the retired `full_day` value that
  * nothing may be moved onto.
  */
-/** Mark or clear a no-show on one booking — the Sales board's "Faltou". */
-export const bookingNoShowSchema = z.object({
-  bookingId: z.uuid(),
-  /** "1" marks the no-show, "0" clears it. */
-  mark: z.enum(["1", "0"]).transform((value) => value === "1"),
-});
-
 export const moveBookingSchema = z.object({
   bookingId: z.uuid(),
   date: z

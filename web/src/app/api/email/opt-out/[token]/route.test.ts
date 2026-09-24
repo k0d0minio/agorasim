@@ -23,6 +23,7 @@ vi.mock("@/lib/email-opt-out", () => ({
 
 vi.mock("@/lib/rate-limit", () => ({
   OPT_OUT_RATE_LIMIT: { limit: 20, windowSeconds: 600 },
+  OPT_OUT_ONE_CLICK_RATE_LIMIT: { limit: 300, windowSeconds: 600 },
   rateLimit: async () =>
     throttled ? { allowed: false, retryAfterSeconds: 60 } : { allowed: true, retryAfterSeconds: 0 },
 }));

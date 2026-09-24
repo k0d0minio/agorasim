@@ -15,7 +15,7 @@
  */
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lte } from "drizzle-orm";
 
 import { bookings, db, type Booking } from "@/db";
 import { todayKey } from "@/lib/availability";
@@ -60,8 +60,25 @@ export async function setNoShow(options: {
     return { status: "unchanged" };
   }
 
+  // The write re-states the rule it was allowed under, so a cancel, a move or
+  // a second tap that landed between the read and here changes nothing — the
+  // same guard `lib/booking-move.ts` puts on its update.
   const noShowAt = noShow ? now : null;
-  await db.update(bookings).set({ noShowAt, updatedAt: now }).where(eq(bookings.id, bookingId));
+  const written = await db
+    .update(bookings)
+    .set({ noShowAt, updatedAt: now })
+    .where(
+      noShow
+        ? and(
+            eq(bookings.id, bookingId),
+            eq(bookings.status, "confirmed"),
+            lte(bookings.date, todayKey(now)),
+            isNull(bookings.noShowAt),
+          )
+        : and(eq(bookings.id, bookingId), isNotNull(bookings.noShowAt)),
+    )
+    .returning({ id: bookings.id });
+  if (written.length === 0) return { status: "unchanged" };
 
   await recordAuditOrWarn({
     actorUserId,

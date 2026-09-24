@@ -1,6 +1,6 @@
 import { recordOptOut } from "@/lib/email-opt-out";
 import { verifyOptOutToken } from "@/lib/email-opt-out-token";
-import { OPT_OUT_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
+import { OPT_OUT_ONE_CLICK_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 
 /**
@@ -27,7 +27,7 @@ export async function POST(
   const { token } = await params;
 
   const ip = await clientIp();
-  const throttle = await rateLimit(`opt-out:${ip}`, OPT_OUT_RATE_LIMIT);
+  const throttle = await rateLimit(`opt-out-one-click:${ip}`, OPT_OUT_ONE_CLICK_RATE_LIMIT);
   if (!throttle.allowed) {
     return new Response(null, {
       status: 429,

@@ -954,7 +954,7 @@ describe("marking a no-show", () => {
   it("marks a paid booking whose tour has happened, and records who did it", async () => {
     await signInAs("collaborator");
     queueResult(lookup());
-    queueResult(undefined); // the update
+    queueResult([{ id: BOOKING_ID }]); // the guarded update
     queueResult(undefined); // the audit insert
 
     const result = await setBookingNoShow({}, form({ bookingId: BOOKING_ID, mark: "1" }));
@@ -972,7 +972,7 @@ describe("marking a no-show", () => {
   it("clears the mark again, and records that too", async () => {
     await signInAs("collaborator");
     queueResult(lookup({ noShowAt: new Date("2026-01-10T18:00:00Z") }));
-    queueResult(undefined);
+    queueResult([{ id: BOOKING_ID }]);
     queueResult(undefined);
 
     const result = await setBookingNoShow({}, form({ bookingId: BOOKING_ID, mark: "0" }));
@@ -991,6 +991,17 @@ describe("marking a no-show", () => {
     expect((await setBookingNoShow({}, form({ bookingId: BOOKING_ID, mark: "1" }))).error).toBeTruthy();
 
     expect(called("set")).toBe(false);
+  });
+
+  it("writes no audit entry when the guarded update finds the booking already changed", async () => {
+    await signInAs("collaborator");
+    queueResult(lookup());
+    queueResult([]); // cancelled, moved or marked between the read and the write
+
+    const result = await setBookingNoShow({}, form({ bookingId: BOOKING_ID, mark: "1" }));
+
+    expect(result).toEqual({ ok: true });
+    expect(insertedValues()).toHaveLength(0);
   });
 
   it("sends a signed-out caller to the login screen, writing nothing", async () => {
