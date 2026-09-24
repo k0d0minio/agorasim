@@ -4,7 +4,7 @@ Where the run is, in five lines. Updated at every stage start and stop, and when
 flips. A resuming session reads this first, then `handoff.md` (`_shared/stage-preamble.md`).
 
 - phase: build
-- step: 9 (code + tests committed; pre-flip verdict next)
-- ci: not read yet (draft)
+- step: 12 (ready flipped; full verdict next)
+- ci: GREEN on the draft head (cheap tier, quality advisory passed)
 - blocked: no
 - updated: 2026-09-24
