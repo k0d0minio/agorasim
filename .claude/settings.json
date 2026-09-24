@@ -71,10 +71,14 @@
       "Bash(command -v:*)"
     ],
     "deny": [
-      "Read(./.env)",
-      "Read(./.env.*)",
       "Read(./**/.env)",
-      "Read(./**/.env.*)",
+      "Read(./**/.env.local)",
+      "Read(./**/.env.*.local)",
+      "Read(./**/.env.development)",
+      "Read(./**/.env.production)",
+      "Read(./**/.env.preview)",
+      "Read(./**/.env.test)",
+      "Read(./**/.env.vercel)",
       "Read(./**/*.pem)",
       "Read(./**/*.key)",
       "Read(./**/secrets/**)"
