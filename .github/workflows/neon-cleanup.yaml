@@ -8,10 +8,15 @@ name: Neon cleanup
 # (https://neon.com/docs/guides/vercel-branch-cleanup). This job deletes that branch the moment the
 # PR closes, and the run's own `run/<slug>` branch beside it where db-branch.sh made one and the
 # session never ran `down`. It names nothing else: not production, and not the UAT database — a
-# named branch (`database.neon.uat_branch`, D39) that is never `preview/<git-branch>`, and that
-# lib/neon.sh refuses on every delete besides.
+# project's default branch, which the job never selects.
 #
-# The project id and the key's NAME come from `.icm/project.json` (one home per fact — the same
+# Which project (D41): where the repo declares UAT (`uat.target` and `uat.url`), previews and runs
+# live in the NON-PRODUCTION project — `database.neon.nonprod_project_id`, the second Marketplace
+# database — and this job looks there and nowhere else; production's project is never written. A
+# UAT repo without that id, or with production's id in it, fails the job rather than guess. Without
+# UAT the one project (`database.neon.project_id`) serves, as before.
+#
+# The project ids and the key's NAME come from `.icm/project.json` (one home per fact — the same
 # `database.neon` block every pipeline script reads); the key's VALUE is this repository's Actions
 # secret under that name (`printf '%s' "$KEY" | .icm/scripts/env.sh add NEON_API_KEY --ci --github
 # secret`). A missing secret fails the job — the red job is the alert, as everywhere. A branch that
@@ -55,7 +60,16 @@ jobs:
           {
             echo "provider=$(jq -r '.database.provider // ""' "$f")"
             echo "previews=$(jq -r '.database.neon.previews // ""' "$f")"
-            echo "project_id=$(jq -r '.database.neon.project_id // ""' "$f")"
+            # D41: with UAT, previews and runs live in the non-production project — never production's.
+            prod="$(jq -r '.database.neon.project_id // ""' "$f")"
+            if jq -e '.database.provider == "neon" and (.uat.target // "") != "" and (.uat.url // "") != ""' "$f" >/dev/null; then
+              np="$(jq -r '.database.neon.nonprod_project_id // ""' "$f")"
+              [ -n "$np" ] || { echo "::error::uat is declared but database.neon.nonprod_project_id is empty — previews live in the non-production project (D41)" >&2; exit 1; }
+              [ "$np" != "$prod" ] || { echo "::error::database.neon.nonprod_project_id is production's project — refusing (D41)" >&2; exit 1; }
+              echo "project_id=$np"
+            else
+              echo "project_id=$prod"
+            fi
             echo "key_name=$(jq -r '.database.neon.api_key_env // "NEON_API_KEY"' "$f")"
             echo "preview_branch=preview/${HEAD_REF}"
             echo "run_branch=run/${HEAD_REF#claude/}"

@@ -70,10 +70,11 @@
     "provider": "neon",
     "neon": {
       "project_id": "nameless-sea-98952497",
+      "nonprod_project_id": "lingering-frog-97017403",
       "api_key_env": "NEON_API_KEY",
       "production_branch": "main",
       "previews": "vercel",
-      "uat_branch": "uat"
+      "reset_command": ""
     }
   },
   "security": {
