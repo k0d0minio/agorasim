@@ -1,0 +1,376 @@
+name: Release
+
+# The reference release workflow (agency brief §4.7, item 9; decision D39) — seeded ONCE by /setup,
+# never by the estate walk: into a repo whose `.icm/project.json` reads `reporting.announce_from:
+# "ci"`, and into EVERY repo that declares a UAT environment (`uat: {target, url}`), where it is
+# the promotion itself. It has two halves, chosen by the event and by project.json as it stands at
+# the commit the event names (main's merge commit, or the published Release's commit):
+#
+#   A merged PR (no UAT)   the merge IS the production release. When `announce_from` is `ci`, the
+#                          `announce` job calls the repo's own reporting hook:
+#                            .icm/scripts/report.sh announce "<summary>" --slug <slug> --sha <sha> --url <pr>
+#                          On a UAT repo a merge reaches UAT only and announces nothing — the run's
+#                          Release step records `announce: deferred to promotion`.
+#
+#   A published Release    only where UAT is declared, and only a Release `promote.sh approve`
+#   (UAT)                  drafted (its body carries `- promote-sha: <40 hex>`, equal to the tag's
+#                          commit). The operator publishing it on GitHub is the client's word acted
+#                          on (D39 (5)). In order, each step only after the one before succeeded:
+#                            1. stage    — for every product project, the PRODUCTION deployment of
+#                                          that SHA (GET /v6/deployments?projectId&target=production
+#                                          &sha=<full>): Staged → carried on; already Current → a
+#                                          no-op (a baseline Release, a re-run); still building →
+#                                          waited for, bounded; missing, ERROR or CANCELED → the job
+#                                          FAILS here, before production is touched.
+#                            2. migrate  — the repo's production migration: the reference
+#                                          db-migrate.yml, called (workflow_call). A failed
+#                                          migration stops the run; production code is untouched.
+#                            3. promote  — POST /v10/projects/{id}/promote/{deploymentId} per
+#                                          project (never a rebuild), then GET /v9/projects/{id}
+#                                          until `targets.production.id` is that deployment;
+#                                          deploy-status.sh --sha once for the record; then
+#                            4. announce — report.sh announce --tag <the Release's tag>: the
+#                                          github-release channel finds the published Release and
+#                                          REUSES it (idempotent by tag — never a second Release);
+#                                          Slack/email where the repo maps them. `announce: none`
+#                                          in the body skips it; `announce: internal` passes
+#                                          --audience internal.
+#                          A failure anywhere calls `report.sh alert`; with no alert channel the red
+#                          job IS the alert (the repository owner's GitHub notification).
+#
+# A repo with no production migrator (no db-migrate.yml) deletes the `migrate` job and drops it
+# from the `promote` job's `needs` when /setup seeds this file — a per-repo edit, recorded in
+# `_shared/project-rules.md`. A Release is never unpublished: rollback is Vercel's instant rollback
+# (rollback.sh names it). Re-running a failed promotion is GitHub's "Re-run all jobs" on this run —
+# every step is safe to repeat (Current → no-op; the migrator applies nothing twice; the announce
+# reuses the tag).
+#
+# Nothing here reads a channel id, token or address literally: those are the repo's own, as
+# variable NAMES in project.json and values in this repository's Actions secrets/variables. The
+# Vercel token is the secret `deploy.token_env` names (default VERCEL_TOKEN). The job token needs
+# `contents: write` only because the announcement reads and edits /releases.
+
+on:
+  pull_request:
+    types: [closed]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: "Run slug to (re-)announce from main (repos without UAT)"
+        required: true
+        type: string
+      sha:
+        description: "Merge commit SHA (defaults to main's head)"
+        required: false
+        type: string
+
+concurrency:
+  # One promotion at a time, never cancelled half-way; merge announcements keyed per PR as before.
+  group: ${{ github.event_name == 'release' && 'promote' || format('release-{0}', github.event.pull_request.number || inputs.slug) }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write      # /releases — the announcement reuses (or, without UAT, creates) a Release
+  pull-requests: read  # the merged PR's body (the Summary line)
+
+jobs:
+  config:
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.merged == true &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.base.ref == github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    name: Read project.json
+    timeout-minutes: 5
+    outputs:
+      uat: ${{ steps.cfg.outputs.uat }}
+      announce_from: ${{ steps.cfg.outputs.announce_from }}
+      token_env: ${{ steps.cfg.outputs.token_env }}
+      promote: ${{ steps.cfg.outputs.promote }}
+      audience: ${{ steps.cfg.outputs.audience }}
+      announce: ${{ steps.cfg.outputs.announce }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || inputs.sha || github.sha }}
+          sparse-checkout: .icm/project.json
+          sparse-checkout-cone-mode: false
+
+      - name: Which half runs
+        id: cfg
+        env:
+          EVENT: ${{ github.event_name }}
+          EVENT_SHA: ${{ github.sha }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          set -euo pipefail
+          f=.icm/project.json
+          uat=false
+          if [ -f "$f" ] && jq -e '((.uat.target // "") != "") and ((.uat.url // "") != "")' "$f" >/dev/null; then uat=true; fi
+          {
+            echo "uat=$uat"
+            echo "announce_from=$(jq -r '.reporting.announce_from // "session"' "$f" 2>/dev/null || echo session)"
+            echo "token_env=$(jq -r '.deploy.token_env // "VERCEL_TOKEN"' "$f" 2>/dev/null || echo VERCEL_TOKEN)"
+          } >> "$GITHUB_OUTPUT"
+          promote=false; audience=public; announce=client
+          if [ "$EVENT" = "release" ]; then
+            if [ "$uat" != "true" ]; then
+              echo "::notice::a Release was published on a repo without UAT — the merge was the release; nothing to promote"
+            elif [ "$RELEASE_PRERELEASE" = "true" ]; then
+              echo "::notice::a prerelease is never a promotion"
+            else
+              marked="$(printf '%s\n' "$RELEASE_BODY" | sed -nE 's/^- promote-sha: ([0-9a-f]{40})[[:space:]]*$/\1/p' | head -n1)"
+              if [ -z "$marked" ]; then
+                echo "::notice::this Release was not drafted by promote.sh approve (no promote-sha line) — not a promotion"
+              elif [ "$marked" != "$EVENT_SHA" ]; then
+                echo "::error::the Release body names ${marked:0:7} but its tag is at ${EVENT_SHA:0:7} — refusing to promote a SHA the record does not name"; exit 1
+              else
+                promote=true
+                announce="$(printf '%s\n' "$RELEASE_BODY" | sed -nE 's/^- announce:[[:space:]]*([a-z]+).*/\1/p' | head -n1)"
+                case "$announce" in none|internal|client) : ;; *) announce=client ;; esac
+                [ "$announce" = internal ] && audience=internal
+              fi
+            fi
+          fi
+          { echo "promote=$promote"; echo "audience=$audience"; echo "announce=$announce"; } >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------------------------
+  # Without UAT: a merged PR is the production release — announce it (announce_from: ci).
+  # ---------------------------------------------------------------------------------------------
+  announce:
+    needs: config
+    if: >-
+      github.event_name != 'release' &&
+      needs.config.outputs.uat == 'false' &&
+      (github.event_name == 'workflow_dispatch' || needs.config.outputs.announce_from == 'ci')
+    runs-on: ubuntu-latest
+    name: Announce the merge
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || inputs.sha || github.sha }}
+
+      - name: Resolve slug, summary and merge SHA
+        id: run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          INPUT_SLUG: ${{ inputs.slug }}
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_SLUG:-}" ]; then
+            slug="$INPUT_SLUG"; sha="${INPUT_SHA:-$(git rev-parse HEAD)}"; summary="Release $slug"; url=""
+          else
+            # The slug line is the spine Spec-table row or the lane `- slug:` bullet (resolve-run.sh
+            # matches the same two shapes); the Summary is the first non-empty line under ## Summary.
+            slug="$(printf '%s\n' "$PR_BODY" | sed -nE 's/^- slug:[[:space:]]*//p; s/^\|[[:space:]]*\*\*Slug\*\*[[:space:]]*\|[[:space:]]*`?([^`| ]+)`?[[:space:]]*\|.*/\1/p' | head -1)"
+            [ -n "$slug" ] || slug="pr-${PR_NUMBER}"
+            summary="$(printf '%s\n' "$PR_BODY" | awk '/^## Summary/{f=1; next} f && NF {print; exit}')"
+            [ -n "$summary" ] || summary="PR #${PR_NUMBER} merged"
+            sha="$MERGE_SHA"; url="$PR_URL"
+          fi
+          # An `announce: none` or `audience: internal` in the PR body is the run's explicit choice.
+          audience="public"
+          printf '%s\n' "$PR_BODY" | grep -qiE '^\s*-?\s*audience:\s*internal' && audience="internal"
+          if printf '%s\n' "$PR_BODY" | grep -qiE '^\s*-?\s*announce:\s*none'; then echo "skip=true" >> "$GITHUB_OUTPUT"; fi
+          { echo "slug=$slug"; echo "sha=$sha"; echo "url=$url"; echo "audience=$audience"; echo "summary<<EOF"; echo "$summary"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+
+      - name: report.sh announce
+        id: announce
+        if: steps.run.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUMMARY: ${{ steps.run.outputs.summary }}
+          SLUG: ${{ steps.run.outputs.slug }}
+          SHA: ${{ steps.run.outputs.sha }}
+          URL: ${{ steps.run.outputs.url }}
+          AUDIENCE: ${{ steps.run.outputs.audience }}
+          # Channel variables are the repo's own Actions secrets/variables, named by
+          # .icm/project.json → reporting.channels. Add lines here as the repo declares channels:
+          # SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          # SLACK_ANNOUNCE_CHANNEL_ID: ${{ vars.SLACK_ANNOUNCE_CHANNEL_ID }}
+          # RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          # REPORT_EMAIL_FROM: ${{ vars.REPORT_EMAIL_FROM }}
+          # REPORT_EMAIL_TO: ${{ vars.REPORT_EMAIL_TO }}
+        run: |
+          set -uo pipefail
+          out="$(.icm/scripts/report.sh announce "$SUMMARY" --slug "$SLUG" --sha "$SHA" ${URL:+--url "$URL"} --audience "$AUDIENCE")"
+          printf '%s\n' "$out"
+          # SKIPPED for every channel is a fault worth a red job — the merge is live and nobody was told.
+          case "$(printf '%s\n' "$out" | tail -n1)" in
+            "RESULT: SENT"*) exit 0 ;;
+            *) echo "::error::report.sh announced on no channel — see the SKIPPED lines above"; exit 1 ;;
+          esac
+
+      - name: report.sh alert (the announcement failed)
+        if: failure() && steps.announce.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLUG: ${{ steps.run.outputs.slug }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          .icm/scripts/report.sh alert "The release announcement for $SLUG failed — the merge is live and no channel took the message" --url "$RUN_URL"
+
+  # ---------------------------------------------------------------------------------------------
+  # With UAT: a published promotion Release — stage → migrate → promote → announce (D39 (5)).
+  # ---------------------------------------------------------------------------------------------
+  stage:
+    needs: config
+    if: github.event_name == 'release' && needs.config.outputs.promote == 'true'
+    runs-on: ubuntu-latest
+    name: Find the staged production deployment
+    timeout-minutes: 20
+    outputs:
+      deployments: ${{ steps.find.outputs.deployments }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: The production deployment of this SHA, per product project
+        id: find
+        env:
+          VERCEL_TOKEN: ${{ secrets[needs.config.outputs.token_env] }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          source .icm/scripts/lib/project.sh
+          source .icm/scripts/lib/vercel.sh
+          vercel_require "finding the staged production deployment"
+          found='[]'; deadline=$(( SECONDS + 900 ))
+          while IFS= read -r name; do
+            [ -n "$name" ] || continue
+            id="$(vercel_project_id "$name")"
+            while :; do
+              dep="$(vercel_deployments "$name" --target production --sha "$SHA" --limit 10 | jq -c 'sort_by(-.created) | first // empty')"
+              state="$(printf '%s' "$dep" | jq -r '.state // .readyState // empty')"
+              case "$state" in
+                READY) break ;;
+                ERROR|CANCELED) echo "::error::$name: the production deployment of ${SHA:0:7} is $state — nothing to promote; production untouched"; exit 1 ;;
+              esac
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "::error::$name: no READY production deployment of ${SHA:0:7} (${state:-none}) — is Auto-assign off and did the merge build? Production untouched"; exit 1
+              fi
+              echo "$name: ${state:-no production deployment of ${SHA:0:7} yet} — waiting"; sleep 20
+            done
+            did="$(printf '%s' "$dep" | jq -r '.uid // .id')"
+            cur="$(vercel_project "$name" | jq -r '.targets.production.id // empty')"
+            echo "$name: $did READY — $( [ "$cur" = "$did" ] && echo "already Current (a no-op)" || echo "Staged (serving ${cur:-unknown})")"
+            found="$(jq -c --arg n "$name" --arg p "$id" --arg d "$did" --arg c "$cur" '. + [{name: $n, project: $p, deployment: $d, current: ($c == $d)}]' <<<"$found")"
+          done < <(deploy_projects | jq -r 'select((.class // "product") == "product") | .name')
+          [ "$found" != '[]' ] || { echo "::error::no product project in deploy.projects — nothing to promote"; exit 1; }
+          echo "deployments=$found" >> "$GITHUB_OUTPUT"
+
+  # The repo's production migrator, called — the reference db-migrate.yml (workflow_call). A repo
+  # without one deletes this job and removes it from promote's `needs` (see the header).
+  migrate:
+    needs: [config, stage]
+    if: github.event_name == 'release' && needs.config.outputs.promote == 'true'
+    uses: ./.github/workflows/db-migrate.yml
+    secrets: inherit
+
+  promote:
+    needs: [config, stage, migrate]
+    if: github.event_name == 'release' && needs.config.outputs.promote == 'true'
+    runs-on: ubuntu-latest
+    name: Promote, read production once, announce
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Promote the staged deployment (never a rebuild)
+        id: promote
+        env:
+          VERCEL_TOKEN: ${{ secrets[needs.config.outputs.token_env] }}
+          DEPLOYMENTS: ${{ needs.stage.outputs.deployments }}
+        run: |
+          set -euo pipefail
+          source .icm/scripts/lib/project.sh
+          source .icm/scripts/lib/vercel.sh
+          vercel_require "promoting"
+          q=""; [ -z "$vercel_team" ] || q="?teamId=${vercel_team}"
+          while IFS=$'\t' read -r name pid did current; do
+            if [ "$current" = "true" ]; then echo "$name: $did already Current — nothing to promote"; continue; fi
+            # The one Vercel write in the pipeline, made by this workflow on the operator's publish.
+            code="$(printf 'url = "%s"\nrequest = "POST"\nheader = "Authorization: Bearer %s"\noutput = "/dev/null"\nwrite-out = "%%{http_code}"\nmax-time = 60\nsilent\n' \
+              "${VERCEL_API}/v10/projects/${pid}/promote/${did}${q}" "$vercel_token" | curl --config - || true)"
+            case "$code" in
+              201|202) echo "$name: promote requested (HTTP $code)" ;;
+              409)     echo "$name: HTTP 409 — a promotion is already in flight; waiting for it" ;;
+              *)       echo "::error::$name: POST promote answered HTTP ${code:-000} — production unchanged"; exit 1 ;;
+            esac
+            for _ in $(seq 1 60); do
+              cur="$(vercel_project "$name" | jq -r '.targets.production.id // empty')"
+              [ "$cur" = "$did" ] && break
+              sleep 10
+            done
+            [ "$cur" = "$did" ] || { echo "::error::$name: $did did not become Current within 10 minutes (serving ${cur:-unknown}) — vercel promote status $name"; exit 1; }
+            echo "$name: $did is Current"
+          done < <(jq -r '.[] | [.name, .project, .deployment, (.current | tostring)] | @tsv' <<<"$DEPLOYMENTS")
+
+      - name: deploy-status.sh — production, read once
+        env:
+          VERCEL_TOKEN: ${{ secrets[needs.config.outputs.token_env] }}
+          SHA: ${{ github.sha }}
+        run: .icm/scripts/deploy-status.sh --sha "$SHA" --no-wait
+
+      - name: report.sh announce
+        id: announce
+        if: needs.config.outputs.announce != 'none'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUMMARY: ${{ github.event.release.name }}
+          TAG: ${{ github.event.release.tag_name }}
+          URL: ${{ github.event.release.html_url }}
+          SHA: ${{ github.sha }}
+          AUDIENCE: ${{ needs.config.outputs.audience }}
+          # Channel variables, as in the announce job above:
+          # SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          # SLACK_ANNOUNCE_CHANNEL_ID: ${{ vars.SLACK_ANNOUNCE_CHANNEL_ID }}
+        run: |
+          set -uo pipefail
+          out="$(.icm/scripts/report.sh announce "$SUMMARY" --slug "${TAG##*/}" --sha "$SHA" --url "$URL" --tag "$TAG" --audience "$AUDIENCE")"
+          printf '%s\n' "$out"
+          case "$(printf '%s\n' "$out" | tail -n1)" in
+            "RESULT: SENT"*) exit 0 ;;
+            *) echo "::error::report.sh announced on no channel — production is promoted and nobody was told"; exit 1 ;;
+          esac
+
+      - name: report.sh alert (the promotion or its announcement failed)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          .icm/scripts/report.sh alert "The promotion of $TAG failed — read the run: production is either untouched or promoted and unannounced" --url "$RUN_URL"
+
+  # A failure before the promote job (the stage, the migration) alerts here — production untouched.
+  alert:
+    needs: [config, stage, migrate]
+    if: failure() && github.event_name == 'release' && needs.config.outputs.promote == 'true'
+    runs-on: ubuntu-latest
+    name: Alert (stopped before production)
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: report.sh alert
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          .icm/scripts/report.sh alert "The promotion of $TAG stopped before production (no staged deployment, or the migration failed) — production is untouched" --url "$RUN_URL"

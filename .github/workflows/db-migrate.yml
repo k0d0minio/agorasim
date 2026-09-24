@@ -1,9 +1,29 @@
 name: DB migrate
 
-# Provisions the Neon Postgres database with the current Drizzle schema and seed
-# data. Runs on pushes to main that touch the migrations or schema, and can be
-# triggered manually. Requires the `DATABASE_URL` repository secret (the Neon
-# connection string).
+# The reference production migrator (decision D39 (5)) — seeded ONCE by /setup into a repo whose
+# production database is migrated from CI, never by the estate walk. ONE reference for both shapes,
+# with a job-level guard read from `.icm/project.json` at the commit being migrated:
+#
+#   No UAT declared   production follows main: the push to main that touches the migrations
+#                     migrates production, exactly as before.
+#   UAT declared      production follows the published Release: a push to main migrates NOTHING
+#                     (the `gate` job says so and the `migrate` job is skipped); the reference
+#                     release.yaml calls this workflow (workflow_call) when the operator publishes
+#                     a promotion Release — migrate, verify, then promote. A failed migration stops
+#                     the release before the promote; production code is untouched.
+#
+# The UAT database is not migrated here: the UAT environment's build applies main's migrations to
+# its own database on every merge (inside a custom environment VERCEL_ENV is `preview`), or the
+# repo's own UAT migrate workflow does — `_shared/promotion.md` → The UAT database.
+#
+# The steps under `migrate` are the REPO'S OWN (its tool, its install, its verify) — the reference
+# shows a Node/Drizzle shape; replace them when seeding, keep the triggers, the gate and the job-
+# level concurrency. The production connection string is the repository secret the steps read
+# (DATABASE_URL here) — never in git. Concurrency lives on the job, not the workflow, so it holds
+# when release.yaml calls this file too.
+#
+# agorasim's own steps: pnpm in `web/`, Drizzle migrate + verify, and the idempotent first-owner
+# seed (skipped when the ADMIN_SEED_* secrets are not set).
 
 on:
   push:
@@ -13,16 +33,49 @@ on:
       - "web/src/db/**"
       - "web/drizzle.config.ts"
       - ".github/workflows/db-migrate.yml"
+  workflow_call:
   workflow_dispatch:
 
-concurrency:
-  # Never run two migrations against the same database at once.
-  group: db-migrate
-  cancel-in-progress: false
+permissions:
+  contents: read
 
 jobs:
-  migrate:
+  gate:
     runs-on: ubuntu-latest
+    name: Does this event migrate production?
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.g.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .icm/project.json
+          sparse-checkout-cone-mode: false
+      - id: g
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          uat=false
+          f=.icm/project.json
+          if [ -f "$f" ] && jq -e '((.uat.target // "") != "") and ((.uat.url // "") != "")' "$f" >/dev/null; then uat=true; fi
+          if [ "$EVENT" = "push" ] && [ "$uat" = "true" ]; then
+            echo "::notice::UAT is declared — production migrates when the operator publishes the promotion Release, not on the push to main (D39 (5))"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  migrate:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    name: Migrate production
+    timeout-minutes: 20
+    concurrency:
+      # Never two migrations against the same database at once — push, dispatch or promotion.
+      group: db-migrate
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: web
@@ -34,9 +87,9 @@ jobs:
       ADMIN_SEED_NAME: ${{ secrets.ADMIN_SEED_NAME }}
       ADMIN_SEED_PASSWORD: ${{ secrets.ADMIN_SEED_PASSWORD }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
+      # --- the repo's own steps below -------------------------------------------------------------
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -53,7 +106,7 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: .
 
-      - name: Run Drizzle migrations
+      - name: Apply the migrations
         run: pnpm db:migrate
 
       # `drizzle-kit migrate` reports success even when it skipped an entry —
@@ -61,7 +114,7 @@ jobs:
       # step compares every journal file's hash against the table and fails the
       # job on any gap, so a skipped migration is red here rather than a 42703
       # in production (see scripts/verify-migrations.ts).
-      - name: Verify every journal entry is applied
+      - name: Verify every migration is applied
         run: pnpm db:verify
 
       # A database with no accounts in it locks the team out of /admin, so the

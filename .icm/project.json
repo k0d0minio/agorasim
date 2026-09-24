@@ -29,8 +29,8 @@
     ]
   },
   "uat": {
-    "branch": "uat",
-    "url": "https://uat.agorasim.jamienisbet.com"
+    "target": "uat",
+    "url": "https://uat.agorasim.pt"
   },
   "reporting": {
     "announce_from": "ci",
@@ -73,7 +73,7 @@
       "api_key_env": "NEON_API_KEY",
       "production_branch": "main",
       "previews": "vercel",
-      "uat_branch": ""
+      "uat_branch": "uat"
     }
   },
   "security": {

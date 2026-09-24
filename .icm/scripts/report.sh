@@ -22,7 +22,10 @@
 #                   or the summary plus the PR link, prerelease false. IDEMPOTENT BY TAG: a tag
 #                   that already exists is SKIPPED, never re-cut. `--audience internal` gets no
 #                   Release (mirroring a changelog index that lists public entries only) and is
-#                   announced on the other channels only.
+#                   announced on the other channels only. `--tag <tag>` names the Release outright
+#                   instead of `<tag_prefix><date>-<slug>`: the release workflow passes the tag of
+#                   the promotion Release the operator just published (D39), which therefore
+#                   already exists and is REUSED — never a second Release for one promotion.
 #   slack           chat.postMessage with the bot token named by channels.slack.token_env, to the
 #                   channel id named by announce_channel_env (announce) or alert_channel_env
 #                   (alert, economics).
@@ -41,7 +44,7 @@
 # Usage:
 #   .icm/scripts/report.sh <announce|alert|economics> "<one-line summary>" \
 #       [--slug <slug>] [--sha <merge-sha>] [--url <link>] [--body <file>] \
-#       [--audience public|internal] [--dry-run]
+#       [--audience public|internal] [--tag <release-tag>] [--dry-run]
 #
 # Verdict (stdout, last line):
 #   RESULT: SENT <channels>              exit 0  — at least one channel took the message
@@ -54,12 +57,12 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # A reporting hook never exits non-zero — but a usage error is still said plainly.
-usage() { echo "usage: report.sh <announce|alert|economics> \"<summary>\" [--slug s] [--sha sha] [--url u] [--body file] [--audience public|internal] [--dry-run]" >&2; echo "RESULT: SKIPPED (usage)"; exit 0; }
+usage() { echo "usage: report.sh <announce|alert|economics> \"<summary>\" [--slug s] [--sha sha] [--url u] [--body file] [--audience public|internal] [--tag t] [--dry-run]" >&2; echo "RESULT: SKIPPED (usage)"; exit 0; }
 die()   { echo "error: $*" >&2; echo "RESULT: SKIPPED ($*)"; exit 0; }
 
 command -v jq >/dev/null 2>&1 || die "jq not found"
 
-kind=""; summary=""; slug=""; sha=""; url=""; body_file=""; audience="public"; dry=0
+kind=""; summary=""; slug=""; sha=""; url=""; body_file=""; audience="public"; dry=0; tag_flag=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --slug)     slug="${2:-}"; shift 2 ;;
@@ -67,6 +70,7 @@ while [ $# -gt 0 ]; do
     --url)      url="${2:-}"; shift 2 ;;
     --body)     body_file="${2:-}"; shift 2 ;;
     --audience) audience="${2:-public}"; shift 2 ;;
+    --tag)      tag_flag="${2:-}"; shift 2 ;;
     --dry-run)  dry=1; shift ;;
     --*)        usage ;;
     *) if [ -z "$kind" ]; then kind="$1"; elif [ -z "$summary" ]; then summary="$1"; else usage; fi; shift ;;
@@ -112,7 +116,7 @@ send_github_release() {
   if [ "$kind" != "announce" ]; then skip github-release "a Release announces a merge; the $kind kind does not cut one"; return; fi
   if [ "$audience" = "internal" ]; then skip github-release "audience internal — announced on the other channels only, no public Release"; return; fi
   prefix="$(reporting_channel_field github-release tag_prefix 'release/')"
-  tag="${prefix}${today}-${slug}"
+  tag="${tag_flag:-${prefix}${today}-${slug}}"
   payload="$(jq -n --arg tag "$tag" --arg sha "$sha" --arg name "$summary" --arg body "$body_text" \
     '{tag_name: $tag, target_commitish: $sha, name: $name, body: $body, draft: false, prerelease: false}')"
   if [ "$dry" -eq 1 ]; then
