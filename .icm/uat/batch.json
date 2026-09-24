@@ -1,6 +1,7 @@
 {
   "stubs": [
-    "admin-quote-builder"
+    "admin-quote-builder",
+    "stale-web-docs-refs"
   ],
   "client_approved": false,
   "approved_by": "",
