@@ -20,7 +20,7 @@
  */
 import "server-only";
 
-import { and, count, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
+import { and, count, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
 import {
   bookings,
@@ -315,6 +315,54 @@ export async function confirmedBookingsOn(date: DateKey): Promise<BookingToRemin
     name: anonymisedAt ? null : row.name,
     email: anonymisedAt ? null : row.email,
     slot: row.slot === "full_day" ? "morning" : row.slot,
+  }));
+}
+
+/**
+ * A booking owed the post-tour thank-you — the reminder's row shape, minus
+ * the party and the departure the thank-you never mentions.
+ */
+export type BookingToThank = Pick<
+  BookingToRemind,
+  "id" | "tourRequestId" | "name" | "email" | "locale" | "date" | "experienceSlug"
+>;
+
+/**
+ * Which bookings on `date` are owed a thank-you: the reminder's rule (paid,
+ * on one of the two departures — {@link remindableOnSql}) and one more — the
+ * team did not mark the guest as a no-show. A guest who never turned up is not
+ * thanked for a tour they did not take.
+ *
+ * The date is the booking's *current* one, so a booking moved to a new day is
+ * thanked after that day and never after the day it left.
+ */
+export function thankableOnSql(date: DateKey) {
+  return and(remindableOnSql(date), isNull(bookings.noShowAt));
+}
+
+/** The bookings on one day owed a thank-you — see {@link thankableOnSql}. */
+export async function bookingsToThankOn(date: DateKey): Promise<BookingToThank[]> {
+  const rows = await db
+    .select({
+      id: bookings.id,
+      tourRequestId: bookings.tourRequestId,
+      name: tourRequests.name,
+      email: tourRequests.email,
+      anonymisedAt: tourRequests.anonymisedAt,
+      locale: bookings.locale,
+      date: bookings.date,
+      experienceSlug: bookings.experienceSlug,
+    })
+    .from(bookings)
+    .leftJoin(tourRequests, eq(bookings.tourRequestId, tourRequests.id))
+    .where(thankableOnSql(date))
+    .orderBy(bookings.slot, bookings.createdAt);
+
+  return rows.map(({ anonymisedAt, ...row }) => ({
+    ...row,
+    // As for the reminder: an anonymised enquiry is nobody to write to.
+    name: anonymisedAt ? null : row.name,
+    email: anonymisedAt ? null : row.email,
   }));
 }
 
