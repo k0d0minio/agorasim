@@ -42,3 +42,15 @@
 - **Sandbox smoke:** with `STRIPE_CONNECTED_ACCOUNT_ID` set on the preview the fee shows on both dashboards; without it the payment is platform-only with no fee, as the tour checkout behaves.
 
 Context budget: beyond `touches:`, read `booking-checkout.ts` (session creation, commission audit), `/reservar/confirmacao` and `/reserva/cancelar/[token]` (the precedents), `email-layout.ts`, `rate-limit.ts`, the webhook's tests, and Next 16's `redirect`, `not-found` and streaming notes.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised. One criterion knowingly unmet (dead link answers a `noindex` 200, not 404 — RD-9): released as is on the operator's call, 2026-09-24; parked as `quote-link-404-status.md`.
+- ci: GREEN on 4220ad1 at the start of Release (full gate); re-settled after the last push (see the stop report)
+- reviews: code high — 10 findings: 7 fixed on the branch (failed delayed payment re-mints; money on a cancelled quote and a second charge alert without a receipt; only `resource_missing` reads as a gone session; repeated `session_id`; one shared `QuoteNotice`; one lead reader), 1 no change (the receipt labels the terms text it reproduces — historical text is out of scope in the spec), 2 parked · security `security-check.sh --branch --audit`: OK (gitleaks absent — built-in patterns only) + `/security-review`: no findings · readiness `env.sh audit --changed`: GAPS 1 — `STRIPE_WEBHOOK_SECRET` missing on Vercel's Development target, predates this run; **waived by the operator (Jamie), 2026-09-24: Development-only gap, no deploy surface affected** · `/production-readiness`: n/a — no such skill in this repo
+- parked: quote-page-throttle-wording.md, fill-helper-consolidation.md, quote-link-404-status.md, stripe-webhook-secret-development.md
+- migrations: ok — `0028_quote_receipt_per_quote.sql` (drizzle journal; `check-migrations.sh` SKIP — no stamped migrations); forward-only, additive (one partial unique index)
+- learned: none from `retrospective.sh` (1 entry, below --min) · 3 rules from `FAILURE.md` via close-out
+- docs: `.icm/docs/data-protection.md` (Stripe and Resend rows, the 6% in the money model) · announce: deferred to promotion
+
+Context budget: the review passes read the whole branch diff; the security review ran in a sub-agent.
