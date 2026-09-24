@@ -6,21 +6,20 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Jamie smokes the preview — https://agorasim-git-claude-eager-gates-x09b60-kodominio.vercel.app
-   (the reminder is cron-only: call `/api/cron/dispatch` with the preview's `CRON_SECRET` as a
-   `Bearer` header against a preview database holding a confirmed booking for tomorrow, then read
-   the `cron.dispatch` audit row and the mail; or read the copy the tests render).
-2. Tick **Ready to merge** on https://github.com/k0d0minio/agorasim/pull/124.
-3. `release day-before-reminder`.
+1. Jamie adds `CRON_SECRET` in Vercel (agorasim: production, preview, development).
+2. `release day-before-reminder` again: re-run `.icm/scripts/env.sh audit --changed` → must read
+   `RESULT: OK`; then `ci-status.sh` on the head, step 7 (merge main + uat, check-migrations,
+   retrospective, `## Release` record, close-out), step 8 merge, step 9 UAT read.
 
 ## Blockers
 
-- none for the merge. Operator action before the reminder can send anywhere: `CRON_SECRET` is
-  missing on Vercel/agorasim (`env.sh audit`); without it the dispatch route answers 503 and no
-  job runs. Set the value in Vercel — see `03_build/output/notes.md` → Notes for Release.
+- `CRON_SECRET` missing on Vercel/agorasim (env audit, stop class 3). Not this branch's key —
+  declared in `web/.env.example` since #72 — but every cron route answers 503 without it. The
+  operator chose: set it, then merge (no waiver).
 
 ## Do not
 
-- Tick either gate box.
-- Add a second cron or change the dispatch schedule — the catch-up rides the 06:00 run.
-- Re-run `new-run.sh`; a spec change is `revise day-before-reminder "<change>"`.
+- Merge before the env audit reads OK. Waive the gap on the operator's behalf.
+- Re-run the review fixes: they are in facadba (passes isolated, anonymised leads skipped,
+  privacy basis covers phone bookings, data-protection.md synced, triage stub
+  `booking-logistics-facts-shared` parked).
