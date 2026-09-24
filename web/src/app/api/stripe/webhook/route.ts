@@ -9,6 +9,7 @@ import {
   quoteSessionMetadata,
   recordQuotePayment,
 } from "@/lib/quote-checkout";
+import { syncQuotePaymentRefundFromStripe } from "@/lib/quote-refund";
 import {
   connectedAccountId,
   isStripeConfigured,
@@ -57,8 +58,9 @@ import {
  * by its metadata. Those never reach `confirmPaidBooking` — which would find
  * no booking and raise the unknown-session alert over a perfectly good
  * deposit — nor `closeUnpaidBooking`: an expired quote session changes
- * nothing, and the next tap on the quote page mints another. Refunds of quote
- * instalments are not handled here yet (`quote-flow/quote-refunds`).
+ * nothing, and the next tap on the quote page mints another. A refund on a
+ * charge no booking was paid with is tried against the quote instalments next
+ * (`lib/quote-refund.ts`) before anybody is alerted.
  *
  * The same five hold for money going the other way. `charge.refunded` is how a
  * refund issued in the Stripe dashboard — the way most of them will be, from a
@@ -235,31 +237,36 @@ export async function POST(request: Request): Promise<Response> {
         return Response.json({ received: true, ignored: "no charge" });
       }
 
-      const outcome = await syncRefundFromStripe({
-        charge,
-        // `refund.updated` names the refund; `charge.refunded` does not, and
-        // `syncRefundFromStripe` goes looking.
-        refundId:
-          event.type === "refund.updated"
-            ? (event.data.object as Stripe.Refund).id
-            : null,
-      });
+      // `refund.updated` names the refund; `charge.refunded` does not, and
+      // both reconcilers go looking.
+      const refundId =
+        event.type === "refund.updated" ? (event.data.object as Stripe.Refund).id : null;
 
-      if (outcome.status === "unknown-charge") {
-        // Money went back on a charge no booking here was paid with — the same
-        // shape of problem as a paid session with no booking, and the same
-        // answer: loud, and 200, because retrying will not conjure the row.
-        console.error(
-          `[stripe] ${charge.id} was refunded but matches no booking — needs a human`,
-        );
-        captureAlert("Refunded Stripe charge matches no booking", {
-          area: "stripe-webhook",
-          tags: { event: event.type, outcome: "unknown-charge" },
-          extra: { chargeId: charge.id },
-        });
+      const outcome = await syncRefundFromStripe({ charge, refundId });
+      if (outcome.status !== "unknown-charge") {
+        return Response.json({ received: true, outcome: outcome.status });
       }
 
-      return Response.json({ received: true, outcome: outcome.status });
+      // Not a tour: a wedding or event instalment, refunded from the
+      // dashboard or echoed back from the quote card's own refund.
+      const quoteOutcome = await syncQuotePaymentRefundFromStripe({ charge, refundId });
+      if (quoteOutcome.status !== "unknown-charge") {
+        return Response.json({ received: true, outcome: quoteOutcome.status, quote: true });
+      }
+
+      // Money went back on a charge nothing here was paid with — the same
+      // shape of problem as a paid session with no booking, and the same
+      // answer: loud, and 200, because retrying will not conjure the row.
+      console.error(
+        `[stripe] ${charge.id} was refunded but matches no booking or quote instalment — needs a human`,
+      );
+      captureAlert("Refunded Stripe charge matches no booking or quote instalment", {
+        area: "stripe-webhook",
+        tags: { event: event.type, outcome: "unknown-charge" },
+        extra: { chargeId: charge.id },
+      });
+
+      return Response.json({ received: true, outcome: "unknown-charge" });
     }
 
     // Anything else Stripe is configured to send. Acknowledged, not retried.
