@@ -238,6 +238,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "booking.cancelled": "cancelou uma reserva",
   "booking.refunded": "cancelou e reembolsou uma reserva",
   "booking.moved": "mudou uma reserva de partida",
+  "booking.no_show_marked": "marcou uma falta numa reserva",
+  "booking.no_show_cleared": "retirou a falta de uma reserva",
   "quote.created": "criou um orçamento",
   "quote.updated": "editou um orçamento",
   "quote.discarded": "descartou um rascunho de orçamento",
@@ -249,6 +251,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "blog_post.updated": "editou um artigo do blog",
   "blog_post.published": "publicou um artigo no blog",
   "blog_post.unpublished": "retirou um artigo do blog",
+  "email.opted_out": "um cliente deixou de receber o agradecimento",
   "cron.dispatch": "dispatcher diário executado",
   "cron.backup": "cópia de segurança diária da base de dados executada",
 };

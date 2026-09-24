@@ -5,6 +5,7 @@ import { captureError } from "@/lib/observability";
 
 // Side-effect imports: each job module registers itself with `register()`.
 import "@/lib/cron/day-before-reminder";
+import "@/lib/cron/thank-you-review";
 
 /**
  * Daily dispatcher — one cron, every registered job.
