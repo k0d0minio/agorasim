@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { describeSlot, TOUR_SLOTS, type DaySlots } from "@/lib/availability";
-import { noVehicles, type VehicleClass } from "@/lib/fleet";
+import type { DaySlots } from "@/lib/availability";
+import type { VehicleClass } from "@/lib/fleet";
 import type { SlotOccupancy } from "@/lib/bookings";
 import type { AvailabilityRow, AvailabilitySlot } from "@/db";
 
@@ -100,9 +100,16 @@ vi.mock("@/lib/message-log", () => ({
   sendLoggedEmail: (...args: unknown[]) => sendLoggedEmail(...args),
 }));
 
+// Dynamic, like the mocked modules above: a static import here would resolve
+// `@/lib/availability` (which itself imports `@/db`) while this file's own
+// top-level statements are still running — before `fakeDb` and the other
+// `const`s above are initialised — and vitest's hoisted `vi.mock` calls would
+// then throw "Cannot access '...' before initialization".
 const { isMovable, moveBookingToDeparture, viableMoveTargets } = await import(
   "@/lib/booking-move"
 );
+const { describeSlot, TOUR_SLOTS } = await import("@/lib/availability");
+const { noVehicles } = await import("@/lib/fleet");
 
 /**
  * The move picker's rule.
