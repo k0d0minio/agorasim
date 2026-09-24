@@ -6,6 +6,7 @@ import {
   guestEnquiryAckEmail,
   guestMoveEmail,
   guestQuoteReceiptEmail,
+  guestQuoteRefundEmail,
   guestQuoteSentEmail,
   guestReminderEmail,
   partyLabel,
@@ -18,6 +19,7 @@ import {
   type BookingMoveFacts,
   type EnquiryEmailFacts,
   type QuoteReceiptEmailFacts,
+  type QuoteRefundEmailFacts,
   type QuoteSentEmailFacts,
   type ReminderEmailFacts,
   type TeamCancellationFacts,
@@ -46,7 +48,7 @@ function facts(overrides: Partial<BookingEmailFacts> = {}): BookingEmailFacts {
     guestPhone: "+351912345678",
     locale: "pt",
     date: "sábado, 15 de agosto de 2026",
-    experience: "Rural Saloia — experiência privada",
+    experience: "Rural Saloia — por grupo",
     departure: "Manhã · 10h00",
     departureTimeFollows: false,
     meetingPoint: {
@@ -291,7 +293,7 @@ function cancelled(
     guestEmail: "sofia@example.com",
     locale: "pt",
     date: "sábado, 15 de agosto de 2026",
-    experience: "Rural Saloia — experiência privada",
+    experience: "Rural Saloia — por grupo",
     partyLabel: "2 adultos",
     total: "€340",
     refund: "€340",
@@ -405,7 +407,7 @@ function reminder(overrides: Partial<ReminderEmailFacts> = {}): ReminderEmailFac
 /** The same guest on Óbidos, whose departures still have no clock time. */
 function obidos(overrides: Partial<ReminderEmailFacts> = {}): ReminderEmailFacts {
   return reminder({
-    experience: "Óbidos & Aldeias Medievais — partida partilhada",
+    experience: "Óbidos & Aldeias Medievais — por pessoa",
     departure: "Partida da manhã — hora exata confirmada por email",
     departureTimeFollows: true,
     meetingPoint: OBIDOS_PIN,
@@ -750,7 +752,7 @@ function guestCancelled(
     guestPhone: "+351912345678",
     locale: "pt",
     date: "sábado, 15 de agosto de 2026",
-    experience: "Rural Saloia — experiência privada",
+    experience: "Rural Saloia — por grupo",
     departure: "Manhã · 10h00",
     partyLabel: "2 adultos",
     total: "€340",
@@ -1000,8 +1002,7 @@ describe("guestQuoteSentEmail", () => {
       total: "1620 €",
       deposit: "486 €",
       depositPercent: 30,
-      balance: "1134 €",
-      balanceDue: "sábado, 1 de agosto de 2026",
+      balance: { amount: "1134 €", dueDate: "sábado, 1 de agosto de 2026" },
       balanceDueDaysBefore: 14,
       termsWindowDays: 30,
       quoteUrl: QUOTE_URL,
@@ -1042,10 +1043,9 @@ describe("guestQuoteSentEmail", () => {
       quoteFacts({
         locale: "en",
         date: "Saturday, 15 August 2026",
-        balanceDue: "Saturday, 1 August 2026",
         total: "€1,620",
         deposit: "€486",
-        balance: "€1,134",
+        balance: { amount: "€1,134", dueDate: "Saturday, 1 August 2026" },
       }),
     );
 
@@ -1070,6 +1070,18 @@ describe("guestQuoteSentEmail", () => {
 
     expect(mail.html).not.toContain("<b>Flores</b>");
     expect(mail.html).toContain("&lt;b&gt;Flores&lt;/b&gt; &amp; fitas");
+  });
+
+  it("says there is nothing left to pay at a 100% deposit, and drops the balance date", () => {
+    const mail = guestQuoteSentEmail(
+      quoteFacts({ deposit: "1620 €", depositPercent: 100, balance: null }),
+    );
+
+    for (const part of [mail.text, mail.html ?? ""]) {
+      expect(part).toContain("Nada — o sinal cobre o valor total");
+      expect(part).not.toContain("restante é pedido automaticamente");
+    }
+    expect(mail.text).toContain("A data fica reservada com o pagamento do sinal, na página do orçamento.");
   });
 });
 
@@ -1151,5 +1163,72 @@ describe("the quote receipts — deposit-received and balance-paid", () => {
     );
     expect(platformOnly.subject).toMatch(/^Restante pago/);
     expect(platformOnly.text).toContain("Comissão (6%): —");
+  });
+});
+
+describe("guestQuoteRefundEmail — quote-refunded", () => {
+  function refundFacts(overrides: Partial<QuoteRefundEmailFacts> = {}): QuoteRefundEmailFacts {
+    return {
+      instalment: "deposit",
+      ref: "QT-A1B2C3",
+      guestName: "Inês & Tomás",
+      guestEmail: "ines@example.com",
+      locale: "pt",
+      date: "sábado, 15 de agosto de 2026",
+      venue: "Quinta do Hespanhol, Mafra",
+      paid: "486 €",
+      amount: "243 €",
+      totalRefunded: "243 €",
+      eventCancelled: false,
+      ...overrides,
+    };
+  }
+
+  it("says what went back and that the event is still on, in Portuguese", () => {
+    const mail = refundFacts();
+    const pt = guestQuoteRefundEmail(mail);
+
+    expect(pt.subject).toBe("Reembolso do seu orçamento — sábado, 15 de agosto de 2026");
+    expect(pt.text).toContain(
+      "Devolvemos 243 € do seu orçamento para sábado, 15 de agosto de 2026. O seu evento continua marcado.",
+    );
+    expect(pt.text).toContain("Referência: QT-A1B2C3");
+    expect(pt.text).toContain("Pagamento: Sinal");
+    expect(pt.text).toContain("Valor pago: 486 €");
+    expect(pt.text).toContain("Reembolso agora: 243 €");
+    expect(pt.text).toContain("Total reembolsado neste orçamento: 243 €");
+    expect(pt.text).toContain("O evento: Continua marcado");
+    expect(pt.to).toEqual(["ines@example.com"]);
+    expect(pt.replyTo).toBe(site.email);
+  });
+
+  it("says the event is off when it was cancelled with the refund, in English", () => {
+    const en = guestQuoteRefundEmail(
+      refundFacts({
+        locale: "en",
+        instalment: "balance",
+        date: "Saturday, 15 August 2026",
+        amount: "€1,134",
+        totalRefunded: "€1,620",
+        eventCancelled: true,
+      }),
+    );
+
+    expect(en.subject).toBe("Event cancelled and refunded — Saturday, 15 August 2026");
+    expect(en.text).toContain(
+      "Your event on Saturday, 15 August 2026 has been cancelled and we have returned €1,134.",
+    );
+    expect(en.text).toContain("Payment: Balance");
+    expect(en.text).toContain("Total refunded on this quote: €1,620");
+    expect(en.text).toContain("The event: Cancelled");
+    expect(en.html).toContain('lang="en"');
+  });
+
+  it("carries no quote link — the webhook that sends it has no token", () => {
+    const mail = guestQuoteRefundEmail(refundFacts());
+    expect(mail.text).not.toContain("/orcamento/");
+    expect(mail.html).not.toContain("/orcamento/");
+    // The couple's names are escaped in the HTML part, as every name is.
+    expect(mail.html).toContain("Inês &amp; Tomás");
   });
 });

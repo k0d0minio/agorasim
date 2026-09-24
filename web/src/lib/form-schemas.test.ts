@@ -8,7 +8,8 @@ import {
   quoteRequestSchema,
   setAvailabilitySchema,
 } from "@/lib/form-schemas";
-import { DEFAULT_DRIVERS, MAX_DRIVERS } from "@/lib/availability";
+import { DEFAULT_DRIVERS, MAX_DRIVERS, todayKey } from "@/lib/availability";
+import { shiftDays } from "@/lib/quotes";
 
 /**
  * The checkout schema's field names, pinned.
@@ -332,11 +333,14 @@ describe("quoteRequestSchema", () => {
 describe("quoteDraftSchema", () => {
   const LEAD = "bbbbbbbb-2222-4222-8222-222222222222";
 
+  /** Far enough out that it is never "in the past" for the schema's check. */
+  const FUTURE_EVENT_DATE = "2099-08-15";
+
   /** The builder's form as `FormData`, repeated line fields in row order. */
   function form(lines: [string, string, string][], extra: Record<string, string> = {}) {
     const data = new FormData();
     data.set("leadId", LEAD);
-    data.set("eventDate", "2026-08-15");
+    data.set("eventDate", FUTURE_EVENT_DATE);
     data.set("venue", "Quinta do Hespanhol, Mafra");
     data.set("depositPercent", "30");
     for (const [label, quantity, unit] of lines) {
@@ -404,5 +408,26 @@ describe("quoteDraftSchema", () => {
     expect(
       quoteDraftSchema.safeParse(form([["Carro", "1", "750"]], { depositPercent: "30.5" })).success,
     ).toBe(false);
+  });
+
+  it("refuses an event date that has already happened", () => {
+    const yesterday = shiftDays(todayKey(), -1);
+    const result = quoteDraftSchema.safeParse(
+      form([["Carro", "1", "750"]], { eventDate: yesterday }),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe("A data do evento já passou.");
+  });
+
+  it("accepts today, and a date inside the T-14 balance window", () => {
+    expect(
+      quoteDraftSchema.safeParse(form([["Carro", "1", "750"]], { eventDate: todayKey() })).success,
+    ).toBe(true);
+    expect(
+      quoteDraftSchema.safeParse(
+        form([["Carro", "1", "750"]], { eventDate: shiftDays(todayKey(), 7) }),
+      ).success,
+    ).toBe(true);
   });
 });

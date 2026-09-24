@@ -630,7 +630,7 @@ export async function syncRefundFromStripe(options: {
  * costs the id and nothing else, because every amount on the row comes from the
  * charge itself.
  */
-async function latestRefundId(charge: Stripe.Charge): Promise<string | null> {
+export async function latestRefundId(charge: Stripe.Charge): Promise<string | null> {
   const embedded = charge.refunds?.data?.[0]?.id;
   if (embedded) return embedded;
   if (!isStripeConfigured()) return null;
@@ -671,38 +671,63 @@ async function returnApplicationFee(
   charge: Stripe.Charge,
   targetCents: number,
 ): Promise<number> {
+  const returned = await topUpApplicationFee({
+    charge,
+    targetCents,
+    // Keyed on the total the fee should reach, so a redelivered event asks
+    // for the same top-up once and a genuinely larger refund later asks for
+    // a new one.
+    idempotencyKey: `booking-fee-refund:${booking.id}:${targetCents}`,
+  });
+  if (returned.status === "failed") {
+    console.error(
+      `[booking] ${bookingRef(booking.id)}: refunded ${booking.refundedAmountCents} to the ` +
+        `guest but couldn't return ${targetCents} of commission on ${returned.feeId} — needs a human`,
+      returned.error,
+    );
+    return booking.refundedFeeCents;
+  }
+  return returned.status === "returned" ? returned.refundedFeeCents : booking.refundedFeeCents;
+}
+
+/**
+ * The Stripe half of {@link returnApplicationFee}, shared with the quote
+ * instalments' reconciler (`lib/quote-refund.ts`): top the charge's
+ * application fee up to `targetCents` returned, on the platform, and say what
+ * Stripe reports came back.
+ *
+ * `untouched` when there is nothing to do here — no fee on the charge (a
+ * platform charge, or one taken before Connect), nothing owed back, or Stripe
+ * switched off — and the caller keeps what its row already says. Never throws.
+ */
+export async function topUpApplicationFee(options: {
+  charge: Stripe.Charge;
+  targetCents: number;
+  idempotencyKey: string;
+}): Promise<
+  | { status: "returned"; refundedFeeCents: number }
+  | { status: "untouched" }
+  | { status: "failed"; feeId: string; error: unknown }
+> {
+  const { charge, targetCents, idempotencyKey } = options;
   const feeId =
     typeof charge.application_fee === "string"
       ? charge.application_fee
       : (charge.application_fee?.id ?? null);
 
   // No fee to return: a platform charge, or a booking taken before Connect.
-  if (!feeId || targetCents <= 0) return booking.refundedFeeCents;
-  if (!isStripeConfigured()) return booking.refundedFeeCents;
+  if (!feeId || targetCents <= 0) return { status: "untouched" };
+  if (!isStripeConfigured()) return { status: "untouched" };
 
   try {
     const client = stripe();
     const fee = await client.applicationFees.retrieve(feeId);
     const shortfall = targetCents - fee.amount_refunded;
-    if (shortfall <= 0) return fee.amount_refunded;
+    if (shortfall <= 0) return { status: "returned", refundedFeeCents: fee.amount_refunded };
 
-    await client.applicationFees.createRefund(
-      feeId,
-      { amount: shortfall },
-      {
-        // Keyed on the total the fee should reach, so a redelivered event asks
-        // for the same top-up once and a genuinely larger refund later asks for
-        // a new one.
-        idempotencyKey: `booking-fee-refund:${booking.id}:${targetCents}`,
-      },
-    );
-    return targetCents;
-  } catch (err) {
-    console.error(
-      `[booking] ${bookingRef(booking.id)}: refunded ${booking.refundedAmountCents} to the ` +
-        `guest but couldn't return ${targetCents} of commission on ${feeId} — needs a human`,
-      err,
-    );
-    return booking.refundedFeeCents;
+    await client.applicationFees.createRefund(feeId, { amount: shortfall }, { idempotencyKey });
+    return { status: "returned", refundedFeeCents: targetCents };
+  } catch (error) {
+    return { status: "failed", feeId, error };
   }
 }

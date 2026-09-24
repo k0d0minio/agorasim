@@ -279,6 +279,10 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 - In web/src/lib/booking-emails.test.ts, assert copy containing an apostrophe, quote or ampersand against `message.text` literally and against `message.html` in its escapeHtml form (&#39; &quot; &amp;) — never loop both parts over one raw string. (`(empty)`, seen 1× — day-before-reminder; web/drizzle, web/src)
 
 <!-- Retrospective Learned Rule [2026-09-24] -->
+- An admin dialog that closes on `useActionState`'s `state.ok` stays closed for good unless its component is keyed on the row value the action changes — key it, or derive `open` from a fresh state (as `ConfirmedQuoteAction` does), whenever the action leaves its trigger on screen. (`FAILURE.md` — quote-refunds)
+<!-- Retrospective Learned Rule [2026-09-24] -->
+- In a cloud session, run `git remote set-head origin main` before `/security-review` — it diffs against `origin/HEAD`, which a fresh clone lacks. (`FAILURE.md` — quote-refunds)
+<!-- Retrospective Learned Rule [2026-09-24] -->
 - `new-run.sh` and `close-out.sh` scope their own `git add` to `.icm/runs/$slug/` only — a lane's actual code fix is never picked up by either script and must be staged and committed with explicit paths (never `git add -A`) by the session itself. Verify with `git show --stat <the run-pointers commit>` before pushing: it should carry only `.icm/runs/**`, not the source files. (`FAILURE.md` — fix-move-back-suppresses-reminder)
 <!-- Retrospective Learned Rule [2026-09-24] -->
 - In a vitest file that mocks `@/db` (or a module that feeds it), keep every value-level import of an app module dynamic — `await import(...)` placed after the `vi.mock` calls and their captured `const`s — never a static `import { x } from "@/lib/y"` at the top: a static import that transitively reaches a mocked module resolves before the file's own top-level `const`s initialise and throws "Cannot access '…' before initialization" (`ReferenceError`, vitest hoisting). Type-only imports (`import type { … }`) are unaffected and can stay static. (`FAILURE.md` — fix-move-back-suppresses-reminder; web/src/lib/booking-move.test.ts)

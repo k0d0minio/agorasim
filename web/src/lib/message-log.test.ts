@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * uses) so `eq()` builds genuine SQL against genuine columns and a renamed
  * column fails the suite rather than passing it quietly.
  *
- * The fake below re-states the five partial unique indexes from
+ * The fake below re-states the six partial unique indexes from
  * `db/schema.ts` as a key function, so "is this message already claimed?" is
  * answered here the way Postgres answers it. That is deliberately not a proof
  * that the indexes exist — they are in
@@ -36,6 +36,8 @@ type LogRow = {
   moveSeq: number | null;
   quoteId: string | null;
   quoteSentAt: string | null;
+  quotePaymentId: string | null;
+  refundedTotalCents: number | null;
   status: string;
 };
 
@@ -54,6 +56,11 @@ let claimError: Error | null = null;
  */
 function indexKey(row: LogRow): string | null {
   if (row.status === "failed") return null;
+  if (row.quotePaymentId !== null) {
+    // message_log_quote_refund_key — one refund notice per instalment, per
+    // refunded total on it, so each refund is told once and a second one again.
+    return `quote-refund:${row.kind}:${row.recipient}:${row.quotePaymentId}:${row.refundedTotalCents}`;
+  }
   if (row.bookingId !== null) {
     // message_log_booking_kind_key / message_log_booking_date_kind_key — the
     // split is on `subject_date is null`, because a departure is a subject in
@@ -101,6 +108,9 @@ const fakeDb = {
           quoteId: text(values.quoteId),
           quoteSentAt:
             values.quoteSentAt instanceof Date ? values.quoteSentAt.toISOString() : null,
+          quotePaymentId: text(values.quotePaymentId),
+          refundedTotalCents:
+            typeof values.refundedTotalCents === "number" ? values.refundedTotalCents : null,
           status: String(values.status),
         };
         return {
@@ -218,6 +228,8 @@ describe("sendLoggedEmail", () => {
       moveSeq: null,
       quoteId: null,
       quoteSentAt: null,
+      quotePaymentId: null,
+      refundedTotalCents: null,
       status: "sending",
     });
     expect(updatedPatches[0]).toMatchObject({
@@ -588,6 +600,68 @@ describe("the quote receipt kinds", () => {
     sendEmail.mockResolvedValue({ sent: true, id: "re_2" });
     expect(
       await sendLoggedEmail(receipt("balance-paid", "guest"), MESSAGE),
+    ).toMatchObject({ status: "sent" });
+  });
+});
+
+describe("the quote refund notice", () => {
+  const QUOTE = "aaaaaaaa-0000-0000-0000-000000000001";
+  const DEPOSIT = "cccccccc-0000-0000-0000-000000000001";
+  const BALANCE = "cccccccc-0000-0000-0000-000000000002";
+
+  const refund = (quotePaymentId: string, refundedTotalCents: number) =>
+    ({
+      kind: "quote-refunded",
+      recipient: "guest",
+      tourRequestId: LEAD,
+      quoteId: QUOTE,
+      quotePaymentId,
+      refundedTotalCents,
+    }) as const;
+
+  it("claims under the instalment and its refunded total", async () => {
+    await sendLoggedEmail(refund(DEPOSIT, 60_000), MESSAGE);
+
+    expect(insertedRows[0]).toMatchObject({
+      kind: "quote-refunded",
+      recipient: "guest",
+      bookingId: null,
+      quoteId: QUOTE,
+      quoteSentAt: null,
+      quotePaymentId: DEPOSIT,
+      refundedTotalCents: 60_000,
+    });
+  });
+
+  it("tells the couple once per refund, however many doors report it", async () => {
+    // The admin refund, then its webhook echo and a redelivery of that.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await sendLoggedEmail(refund(DEPOSIT, 30_000), MESSAGE);
+    }
+
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells them again for a second partial refund, and for the other instalment", async () => {
+    await sendLoggedEmail(refund(DEPOSIT, 30_000), MESSAGE);
+
+    expect(await sendLoggedEmail(refund(DEPOSIT, 60_000), MESSAGE)).toMatchObject({
+      status: "sent",
+    });
+    expect(await sendLoggedEmail(refund(BALANCE, 30_000), MESSAGE)).toMatchObject({
+      status: "sent",
+    });
+  });
+
+  it("does not take the slot of the quote's receipts", async () => {
+    // Both carry the quote and no send stamp; only the instalment tells them apart.
+    await sendLoggedEmail(refund(DEPOSIT, 60_000), MESSAGE);
+
+    expect(
+      await sendLoggedEmail(
+        { kind: "deposit-received", recipient: "guest", tourRequestId: LEAD, quoteId: QUOTE },
+        MESSAGE,
+      ),
     ).toMatchObject({ status: "sent" });
   });
 });

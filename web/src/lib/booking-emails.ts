@@ -55,7 +55,7 @@ export type BookingEmailFacts = {
   locale: Locale;
   /** "Saturday, 15 August 2026" — already in the guest's language. */
   date: string;
-  /** "Rural Saloia — experiência privada" — name plus how it was sold. */
+  /** "Rural Saloia — por grupo" — name plus how it was sold. */
   experience: string;
   /** "Manhã · 10h00" — the departure, in the guest's language. */
   departure: string;
@@ -1221,9 +1221,8 @@ export type QuoteSentEmailFacts = {
   total: string;
   deposit: string;
   depositPercent: number;
-  balance: string;
-  /** "sábado, 1 de agosto de 2026" — T−14. */
-  balanceDue: string;
+  /** What is left after the deposit and when it falls due, or `null` at a 100% deposit. */
+  balance: { amount: string; dueDate: string } | null;
   /** How many days before the event the balance is asked for. */
   balanceDueDaysBefore: number;
   /** The non-refundable window the quote was written under (D9). */
@@ -1261,7 +1260,9 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
 
   const subject = fill(t(c.subject, l), values);
   const greeting = fill(t(c.greeting, l), values);
-  const nextBody = fill(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) });
+  const nextBody = facts.balance
+    ? fill(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) })
+    : t(c.next.bodyFull, l);
   const termsNote = fill(t(c.termsNote, l), { days: String(facts.termsWindowDays) });
 
   const rows: DetailRow[] = [
@@ -1282,7 +1283,9 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
     },
     {
       label: t(c.labels.balance, l),
-      value: fill(t(c.balanceDue, l), { amount: facts.balance, date: facts.balanceDue }),
+      value: facts.balance
+        ? fill(t(c.balanceDue, l), { amount: facts.balance.amount, date: facts.balance.dueDate })
+        : t(c.noBalance, l),
     },
   ];
 
@@ -1593,5 +1596,126 @@ export function teamQuoteReceiptEmail(
     html,
     // Reply writes to the couple, as on every team notification.
     replyTo: facts.guestEmail,
+  };
+}
+
+/** Which instalment a refund went back on — the three kinds a quote carries. */
+export type QuoteRefundInstalment = "deposit" | "balance" | "other";
+
+/**
+ * Everything the couple's refund notice needs, already formatted in their
+ * language by the caller (`lib/quote-refund.ts`) — this builder stays pure.
+ */
+export type QuoteRefundEmailFacts = {
+  instalment: QuoteRefundInstalment;
+  /** `QT-1A2B3C`. */
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  /** The quote's own language, which is the enquiry's. */
+  locale: Locale;
+  /** The event day, formatted. */
+  date: string;
+  venue: string | null;
+  /** What the instalment was, formatted. */
+  paid: string;
+  /** What went back this time, formatted. */
+  amount: string;
+  /** What has gone back on the whole quote so far, formatted. */
+  totalRefunded: string;
+  /** Whether the event was called off with it. */
+  eventCancelled: boolean;
+};
+
+/**
+ * The couple's notice that money went back on their quote — one per refund,
+ * whoever issued it and wherever.
+ *
+ * It leads with whether the event is still on, because that is the question a
+ * refund raises and the one thing the amount alone cannot answer.
+ */
+export function guestQuoteRefundEmail(facts: QuoteRefundEmailFacts): EmailMessage {
+  const c = bookingEmails.quoteRefund;
+  const l = facts.locale;
+  const state = facts.eventCancelled ? "cancelled" : "held";
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    ref: facts.ref,
+    date: facts.date,
+    amount: facts.amount,
+    site: siteUrl(),
+  };
+
+  const subject = fill(t(c.subject[state], l), values);
+  const greeting = fill(t(c.greeting, l), values);
+  const lead = fill(t(c.lead[state], l), values);
+  const moneyNote = { title: t(c.moneyNote.title, l), body: t(c.moneyNote.body, l) };
+
+  const rows: DetailRow[] = [
+    { label: t(c.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(c.labels.date, l), value: facts.date },
+    ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
+    { label: t(c.labels.status, l), value: t(c.status[state], l) },
+    { label: t(c.labels.instalment, l), value: t(c.instalment[facts.instalment], l) },
+    { label: t(c.labels.paid, l), value: facts.paid },
+    { label: t(c.labels.totalRefunded, l), value: facts.totalRefunded },
+    { label: t(c.labels.refund, l), value: facts.amount, emphasis: true },
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    lead,
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    `${moneyNote.title}: ${moneyNote.body}`,
+    "",
+    t(c.questions, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(c.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader, l), values),
+    // The muted strip, as on the tour cancellation: this is money going back,
+    // not a confirmation, and must not wear the confirmation's green.
+    banner: { text: t(c.banner[state], l), background: emailPalette.textMuted },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(lead, { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      emailSpacer(24),
+      emailNote(moneyNote),
+      emailSpacer(16),
+      emailParagraph(t(c.questions, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
   };
 }

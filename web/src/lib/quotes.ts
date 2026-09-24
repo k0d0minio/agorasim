@@ -38,7 +38,7 @@
  */
 import "server-only";
 
-import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or } from "drizzle-orm";
 
 import {
   db,
@@ -49,6 +49,7 @@ import {
   type QuoteLineItem,
   type QuotePayment,
   type QuotePaymentKind,
+  type QuotePaymentStatus,
   type QuoteStatus,
   type RequestStatus,
   type AppLocale,
@@ -380,6 +381,53 @@ function nextStatusAfterPayment(
   return next === current || canTransition(current, next) ? next : current;
 }
 
+/**
+ * What is still returnable on one instalment: what was paid, less what has
+ * already gone back. The ceiling the admin refund validates against, as
+ * `refundableCents` is for a booking.
+ */
+export function instalmentRefundableCents(
+  payment: Pick<QuotePayment, "amountCents" | "refundedAmountCents">,
+): number {
+  return Math.max(0, payment.amountCents - payment.refundedAmountCents);
+}
+
+/**
+ * An instalment's status once `refundedAmountCents` has gone back on it.
+ *
+ * `refunded` only when the whole instalment did — a partial refund is goodwill
+ * on an event that is still happening, and the instalment stays `paid` with the
+ * amount beside it, as a partly refunded tour stays `confirmed`. Only a `paid`
+ * row moves: this never walks a `refunded` row back to `paid` when a refund
+ * later fails and Stripe's total drops, for the reason the tour reconciler
+ * gives — something may already have been decided on the strength of it.
+ */
+export function instalmentStatusAfterRefund(
+  payment: Pick<QuotePayment, "amountCents" | "status">,
+  refundedAmountCents: number,
+): QuotePaymentStatus {
+  if (payment.status !== "paid") return payment.status;
+  return refundedAmountCents > 0 && refundedAmountCents >= payment.amountCents
+    ? "refunded"
+    : "paid";
+}
+
+/**
+ * Whether the deposit of this quote has gone back in full — the state in which
+ * the date is no longer paid for but, until somebody cancels the quote, is
+ * still held and its balance still asked for.
+ */
+export function depositRefundedInFull(
+  payments: readonly Pick<QuotePayment, "kind" | "amountCents" | "refundedAmountCents">[],
+): boolean {
+  const deposit = payments.find((payment) => payment.kind === "deposit");
+  return (
+    deposit !== undefined &&
+    deposit.amountCents > 0 &&
+    deposit.refundedAmountCents >= deposit.amountCents
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
@@ -538,6 +586,34 @@ export async function getPaymentBySessionId(
 }
 
 /**
+ * The instalment a Stripe charge paid for — how a refund resolves one.
+ *
+ * Either handle finds it, as for a booking: the charge id is written when the
+ * payment lands, the payment intent with it, and a charge whose settlement read
+ * failed has only the latter.
+ */
+export async function getPaymentByCharge(
+  stripeChargeId: string,
+  stripePaymentIntentId: string | null,
+): Promise<{ quote: Quote; payment: QuotePayment } | null> {
+  const [row] = await db
+    .select({ quote: quotes, payment: quotePayments })
+    .from(quotePayments)
+    .innerJoin(quotes, eq(quotePayments.quoteId, quotes.id))
+    .where(
+      stripePaymentIntentId
+        ? or(
+            eq(quotePayments.stripeChargeId, stripeChargeId),
+            eq(quotePayments.stripePaymentIntentId, stripePaymentIntentId),
+          )
+        : eq(quotePayments.stripeChargeId, stripeChargeId),
+    )
+    .limit(1);
+
+  return row ?? null;
+}
+
+/**
  * One instalment and its quote, by the instalment's id — the fallback the
  * webhook uses when a paid session is no longer the one the row holds (it was
  * replaced a moment after the couple finished paying it). The session's own
@@ -657,13 +733,17 @@ export function validateQuoteInput(input: NewQuoteInput): string[] {
 }
 
 /**
- * Write a draft quote and the two instalments it implies.
+ * Write a draft quote and the instalments it implies.
  *
  * Both payment rows exist from the start, `pending` and unissued: the balance
  * is a thing that is owed on a date from the moment the offer is made, and the
  * T−14 job's query is "the balance rows that are due and not yet issued" — a
  * row that only appears when the job first runs would make that query mean
- * something else.
+ * something else. The one exception is a 100% deposit: {@link splitTotal}
+ * leaves nothing for the balance, and a balance row of `0` is not a real
+ * instalment — it is a row the T−14 job would still try to issue a link for,
+ * to no one's benefit. No row is written for it, and the quote reaches `paid`
+ * the moment the deposit does ({@link statusAfterPayment}).
  *
  * Throws {@link QuoteError} on invalid input rather than returning a result
  * type, because every caller is a server action whose error path is already
@@ -707,13 +787,17 @@ export async function createQuote(input: NewQuoteInput): Promise<QuoteWithPaymen
         // The deposit is owed on acceptance, not on a date.
         dueDate: null,
       },
-      {
-        quoteId: quote.id,
-        kind: "balance" as const,
-        amountCents: balanceCents,
-        currency,
-        dueDate: balanceDueDate(input.eventDate),
-      },
+      ...(balanceCents > 0
+        ? [
+            {
+              quoteId: quote.id,
+              kind: "balance" as const,
+              amountCents: balanceCents,
+              currency,
+              dueDate: balanceDueDate(input.eventDate),
+            },
+          ]
+        : []),
     ])
     .returning();
 
@@ -794,13 +878,18 @@ export async function updateQuoteDraft(
         currency: existing.currency,
         dueDate: null,
       },
-      {
-        quoteId: id,
-        kind: "balance" as const,
-        amountCents: balanceCents,
-        currency: existing.currency,
-        dueDate: balanceDueDate(merged.eventDate),
-      },
+      // No balance row at a 100% deposit — see the note on `createQuote`.
+      ...(balanceCents > 0
+        ? [
+            {
+              quoteId: id,
+              kind: "balance" as const,
+              amountCents: balanceCents,
+              currency: existing.currency,
+              dueDate: balanceDueDate(merged.eventDate),
+            },
+          ]
+        : []),
     ])
     .returning();
 
@@ -1056,6 +1145,36 @@ export async function cancelQuote(id: string, now: Date = new Date()): Promise<Q
 }
 
 /**
+ * Call off an event whose money has gone back: the quote to `cancelled`, and
+ * every instalment still owed on it written off, so no balance is asked for or
+ * paid afterwards. The quote page answers a cancelled quote's link with its
+ * "no longer valid" page, so nothing the couple hold can pay it either.
+ *
+ * `null` when the quote was already cancelled, or is gone — the first of two
+ * racing operators wins, the second is told.
+ */
+export async function cancelQuoteAndOpenInstalments(
+  id: string,
+  now: Date = new Date(),
+): Promise<{ quote: Quote; writtenOff: QuotePayment[] } | null> {
+  const quote = await cancelQuote(id, now);
+  if (!quote) return null;
+
+  const writtenOff = await db
+    .update(quotePayments)
+    .set({ status: "cancelled", updatedAt: now })
+    .where(
+      and(
+        eq(quotePayments.quoteId, id),
+        inArray(quotePayments.status, ["pending", "issued"]),
+      ),
+    )
+    .returning();
+
+  return { quote, writtenOff };
+}
+
+/**
  * Record that an instalment's payment link has gone out.
  *
  * The idempotency the T−14 dispatcher rides on: the write only lands on a row
@@ -1298,45 +1417,70 @@ async function syncQuoteAfterPaymentChange(
 }
 
 /**
- * Record money going back out of an instalment, cumulatively.
+ * Set an instalment's refunded amount to what Stripe says has gone back on it.
  *
- * Same shape as `bookings`: an amount rather than a flag, added to rather than
- * replaced, and the fee that went back with it recorded next to it (§6 returns
- * commission in proportion). Both figures are Stripe's, read back after the
- * refund lands — a column holding our intention would agree with the dashboard
- * right up until the once it mattered that it did not.
+ * Same shape as `bookings`: an amount rather than a flag, and **set, not added
+ * to** — the caller hands in the charge's cumulative total, so an event
+ * delivered five times converges on one number (`lib/quote-refund.ts`). The
+ * write is a compare-and-set on the amount the caller read: the admin refund
+ * and the webhook echo of it race here, and exactly one of them comes back with
+ * a row. `null` means the other one got there first, or the row is gone.
+ *
+ * The status follows {@link instalmentStatusAfterRefund}. The fee that went
+ * back is written separately ({@link recordPaymentRefundFee}), after Stripe
+ * says it moved — a column holding our intention would agree with the
+ * dashboard right up until the once it mattered that it did not.
  */
 export async function recordPaymentRefund(
-  paymentId: string,
+  payment: Pick<QuotePayment, "id" | "amountCents" | "status" | "refundedAmountCents">,
   refund: {
-    amountCents: number;
-    feeCents?: number;
+    /** The instalment's refunded total now — Stripe's `amount_refunded`. */
+    refundedAmountCents: number;
     stripeRefundId?: string | null;
     now?: Date;
   },
 ): Promise<QuotePayment | null> {
-  const { amountCents, feeCents = 0, stripeRefundId = null, now = new Date() } = refund;
+  const { refundedAmountCents, stripeRefundId = null, now = new Date() } = refund;
 
-  if (!Number.isSafeInteger(amountCents) || amountCents < 0) {
+  if (!Number.isSafeInteger(refundedAmountCents) || refundedAmountCents < 0) {
     throw new QuoteError(
-      `recordPaymentRefund: ${amountCents} is not a whole number of cents`,
+      `recordPaymentRefund: ${refundedAmountCents} is not a whole number of cents`,
     );
   }
 
-  const [payment] = await db
+  const [updated] = await db
     .update(quotePayments)
     .set({
-      status: "refunded",
-      refundedAmountCents: sql`${quotePayments.refundedAmountCents} + ${amountCents}`,
-      refundedFeeCents: sql`${quotePayments.refundedFeeCents} + ${feeCents}`,
-      stripeRefundId,
-      refundedAt: now,
+      status: instalmentStatusAfterRefund(payment, refundedAmountCents),
+      refundedAmountCents,
+      ...(stripeRefundId ? { stripeRefundId } : {}),
+      ...(refundedAmountCents > 0 ? { refundedAt: now } : {}),
       updatedAt: now,
     })
+    .where(
+      and(
+        eq(quotePayments.id, payment.id),
+        eq(quotePayments.refundedAmountCents, payment.refundedAmountCents),
+      ),
+    )
+    .returning();
+
+  return updated ?? null;
+}
+
+/** Record the commission that went back on an instalment — Stripe's figure. */
+export async function recordPaymentRefundFee(
+  paymentId: string,
+  refundedFeeCents: number,
+  now: Date = new Date(),
+): Promise<QuotePayment | null> {
+  const [updated] = await db
+    .update(quotePayments)
+    .set({ refundedFeeCents, updatedAt: now })
     .where(eq(quotePayments.id, paymentId))
     .returning();
 
-  return payment ?? null;
+  return updated ?? null;
 }
 
 /**
