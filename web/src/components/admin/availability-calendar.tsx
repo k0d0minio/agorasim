@@ -49,8 +49,7 @@ import {
  * the business, not something to re-enter for every Tuesday — so a car in the
  * garage is a note and a driver taken off, or a closed departure.
  *
- * Built to the admin mobile spec (`docs/admin-mobile-design-spec.md`) because
- * it is used standing next to a car, one-handed:
+ * Built mobile-first because it is used standing next to a car, one-handed:
  *
  * - Every day cell is a ≥44px target (T1) laid out in a 7-column grid that
  *   still fits the 320px reflow floor (D2).

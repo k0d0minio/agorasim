@@ -5,8 +5,8 @@ import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 /*
- * Touch-first sizing (see docs/admin-mobile-design-spec.md §12): the default
- * button is a 44px target — Apple's default control size and WCAG 2.5.5 — and
+ * Touch-first sizing: the default button is a 44px target — Apple's default
+ * control size and WCAG 2.5.5 — and
  * `lg` is the 48px primary-action size. The compact sizes remain for genuinely
  * dense, pointer-first spots, but they are the opt-in now, not the baseline.
  * This scale is shared with the public site on purpose: guests book tours from
