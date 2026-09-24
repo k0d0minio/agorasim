@@ -44,3 +44,15 @@
 - **Template change parked:** `triage/template-change-env-audit-empty-targets.md` — `env.sh` audit collapses an empty targets field and warns "no note yet" for keys that have notes.
 - The migration is forward-only and additive; a code revert tolerates it.
 - Context budget: Build read `lib/cron/day-before-reminder.ts` and its test, `lib/message-log.ts` (the claim keys), `app/admin/actions.test.ts` (the fake db), `lib/backup.ts`, the cancel page + panel as the page template — all to follow the house patterns exactly.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN — settled by ci-status.sh after the last push (the close-out); see the stop report for the SHA
+- reviews: code high (/code-review: 9 findings — 4 fixed in-ticket: a move clears `no_show_at`, the no-show write guarded on status/date/mark, one-click on its own throttle key and limit, a misplaced JSDoc; 5 parked) · security security-check.sh --branch --audit: OK + /security-review — no findings at confidence ≥ 8 · production-readiness n/a — the skill is not installed in this session (the diff touches DB and env: covered by check-migrations.sh SKIP/OK and env.sh audit) · readiness env.sh audit --changed: GAPS 4, none a key this branch added — `RESEND_API_KEY`, `BOOKING_EMAIL_FROM`, `BOOKING_NOTIFICATION_EMAILS`, `CRON_SECRET` missing only on Vercel's development target (pre-existing; listed because files that read them changed); `EMAIL_OPT_OUT_SECRET` present on every declared target
+- parked: opt-out-hashing-cost.md · suppression-in-send-path.md · cron-job-and-crypto-helpers-dedupe.md · email-keys-development-target.md (plus template-change-env-audit-empty-targets.md from Build)
+- migrations: ok — 0029 additive, forward-only (check-migrations.sh SKIP: drizzle numbering, no stamped migrations); no collision after main
+- learned: 1 rule appended to _shared/project-rules.md (retrospective.sh) · 2 from FAILURE.md via close-out
+- docs: `.icm/docs/data-protection.md` updated in Build (Resend row, open item 5, the erasure exception, never-rotate, Art. 15) · announce: deferred to promotion
+- Context budget: Release read the code-review and security-review outputs and the move's update in `lib/booking-move.ts` to fix the finding.
+

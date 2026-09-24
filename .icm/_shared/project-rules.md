@@ -277,3 +277,6 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 
 <!-- Retrospective Learned Rule [2026-09-24] -->
 - In web/src/lib/booking-emails.test.ts, assert copy containing an apostrophe, quote or ampersand against `message.text` literally and against `message.html` in its escapeHtml form (&#39; &quot; &amp;) — never loop both parts over one raw string. (`(empty)`, seen 1× — day-before-reminder; web/drizzle, web/src)
+
+<!-- Retrospective Learned Rule [2026-09-24] -->
+- In web/.env.example, end a new key's comment block with an explicit `# [production,preview,development]` (or its real targets) line — env.sh audit loses the note of a key with no targets suffix until the template is fixed. (`warn] email_opt_out_secret: no note yet (# todo: note) — one sentence `, seen 1× — thankyou-review-email; web, web/drizzle, web/src)
