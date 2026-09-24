@@ -4,7 +4,14 @@ import { useActionState, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { CalendarRange, ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import {
+  CalendarRange,
+  ChevronLeft,
+  ChevronRight,
+  Minus,
+  Plus,
+  UserRoundPlus,
+} from "lucide-react";
 
 import {
   clearAvailability,
@@ -451,6 +458,12 @@ function DayEditor({
   const first = editable.find((slot) => chosenSlots.includes(slot.slot)) ?? editable[0];
   const [drivers, setDrivers] = useState(first?.drivers || defaultDrivers);
   const [note, setNote] = useState(first?.note ?? "");
+  // Admin spec S7: one modal at a time. The manual-booking sheet needs to
+  // outlive this dialog's own DialogContent (so it isn't unmounted along
+  // with it), so it mounts as a sibling below and this dialog just hides
+  // itself — `open={!bookingOpen}` — while it's up, reappearing on cancel or
+  // once the booking lands.
+  const [bookingOpen, setBookingOpen] = useState(false);
 
   // On the state objects, not on a `done` boolean: `useActionState` returns a
   // fresh object per result, and a boolean that has already flipped to `true`
@@ -485,158 +498,174 @@ function DayEditor({
   }
 
   return (
-    <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{day.longLabel}</DialogTitle>
-          <DialogDescription>
-            {editable.map(slotSentence).join(" · ")}
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={!bookingOpen} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{day.longLabel}</DialogTitle>
+            <DialogDescription>
+              {editable.map(slotSentence).join(" · ")}
+            </DialogDescription>
+          </DialogHeader>
 
-        {error ? (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        ) : null}
+          {error ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
 
-        <DayBookings bookings={bookings} experienceNames={experienceNames} />
+          <DayBookings bookings={bookings} experienceNames={experienceNames} />
 
-        {openSlots.length > 0 && tours.length > 0 ? (
-          <ManualBookingDialog
-            // The day sheet already knows the day: only the departure is left
-            // to choose. The Sales board's mount is the other half of this
-            // union — see `ManualBookingDeparture`.
-            departure={{ kind: "fixed", date: day.date, openSlots }}
-            tours={tours}
-            onDone={onDone}
-          />
-        ) : null}
-
-        <div
-          role="group"
-          aria-label="Que partidas"
-          className="flex flex-wrap gap-2"
-        >
-          {editable.map((slot) => {
-            const active = chosenSlots.includes(slot.slot);
-            return (
-              <button
-                key={slot.slot}
-                type="button"
-                aria-pressed={active}
-                onClick={() => toggleSlot(slot.slot)}
-                className={cn(
-                  "min-h-11 touch-manipulation rounded-lg border px-4 text-sm transition-colors",
-                  active
-                    ? "border-primary bg-primary/10 font-semibold text-primary"
-                    : "border-border text-muted-foreground",
-                )}
-              >
-                {slot.slot === "morning" ? "Manhã · 10:00" : "Tarde · 14:00"}
-              </button>
-            );
-          })}
-        </div>
-
-        <form action={saveAction} className="flex flex-col gap-4">
-          <WriteFields dates={[day.date]} slots={chosenSlots} />
-          <input type="hidden" name="drivers" value={drivers} />
-          <input type="hidden" name="note" value={note} />
+          {openSlots.length > 0 && tours.length > 0 ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setBookingOpen(true)}
+              className="w-full gap-2 sm:w-auto"
+            >
+              <UserRoundPlus className="size-4" />
+              Nova reserva
+            </Button>
+          ) : null}
 
           <div
             role="group"
-            aria-labelledby={`${fieldId}-drivers-label`}
-            className="flex flex-col gap-1.5"
+            aria-label="Que partidas"
+            className="flex flex-wrap gap-2"
           >
-            <span id={`${fieldId}-drivers-label`} className="text-sm font-medium">
-              Condutores em cada partida
-            </span>
-            <div className="flex items-center gap-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="Menos um condutor"
-                disabled={drivers <= 1}
-                onClick={() => setDrivers((n) => Math.max(1, n - 1))}
-              >
-                <Minus className="size-4" />
-              </Button>
-              <output
-                aria-live="polite"
-                className="min-w-10 text-center font-heading text-2xl font-semibold"
-              >
-                {drivers}
-              </output>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="Mais um condutor"
-                disabled={drivers >= maxDrivers}
-                onClick={() => setDrivers((n) => Math.min(maxDrivers, n + 1))}
-              >
-                <Plus className="size-4" />
-              </Button>
-              {outInSelection > 0 ? (
-                <span className="text-xs text-muted-foreground">
-                  {outInSelection} já ocupado{outInSelection === 1 ? "" : "s"}
-                </span>
-              ) : null}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Quantos passeios podem sair ao mesmo tempo — em todas as rotas. A
-              escala normal é de dois; baixe para um quando alguém falta.
-            </p>
+            {editable.map((slot) => {
+              const active = chosenSlots.includes(slot.slot);
+              return (
+                <button
+                  key={slot.slot}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => toggleSlot(slot.slot)}
+                  className={cn(
+                    "min-h-11 touch-manipulation rounded-lg border px-4 text-sm transition-colors",
+                    active
+                      ? "border-primary bg-primary/10 font-semibold text-primary"
+                      : "border-border text-muted-foreground",
+                  )}
+                >
+                  {slot.slot === "morning" ? "Manhã · 10:00" : "Tarde · 14:00"}
+                </button>
+              );
+            })}
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${fieldId}-note`}>Nota (só a equipa vê)</Label>
-            <Input
-              id={`${fieldId}-note`}
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="Casamento, revisão do carro…"
-              autoComplete="off"
-              enterKeyHint="done"
-            />
-          </div>
-
-          <DialogFooter>
-            {/* Safe action nearest the thumb (T5): the footer paints in
-                reverse on a phone, so Cancel is first in the DOM and last on
-                screen. */}
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <SubmitButton
-              variant="outline"
-              name="status"
-              value="closed"
-              pendingLabel="A fechar…"
-            >
-              Fechar
-            </SubmitButton>
-            <SubmitButton name="status" value="open" pendingLabel="A guardar…">
-              Pôr à venda
-            </SubmitButton>
-          </DialogFooter>
-        </form>
-
-        {anyDecided ? (
-          <form action={clearAction} className="border-t pt-3">
+          <form action={saveAction} className="flex flex-col gap-4">
             <WriteFields dates={[day.date]} slots={chosenSlots} />
-            <SubmitButton variant="ghost" pendingLabel="A limpar…">
-              Limpar estas partidas
-            </SubmitButton>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Apaga a decisão por completo — voltam a não existir no calendário.
-            </p>
+            <input type="hidden" name="drivers" value={drivers} />
+            <input type="hidden" name="note" value={note} />
+
+            <div
+              role="group"
+              aria-labelledby={`${fieldId}-drivers-label`}
+              className="flex flex-col gap-1.5"
+            >
+              <span id={`${fieldId}-drivers-label`} className="text-sm font-medium">
+                Condutores em cada partida
+              </span>
+              <div className="flex items-center gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Menos um condutor"
+                  disabled={drivers <= 1}
+                  onClick={() => setDrivers((n) => Math.max(1, n - 1))}
+                >
+                  <Minus className="size-4" />
+                </Button>
+                <output
+                  aria-live="polite"
+                  className="min-w-10 text-center font-heading text-2xl font-semibold"
+                >
+                  {drivers}
+                </output>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Mais um condutor"
+                  disabled={drivers >= maxDrivers}
+                  onClick={() => setDrivers((n) => Math.min(maxDrivers, n + 1))}
+                >
+                  <Plus className="size-4" />
+                </Button>
+                {outInSelection > 0 ? (
+                  <span className="text-xs text-muted-foreground">
+                    {outInSelection} já ocupado{outInSelection === 1 ? "" : "s"}
+                  </span>
+                ) : null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Quantos passeios podem sair ao mesmo tempo — em todas as rotas. A
+                escala normal é de dois; baixe para um quando alguém falta.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`${fieldId}-note`}>Nota (só a equipa vê)</Label>
+              <Input
+                id={`${fieldId}-note`}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="Casamento, revisão do carro…"
+                autoComplete="off"
+                enterKeyHint="done"
+              />
+            </div>
+
+            <DialogFooter>
+              {/* Safe action nearest the thumb (T5): the footer paints in
+                  reverse on a phone, so Cancel is first in the DOM and last on
+                  screen. */}
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <SubmitButton
+                variant="outline"
+                name="status"
+                value="closed"
+                pendingLabel="A fechar…"
+              >
+                Fechar
+              </SubmitButton>
+              <SubmitButton name="status" value="open" pendingLabel="A guardar…">
+                Pôr à venda
+              </SubmitButton>
+            </DialogFooter>
           </form>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+
+          {anyDecided ? (
+            <form action={clearAction} className="border-t pt-3">
+              <WriteFields dates={[day.date]} slots={chosenSlots} />
+              <SubmitButton variant="ghost" pendingLabel="A limpar…">
+                Limpar estas partidas
+              </SubmitButton>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Apaga a decisão por completo — voltam a não existir no calendário.
+              </p>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      {openSlots.length > 0 && tours.length > 0 ? (
+        <ManualBookingDialog
+          // The day sheet already knows the day: only the departure is left
+          // to choose. The Sales board's mount is the other half of this
+          // union — see `ManualBookingDeparture`.
+          departure={{ kind: "fixed", date: day.date, openSlots }}
+          tours={tours}
+          onDone={onDone}
+          open={bookingOpen}
+          onOpenChange={setBookingOpen}
+          showTrigger={false}
+        />
+      ) : null}
+    </>
   );
 }
 
