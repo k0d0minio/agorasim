@@ -1067,3 +1067,152 @@ export function teamEnquiryEmail(
     replyTo: facts.guestEmail,
   };
 }
+
+/**
+ * Everything the quote-sent email needs, already formatted in the couple's
+ * language by the caller (`lib/quote-send.ts`) — this builder stays pure.
+ */
+export type QuoteSentEmailFacts = {
+  /** `QT-1A2B3C` — what the couple quote on the phone. */
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  /** The quote's own language, which is the enquiry's. */
+  locale: Locale;
+  /** "sábado, 15 de agosto de 2026" — the event day. */
+  date: string;
+  /** Their venue, as typed on the quote. Omitted when there is none. */
+  venue: string | null;
+  /** The priced lines, amounts already formatted. */
+  lines: { label: string; quantity: number; amount: string }[];
+  total: string;
+  deposit: string;
+  depositPercent: number;
+  balance: string;
+  /** "sábado, 1 de agosto de 2026" — T−14. */
+  balanceDue: string;
+  /** How many days before the event the balance is asked for. */
+  balanceDueDaysBefore: number;
+  /** The non-refundable window the quote was written under (D9). */
+  termsWindowDays: number;
+  /**
+   * The quote page, absolute, carrying the plaintext token this mail is the
+   * only place that will ever hold (`lib/quote-token.ts`).
+   */
+  quoteUrl: string;
+};
+
+/**
+ * The quote, sent to the couple in the language they enquired in.
+ *
+ * Shaped like the booking confirmation — a greeting, the facts table, what
+ * happens next, the phone numbers — because it is read the same way: on a
+ * phone, forwarded, and kept. The link to the quote page is the one action,
+ * below the money rather than above it; nobody should be asked to pay before
+ * they have read what for.
+ *
+ * `replyTo` is the business inbox: the next thing a couple does with a quote is
+ * ask about it.
+ */
+export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
+  const c = bookingEmails.quoteSent;
+  const l = facts.locale;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    date: facts.date,
+    total: facts.total,
+    deposit: facts.deposit,
+    site: siteUrl(),
+  };
+
+  const subject = fill(t(c.subject, l), values);
+  const greeting = fill(t(c.greeting, l), values);
+  const nextBody = fill(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) });
+  const termsNote = fill(t(c.termsNote, l), { days: String(facts.termsWindowDays) });
+
+  const rows: DetailRow[] = [
+    { label: t(c.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(c.labels.date, l), value: facts.date },
+    ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
+    ...facts.lines.map((line) => ({
+      label:
+        line.quantity > 1
+          ? fill(c.lineQuantity, { quantity: String(line.quantity), label: line.label })
+          : line.label,
+      value: line.amount,
+    })),
+    { label: t(c.labels.total, l), value: facts.total, emphasis: true },
+    {
+      label: fill(t(c.labels.deposit, l), { percent: String(facts.depositPercent) }),
+      value: facts.deposit,
+    },
+    {
+      label: t(c.labels.balance, l),
+      value: fill(t(c.balanceDue, l), { amount: facts.balance, date: facts.balanceDue }),
+    },
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    t(c.lead, l),
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    nextBody,
+    "",
+    // The URL on its own line, as the cancel link is — a text client makes a
+    // bare line tappable and breaks one wrapped in a sentence.
+    fill(t(c.ctaTextLine, l), { url: facts.quoteUrl }),
+    "",
+    termsNote,
+    "",
+    t(c.questions, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(c.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader, l), values),
+    banner: { text: t(c.banner, l) },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(t(c.lead, l), { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      emailSpacer(24),
+      emailNote({ title: t(c.next.title, l), body: nextBody }),
+      emailSpacer(20),
+      emailButton({ label: t(c.cta, l), href: facts.quoteUrl }),
+      emailSpacer(20),
+      emailParagraph(termsNote, { muted: true, spaceBelow: 16 }),
+      emailParagraph(t(c.questions, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+  };
+}

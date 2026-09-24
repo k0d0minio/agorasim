@@ -38,7 +38,7 @@
  */
 import "server-only";
 
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, sql } from "drizzle-orm";
 
 import {
   db,
@@ -56,13 +56,17 @@ import {
 import { recordAuditOrWarn } from "@/lib/audit";
 import { dateKey, isDateKey, parseDateKey, todayKey, type DateKey } from "@/lib/availability";
 import { BOOKING_CURRENCY } from "@/lib/money";
+import {
+  BALANCE_DUE_DAYS_BEFORE,
+  DEFAULT_DEPOSIT_PERCENT,
+  balanceDueKey,
+  lineItemsTotal,
+  splitTotal,
+} from "@/lib/quote-math";
 
 // ---------------------------------------------------------------------------
 // The numbers the agreement fixes
 // ---------------------------------------------------------------------------
-
-/** The share taken up front to hold the date (proposal §5). */
-export const DEFAULT_DEPOSIT_PERCENT = 30;
 
 /**
  * How many days before the event the deposit stops being refundable (D9).
@@ -73,12 +77,6 @@ export const DEFAULT_DEPOSIT_PERCENT = 30;
  */
 export const DEFAULT_TERMS_WINDOW_DAYS = 30;
 
-/**
- * How many days before the event the balance falls due — the proposal's
- * "collected by a second automatic payment link 14 days before".
- */
-export const BALANCE_DUE_DAYS_BEFORE = 14;
-
 /** The reference a quote wears: short, stable, greppable — like `bookingRef`. */
 export function quoteRef(id: string): string {
   return `QT-${id.slice(0, 6).toUpperCase()}`;
@@ -88,46 +86,17 @@ export function quoteRef(id: string): string {
 // Pure arithmetic
 // ---------------------------------------------------------------------------
 
-/** What the two instalments come to. Always sums to the total, exactly. */
-export type QuoteSplit = { depositCents: number; balanceCents: number };
-
-/**
- * Split a total into the deposit that holds the date and the balance that
- * follows.
- *
- * The deposit rounds to the nearest cent and **the balance is the remainder**,
- * never its own percentage of the total. Take 30% of €1,235 twice and the two
- * halves come to a cent less than the whole; taking one and subtracting cannot,
- * whatever the percentage or the total. A guest who pays both instalments has
- * paid the quote, and this is what makes that arithmetically true rather than
- * usually true.
- *
- * Throws on anything that is not a whole number of cents or a percentage
- * between 1 and 100, in the shape `commissionOn` refuses a non-integer basis:
- * a plausible figure computed from a bad input is worse than a stack trace,
- * because the guest is charged it.
- */
-export function splitTotal(
-  totalCents: number,
-  depositPercent: number = DEFAULT_DEPOSIT_PERCENT,
-): QuoteSplit {
-  if (!Number.isSafeInteger(totalCents) || totalCents <= 0) {
-    throw new Error(
-      `splitTotal: ${totalCents} is not a positive whole number of cents — money is integers here`,
-    );
-  }
-  if (!Number.isInteger(depositPercent) || depositPercent < 1 || depositPercent > 100) {
-    throw new Error(`splitTotal: ${depositPercent}% is not a deposit share between 1 and 100`);
-  }
-
-  const depositCents = Math.round((totalCents * depositPercent) / 100);
-  return { depositCents, balanceCents: totalCents - depositCents };
-}
-
-/** What the lines add up to. `0` for a quote that is a single agreed figure. */
-export function lineItemsTotal(items: QuoteLineItem[]): number {
-  return items.reduce((sum, item) => sum + item.unitCents * item.quantity, 0);
-}
+// `splitTotal`, `lineItemsTotal` and the two constants live in
+// `lib/quote-math.ts`, so the builder's live preview in the browser computes
+// the very figures this module writes. Re-exported, so every caller still
+// imports the quote's arithmetic from here.
+export {
+  BALANCE_DUE_DAYS_BEFORE,
+  DEFAULT_DEPOSIT_PERCENT,
+  lineItemsTotal,
+  splitTotal,
+  type QuoteSplit,
+} from "@/lib/quote-math";
 
 /**
  * `2026-08-15` plus or minus whole days, as a key.
@@ -142,9 +111,17 @@ export function shiftDays(key: DateKey, days: number): DateKey {
   return dateKey(new Date(date.getTime() + days * 86_400_000));
 }
 
-/** When the balance falls due for an event on this day: T−14. */
+/**
+ * When the balance falls due for an event on this day: T−14.
+ *
+ * Delegates to `balanceDueKey` in `lib/quote-math.ts`, which the builder's
+ * live preview uses in the browser — one computation, so the date Rita sees
+ * while typing is the date written to the instalment and emailed.
+ */
 export function balanceDueDate(eventDate: DateKey): DateKey {
-  return shiftDays(eventDate, -BALANCE_DUE_DAYS_BEFORE);
+  const due = balanceDueKey(eventDate);
+  if (!due) throw new Error(`balanceDueDate: ${eventDate} is not a YYYY-MM-DD date`);
+  return due;
 }
 
 /**
@@ -220,6 +197,49 @@ export function statusesThatMayBecome(to: QuoteStatus): QuoteStatus[] {
  */
 export function isEditable(quote: Pick<Quote, "status">): boolean {
   return quote.status === "draft";
+}
+
+/**
+ * Whether a lead may have a new quote started from nothing — "Criar orçamento".
+ *
+ * Only when every quote it has is `cancelled` (or it has none). A draft is
+ * already the thing to edit, a `sent` quote is changed through "Nova versão",
+ * and a quote with money on it is not something a second offer should compete
+ * with: a lead holds at most one draft and one live quote, and this is the half
+ * of that rule the create path enforces. The send path enforces the other half
+ * ({@link supersedeSentQuotes}).
+ */
+export function canStartQuote(existing: readonly Pick<Quote, "status">[]): boolean {
+  return existing.every((quote) => quote.status === "cancelled");
+}
+
+/**
+ * Whether "Nova versão" is offered on this quote: it is `sent` — nothing has
+ * been paid on it — and the lead has no draft already waiting.
+ */
+export function canCopyAsNewVersion(
+  quote: Pick<Quote, "status">,
+  siblings: readonly Pick<Quote, "status">[],
+): boolean {
+  return quote.status === "sent" && !siblings.some((sibling) => sibling.status === "draft");
+}
+
+/**
+ * Whether a cancelled quote was replaced by a later version, rather than
+ * called off — what the card labels "Substituído".
+ *
+ * A quote that was sent, then cancelled, with a newer quote of the same lead
+ * sent after it: that is exactly the trace {@link supersedeSentQuotes} leaves.
+ */
+export function wasSuperseded(
+  quote: Pick<Quote, "status" | "sentAt" | "createdAt">,
+  siblings: readonly Pick<Quote, "sentAt" | "createdAt">[],
+): boolean {
+  if (quote.status !== "cancelled" || !quote.sentAt) return false;
+  return siblings.some(
+    (sibling) =>
+      sibling.sentAt !== null && sibling.createdAt.getTime() > quote.createdAt.getTime(),
+  );
 }
 
 /** The status a quote takes when one of its instalments is paid. */
@@ -726,6 +746,14 @@ export async function updateQuoteDraft(
  * a re-send rotates the link, which is the correct behaviour when a quote has
  * gone to the wrong address; omitting it keeps the existing one.
  *
+ * `from` narrows the statuses the write will land on, and `ifSentAt` pins it
+ * to the send the caller saw. The builder uses both: "Enviar" is a draft's
+ * action only, so a double tap finds the quote already `sent` and moves
+ * nothing, where the `sent → sent` the state machine allows would otherwise
+ * rotate the link and mail the couple twice; "Reenviar" names the `sent_at` on
+ * the screen it was pressed from, so the second of two taps — or two phones —
+ * finds a newer stamp and does nothing.
+ *
  * Sending also moves the lead behind the quote to `quoted`, so the Sales board
  * shows the couple where they actually are. See {@link moveLeadStage}.
  */
@@ -736,10 +764,24 @@ export async function markQuoteSent(
     tokenHash?: string;
     /** The operator behind the send, for the lead's stage-move audit entry. */
     actorUserId?: string | null;
+    /** Only from these statuses — a subset of what may become `sent`. */
+    from?: readonly QuoteStatus[];
+    /** Only if the quote was last sent at exactly this instant. */
+    ifSentAt?: Date;
     now?: Date;
   },
 ): Promise<Quote | null> {
-  const { termsVersion, tokenHash, actorUserId = null, now = new Date() } = options;
+  const {
+    termsVersion,
+    tokenHash,
+    actorUserId = null,
+    from = statusesThatMayBecome("sent"),
+    ifSentAt,
+    now = new Date(),
+  } = options;
+
+  const allowed = from.filter((status) => canTransition(status, "sent"));
+  if (allowed.length === 0) return null;
 
   const [quote] = await db
     .update(quotes)
@@ -750,7 +792,13 @@ export async function markQuoteSent(
       sentAt: now,
       updatedAt: now,
     })
-    .where(and(eq(quotes.id, id), inArray(quotes.status, statusesThatMayBecome("sent"))))
+    .where(
+      and(
+        eq(quotes.id, id),
+        inArray(quotes.status, allowed),
+        ...(ifSentAt ? [eq(quotes.sentAt, ifSentAt)] : []),
+      ),
+    )
     .returning();
 
   if (!quote) return null;
@@ -828,6 +876,99 @@ async function moveLeadStage(
   });
 
   return moved.status;
+}
+
+/**
+ * Cancel every other quote of the same lead that is still `sent` — how a new
+ * version replaces the one the couple already have.
+ *
+ * Called by the send of the new version, not by the "Nova versão" button: the
+ * old quote stays valid while its replacement is only a draft, so a couple is
+ * never left holding a dead link and no live offer because Rita opened a copy
+ * and went to lunch. Only `sent` is touched — a quote with money on it is the
+ * refunds path's, never replaced from here.
+ *
+ * Each cancellation is written against the **lead**, naming both references,
+ * so its Histórico says which quote replaced which.
+ */
+export async function supersedeSentQuotes(
+  replacement: Pick<Quote, "id" | "tourRequestId">,
+  context: { actorUserId?: string | null; now?: Date } = {},
+): Promise<Quote[]> {
+  if (!replacement.tourRequestId) return [];
+  const { actorUserId = null, now = new Date() } = context;
+
+  const superseded = await db
+    .update(quotes)
+    .set({ status: "cancelled", cancelledAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(quotes.tourRequestId, replacement.tourRequestId),
+        ne(quotes.id, replacement.id),
+        eq(quotes.status, "sent"),
+      ),
+    )
+    .returning();
+
+  for (const old of superseded) {
+    await recordAuditOrWarn({
+      actorUserId,
+      action: "quote.superseded",
+      entityType: "tour_request",
+      entityId: replacement.tourRequestId,
+      before: { quoteRef: quoteRef(old.id), status: "sent" },
+      after: { quoteRef: quoteRef(old.id), status: "cancelled", replacedBy: quoteRef(replacement.id) },
+    });
+  }
+
+  return superseded;
+}
+
+/**
+ * Throw away a draft — "Descartar rascunho".
+ *
+ * Drafts only, in the `WHERE`: {@link cancelQuote} is legal from every state,
+ * and a stale builder form must not be able to call off a quote that was sent
+ * from the other phone a minute ago.
+ */
+export async function discardDraft(id: string, now: Date = new Date()): Promise<Quote | null> {
+  const [quote] = await db
+    .update(quotes)
+    .set({ status: "cancelled", cancelledAt: now, updatedAt: now })
+    .where(and(eq(quotes.id, id), eq(quotes.status, "draft")))
+    .returning();
+
+  return quote ?? null;
+}
+
+/**
+ * A new draft copied from a sent quote — "Nova versão".
+ *
+ * The date, the venue, the language, the lines, the total and the deposit
+ * share carry over; the status, the link and the terms stamp do not, because
+ * those belong to a send and this has not been sent. `null` when the source is
+ * missing or is no longer `sent` — a quote with a deposit on it is changed by
+ * refunding, not by re-quoting.
+ */
+export async function copyQuoteAsDraft(
+  sourceId: string,
+  createdByUserId: string | null,
+): Promise<QuoteWithPayments | null> {
+  const source = await getQuote(sourceId);
+  if (!source || source.status !== "sent") return null;
+
+  return createQuote({
+    tourRequestId: source.tourRequestId,
+    createdByUserId,
+    eventDate: source.eventDate,
+    venue: source.venue,
+    locale: source.locale,
+    totalCents: source.totalCents,
+    lineItems: source.lineItems,
+    depositPercent: source.depositPercent,
+    termsWindowDays: source.termsWindowDays,
+    currency: source.currency,
+  });
 }
 
 /** Call a quote off. Terminal, and legal from any state but itself. */

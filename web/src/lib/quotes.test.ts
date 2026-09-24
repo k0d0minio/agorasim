@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   BALANCE_DUE_DAYS_BEFORE,
   balanceDueDate,
+  canCopyAsNewVersion,
+  canStartQuote,
   canTransition,
   DEFAULT_DEPOSIT_PERCENT,
   isEditable,
@@ -18,6 +20,7 @@ import {
   statusAfterPayment,
   statusesThatMayBecome,
   validateQuoteInput,
+  wasSuperseded,
   type NewQuoteInput,
 } from "@/lib/quotes";
 import type { QuotePayment, QuoteStatus, RequestStatus } from "@/db";
@@ -297,5 +300,49 @@ describe("validateQuoteInput", () => {
         termsWindowDays: -5,
       }),
     ).toHaveLength(4);
+  });
+});
+
+/**
+ * The builder's per-lead rules: at most one draft and one live quote, a new
+ * version only of an unpaid sent quote, and "Substituído" only for a quote a
+ * later version replaced.
+ */
+describe("the quote builder's rules for one lead", () => {
+  const at = (iso: string) => new Date(iso);
+
+  it("starts a quote only when every earlier one is cancelled", () => {
+    expect(canStartQuote([])).toBe(true);
+    expect(canStartQuote([{ status: "cancelled" }, { status: "cancelled" }])).toBe(true);
+    for (const status of ["draft", "sent", "deposit_paid", "paid"] as const) {
+      expect(canStartQuote([{ status: "cancelled" }, { status }])).toBe(false);
+    }
+  });
+
+  it("offers a new version of a sent quote, unless a draft is already waiting", () => {
+    expect(canCopyAsNewVersion({ status: "sent" }, [{ status: "sent" }])).toBe(true);
+    expect(
+      canCopyAsNewVersion({ status: "sent" }, [{ status: "sent" }, { status: "draft" }]),
+    ).toBe(false);
+    for (const status of ["draft", "deposit_paid", "paid", "cancelled"] as const) {
+      expect(canCopyAsNewVersion({ status }, [{ status }])).toBe(false);
+    }
+  });
+
+  it("calls a quote superseded only when a later version was sent", () => {
+    const old = {
+      status: "cancelled" as const,
+      sentAt: at("2026-05-01T10:00:00Z"),
+      createdAt: at("2026-05-01T09:00:00Z"),
+    };
+    const newer = { sentAt: at("2026-05-03T10:00:00Z"), createdAt: at("2026-05-02T09:00:00Z") };
+    const newerDraft = { sentAt: null, createdAt: at("2026-05-02T09:00:00Z") };
+
+    expect(wasSuperseded(old, [old, newer])).toBe(true);
+    // Replaced only once the copy is sent — a waiting draft replaces nothing.
+    expect(wasSuperseded(old, [old, newerDraft])).toBe(false);
+    // A discarded draft was never sent, so it was never replaced.
+    expect(wasSuperseded({ ...old, sentAt: null }, [old, newer])).toBe(false);
+    expect(wasSuperseded({ ...old, status: "sent" }, [old, newer])).toBe(false);
   });
 });
