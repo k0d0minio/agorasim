@@ -826,6 +826,21 @@ export const bookings = pgTable("bookings", {
   date: date("date").notNull(),
   slot: availabilitySlotEnum("slot").notNull().default("morning"),
 
+  /**
+   * How many times `lib/booking-move.ts` has moved this booking, including a
+   * move back to a date it already left.
+   *
+   * A booking's date alone cannot tell two moves apart: `X → A → B → A` visits
+   * `A` twice, and a `message_log` claim keyed on the date alone would find the
+   * first visit's row still there and go silent — the move notice, and the
+   * day-before reminder, both. This counter is what a real move always
+   * changes and a retried request never does (the guarded update in
+   * `moveBookingToDeparture` only touches a row that is still on its `from`
+   * departure), so `message_log`'s date-bound kinds key on it alongside
+   * `subject_date` — see {@link messageLog.moveSeq}.
+   */
+  moveSeq: integer("move_seq").notNull().default(0),
+
   experienceSlug: text("experience_slug").notNull(),
   addOns: jsonb("add_ons").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
 
@@ -1138,8 +1153,9 @@ export const messageLog = pgTable("message_log", {
    * out. Keyed on the booking alone, that reminder would hold the slot for
    * ever and the guest would never hear about the new morning; keyed on the
    * day, the move earns a fresh reminder and the old date keeps its own row,
-   * so neither date is reminded twice. Same for `booking-moved`: a booking
-   * moved twice is told twice.
+   * so neither date is reminded twice. A date on its own still collides on a
+   * booking moved back onto one it already left — see {@link moveSeq}, which
+   * is what tells that visit apart from the last one.
    *
    * Null for every kind whose subject is the booking itself (confirmation,
    * cancellation, thank-you) or the enquiry behind it — see the two booking
@@ -1149,6 +1165,19 @@ export const messageLog = pgTable("message_log", {
    * holds, and no more identifying than the row's existence.
    */
   subjectDate: date("subject_date"),
+
+  /**
+   * {@link bookings.moveSeq} at the moment of sending, for the same kinds as
+   * {@link subjectDate} — together they are the date-bound key.
+   *
+   * A date alone is not enough: `X → A → B → A` reminds and notifies `A`
+   * twice, at two different move-seqs, and without this column the second
+   * visit would find the first visit's row still claiming that date and send
+   * nothing — a `booking-moved` notice the guest never gets, and a
+   * day-before reminder that stays silent for a tour they now believe is
+   * somewhere else. Null for every kind that is not date-bound.
+   */
+  moveSeq: integer("move_seq"),
 
   /**
    * The quote a message is *about*, for the kinds whose subject is an offer
@@ -1214,11 +1243,14 @@ export const messageLog = pgTable("message_log", {
     ),
   /**
    * The same rule for the kinds whose subject is a departure: one message of
-   * each kind per booking, per recipient, **per date**. This is what survives
-   * a move — see {@link messageLog.subjectDate}.
+   * each kind per booking, per recipient, **per date, per move**. This is
+   * what survives a move — see {@link messageLog.subjectDate} — and `move_seq`
+   * is what survives a move *back*: without it, a booking that returns to a
+   * date it already left would find that date's row still claiming the key
+   * and go untold, however real the second move was.
    */
   uniqueIndex("message_log_booking_date_kind_key")
-    .on(table.kind, table.recipient, table.bookingId, table.subjectDate)
+    .on(table.kind, table.recipient, table.bookingId, table.subjectDate, table.moveSeq)
     .where(
       sql`"booking_id" is not null and "subject_date" is not null and "status" <> 'failed'`,
     ),

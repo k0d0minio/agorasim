@@ -1,10 +1,108 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { describeSlot, TOUR_SLOTS, type DaySlots } from "@/lib/availability";
-import { isMovable, viableMoveTargets } from "@/lib/booking-move";
 import { noVehicles, type VehicleClass } from "@/lib/fleet";
 import type { SlotOccupancy } from "@/lib/bookings";
 import type { AvailabilityRow, AvailabilitySlot } from "@/db";
+
+// ---------------------------------------------------------------------------
+// A fake Neon client for `moveBookingToDeparture` — chainable, and resolving
+// to whatever the test queued, in the shape `app/admin/actions.test.ts` uses.
+// `viableMoveTargets`/`isMovable` below need none of this: they touch no
+// database, so this machinery only matters to the `moveBookingToDeparture`
+// suite further down.
+// ---------------------------------------------------------------------------
+
+let calls: { method: string; args: unknown[] }[] = [];
+let results: unknown[] = [];
+
+function queueResult(value: unknown): void {
+  results.push(value);
+}
+
+function nextResult(): unknown {
+  return results.length > 0 ? results.shift() : [];
+}
+
+function makeQuery(): unknown {
+  const proxy: unknown = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === "then") {
+          const value = nextResult();
+          return (
+            onFulfilled?: (value: unknown) => unknown,
+            onRejected?: (reason: unknown) => unknown,
+          ) =>
+            value instanceof Error
+              ? Promise.reject(value).then(onFulfilled, onRejected)
+              : Promise.resolve(value).then(onFulfilled, onRejected);
+        }
+        return (...args: unknown[]) => {
+          calls.push({ method: String(prop), args });
+          return proxy;
+        };
+      },
+    },
+  );
+  return proxy;
+}
+
+const fakeDb = new Proxy(
+  {},
+  {
+    get(_target, prop) {
+      return (...args: unknown[]) => {
+        calls.push({ method: String(prop), args });
+        return makeQuery();
+      };
+    },
+  },
+);
+
+vi.mock("@/db", async () => {
+  const schema = await vi.importActual<typeof import("@/db/schema")>("@/db/schema");
+  return { ...schema, db: fakeDb };
+});
+
+// The re-check the move calls: mocked so the suite decides whether the target
+// is free, rather than re-testing `checkSlotAvailable` itself here.
+const checkSlotAvailable = vi.fn();
+vi.mock("@/lib/availability", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/availability")>("@/lib/availability");
+  return { ...actual, checkSlotAvailable: (...args: unknown[]) => checkSlotAvailable(...args) };
+});
+
+const slotOccupancyOn = vi.fn();
+vi.mock("@/lib/bookings", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/bookings")>("@/lib/bookings");
+  return { ...actual, slotOccupancyOn: (...args: unknown[]) => slotOccupancyOn(...args) };
+});
+
+const recordAuditOrWarn = vi.fn();
+vi.mock("@/lib/audit", () => ({
+  recordAuditOrWarn: (...args: unknown[]) => recordAuditOrWarn(...args),
+}));
+
+vi.mock("@/lib/email", () => ({ isEmailConfigured: () => true }));
+
+vi.mock("@/lib/experience-catalogue", () => ({ listCatalogue: async () => [] }));
+
+vi.mock("@/lib/cancellation-token", () => ({
+  isCancellationTokenConfigured: () => false,
+  issueCancellationToken: vi.fn(),
+  cancellationPath: vi.fn(),
+}));
+
+const sendLoggedEmail = vi.fn();
+vi.mock("@/lib/message-log", () => ({
+  sendLoggedEmail: (...args: unknown[]) => sendLoggedEmail(...args),
+}));
+
+const { isMovable, moveBookingToDeparture, viableMoveTargets } = await import(
+  "@/lib/booking-move"
+);
 
 /**
  * The move picker's rule.
@@ -179,5 +277,128 @@ describe("isMovable", () => {
     for (const status of ["pending", "cancelled", "refunded", "expired"] as const) {
       expect(isMovable({ status })).toBe(false);
     }
+  });
+});
+
+/**
+ * The move itself, and the notice it earns — AGORA's move-back review.
+ *
+ * `sendMoveEmail` is best-effort and never surfaces in `MoveOutcome`, so the
+ * only window onto "did the guest get told, and under what claim?" is the
+ * `sendLoggedEmail` call it makes. What is asserted here is that window: the
+ * claim's key for a three-move sequence, and that a retry never opens one at
+ * all. Whether that key actually stops a duplicate is `message-log.test.ts`'s
+ * question, not this file's.
+ */
+describe("moveBookingToDeparture", () => {
+  const BOOKING_ID = "cccccccc-0000-4000-8000-000000000099";
+  const LEAD = "dddddddd-0000-4000-8000-000000000099";
+
+  function bookingRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: BOOKING_ID,
+      tourRequestId: LEAD,
+      date: "2026-08-01",
+      slot: "morning",
+      experienceSlug: CLASSIC_TOUR,
+      addOns: [] as string[],
+      mode: "public",
+      adults: 2,
+      children: 0,
+      infants: 0,
+      vehicleClass: "classic-small",
+      partySize: 2,
+      amountCents: 34000,
+      currency: "eur",
+      priceBreakdown: [],
+      status: "confirmed",
+      locale: "pt",
+      moveSeq: 0,
+      cancellationTokenHash: null,
+      ...overrides,
+    };
+  }
+
+  const leadRow = { id: LEAD, name: "Ana Silva", email: "ana@example.com", phone: null };
+
+  /** Queue one successful move's three reads/writes: the row, the update, the lead. */
+  function queueMove(before: Record<string, unknown>, after: Record<string, unknown>) {
+    queueResult([bookingRow(before)]);
+    queueResult([bookingRow(after)]);
+    queueResult([leadRow]);
+  }
+
+  beforeEach(() => {
+    calls = [];
+    results = [];
+    checkSlotAvailable.mockReset();
+    checkSlotAvailable.mockResolvedValue({ ok: true, vehicleClass: "classic-small" });
+    slotOccupancyOn.mockReset();
+    slotOccupancyOn.mockResolvedValue({ drivers: 0, vehicles: noVehicles() });
+    recordAuditOrWarn.mockReset();
+    recordAuditOrWarn.mockResolvedValue(undefined);
+    sendLoggedEmail.mockReset();
+    sendLoggedEmail.mockResolvedValue({ status: "sent", providerMessageId: "re_1" });
+  });
+
+  it("earns its own move notice on every real move, including a return to a date already visited", async () => {
+    // X (1 Aug) → A (15 Aug): move-seq 0 → 1.
+    queueMove({ date: "2026-08-01", moveSeq: 0 }, { date: "2026-08-15", moveSeq: 1 });
+    await moveBookingToDeparture({
+      bookingId: BOOKING_ID,
+      date: "2026-08-15",
+      slot: "morning",
+      actorUserId: "op-1",
+    });
+
+    // A (15 Aug) → B (22 Aug): the forecast turns, move-seq 1 → 2.
+    queueMove({ date: "2026-08-15", moveSeq: 1 }, { date: "2026-08-22", moveSeq: 2 });
+    await moveBookingToDeparture({
+      bookingId: BOOKING_ID,
+      date: "2026-08-22",
+      slot: "morning",
+      actorUserId: "op-1",
+    });
+
+    // B (22 Aug) → A (15 Aug) again: the flip-flop the review found, move-seq
+    // 2 → 3 — a real, distinct move even though the date repeats.
+    queueMove({ date: "2026-08-22", moveSeq: 2 }, { date: "2026-08-15", moveSeq: 3 });
+    await moveBookingToDeparture({
+      bookingId: BOOKING_ID,
+      date: "2026-08-15",
+      slot: "morning",
+      actorUserId: "op-1",
+    });
+
+    expect(sendLoggedEmail).toHaveBeenCalledTimes(3);
+    const subjects = sendLoggedEmail.mock.calls.map(
+      (call: unknown[]) => call[0] as Record<string, unknown>,
+    );
+    expect(subjects.map((s) => [s.subjectDate, s.moveSeq])).toEqual([
+      ["2026-08-15", 1],
+      ["2026-08-22", 2],
+      ["2026-08-15", 3],
+    ]);
+    // Every move earns its own claim — nothing here collapses the return to
+    // the 15th into the first visit's move-seq.
+    expect(new Set(subjects.map((s) => s.moveSeq)).size).toBe(3);
+  });
+
+  it("never touches the row or asks for a notice on a retry to where the booking already is", async () => {
+    queueResult([bookingRow({ date: "2026-08-15", moveSeq: 1 })]);
+
+    const outcome = await moveBookingToDeparture({
+      bookingId: BOOKING_ID,
+      date: "2026-08-15",
+      slot: "morning",
+      actorUserId: "op-1",
+    });
+
+    expect(outcome.status).toBe("same-departure");
+    expect(sendLoggedEmail).not.toHaveBeenCalled();
+    // The guard that makes this a no-op is `sameDeparture`, before any write:
+    // a retried request never reaches the update, so it never has a second
+    // move-seq to claim under.
+    expect(calls.some((c) => c.method === "update")).toBe(false);
   });
 });

@@ -204,6 +204,13 @@
       "when": 1790249447433,
       "tag": "0028_quote_receipt_per_quote",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790287187752,
+      "tag": "0029_add_booking_move_seq",
+      "breakpoints": true
     }
   ]
 }

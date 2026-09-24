@@ -249,6 +249,8 @@ export type BookingToRemind = {
   email: string | null;
   locale: Booking["locale"];
   date: DateKey;
+  /** `bookings.moveSeq` — the reminder's own half of the date-bound key. */
+  moveSeq: number;
   experienceSlug: string;
   slot: "morning" | "afternoon";
   mode: Booking["mode"];
@@ -294,6 +296,7 @@ export async function confirmedBookingsOn(date: DateKey): Promise<BookingToRemin
       anonymisedAt: tourRequests.anonymisedAt,
       locale: bookings.locale,
       date: bookings.date,
+      moveSeq: bookings.moveSeq,
       experienceSlug: bookings.experienceSlug,
       slot: bookings.slot,
       mode: bookings.mode,
