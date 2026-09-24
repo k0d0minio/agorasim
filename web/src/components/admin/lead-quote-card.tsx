@@ -26,6 +26,10 @@ import {
   type QuoteLine,
 } from "@/lib/quote-math";
 import type { QuotePaymentKind, QuotePaymentStatus, QuoteStatus } from "@/db/schema";
+import {
+  CancelHeldQuoteDialog,
+  RefundQuotePaymentDialog,
+} from "@/components/admin/quote-refund-dialogs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,11 +71,22 @@ export type QuoteCardItem = {
   canNewVersion: boolean;
   /** For a sent quote: whether the email with its current link left. */
   emailState: "sent" | "sending" | "not-sent" | null;
+  /**
+   * The deposit has all gone back. With the quote not cancelled, the event is
+   * still held and its balance still asked for — the card warns and offers
+   * "Cancelar evento".
+   */
+  depositRefundedInFull: boolean;
   payments: {
+    id: string;
     kind: QuotePaymentKind;
     amountCents: number;
+    /** What has gone back on it, in total — shown beside the amount. */
+    refundedAmountCents: number;
     dueDateLabel: string | null;
     status: QuotePaymentStatus;
+    /** Paid through Stripe with something left to give back — "Reembolsar". */
+    refundable: boolean;
   }[];
 };
 
@@ -231,7 +246,7 @@ function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: s
         {quote.payments.map((payment) => {
           const meta = quotePaymentStatusMeta[payment.status];
           return (
-            <li key={payment.kind} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <li key={payment.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="font-medium">
                 {quotePaymentKindLabel[payment.kind]}
                 {payment.kind === "deposit" ? ` (${quote.depositPercent}%)` : ""}
@@ -241,10 +256,47 @@ function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: s
                 <span className="text-muted-foreground">até {payment.dueDateLabel}</span>
               ) : null}
               <Badge variant={meta.variant}>{meta.label}</Badge>
+              {payment.refundedAmountCents > 0 && payment.status !== "refunded" ? (
+                <span className="text-muted-foreground">
+                  reembolsado {money(payment.refundedAmountCents)}
+                </span>
+              ) : null}
+              {payment.refundable ? (
+                <RefundQuotePaymentDialog
+                  payment={{
+                    id: payment.id,
+                    label: quotePaymentKindLabel[payment.kind],
+                    kind: payment.kind,
+                    amountCents: payment.amountCents,
+                    refundedAmountCents: payment.refundedAmountCents,
+                  }}
+                  quote={{
+                    ref: quote.ref,
+                    currency: quote.currency,
+                    eventDateLabel: quote.eventDateLabel,
+                    cancelled: quote.status === "cancelled",
+                    depositRefundedInFull: quote.depositRefundedInFull,
+                  }}
+                />
+              ) : null}
             </li>
           );
         })}
       </ul>
+
+      {quote.depositRefundedInFull && quote.status !== "cancelled" ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 p-3">
+          <p className="text-sm text-destructive" role="status">
+            O sinal foi reembolsado na totalidade, mas o evento continua marcado e o saldo
+            ainda vai ser pedido. Se o evento não se realiza, cancele-o.
+          </p>
+          <div>
+            <CancelHeldQuoteDialog
+              quote={{ id: quote.id, ref: quote.ref, eventDateLabel: quote.eventDateLabel }}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {quote.status === "sent" && quote.emailState === "not-sent" ? (
         <p className="text-sm text-destructive" role="status">
