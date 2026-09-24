@@ -83,8 +83,8 @@ export const bookingEmails = {
     },
     /** How the departure was sold, appended to the experience row. */
     modeWords: {
-      public: { pt: "partida partilhada", en: "shared departure" } as Localized,
-      private: { pt: "experiência privada", en: "private experience" } as Localized,
+      public: { pt: "por pessoa", en: "per person" } as Localized,
+      private: { pt: "por grupo", en: "per group" } as Localized,
     },
     next: {
       title: { pt: "O que acontece a seguir", en: "What happens next" } as Localized,
