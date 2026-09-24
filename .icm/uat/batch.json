@@ -1,6 +1,7 @@
 {
   "stubs": [
-    "admin-quote-builder"
+    "admin-quote-builder",
+    "retire-stale-dependency-advisories"
   ],
   "client_approved": false,
   "approved_by": "",
