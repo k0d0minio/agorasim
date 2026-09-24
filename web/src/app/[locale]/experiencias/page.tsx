@@ -17,6 +17,7 @@ import { JsonLd } from "@/components/json-ld";
 import { experienceJsonLd } from "@/lib/jsonld";
 import { alternates } from "@/lib/seo";
 import { href } from "@/lib/routes";
+import { experiences } from "@/content/pages";
 
 export async function generateMetadata({
   params,
@@ -25,16 +26,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   if (!isLocale(locale)) return {};
-  const title = locale === "pt" ? "Experiências" : "Experiences";
-  const catalogue = await listExperiences();
-  const signatures = catalogue.filter((e) => e.kind === "signature");
-  if (signatures.length === 0) return { title, alternates: alternates(locale, "experiencias") };
-  const summaries = signatures.map((s) => t(s.summary, locale));
-  const description = signatures.length === 1
-    ? summaries[0]
-    : locale === "pt"
-      ? `${summaries[0]} — e também ${summaries[1]}.`
-      : `${summaries[0]} — and also ${summaries[1]}.`;
+  const title = t(experiences.title, locale);
+  const description = t(experiences.metaDescription, locale);
   return { title, description, alternates: alternates(locale, "experiencias") };
 }
 
@@ -62,6 +55,13 @@ export default async function ExperiencesPage({
         <JsonLd key={tour.slug} data={experienceJsonLd(tour, l)} />
       ))}
 
+      <Section>
+        <div className="max-w-2xl">
+          <h1 className="text-4xl font-semibold sm:text-5xl">{t(experiences.title, l)}</h1>
+          <p className="mt-4 text-lg text-muted-foreground">{t(experiences.lead, l)}</p>
+        </div>
+      </Section>
+
       {/* Every signature tour gets equal billing — full-width feature blocks
           with alternating image placement for visual variety. */}
       {signatures.map((tour, i) => {
@@ -72,7 +72,7 @@ export default async function ExperiencesPage({
         );
         const contentBlock = (
           <div>
-            <h1 className="text-4xl font-semibold sm:text-5xl">{t(tour.title, l)}</h1>
+            <h2 className="text-4xl font-semibold sm:text-5xl">{t(tour.title, l)}</h2>
             <p className="mt-4 text-lg text-muted-foreground">{t(tour.summary, l)}</p>
             <ul className="mt-6 space-y-2 text-muted-foreground">
               {t(tour.highlights, l).map((h) => (

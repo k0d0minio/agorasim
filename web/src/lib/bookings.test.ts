@@ -1,3 +1,5 @@
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,6 +8,7 @@ import {
   emptyOccupancy,
   holdExpiryFrom,
   holdsCapacity,
+  remindableOnSql,
 } from "@/lib/bookings";
 import type { Booking } from "@/db";
 
@@ -85,5 +88,30 @@ describe("holdsCapacity", () => {
     for (const status of ["cancelled", "expired", "refunded"] as const) {
       expect(holdsCapacity(booking({ status }), now)).toBe(false);
     }
+  });
+});
+
+describe("remindableOnSql", () => {
+  /** The filter rendered as Postgres would receive it. */
+  const rendered = () => new PgDialect().sqlToQuery(remindableOnSql("2026-08-15") as SQL);
+
+  it("asks for that one day's confirmed bookings, and no other status", () => {
+    const { sql, params } = rendered();
+    expect(sql).toContain('"bookings"."date" = $');
+    expect(sql).toContain('"bookings"."status" = $');
+    expect(params).toContain("2026-08-15");
+    expect(params).toContain("confirmed");
+    // A pending hold is somebody on Stripe's page, not a guest who is coming;
+    // the rest are history. Cash bookings are `confirmed` and need no clause.
+    for (const status of ["pending", "expired", "cancelled", "refunded"]) {
+      expect(params).not.toContain(status);
+    }
+    expect(sql).not.toMatch(/payment_method/);
+  });
+
+  it("keeps to the two operational departures", () => {
+    const { params } = rendered();
+    expect(params).toEqual(expect.arrayContaining(["morning", "afternoon"]));
+    expect(params).not.toContain("full_day");
   });
 });

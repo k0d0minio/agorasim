@@ -1,0 +1,3 @@
+## 2026-09-24T09:30:00Z env.sh audit --changed — a gap on a key this branch never touched
+[GAP]  STRIPE_WEBHOOK_SECRET: declared for [production,preview,development] but Vercel/agorasim has it only for [preview,production] — missing development
+- resolved: not this branch's — `git log 99bf7d5..HEAD -- web/.env.example` is empty, so the key predates the run; the Development target on Vercel lacks the webhook secret, which only a local `vercel dev` would miss. Left for the operator; named in Notes for Release rather than widened into this PR.
