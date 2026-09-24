@@ -24,8 +24,10 @@ export const bookingContent = {
     yourDetails: { pt: "Os seus dados", en: "Your details" } as Localized,
     name: { pt: "Nome", en: "Name" } as Localized,
     email: { pt: "Email", en: "Email" } as Localized,
-    phone: { pt: "Telefone (opcional)", en: "Phone (optional)" } as Localized,
-    message: { pt: "Alguma nota para nós? (opcional)", en: "Anything we should know? (optional)" } as Localized,
+    phone: { pt: "Telefone", en: "Phone" } as Localized,
+    message: { pt: "Alguma nota para nós?", en: "Anything we should know?" } as Localized,
+    /** Appended after a field's own label, same convention as the quote form. */
+    optional: { pt: "(opcional)", en: "(optional)" } as Localized,
     messagePlaceholder: {
       pt: "Alergias, aniversários, cadeira de bebé…",
       en: "Allergies, birthdays, a child seat…",
@@ -112,12 +114,12 @@ export const bookingContent = {
 
     addOns: { pt: "Complete o seu dia", en: "Complete your day" } as Localized,
     addOnsHint: {
-      pt: "Paragens extra de sabores da região — disponíveis nas partidas privadas da Rural Saloia.",
-      en: "Extra stops for regional flavours — available on private Rural Saloia departures.",
+      pt: "Paragens extra de sabores da região — disponíveis nas partidas por grupo da Rural Saloia.",
+      en: "Extra stops for regional flavours — available on per-group Rural Saloia departures.",
     } as Localized,
     addOnsPublicNote: {
-      pt: "Os complementos juntam-se apenas às partidas privadas — mude para \"Privada\" para os adicionar.",
-      en: "Add-ons join private departures only — switch to \"Private\" to add them.",
+      pt: "Os complementos juntam-se apenas ao preço por grupo — mude para \"Preço por grupo\" para os adicionar.",
+      en: "Add-ons join the per-group price only — switch to \"Per group\" to add them.",
     } as Localized,
     addOnMinAdults: {
       pt: "mín. {min} adultos",

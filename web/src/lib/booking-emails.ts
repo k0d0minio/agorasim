@@ -56,7 +56,7 @@ export type BookingEmailFacts = {
   locale: Locale;
   /** "Saturday, 15 August 2026" — already in the guest's language. */
   date: string;
-  /** "Rural Saloia — experiência privada" — name plus how it was sold. */
+  /** "Rural Saloia — por grupo" — name plus how it was sold. */
   experience: string;
   /** "Manhã · 10h00" — the departure, in the guest's language. */
   departure: string;
@@ -1331,9 +1331,8 @@ export type QuoteSentEmailFacts = {
   total: string;
   deposit: string;
   depositPercent: number;
-  balance: string;
-  /** "sábado, 1 de agosto de 2026" — T−14. */
-  balanceDue: string;
+  /** What is left after the deposit and when it falls due, or `null` at a 100% deposit. */
+  balance: { amount: string; dueDate: string } | null;
   /** How many days before the event the balance is asked for. */
   balanceDueDaysBefore: number;
   /** The non-refundable window the quote was written under (D9). */
@@ -1371,7 +1370,9 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
 
   const subject = fill(t(c.subject, l), values);
   const greeting = fill(t(c.greeting, l), values);
-  const nextBody = fill(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) });
+  const nextBody = facts.balance
+    ? fill(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) })
+    : t(c.next.bodyFull, l);
   const termsNote = fill(t(c.termsNote, l), { days: String(facts.termsWindowDays) });
 
   const rows: DetailRow[] = [
@@ -1392,7 +1393,9 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
     },
     {
       label: t(c.labels.balance, l),
-      value: fill(t(c.balanceDue, l), { amount: facts.balance, date: facts.balanceDue }),
+      value: facts.balance
+        ? fill(t(c.balanceDue, l), { amount: facts.balance.amount, date: facts.balance.dueDate })
+        : t(c.noBalance, l),
     },
   ];
 

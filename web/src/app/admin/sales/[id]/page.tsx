@@ -474,7 +474,9 @@ export default async function AdminLeadPage({
                       {t(departureLabel(booking.experienceSlug, booking.slot), "pt")}
                     </span>
                     <span aria-hidden>·</span>
-                    <span>{booking.partySize} pessoas</span>
+                    <span>
+                      {booking.partySize} {booking.partySize === 1 ? "pessoa" : "pessoas"}
+                    </span>
                   </div>
 
                   <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">

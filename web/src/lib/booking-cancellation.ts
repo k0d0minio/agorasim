@@ -65,7 +65,7 @@ import { siteUrl } from "@/lib/site-origin";
  */
 export type GuestBookingSummary = {
   ref: string;
-  /** "Rural Saloia — experiência privada". */
+  /** "Rural Saloia — por grupo". */
   experience: string;
   /** "sábado, 15 de agosto de 2026". */
   date: string;
