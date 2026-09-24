@@ -18,7 +18,6 @@ import { Section } from "@/components/section";
  */
 export function TermsOfSale({ locale }: { locale: Locale }) {
   const c = termsContent;
-  const labels = c.sellerLabels;
 
   return (
     <Section>
@@ -41,43 +40,7 @@ export function TermsOfSale({ locale }: { locale: Locale }) {
       <div className="mt-12 max-w-2xl space-y-10">
         <section>
           <h2 className="text-2xl font-semibold">{t(c.sellerHeading, locale)}</h2>
-          <dl className="mt-4 grid gap-x-6 gap-y-2 text-muted-foreground sm:grid-cols-[max-content_1fr]">
-            <dt className="font-medium text-foreground">{t(labels.tradingName, locale)}</dt>
-            <dd>{seller.tradingName}</dd>
-
-            <dt className="font-medium text-foreground">{t(labels.legalName, locale)}</dt>
-            <dd>
-              {seller.legalName} ({t(c.legalNameNote, locale)})
-            </dd>
-
-            <dt className="font-medium text-foreground">{t(labels.registrationNumber, locale)}</dt>
-            <dd>{seller.registrationNumber}</dd>
-
-            <dt className="font-medium text-foreground">{t(labels.address, locale)}</dt>
-            <dd>{seller.address}</dd>
-
-            <dt className="font-medium text-foreground">{t(labels.email, locale)}</dt>
-            <dd>
-              <a href={`mailto:${seller.email}`} className="hover:text-primary">
-                {seller.email}
-              </a>
-            </dd>
-
-            <dt className="font-medium text-foreground">{t(labels.phone, locale)}</dt>
-            <dd>
-              {seller.phones.map((contact, i) => (
-                <span key={contact.phone}>
-                  {i > 0 ? " · " : null}
-                  <a href={`tel:${contact.phone}`} className="hover:text-primary">
-                    {contact.name} {contact.phoneDisplay}
-                  </a>
-                </span>
-              ))}
-            </dd>
-
-            <dt className="font-medium text-foreground">{t(labels.rnaat, locale)}</dt>
-            <dd>{seller.rnaat ?? t(c.rnaatPending, locale)}</dd>
-          </dl>
+          <SellerDetails locale={locale} />
         </section>
 
         {t(c.sections, locale).map((section) => (
@@ -92,5 +55,54 @@ export function TermsOfSale({ locale }: { locale: Locale }) {
         ))}
       </div>
     </Section>
+  );
+}
+
+/**
+ * Who is selling, as a definition list — the terms page's seller block, and
+ * the same block the quote page shows above its pay button, so the identity a
+ * couple read before paying is the one the terms publish.
+ */
+export function SellerDetails({ locale }: { locale: Locale }) {
+  const c = termsContent;
+  const labels = c.sellerLabels;
+  return (
+    <dl className="mt-4 grid gap-x-6 gap-y-2 text-muted-foreground sm:grid-cols-[max-content_1fr]">
+      <dt className="font-medium text-foreground">{t(labels.tradingName, locale)}</dt>
+      <dd>{seller.tradingName}</dd>
+
+      <dt className="font-medium text-foreground">{t(labels.legalName, locale)}</dt>
+      <dd>
+        {seller.legalName} ({t(c.legalNameNote, locale)})
+      </dd>
+
+      <dt className="font-medium text-foreground">{t(labels.registrationNumber, locale)}</dt>
+      <dd>{seller.registrationNumber}</dd>
+
+      <dt className="font-medium text-foreground">{t(labels.address, locale)}</dt>
+      <dd>{seller.address}</dd>
+
+      <dt className="font-medium text-foreground">{t(labels.email, locale)}</dt>
+      <dd>
+        <a href={`mailto:${seller.email}`} className="hover:text-primary">
+          {seller.email}
+        </a>
+      </dd>
+
+      <dt className="font-medium text-foreground">{t(labels.phone, locale)}</dt>
+      <dd>
+        {seller.phones.map((contact, i) => (
+          <span key={contact.phone}>
+            {i > 0 ? " · " : null}
+            <a href={`tel:${contact.phone}`} className="hover:text-primary">
+              {contact.name} {contact.phoneDisplay}
+            </a>
+          </span>
+        ))}
+      </dd>
+
+      <dt className="font-medium text-foreground">{t(labels.rnaat, locale)}</dt>
+      <dd>{seller.rnaat ?? t(c.rnaatPending, locale)}</dd>
+    </dl>
   );
 }

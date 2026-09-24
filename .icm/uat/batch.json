@@ -1,7 +1,8 @@
 {
   "stubs": [
     "admin-quote-builder",
-    "retire-stale-dependency-advisories"
+    "retire-stale-dependency-advisories",
+    "quote-page-and-deposit-link"
   ],
   "client_approved": false,
   "approved_by": "",

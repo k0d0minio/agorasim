@@ -29,7 +29,7 @@
  * {@link leadStageAfterQuote}.
  *
  * **Commission is not computed here.** `lib/commission.ts` owns the agreement's
- * arithmetic and `payment-links` will ask it for 6% of each instalment (§5);
+ * arithmetic and `lib/quote-checkout.ts` asks it for 6% of each instalment (§5);
  * what this module does is record the figure Stripe actually took, on the
  * payment row it was taken from — the same discipline `bookings` keeps.
  *
@@ -138,6 +138,60 @@ export function isInsideNonRefundableWindow(
   now: Date = new Date(),
 ): boolean {
   return todayKey(now) >= shiftDays(quote.eventDate, -quote.termsWindowDays);
+}
+
+// ---------------------------------------------------------------------------
+// What the couple owe today
+// ---------------------------------------------------------------------------
+
+/**
+ * What the quote page offers to pay, today.
+ *
+ * - `due` — one instalment the couple can pay now: the deposit while it is
+ *   unsettled, then the balance from its due date (T−14) on.
+ * - `not-yet` — the deposit is settled and the balance is not due until
+ *   `dueDate`; the page says so rather than taking it early (the proposal's
+ *   terms are the balance 14 days before, and nothing more).
+ * - `settled` — nothing is left to pay.
+ * - `not-live` — a draft or a cancelled quote, which the page does not show.
+ *
+ * "Settled" is `paid` or `cancelled`, the same reading {@link
+ * statusAfterPayment} makes: a deposit the team wrote off because it arrived
+ * by transfer holds the date as surely as one paid through Stripe. A balance
+ * of zero (a 100% deposit) has no row, or a row of nothing, and is settled.
+ * `other` instalments are the team's own extras and never offered here.
+ */
+export type DueInstalment =
+  | { kind: "due"; payment: QuotePayment }
+  | { kind: "not-yet"; payment: QuotePayment; dueDate: DateKey }
+  | { kind: "settled" }
+  | { kind: "not-live" };
+
+/** Whether an instalment still has money to collect. */
+function isOpenInstalment(payment: Pick<QuotePayment, "status" | "amountCents">): boolean {
+  return (payment.status === "pending" || payment.status === "issued") && payment.amountCents > 0;
+}
+
+export function dueInstalment(
+  quote: Pick<Quote, "status"> & { payments: QuotePayment[] },
+  now: Date = new Date(),
+): DueInstalment {
+  if (quote.status !== "sent" && quote.status !== "deposit_paid" && quote.status !== "paid") {
+    return { kind: "not-live" };
+  }
+
+  const deposit = quote.payments.find((payment) => payment.kind === "deposit");
+  if (deposit && isOpenInstalment(deposit)) return { kind: "due", payment: deposit };
+
+  const balance = quote.payments.find((payment) => payment.kind === "balance");
+  if (!balance || !isOpenInstalment(balance)) return { kind: "settled" };
+
+  // Whole days in Europe/Lisbon, like the non-refundable window above: the
+  // due date is a day the couple read, not an instant a server keeps.
+  if (balance.dueDate && todayKey(now) < balance.dueDate) {
+    return { kind: "not-yet", payment: balance, dueDate: balance.dueDate };
+  }
+  return { kind: "due", payment: balance };
 }
 
 // ---------------------------------------------------------------------------
@@ -478,6 +532,25 @@ export async function getPaymentBySessionId(
     .from(quotePayments)
     .innerJoin(quotes, eq(quotePayments.quoteId, quotes.id))
     .where(eq(quotePayments.stripeSessionId, stripeSessionId))
+    .limit(1);
+
+  return row ?? null;
+}
+
+/**
+ * One instalment and its quote, by the instalment's id — the fallback the
+ * webhook uses when a paid session is no longer the one the row holds (it was
+ * replaced a moment after the couple finished paying it). The session's own
+ * metadata names the instalment, and money that arrived is recorded either way.
+ */
+export async function getPayment(
+  paymentId: string,
+): Promise<{ quote: Quote; payment: QuotePayment } | null> {
+  const [row] = await db
+    .select({ quote: quotes, payment: quotePayments })
+    .from(quotePayments)
+    .innerJoin(quotes, eq(quotePayments.quoteId, quotes.id))
+    .where(eq(quotePayments.id, paymentId))
     .limit(1);
 
   return row ?? null;
@@ -1008,7 +1081,16 @@ export async function markPaymentIssued(
       issuedAt: now,
       updatedAt: now,
     })
-    .where(and(eq(quotePayments.id, paymentId), eq(quotePayments.status, "pending")))
+    .where(
+      and(
+        eq(quotePayments.id, paymentId),
+        eq(quotePayments.status, "pending"),
+        // The first session for this instalment, and only the first: a second
+        // tap racing the first finds a session here and loses, rather than
+        // overwriting one the couple may already be paying.
+        isNull(quotePayments.stripeSessionId),
+      ),
+    )
     .returning();
 
   return payment ?? null;
@@ -1024,17 +1106,36 @@ export async function markPaymentIssued(
  */
 export async function reissuePayment(
   paymentId: string,
-  options: { stripeSessionId: string; now?: Date },
+  options: {
+    stripeSessionId: string;
+    /**
+     * The session this one replaces, as the caller read it. When given, the
+     * write only lands if the row still holds exactly that session — two taps
+     * on the quote page that both found an expired session each mint one, and
+     * only the first may be recorded, or the row forgets a session the couple
+     * could still pay. The loser gets `null` and expires its own.
+     */
+    replacing?: string;
+    commissionRateBps?: number | null;
+    now?: Date;
+  },
 ): Promise<QuotePayment | null> {
-  const { stripeSessionId, now = new Date() } = options;
+  const { stripeSessionId, replacing, commissionRateBps, now = new Date() } = options;
 
   const [payment] = await db
     .update(quotePayments)
-    .set({ status: "issued", stripeSessionId, issuedAt: now, updatedAt: now })
+    .set({
+      status: "issued",
+      stripeSessionId,
+      ...(commissionRateBps !== undefined ? { commissionRateBps } : {}),
+      issuedAt: now,
+      updatedAt: now,
+    })
     .where(
       and(
         eq(quotePayments.id, paymentId),
         inArray(quotePayments.status, ["pending", "issued"]),
+        ...(replacing !== undefined ? [eq(quotePayments.stripeSessionId, replacing)] : []),
       ),
     )
     .returning();
@@ -1050,6 +1151,14 @@ export type PaymentSettlement = {
   /** Stripe's own figure for the application fee it routed (§5). */
   applicationFeeCents?: number | null;
   commissionRateBps?: number | null;
+  /**
+   * The terms version the quote page showed when the couple tapped pay — the
+   * paid session's own metadata. It is what a paid deposit records as
+   * accepted: the couple read the page, not the version stamped when the quote
+   * was sent. Absent (a session minted before this existed), the send-time
+   * version stands in.
+   */
+  acceptedTermsVersion?: string | null;
 };
 
 /**
@@ -1067,8 +1176,10 @@ export type PaymentSettlement = {
  * {@link statusAfterPayment}, which is that rule, pure.
  *
  * Paying the deposit is also the acceptance of the terms, so the version the
- * quote was sent under is copied into `accepted_terms_version` here — once,
- * never overwritten, which is the whole reason it is a second column.
+ * couple were shown when they tapped pay (`settlement.acceptedTermsVersion`,
+ * falling back to the version the quote was sent under) is copied into
+ * `accepted_terms_version` here — once, never overwritten, which is the whole
+ * reason it is a second column.
  */
 export async function markPaymentPaid(
   paymentId: string,
@@ -1115,6 +1226,7 @@ export async function markPaymentPaid(
     // of an agreement the guest never made is not evidence — see
     // {@link cancelPayment}.
     acceptsTerms: payment.kind === "deposit",
+    acceptedTermsVersion: settlement.acceptedTermsVersion ?? null,
     now,
   });
 }
@@ -1136,9 +1248,20 @@ export async function markPaymentPaid(
  */
 async function syncQuoteAfterPaymentChange(
   quoteId: string,
-  options: { acceptsTerms?: boolean; actorUserId?: string | null; now?: Date } = {},
+  options: {
+    acceptsTerms?: boolean;
+    /** The version shown at the tap; the send-time version when absent. */
+    acceptedTermsVersion?: string | null;
+    actorUserId?: string | null;
+    now?: Date;
+  } = {},
 ): Promise<QuoteWithPayments | null> {
-  const { acceptsTerms = false, actorUserId = null, now = new Date() } = options;
+  const {
+    acceptsTerms = false,
+    acceptedTermsVersion = null,
+    actorUserId = null,
+    now = new Date(),
+  } = options;
 
   const current = await getQuote(quoteId);
   if (!current) return null;
@@ -1153,7 +1276,10 @@ async function syncQuoteAfterPaymentChange(
       .set({
         status: next,
         ...(accepts
-          ? { acceptedAt: now, acceptedTermsVersion: current.termsVersion }
+          ? {
+              acceptedAt: now,
+              acceptedTermsVersion: acceptedTermsVersion ?? current.termsVersion,
+            }
           : {}),
         updatedAt: now,
       })

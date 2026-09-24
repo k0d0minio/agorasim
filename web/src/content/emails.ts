@@ -520,6 +520,143 @@ export const bookingEmails = {
     } as Localized,
   },
 
+  /**
+   * The receipt a couple get when an instalment of their quote is paid —
+   * `deposit-received` for the sinal, `balance-paid` for the rest.
+   *
+   * It is also the durable copy of the terms (DL 24/2014 art. 4(1), 17(1)(l)):
+   * the events section of `terms.ts` travels in it verbatim, with its version,
+   * so what the couple agreed to is in their inbox and not only on a page we
+   * control. There is no link to the quote page: this mail is usually sent by
+   * the webhook, which never holds the plaintext token, so the receipt points
+   * at the quote email instead (decided with the operator at Build).
+   */
+  quoteReceipt: {
+    subject: {
+      deposit: {
+        pt: "Sinal recebido — a data de {date} está reservada",
+        en: "Deposit received — {date} is held for you",
+      } as Localized,
+      balance: {
+        pt: "Pagamento concluído — {date}",
+        en: "Paid in full — {date}",
+      } as Localized,
+    },
+    preheader: {
+      deposit: {
+        pt: "Recebemos {amount} · o restante é pedido até {due}",
+        en: "We received {amount} · the balance is due by {due}",
+      } as Localized,
+      balance: {
+        pt: "Recebemos {amount} · está tudo pago",
+        en: "We received {amount} · everything is paid",
+      } as Localized,
+    },
+    banner: {
+      deposit: { pt: "Sinal recebido", en: "Deposit received" } as Localized,
+      balance: { pt: "Pagamento concluído", en: "Paid in full" } as Localized,
+    },
+    greeting: { pt: "Olá {name},", en: "Hello {name}," } as Localized,
+    lead: {
+      deposit: {
+        pt: "Recebemos o seu sinal — a data do seu evento está reservada. Obrigado!",
+        en: "We have received your deposit — the date of your event is held for you. Thank you!",
+      } as Localized,
+      balance: {
+        pt: "Recebemos o pagamento do restante — o seu evento está pago na totalidade. Obrigado!",
+        en: "We have received the balance — your event is paid in full. Thank you!",
+      } as Localized,
+    },
+    detailsHeading: { pt: "Recibo", en: "Receipt" } as Localized,
+    labels: {
+      reference: { pt: "Referência", en: "Reference" } as Localized,
+      date: { pt: "Data do evento", en: "Event date" } as Localized,
+      venue: { pt: "Local", en: "Venue" } as Localized,
+      paid: {
+        deposit: { pt: "Sinal pago", en: "Deposit paid" } as Localized,
+        balance: { pt: "Restante pago", en: "Balance paid" } as Localized,
+      },
+      paidOn: { pt: "Pago em", en: "Paid on" } as Localized,
+      total: { pt: "Total do orçamento", en: "Quote total" } as Localized,
+      remaining: { pt: "Por pagar", en: "Still to pay" } as Localized,
+    },
+    /** The "still to pay" row after the deposit: the amount and its day. */
+    remainingDue: { pt: "{amount} · até {date}", en: "{amount} · due {date}" } as Localized,
+    fullyPaid: { pt: "Nada — está tudo pago", en: "Nothing — everything is paid" } as Localized,
+    next: {
+      title: { pt: "O que acontece a seguir", en: "What happens next" } as Localized,
+      body: {
+        pt: "Enviamos-lhe o link para pagar o restante {days} dias antes do evento. O seu orçamento continua disponível no link do email em que o recebeu.",
+        en: "We will send you the link to pay the balance {days} days before the event. Your quote stays available at the link in the email you received it with.",
+      } as Localized,
+    },
+    /** Heading over the events terms, reproduced verbatim below it. */
+    termsHeading: {
+      pt: "As condições do seu evento (versão de {version})",
+      en: "The conditions of your event (version of {version})",
+    } as Localized,
+    fullTerms: {
+      pt: "Termos de venda completos: {url}",
+      en: "Full terms of sale: {url}",
+    } as Localized,
+    fullTermsLink: {
+      pt: "Ler os termos de venda completos",
+      en: "Read the full terms of sale",
+    } as Localized,
+    questions: {
+      pt: "Alguma dúvida? Responda a este email ou ligue-nos:",
+      en: "Any questions? Reply to this email or call us:",
+    } as Localized,
+    signoff: {
+      pt: "Até breve,\nDiogo e Rita\nAgorasim",
+      en: "See you soon,\nDiogo and Rita\nAgorasim",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque pagou um orçamento em {site}.",
+      en: "You are receiving this email because you paid a quote at {site}.",
+    } as Localized,
+  },
+
+  /** To Diogo & Rita. Portuguese — an instalment of a quote was paid. */
+  teamQuoteReceipt: {
+    subject: {
+      deposit: "Sinal recebido — {name} · {date}",
+      balance: "Restante pago — {name} · {date}",
+    },
+    preheader: "{ref} · {amount}",
+    banner: {
+      deposit: "Sinal recebido",
+      balance: "Restante pago",
+    },
+    heading: {
+      deposit: "O sinal do orçamento {ref} foi pago — a data está reservada.",
+      balance: "O restante do orçamento {ref} foi pago — está tudo pago.",
+    },
+    detailsHeading: "Pagamento",
+    labels: {
+      reference: "Referência",
+      date: "Data do evento",
+      venue: "Local",
+      amount: "Valor pago",
+      fee: "Comissão (6%)",
+      total: "Total do orçamento",
+      remaining: "Por pagar",
+    },
+    remainingDue: "{amount} · até {date}",
+    fullyPaid: "Nada",
+    /** No connected account: the charge is the platform's and carries no fee. */
+    noFee: "—",
+    guestHeading: "Cliente",
+    guestLabels: {
+      name: "Nome",
+      email: "Email",
+      phone: "Telefone",
+    },
+    cta: "Ver no painel",
+    ctaLine: "Ver no painel: {adminUrl}",
+    footerNote: "Notificação automática do site — responda para escrever ao cliente.",
+  },
+
   /** To Diogo & Rita. Portuguese — a new enquiry has arrived. */
   teamEnquiry: {
     subject: "Novo pedido — {name}",

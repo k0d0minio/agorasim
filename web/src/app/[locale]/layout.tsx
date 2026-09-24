@@ -95,7 +95,11 @@ export default async function LocaleLayout({
         <SiteHeader locale={typedLocale} />
         <main className="flex-1">{children}</main>
         <SiteFooter locale={typedLocale} />
-        <BookingBar locale={typedLocale} label={dict.cta.bookExperience} />
+        <BookingBar
+          locale={typedLocale}
+          label={dict.cta.bookExperience}
+          quoteLabel={dict.cta.requestQuote}
+        />
       </body>
     </html>
   );

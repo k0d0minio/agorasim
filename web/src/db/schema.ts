@@ -1242,6 +1242,23 @@ export const messageLog = pgTable("message_log", {
     .where(
       sql`"booking_id" is null and "quote_id" is not null and "quote_sent_at" is not null and "status" <> 'failed'`,
     ),
+  /**
+   * One receipt of each kind per quote, per recipient — the rule for the
+   * messages whose subject is a paid instalment rather than a send
+   * (`deposit-received`, `balance-paid`). A quote has one deposit and one
+   * balance, and the two are different kinds, so the kind and the quote are
+   * the whole key: the webhook redelivering, or the return page racing it,
+   * finds the claim and sends nothing.
+   *
+   * Split from the index above on `quote_sent_at`'s nullness, for the reason
+   * the two booking indexes split on `subject_date`'s: a unique index treats
+   * NULLs as distinct, so one key over both shapes would key nothing here.
+   */
+  uniqueIndex("message_log_quote_receipt_key")
+    .on(table.kind, table.recipient, table.quoteId)
+    .where(
+      sql`"booking_id" is null and "quote_id" is not null and "quote_sent_at" is null and "status" <> 'failed'`,
+    ),
   // "What did we send about this booking / this lead?" — the Notifications page
   // and the admin's per-row history.
   index("message_log_booking_idx").on(table.bookingId),

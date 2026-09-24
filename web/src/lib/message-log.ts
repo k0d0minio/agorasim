@@ -78,14 +78,26 @@ export type DateBoundKind = (typeof DATE_BOUND_KINDS)[number];
 /**
  * The kinds whose subject is one send of a quote — see the module note.
  *
- * The later quote-flow messages (deposit received, balance paid) are about a
- * quote too, but once each rather than once per link; they join a shape of
- * their own when they are written, rather than borrowing this one's key.
+ * The receipts are about a quote too, but once each rather than once per
+ * link; they have a shape of their own ({@link QUOTE_RECEIPT_KINDS}) rather
+ * than borrowing this one's key.
  */
 export const QUOTE_SEND_KINDS = ["quote-sent"] as const;
 
 /** A kind from {@link QUOTE_SEND_KINDS}. */
 export type QuoteSendKind = (typeof QUOTE_SEND_KINDS)[number];
+
+/**
+ * The kinds whose subject is one paid instalment of a quote — the receipts.
+ *
+ * A quote has one deposit and one balance, and each receipt is its own kind,
+ * so the quote alone is the key (`message_log_quote_receipt_key`): a second
+ * webhook delivery, or the return page racing the webhook, finds the claim.
+ */
+export const QUOTE_RECEIPT_KINDS = ["deposit-received", "balance-paid"] as const;
+
+/** A kind from {@link QUOTE_RECEIPT_KINDS}. */
+export type QuoteReceiptKind = (typeof QUOTE_RECEIPT_KINDS)[number];
 
 /** Whom a message is about, in rows — shared by every shape of the subject. */
 type SubjectRows = {
@@ -126,7 +138,15 @@ export type MessageSubject =
       subjectDate?: never;
     })
   | (SubjectRows & {
-      kind: Exclude<MessageKind, DateBoundKind | QuoteSendKind>;
+      kind: QuoteReceiptKind;
+      /** The quote whose instalment was paid. */
+      quoteId: string;
+      bookingId?: never;
+      subjectDate?: never;
+      quoteSentAt?: never;
+    })
+  | (SubjectRows & {
+      kind: Exclude<MessageKind, DateBoundKind | QuoteSendKind | QuoteReceiptKind>;
       /**
        * The booking this message is about, for the booking-shaped kinds
        * (confirmation, cancellation, thank-you). Null for the kinds that answer
@@ -235,7 +255,7 @@ async function claimSend(subject: MessageSubject): Promise<string | "duplicate" 
         quoteSentAt: subject.quoteSentAt ?? null,
         status: "sending",
       })
-      // No conflict target: all four partial unique indexes are arbiters, and
+      // No conflict target: all five partial unique indexes are arbiters, and
       // which one applies depends on whether this message names a booking, a
       // date or a quote.
       .onConflictDoNothing()

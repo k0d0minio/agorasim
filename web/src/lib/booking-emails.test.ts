@@ -5,18 +5,22 @@ import {
   guestConfirmationEmail,
   guestEnquiryAckEmail,
   guestMoveEmail,
+  guestQuoteReceiptEmail,
   guestQuoteSentEmail,
   partyLabel,
   teamCancellationEmail,
   teamEnquiryEmail,
   teamNotificationEmail,
+  teamQuoteReceiptEmail,
   type BookingCancellationFacts,
   type BookingEmailFacts,
   type BookingMoveFacts,
   type EnquiryEmailFacts,
+  type QuoteReceiptEmailFacts,
   type QuoteSentEmailFacts,
   type TeamCancellationFacts,
 } from "@/lib/booking-emails";
+import { termsContent, termsSection } from "@/content/terms";
 import { emailPalette } from "@/lib/email-layout";
 import { site } from "@/content/site";
 import { siteUrl } from "@/lib/site-origin";
@@ -889,5 +893,86 @@ describe("guestQuoteSentEmail", () => {
 
     expect(mail.html).not.toContain("<b>Flores</b>");
     expect(mail.html).toContain("&lt;b&gt;Flores&lt;/b&gt; &amp; fitas");
+  });
+});
+
+describe("the quote receipts — deposit-received and balance-paid", () => {
+  function receiptFacts(overrides: Partial<QuoteReceiptEmailFacts> = {}): QuoteReceiptEmailFacts {
+    return {
+      instalment: "deposit",
+      ref: "QT-A1B2C3",
+      guestName: "Inês & Tomás",
+      guestEmail: "ines@example.com",
+      guestPhone: "+351912345678",
+      locale: "pt",
+      date: "sábado, 15 de agosto de 2026",
+      venue: "Quinta do Hespanhol, Mafra",
+      amount: "486 €",
+      paidOn: "segunda, 1 de junho de 2026",
+      total: "1620 €",
+      remaining: { amount: "1134 €", dueDate: "sábado, 1 de agosto de 2026" },
+      balanceDueDaysBefore: 14,
+      fee: "29,16 €",
+      adminUrl: "https://agorasim.pt/admin/sales/abc",
+      ...overrides,
+    };
+  }
+
+  it("carries the events terms verbatim, with their version — the durable copy", () => {
+    for (const locale of ["pt", "en"] as const) {
+      const mail = guestQuoteReceiptEmail(receiptFacts({ locale }));
+      const events = termsSection("events", locale);
+
+      for (const paragraph of events.body) expect(mail.text).toContain(paragraph);
+      expect(mail.text).toContain(events.heading);
+      expect(mail.text).toContain(termsContent.lastUpdated[locale]);
+      // The HTML part escapes, so the headline paragraph is checked escaped.
+      expect(mail.html).toContain(
+        events.body[1].replace(/&/g, "&amp;").replace(/'/g, "&#39;"),
+      );
+    }
+  });
+
+  it("says what was paid and what is still owed, in the couple's language", () => {
+    const pt = guestQuoteReceiptEmail(receiptFacts());
+    expect(pt.subject).toBe("Sinal recebido — a data de sábado, 15 de agosto de 2026 está reservada");
+    expect(pt.text).toContain("Sinal pago: 486 €");
+    expect(pt.text).toContain("Por pagar: 1134 € · até sábado, 1 de agosto de 2026");
+    expect(pt.to).toEqual(["ines@example.com"]);
+    expect(pt.replyTo).toBe(site.email);
+
+    const en = guestQuoteReceiptEmail(
+      receiptFacts({ locale: "en", date: "Saturday, 15 August 2026", remaining: null, instalment: "balance" }),
+    );
+    expect(en.subject).toBe("Paid in full — Saturday, 15 August 2026");
+    expect(en.text).toContain("Balance paid: 486 €");
+    expect(en.text).toContain("Nothing — everything is paid");
+    // Nothing left to pay: no "what happens next" about a balance.
+    expect(en.text).not.toContain("We will send you the link");
+  });
+
+  it("links the full terms and never a quote link — the webhook has no token", () => {
+    const mail = guestQuoteReceiptEmail(receiptFacts());
+    expect(mail.text).toContain(`${siteUrl()}/pt/termos`);
+    expect(mail.text).not.toContain("/orcamento/");
+    expect(mail.html).not.toContain("/orcamento/");
+    expect(mail.text).not.toMatch(/\{\w+\}/);
+  });
+
+  it("gives the team the fee and the couple's details, in Portuguese", () => {
+    const mail = teamQuoteReceiptEmail(receiptFacts({ locale: "en" }), ["equipa@agorasim.pt"]);
+    expect(mail.subject).toBe("Sinal recebido — Inês & Tomás · sábado, 15 de agosto de 2026");
+    expect(mail.text).toContain("Comissão (6%): 29,16 €");
+    expect(mail.text).toContain("ines@example.com");
+    expect(mail.to).toEqual(["equipa@agorasim.pt"]);
+    // Reply writes to the couple.
+    expect(mail.replyTo).toBe("ines@example.com");
+
+    const platformOnly = teamQuoteReceiptEmail(
+      receiptFacts({ fee: null, instalment: "balance", remaining: null }),
+      ["equipa@agorasim.pt"],
+    );
+    expect(platformOnly.subject).toMatch(/^Restante pago/);
+    expect(platformOnly.text).toContain("Comissão (6%): —");
   });
 });
