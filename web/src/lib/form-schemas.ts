@@ -630,6 +630,13 @@ export const cancelBookingSchema = z.object({
   ),
 });
 
+/** Mark or clear a no-show on one booking — the Sales board's "Faltou". */
+export const bookingNoShowSchema = z.object({
+  bookingId: z.uuid(),
+  /** "1" marks the no-show, "0" clears it. */
+  mark: z.enum(["1", "0"]).transform((value) => value === "1"),
+});
+
 /**
  * Moving a booking to another departure.
  *

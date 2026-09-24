@@ -34,6 +34,7 @@ import {
   emailNote,
   emailPalette,
   emailParagraph,
+  emailParagraphWithLink,
   emailSpacer,
   escapeHtml,
   type DetailRow,
@@ -601,6 +602,115 @@ export function guestReminderEmail(facts: ReminderEmailFacts): EmailMessage {
     text,
     html,
     replyTo: site.email,
+  };
+}
+
+/**
+ * Everything the post-tour thank-you needs. Deliberately little: the tour's
+ * name for the preheader, who to write to, and the two opt-out addresses —
+ * the confirm page for the footer link and the one-click endpoint for the
+ * `List-Unsubscribe` header, both absolute and both carrying the address's
+ * opt-out token (`lib/email-opt-out-token.ts`).
+ */
+export type ThankYouEmailFacts = {
+  guestName: string;
+  guestEmail: string;
+  locale: Locale;
+  /** "Rural Saloia" — the tour's name in the guest's language. */
+  experience: string;
+  /** `https://…/pt/reserva/deixar-de-receber/<token>` */
+  optOutUrl: string;
+  /** `https://…/api/email/opt-out/<token>` — the RFC 8058 one-click target. */
+  oneClickUrl: string;
+};
+
+/**
+ * The §2.6 thank-you, in the language the guest booked in.
+ *
+ * **The review link is the point**, so it is the one button in the mail and a
+ * bare URL on its own line in the text part. It comes from `site.reviews`,
+ * never from here.
+ *
+ * **It carries its own way out.** This is the one guest mail that is not about
+ * a booking (soft opt-in, D24): the footer's opt-out line links the confirm
+ * page, and the `List-Unsubscribe` / `List-Unsubscribe-Post` headers let a mail
+ * client offer its own one-click unsubscribe (RFC 8058) against the endpoint.
+ */
+export function guestThankYouEmail(facts: ThankYouEmailFacts): EmailMessage {
+  const c = bookingEmails.thankYou;
+  const l = facts.locale;
+  const name = facts.guestName.trim();
+
+  const values: Record<string, string> = {
+    name,
+    experience: facts.experience,
+    url: facts.optOutUrl,
+    site: siteUrl(),
+  };
+
+  const subject = name ? fill(t(c.subject, l), values) : t(c.subjectNoName, l);
+  const greeting = name ? fill(t(c.greeting, l), values) : t(c.greetingNoName, l);
+  const reviewUrl = site.reviews.google;
+  const close = t(c.close, l);
+
+  const text = textLines([
+    greeting,
+    "",
+    t(c.lead, l),
+    "",
+    t(c.reviewAsk, l),
+    reviewUrl,
+    "",
+    fill(close, { instagram: `${c.instagramHandle} (${site.social.instagram})` }),
+    "",
+    t(c.signoff, l),
+    siteUrl(),
+    "",
+    fill(t(c.optOut.textLine, l), values),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader, l), values),
+    banner: { text: t(c.banner, l) },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(t(c.lead, l), { spaceBelow: 20 }),
+      emailParagraph(t(c.reviewAsk, l), { spaceBelow: 20 }),
+      emailButton({ label: t(c.reviewButton, l), href: reviewUrl }),
+      emailSpacer(28),
+      emailParagraphWithLink(close.replace("{instagram}", "{link}"), {
+        label: c.instagramHandle,
+        href: site.social.instagram,
+      }),
+      emailSpacer(8),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [
+      escapeHtml(t(taglines, l)),
+      footerWithSiteLink(t(c.footerNote, l)),
+      t(c.optOut.line, l)
+        .split("{link}")
+        .map(escapeHtml)
+        .join(
+          `<a href="${escapeHtml(facts.optOutUrl)}" style="color:${emailPalette.textMuted};text-decoration:underline;">${escapeHtml(t(c.optOut.linkLabel, l))}</a>`,
+        ),
+    ],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+    headers: {
+      "List-Unsubscribe": `<${facts.oneClickUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
   };
 }
 

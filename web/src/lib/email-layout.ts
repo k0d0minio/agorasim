@@ -176,6 +176,30 @@ export function emailParagraph(
 }
 
 /**
+ * One paragraph of body copy with a single link set in place of `{link}`.
+ *
+ * Split-escape-join, like the footer's site link: the anchor reaches the
+ * client as markup while the sentence around it stays inert text. For a line
+ * that names somewhere to go — the thank-you's Instagram handle — without
+ * turning the whole sentence into a button.
+ */
+export function emailParagraphWithLink(
+  template: string,
+  link: { label: string; href: string },
+  options: { muted?: boolean; spaceBelow?: number } = {},
+): string {
+  const color = options.muted ? emailPalette.textMuted : emailPalette.text;
+  const margin = options.spaceBelow ?? 16;
+  const body = template
+    .split("{link}")
+    .map(escapeHtml)
+    .join(
+      `<a href="${escapeHtml(link.href)}" style="color:${emailPalette.primary};text-decoration:underline;">${escapeHtml(link.label)}</a>`,
+    );
+  return `<p style="margin:0 0 ${margin}px;font-family:${BODY_FONT};font-size:16px;line-height:26px;color:${color};">${body}</p>`;
+}
+
+/**
  * The tinted callout — "what happens next", and the guest's own copy of it.
  *
  * A left rule rather than a full border: it reads as an aside at a glance,

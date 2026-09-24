@@ -16,7 +16,7 @@ signed the text off. Nothing in this file is legal advice.
 | Vercel | Hosting, experience photos | Request logs (IP), pages served | TODO(legal): confirm region | `web/` deploy |
 | Neon | Postgres — enquiries, bookings, quotes, audit log, message log | Everything the forms collect; booking and quote amounts and Stripe references; the venue and line labels on an event quote; audit IPs | TODO(legal): confirm region | `web/src/db/` |
 | Stripe | Payment processing via **Checkout (redirect)** — card data never touches the app | Guest email, line items (experience, date, party), amount, booking id in metadata; for a wedding/event instalment, the couple's email, the instalment ("Sinal — QT-…"), its amount, the quote and instalment ids and the terms version in metadata, and the quote page's return URL (which carries the couple's link token) for the session's hour | Stripe Payments Europe (Ireland) expected for a PT account — TODO(legal): confirm the contracting entity | `web/src/lib/booking-checkout.ts`, `web/src/lib/quote-checkout.ts`, `web/src/lib/stripe.ts` |
-| Resend | Transactional email — booking confirmation/cancellation, the day-before reminder (every confirmed booking, online or by phone), enquiry reply, quote sent, deposit-received / balance-paid receipts, the quote-refunded notice (one per refund of a deposit or balance), team copies | Recipient address, name, booking or quote details in the body | **EU-west (Ireland)** region; US parent → standard contractual clauses as the transfer safeguard | `web/src/lib/email.ts`, `web/src/lib/message-log.ts` |
+| Resend | Email — booking confirmation/cancellation, the day-before reminder (every confirmed booking, online or by phone), enquiry reply, quote sent, deposit-received / balance-paid receipts, the quote-refunded notice (one per refund of a deposit or balance), team copies (all contract or pre-contract, Art. 6(1)(b)); **and the post-tour thank-you** with the Google review link, sent once the morning after a completed booking under the soft opt-in (Art. 6(1)(f) + the existing-customer rule, register D24), with an opt-out link and RFC 8058 `List-Unsubscribe` headers (`web/src/lib/cron/thank-you-review.ts`) | Recipient address, name, booking or quote details in the body | **EU-west (Ireland)** region; US parent → standard contractual clauses as the transfer safeguard | `web/src/lib/email.ts`, `web/src/lib/message-log.ts` |
 
 Money model, as the policy states it: the charge is a **direct charge on the client's own
 Stripe account** (`STRIPE_CONNECTED_ACCOUNT_ID`), so Agorasim is merchant of record; the
@@ -53,7 +53,13 @@ describes the live state, not the sandbox one.
 5. **Lawful basis wording.** The policy states Art. 6(1)(b) for enquiries (pre-contractual
    steps) and for bookings — online or taken by phone — (contract performance, which since
    2026-09-24 names the day-before reminder beside the confirmation and cancellation),
-   Art. 6(1)(a) for marketing email.
+   Art. 6(1)(a) for marketing email — with one exception since 2026-09-24: the post-tour
+   thank-you with the Google review link goes to every guest of a completed booking under
+   the soft opt-in (register D24), stated in the policy as legitimate interest,
+   Art. 6(1)(f), plus the existing-customer rule (Lei n.º 41/2004), with an opt-out link in
+   every message. Counsel to confirm that wording, and whether the collection-time notice
+   the soft opt-in needs should also appear in the booking confirmation email (today it is
+   the policy, linked at checkout).
    Counsel to confirm, and to say whether tax obligations attached to paid bookings need
    describing as a separate purpose.
 6. **Hosting regions and transfer mechanisms.** Confirm Vercel and Neon regions, the Stripe
@@ -82,7 +88,19 @@ describes the live state, not the sandbox one.
   The amounts, quantities, dates and statuses stay — that is the same "anonymise, don't
   delete" rule, and keeping the line amounts is also what keeps them adding up to the total
   the couple were quoted.
+- **The one thing an erasure deliberately keeps: `email_opt_outs`.** The thank-you's
+  suppression list holds an HMAC of the address (never the address) and when it opted out.
+  It has no foreign key to the enquiry, so neither the retention sweep nor an Art. 17
+  erasure touches it — on purpose: keeping the objection is what stops an erased guest who
+  books again from being thanked, and keeping only a keyed hash is what makes keeping it
+  proportionate. The policy says so in both locales. Opting out also withdraws explicit
+  marketing consent on every enquiry with that address (Art. 7(3)).
+- **`EMAIL_OPT_OUT_SECRET` is never rotated.** It keys those hashes; a new value makes every
+  stored opt-out unmatchable and silently re-subscribes everyone on the list. It is its own
+  secret for that reason — `BOOKING_TOKEN_SECRET`'s rotation is its designed emergency
+  behaviour. Without it the thank-you job sends nothing (fails closed).
 - **The Art. 15 export covers four tables**, not two: `tour_requests`, `message_log`,
-  `quotes` and `quote_payments` (`subject-data.ts`). A table that stores or describes a
+  `quotes` and `quote_payments` (`subject-data.ts`) — plus whether the address is on the
+  thank-you's opt-out list, and since when (answered by hashing the address asked about). A table that stores or describes a
   person and is not in that registry makes every future export quietly wrong, so it is
   extended in the same PR that adds the table.

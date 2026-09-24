@@ -70,6 +70,16 @@ vi.mock("@/db", async () => {
   return { ...schema, db: fakeDb };
 });
 
+/** The suppression list, keyed here by address — the hashing is its own module's test. */
+let optOuts = new Map<string, Date>();
+let optOutsUnreadable = false;
+vi.mock("@/lib/email-opt-out", () => ({
+  optedOutAt: async (email: string) => {
+    if (optOutsUnreadable) throw new Error("EMAIL_OPT_OUT_SECRET is not set");
+    return optOuts.get(email) ?? null;
+  },
+}));
+
 const { exportSubjectData, subjectExportFilename } = await import("./subject-data");
 
 const LEAD_ID = "bbbbbbbb-2222-4222-8222-222222222222";
@@ -79,6 +89,8 @@ beforeEach(() => {
   calls = [];
   results = [];
   tablesRead = [];
+  optOuts = new Map();
+  optOutsUnreadable = false;
 });
 
 /** One enquiry, one send, one quote and its two instalments. */
@@ -168,6 +180,35 @@ describe("exportSubjectData", () => {
 
     expect(tablesRead).toEqual(["tour_requests", "message_log", "quotes"]);
     expect(data.records.quotePayments).toEqual([]);
+  });
+});
+
+describe("exportSubjectData — the thank-you opt-out", () => {
+  it("reports an opt-out, and since when, for the normalised address", async () => {
+    optOuts.set("marta@example.pt", new Date("2026-09-20T08:00:00Z"));
+    queueResult([]);
+
+    const data = await exportSubjectData(" Marta@Example.PT");
+
+    expect(data.emailOptOut).toEqual({ status: "opted-out", since: "2026-09-20T08:00:00.000Z" });
+  });
+
+  it("says so when the address never opted out", async () => {
+    queueResult([]);
+
+    expect((await exportSubjectData("joao@example.pt")).emailOptOut).toEqual({
+      status: "not-opted-out",
+    });
+  });
+
+  it("says unavailable, rather than no, when the list cannot be read", async () => {
+    optOutsUnreadable = true;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    queueResult([]);
+
+    expect((await exportSubjectData("marta@example.pt")).emailOptOut).toEqual({
+      status: "unavailable",
+    });
   });
 });
 
