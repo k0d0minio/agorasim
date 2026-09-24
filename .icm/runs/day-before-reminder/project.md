@@ -13,9 +13,12 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- Contract performance (D24): no opt-in, no opt-out line. Email only (D5).
+- One `day-before-reminder` kind keyed on `(booking, booking.date)` — both variants share it.
+- No money line, no cancellation link; PT copy gender-neutral; copy lives in `content/emails.ts`.
+- No second cron, no schedule change, no schema change, no team copy.
+- Base branch is `uat`; the PR targets `uat`.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read the §2.6 copy from `.icm/docs/agorasim-info.pdf` and targeted slices of `web/src/lib/{bookings,booking-checkout,message-log,manual-booking}.ts`, `web/src/lib/cron/`, `web/src/content/{logistics,emails,privacy}.ts` to fix `touches:` and the edge cases.

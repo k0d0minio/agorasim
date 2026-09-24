@@ -6,13 +6,16 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. Jamie reads `02_define/output/spec.md` and ticks **Spec approved** on
+   https://github.com/k0d0minio/agorasim/pull/124.
+2. Then `build day-before-reminder` — execute `plan.md` pass by pass.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
+- none (the dependency `message-log-move-safe` merged in #110 and is on `uat`).
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Tick either gate box. Start Build before the tick.
+- Add a second cron or change the dispatch schedule — the catch-up rides the 06:00 run.
+- Re-run `new-run.sh` — one PR per run; a spec change is `revise day-before-reminder "<change>"`.

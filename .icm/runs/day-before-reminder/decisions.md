@@ -8,9 +8,18 @@ decision made mid-run has one home.
 
 ## From the scope
 
-- <D-n — the decision, one line, as the scope worded it>
+- No `scope.md` for this epic (re-cut by `/project` 2026-09-18). Register decisions the run
+  rests on: D5 (email-first, SMS post-live), D24 (the reminder is contract performance — no
+  opt-in, no opt-out line).
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-1 — Late bookings and moves into tomorrow after the 06:00 run get a same-morning catch-up
+  ("today" variant, same log key) instead of the stub's "no reminder" default. Operator, Define,
+  2026-09-24.
+- D-2 — Óbidos reminder adds "if you haven't had the exact departure time from us yet, call or
+  message Diogo or Rita" with both numbers. Operator, Define, 2026-09-24.
+- D-3 — No money line (cash and Stripe read the same) and no cancellation link (48h window
+  closed). Operator (money), Define (cancel link, from `cancellation-window.ts`), 2026-09-24.
+- D-4 — The privacy policy's transactional-email lists name the reminder in the same PR.
+  Define, 2026-09-24.
