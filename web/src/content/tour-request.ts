@@ -22,7 +22,7 @@ export const tourRequestContent = {
     email: { pt: "Email", en: "Email" } as Localized,
     phone: { pt: "Telefone (opcional)", en: "Phone (optional)" } as Localized,
     experience: { pt: "Experiência principal", en: "Main experience" } as Localized,
-    addOns: { pt: "Complementos", en: "Add-ons" } as Localized,
+    addOns: { pt: "Extras", en: "Add-ons" } as Localized,
     partySize: { pt: "Número de pessoas", en: "Number of people" } as Localized,
     preferredDate: {
       pt: "Data preferida (ou período)",
@@ -57,7 +57,7 @@ export const tourRequestContent = {
   calendar: {
     label: { pt: "Escolha o dia", en: "Pick a day" } as Localized,
     hint: {
-      pt: "Mostramos apenas os dias com carro e motorista disponíveis.",
+      pt: "Mostramos apenas os dias com carro e condutor disponíveis.",
       en: "We only show days with a car and a driver still free.",
     } as Localized,
     chosen: { pt: "Dia escolhido", en: "Chosen day" } as Localized,
