@@ -20,6 +20,7 @@ import { toTelHref, toWhatsAppNumber } from "@/lib/phone";
 import { requestStatusMeta } from "@/lib/admin-format";
 import { bookingRef } from "@/lib/bookings";
 import { formatPrice } from "@/lib/money";
+import { canMarkNoShow } from "@/lib/booking-no-show";
 import { refundableCents } from "@/lib/booking-refund";
 import { formatDay, isDateKey } from "@/lib/availability";
 import { groupMoveTargets, listMoveTargets } from "@/lib/booking-move";
@@ -37,6 +38,7 @@ import {
 import { AdminShell } from "@/components/admin/admin-shell";
 import { CancelBookingDialog } from "@/components/admin/cancel-booking-dialog";
 import { MoveBookingDialog } from "@/components/admin/move-booking-dialog";
+import { NoShowToggle } from "@/components/admin/no-show-toggle";
 import { DeleteSubmissionDialog } from "@/components/admin/delete-submission-dialog";
 import {
   EnquiryKindIcon,
@@ -465,6 +467,7 @@ export default async function AdminLeadPage({
                     <Badge variant={bookingStatusMeta[booking.status].variant}>
                       {bookingStatusMeta[booking.status].label}
                     </Badge>
+                    {booking.noShowAt ? <Badge variant="outline">Faltou</Badge> : null}
                     <span aria-hidden>·</span>
                     <span>
                       {booking.date} ·{" "}
@@ -597,6 +600,20 @@ export default async function AdminLeadPage({
                         </span>
                       ) : null}
                     </div>
+                  ) : null}
+
+                  {/*
+                    The no-show mark: set on the day (or after) of a paid tour,
+                    cleared whenever it is set. Its only effect is that the
+                    guest is not sent the next morning's thank-you — see
+                    `lib/booking-no-show.ts`.
+                  */}
+                  {booking.noShowAt || canMarkNoShow(booking) ? (
+                    <NoShowToggle
+                      bookingId={booking.id}
+                      bookingRef={bookingRef(booking.id)}
+                      marked={booking.noShowAt !== null}
+                    />
                   ) : null}
 
                   {booking.cancelledAt ? (

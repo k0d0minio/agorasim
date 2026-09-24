@@ -182,7 +182,7 @@ const {
   updateTourRequestStatus,
 } = await import("./actions");
 const { deleteExperience, saveExperience } = await import("./experiences/actions");
-const { cancelBooking } = await import("./sales/actions");
+const { cancelBooking, setBookingNoShow } = await import("./sales/actions");
 
 const OWNER_ID = "11111111-1111-4111-8111-111111111111";
 const COLLABORATOR_ID = "22222222-2222-4222-8222-222222222222";
@@ -942,5 +942,63 @@ describe("cancelling and refunding a booking", () => {
 
     expect(called("select")).toBe(false);
     expect(refundsCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("marking a no-show", () => {
+  /** The lookup `setNoShow` makes before it writes. */
+  const lookup = (overrides: Record<string, unknown> = {}) => [
+    { id: BOOKING_ID, status: "confirmed", date: "2026-01-10", noShowAt: null, ...overrides },
+  ];
+
+  it("marks a paid booking whose tour has happened, and records who did it", async () => {
+    await signInAs("collaborator");
+    queueResult(lookup());
+    queueResult(undefined); // the update
+    queueResult(undefined); // the audit insert
+
+    const result = await setBookingNoShow({}, form({ bookingId: BOOKING_ID, mark: "1" }));
+
+    expect(result).toEqual({ ok: true });
+    expect(updatedValues()[0].noShowAt).toBeInstanceOf(Date);
+    expect(insertedValues()[0]).toMatchObject({
+      action: "booking.no_show_marked",
+      entityType: "booking",
+      entityId: BOOKING_ID,
+      actorUserId: COLLABORATOR_ID,
+    });
+  });
+
+  it("clears the mark again, and records that too", async () => {
+    await signInAs("collaborator");
+    queueResult(lookup({ noShowAt: new Date("2026-01-10T18:00:00Z") }));
+    queueResult(undefined);
+    queueResult(undefined);
+
+    const result = await setBookingNoShow({}, form({ bookingId: BOOKING_ID, mark: "0" }));
+
+    expect(result).toEqual({ ok: true });
+    expect(updatedValues()[0]).toMatchObject({ noShowAt: null });
+    expect(insertedValues()[0]).toMatchObject({ action: "booking.no_show_cleared" });
+  });
+
+  it("refuses a tour that has not happened yet, or one that is not paid", async () => {
+    await signInAs("collaborator");
+    queueResult(lookup({ date: "2999-01-01" }));
+    expect((await setBookingNoShow({}, form({ bookingId: BOOKING_ID, mark: "1" }))).error).toBeTruthy();
+
+    queueResult(lookup({ status: "cancelled" }));
+    expect((await setBookingNoShow({}, form({ bookingId: BOOKING_ID, mark: "1" }))).error).toBeTruthy();
+
+    expect(called("set")).toBe(false);
+  });
+
+  it("sends a signed-out caller to the login screen, writing nothing", async () => {
+    expect(
+      await redirectedTo(() => setBookingNoShow({}, form({ bookingId: BOOKING_ID, mark: "1" }))),
+    ).toBe("/admin/login");
+
+    expect(called("select")).toBe(false);
+    expect(called("set")).toBe(false);
   });
 });
