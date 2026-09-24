@@ -497,8 +497,10 @@ describe("guestReminderEmail", () => {
     expect(pt.text).toContain(OBIDOS_PIN.mapsUrl);
 
     const en = guestReminderEmail(obidos({ locale: "en" }));
+    // The HTML escapes the apostrophe, as it escapes every copy string.
+    expect(en.text).toContain("If you haven't had the exact departure time from us yet");
+    expect(en.html).toContain("If you haven&#39;t had the exact departure time from us yet");
     for (const part of [en.text, en.html!]) {
-      expect(part).toContain("If you haven't had the exact departure time from us yet");
       expect(part).toContain(`Diogo (${diogo.phoneDisplay})`);
       expect(part).toContain(`Rita (${rita.phoneDisplay})`);
     }
