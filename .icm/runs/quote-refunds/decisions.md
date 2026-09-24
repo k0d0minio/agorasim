@@ -21,3 +21,6 @@ decision made mid-run has one home.
 - D-2 — Every instalment refund, from the admin or the dashboard, emails the couple once
   (a new `quote-refunded` kind, keyed per refund). The team gets no copy. Operator, Define,
   2026-09-24.
+- D-3 — The refund notice is keyed on (instalment, refunded total after the refund), not on the Stripe refund id: the admin action and its webhook echo reach the same total without either needing the other's id, and `charge.refunded` carries no refund id of its own. Build, 2026-09-24.
+- D-4 — Refund and cancellation audit rows use the house convention for `quote.*` actions — `entityType: "tour_request"`, the lead's id, `quoteRef` in `after` — so they show on the lead's history. The spec's "on the quote" read as that. Build, 2026-09-24.
+- D-5 — "Cancelar evento" confirms with the typed word `CANCELAR` (`EVENT_CANCEL_CONFIRMATION`); its dialog's way out says "Voltar", so the word is not also on the exit. Build, 2026-09-24.
