@@ -11,11 +11,11 @@ import { XIcon } from "lucide-react"
  * A modal dialog for "are you sure?" — erasing a guest's record, disabling an
  * account — where an accidental click has no undo.
  *
- * Placement is responsive (docs/admin-mobile-design-spec.md §7): on a phone it
- * rises from the bottom edge as a sheet, where the thumb already is and where
- * both platforms put confirmations; from `sm` up it is the centred dialog it
- * always was. Same Radix primitive as `sheet.tsx` — that one slides in from an
- * edge for navigation, this one carries a decision.
+ * Placement is responsive: on a phone it rises from the bottom edge as a
+ * sheet, where the thumb already is and where both platforms put
+ * confirmations; from `sm` up it is the centred dialog it always was. Same
+ * Radix primitive as `sheet.tsx` — that one slides in from an edge for
+ * navigation, this one carries a decision.
  */
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
