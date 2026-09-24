@@ -243,6 +243,7 @@ export function BookingCheckoutForm({
 }) {
   const c = bookingContent;
   const l = locale;
+  const optional = t(c.labels.optional, l);
 
   const [state, formAction] = useActionState<CheckoutState, FormData>(startCheckout, {});
   /*
@@ -775,9 +776,11 @@ export function BookingCheckoutForm({
                 enterKeyHint="next"
                 value={basket.name}
                 onChange={(event) => update({ name: event.target.value })}
+                aria-invalid={Boolean(state.fieldErrors?.name)}
+                aria-describedby={state.fieldErrors?.name ? "name-error" : undefined}
               />
               {state.fieldErrors?.name ? (
-                <p className="text-sm text-destructive" role="alert">
+                <p id="name-error" className="text-sm text-destructive" role="alert">
                   {state.fieldErrors.name}
                 </p>
               ) : null}
@@ -794,16 +797,20 @@ export function BookingCheckoutForm({
                 enterKeyHint="next"
                 value={basket.email}
                 onChange={(event) => update({ email: event.target.value })}
+                aria-invalid={Boolean(state.fieldErrors?.email)}
+                aria-describedby={state.fieldErrors?.email ? "email-error" : undefined}
               />
               {state.fieldErrors?.email ? (
-                <p className="text-sm text-destructive" role="alert">
+                <p id="email-error" className="text-sm text-destructive" role="alert">
                   {state.fieldErrors.email}
                 </p>
               ) : null}
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="phone">{t(c.labels.phone, l)}</Label>
+              <Label htmlFor="phone">
+                {t(c.labels.phone, l)} {optional}
+              </Label>
               <Input
                 id="phone"
                 name="phone"
@@ -816,7 +823,9 @@ export function BookingCheckoutForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="message">{t(c.labels.message, l)}</Label>
+            <Label htmlFor="message">
+              {t(c.labels.message, l)} {optional}
+            </Label>
             <Textarea
               id="message"
               name="message"
