@@ -1,4 +1,4 @@
-import type { Localized } from "@/i18n/config";
+import type { Locale, Localized } from "@/i18n/config";
 import { controller } from "@/content/privacy";
 import { site } from "@/content/site";
 
@@ -58,9 +58,18 @@ export const seller = {
  * page prints (`terms.test.ts`): change the terms, change both, or the test
  * says the version and the page have come apart.
  */
-export const TERMS_VERSION = "2026-09-10";
+export const TERMS_VERSION = "2026-09-24";
 
-type Section = { heading: string; body: string[] };
+/**
+ * One section of the terms. `id` names the few sections something other than
+ * the terms page renders on its own — the quote page and the quote receipts
+ * quote the events section and the complaints section verbatim, and they find
+ * them by this key rather than by position or heading, which differ by locale.
+ */
+type Section = { id?: TermsSectionId; heading: string; body: string[] };
+
+/** The sections other surfaces quote — see {@link termsSection}. */
+export type TermsSectionId = "events" | "complaints";
 
 export const termsContent = {
   title: {
@@ -80,7 +89,7 @@ export const termsContent = {
   } as Localized,
 
   lastUpdatedLabel: { pt: "Última atualização", en: "Last updated" } as Localized,
-  lastUpdated: { pt: "10 de setembro de 2026", en: "10 September 2026" } as Localized,
+  lastUpdated: { pt: "24 de setembro de 2026", en: "24 September 2026" } as Localized,
 
   /**
    * The seller block, rendered as a definition list under its own heading so
@@ -160,11 +169,14 @@ export const termsContent = {
         ],
       },
       {
+        id: "events",
         heading: "Casamentos e eventos",
         body: [
           "Casamentos e outros eventos são orçamentados caso a caso e não se reservam através da página de reservas online. As condições abaixo aplicam-se a esses orçamentos, salvo indicação diferente no orçamento aceite.",
           "A data fica reservada com o pagamento de um sinal de 30% do valor orçamentado. O sinal não é reembolsável em caso de cancelamento a menos de 30 dias do evento. Até essa altura, o sinal é devolvido na totalidade se cancelar.",
-          "A mudança de data é gratuita, sujeita à nossa disponibilidade. O restante valor é pago nas condições indicadas no orçamento.",
+          "A mudança de data é gratuita, sujeita à nossa disponibilidade.",
+          "O restante valor (o saldo) é pago através de um link de pagamento que lhe enviamos 14 dias antes do evento.",
+          "O direito de livre resolução de 14 dias não se aplica a casamentos e eventos: são serviços contratados para uma data específica (artigo 16.º, alínea l), da Diretiva 2011/83/UE; artigo 17.º, n.º 1, alínea l), do Decreto-Lei n.º 24/2014). Aplicam-se, em vez dele, as condições do sinal descritas acima.",
         ],
       },
       {
@@ -175,6 +187,7 @@ export const termsContent = {
         ],
       },
       {
+        id: "complaints",
         heading: "Reclamações e lei aplicável",
         body: [
           "Se algo não correr bem, fale connosco primeiro — info@agorasim.pt ou os telefones indicados acima. Respondemos rapidamente.",
@@ -242,11 +255,14 @@ export const termsContent = {
         ],
       },
       {
+        id: "events",
         heading: "Weddings and events",
         body: [
           "Weddings and other events are quoted case by case and are not booked through the online booking page. The conditions below apply to those quotes unless the accepted quote says otherwise.",
           "The date is reserved on payment of a deposit of 30% of the quoted amount. The deposit is non-refundable if you cancel less than 30 days before the event. Until then, the deposit is returned in full if you cancel.",
-          "Changing the date is free, subject to our availability. The balance is paid on the conditions set out in the quote.",
+          "Changing the date is free, subject to our availability.",
+          "The rest of the amount (the balance) is paid through a payment link we send you 14 days before the event.",
+          "The 14-day right of withdrawal does not apply to weddings and events: they are services booked for a specific date (Article 16(l) of Directive 2011/83/EU; Article 17(1)(l) of Portuguese Decree-Law 24/2014). The deposit conditions above apply in its place.",
         ],
       },
       {
@@ -257,6 +273,7 @@ export const termsContent = {
         ],
       },
       {
+        id: "complaints",
         heading: "Complaints and governing law",
         body: [
           "If something goes wrong, talk to us first — info@agorasim.pt or the phone numbers above. We answer quickly.",
@@ -285,6 +302,26 @@ export const termsContent = {
     linkLabel: { pt: "termos de venda", en: "terms of sale" } as Localized,
   },
 } as const;
+
+/**
+ * One section of the terms, by its {@link TermsSectionId}, in one language.
+ *
+ * What the quote page shows above the pay button and what the receipt emails
+ * carry as the durable copy (DL 24/2014 art. 4(1) and 17(1)(l)) — read from
+ * here rather than written again, so the three cannot say different things.
+ *
+ * TODO(legal): the "sinal" wording (Código Civil arts. 440–442) and an
+ * our-side cancellation rule for events are open `[LAWYER]` questions
+ * (`.icm/project.md` → Open questions); the events section states today's
+ * default (D9) and nothing more until they are answered.
+ */
+export function termsSection(id: TermsSectionId, locale: Locale): Section {
+  const section = termsContent.sections[locale].find((candidate) => candidate.id === id);
+  // A missing id is a content edit that dropped a key other pages depend on —
+  // a build-time mistake, so it fails loudly rather than rendering nothing.
+  if (!section) throw new Error(`terms.ts has no "${id}" section in ${locale}`);
+  return section;
+}
 
 /**
  * Open legal items — tracked here, never rendered. Each one gates the draft

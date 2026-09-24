@@ -9,12 +9,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * uses) so `eq()` builds genuine SQL against genuine columns and a renamed
  * column fails the suite rather than passing it quietly.
  *
- * The fake below re-states the four partial unique indexes from
+ * The fake below re-states the five partial unique indexes from
  * `db/schema.ts` as a key function, so "is this message already claimed?" is
  * answered here the way Postgres answers it. That is deliberately not a proof
  * that the indexes exist — they are in
- * `drizzle/0025_message_log_subject_date.sql` and
- * `drizzle/0027_quote_sent_per_quote.sql`, and only a database can check
+ * `drizzle/0025_message_log_subject_date.sql`,
+ * `drizzle/0027_quote_sent_per_quote.sql` and
+ * `drizzle/0028_quote_receipt_per_quote.sql`, and only a database can check
  * them. What it does prove is the half of the mechanism that lives in this
  * file: the key each send is claimed under. A reminder that forgot its date
  * would land under the wrong index in production and be silently permanent,
@@ -61,10 +62,10 @@ function indexKey(row: LogRow): string | null {
   }
   if (row.quoteId !== null) {
     // message_log_quote_kind_key — one row per send of a quote, the send named
-    // by the `sent_at` it stamped. A quote row without the stamp is claimed by
-    // no index at all, which is why the type makes the stamp mandatory.
+    // by the `sent_at` it stamped. message_log_quote_receipt_key — a receipt
+    // carries no stamp, and is one per kind per quote.
     return row.quoteSentAt === null
-      ? null
+      ? `quote-receipt:${row.kind}:${row.recipient}:${row.quoteId}`
       : `quote:${row.kind}:${row.recipient}:${row.quoteId}:${row.quoteSentAt}`;
   }
   // message_log_enquiry_kind_key
@@ -480,5 +481,62 @@ describe("the quote-sent kind", () => {
       await sendLoggedEmail(quoteSent(QUOTE_V1, "2026-09-24T10:00:00Z"), MESSAGE),
     ).toMatchObject({ status: "sent" });
     expect(await sendLoggedEmail(ack, MESSAGE)).toEqual({ status: "duplicate" });
+  });
+});
+
+describe("the quote receipt kinds", () => {
+  const QUOTE = "aaaaaaaa-0000-0000-0000-000000000001";
+  const OTHER_QUOTE = "aaaaaaaa-0000-0000-0000-000000000002";
+
+  const receipt = (
+    kind: "deposit-received" | "balance-paid",
+    recipient: "guest" | "team",
+    quoteId = QUOTE,
+  ) => ({ kind, recipient, tourRequestId: LEAD, quoteId }) as const;
+
+  it("claims under the quote alone, with no send stamp", async () => {
+    await sendLoggedEmail(receipt("deposit-received", "guest"), MESSAGE);
+
+    expect(insertedRows[0]).toMatchObject({
+      kind: "deposit-received",
+      recipient: "guest",
+      tourRequestId: LEAD,
+      bookingId: null,
+      quoteId: QUOTE,
+      quoteSentAt: null,
+    });
+  });
+
+  it("sends each receipt once per recipient, however often it is asked for", async () => {
+    // The webhook, its redelivery, and the return page racing both.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await sendLoggedEmail(receipt("deposit-received", "guest"), MESSAGE);
+      await sendLoggedEmail(receipt("deposit-received", "team"), MESSAGE);
+    }
+
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the deposit and the balance receipts apart, and quotes apart", async () => {
+    await sendLoggedEmail(receipt("deposit-received", "guest"), MESSAGE);
+
+    expect(
+      await sendLoggedEmail(receipt("balance-paid", "guest"), MESSAGE),
+    ).toMatchObject({ status: "sent" });
+    expect(
+      await sendLoggedEmail(receipt("deposit-received", "guest", OTHER_QUOTE), MESSAGE),
+    ).toMatchObject({ status: "sent" });
+  });
+
+  it("leaves a failed receipt free to be tried again", async () => {
+    sendEmail.mockResolvedValue({ sent: false, reason: "failed" });
+    expect(
+      await sendLoggedEmail(receipt("balance-paid", "guest"), MESSAGE),
+    ).toMatchObject({ status: "failed" });
+
+    sendEmail.mockResolvedValue({ sent: true, id: "re_2" });
+    expect(
+      await sendLoggedEmail(receipt("balance-paid", "guest"), MESSAGE),
+    ).toMatchObject({ status: "sent" });
   });
 });
