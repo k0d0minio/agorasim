@@ -371,6 +371,58 @@ describe("startQuoteCheckout — an instalment that already has a session", () =
     expect(sessionsCreate).not.toHaveBeenCalled();
   });
 
+  it("mints a new session once a delayed payment has failed", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue(withSession("cs_test_multibanco"));
+    sessionsRetrieve.mockResolvedValue(
+      session({
+        id: "cs_test_multibanco",
+        status: "complete",
+        payment_status: "unpaid",
+        payment_intent: "pi_test_multibanco",
+      }),
+    );
+    // The Multibanco reference lapsed unpaid: the intent wants a method again.
+    intentsRetrieve.mockResolvedValue({ status: "requires_payment_method" });
+    reissuePayment.mockResolvedValue(instalment("deposit", "issued"));
+
+    const outcome = await startQuoteCheckout({ token, locale: "pt", now: NOW });
+
+    expect(outcome).toEqual({ status: "redirect", url: session().url });
+    expect(reissuePayment).toHaveBeenCalledWith(
+      DEPOSIT_ID,
+      expect.objectContaining({ replacing: "cs_test_multibanco" }),
+    );
+  });
+
+  it("keeps waiting while the delayed payment is still processing", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue(withSession("cs_test_multibanco"));
+    sessionsRetrieve.mockResolvedValue(
+      session({
+        id: "cs_test_multibanco",
+        status: "complete",
+        payment_status: "unpaid",
+        payment_intent: "pi_test_multibanco",
+      }),
+    );
+    intentsRetrieve.mockResolvedValue({ status: "processing" });
+
+    expect(await startQuoteCheckout({ token, locale: "pt", now: NOW })).toEqual({
+      status: "awaiting",
+    });
+    expect(sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("mints nothing when Stripe cannot say what became of the last session", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue(withSession("cs_test_open"));
+    // A timeout, not "no such session": the first may still be open.
+    sessionsRetrieve.mockRejectedValue(Object.assign(new Error("timeout"), { code: undefined }));
+
+    expect(await startQuoteCheckout({ token, locale: "pt", now: NOW })).toEqual({
+      status: "failed",
+    });
+    expect(sessionsCreate).not.toHaveBeenCalled();
+  });
+
   it("records a session that completed and paid, instead of minting another", async () => {
     getQuoteByAccessTokenHash.mockResolvedValue(withSession("cs_test_paid"));
     const paid = session({
@@ -577,9 +629,13 @@ describe("recordQuotePayment", () => {
   it("on a repeat delivery records nothing new, and leaves the receipts to the log's claim", async () => {
     markPaymentPaid.mockResolvedValue(null);
     getQuote.mockResolvedValue(
-      quote([instalment("deposit", "paid", { paidAt: NOW }), instalment("balance", "pending")], {
-        status: "deposit_paid",
-      }),
+      quote(
+        [
+          instalment("deposit", "paid", { paidAt: NOW, stripePaymentIntentId: "pi_test_1" }),
+          instalment("balance", "pending"),
+        ],
+        { status: "deposit_paid" },
+      ),
     );
     sendLoggedEmail.mockResolvedValue({ status: "duplicate" });
 
@@ -643,6 +699,41 @@ describe("recordQuotePayment", () => {
     getPayment.mockResolvedValue(null);
 
     expect(await recordQuotePayment(paidSession(), { now: NOW })).toEqual({ status: "unknown" });
+  });
+
+  it("raises the alarm, and sends no receipt, when a replaced quote is paid", async () => {
+    // Paid in a tab left open after Rita sent a new version.
+    markPaymentPaid.mockResolvedValue(
+      quote([instalment("deposit", "paid"), instalment("balance", "pending")], {
+        status: "cancelled",
+      }),
+    );
+
+    await recordQuotePayment(paidSession(), { now: NOW });
+
+    expect(captureAlert).toHaveBeenCalledTimes(1);
+    expect(sendLoggedEmail).not.toHaveBeenCalled();
+  });
+
+  it("raises the alarm when a second charge lands on an instalment already paid", async () => {
+    markPaymentPaid.mockResolvedValue(null);
+    getQuote.mockResolvedValue(
+      quote(
+        [
+          instalment("deposit", "paid", { stripePaymentIntentId: "pi_test_first" }),
+          instalment("balance", "pending"),
+        ],
+        { status: "deposit_paid" },
+      ),
+    );
+
+    const outcome = await recordQuotePayment(paidSession({ payment_intent: "pi_test_second" }), {
+      now: NOW,
+    });
+
+    expect(outcome.status).toBe("already");
+    expect(captureAlert).toHaveBeenCalledTimes(1);
+    expect(sendLoggedEmail).not.toHaveBeenCalled();
   });
 
   it("raises the alarm when money lands on an instalment the team wrote off", async () => {

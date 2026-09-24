@@ -26,6 +26,7 @@ import {
 import { QUOTE_LOOKUP_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { href } from "@/lib/routes";
+import { QuoteNotice } from "@/components/quote-notice";
 import { QuotePayForm } from "@/components/quote-pay-form";
 import { Section } from "@/components/section";
 import { SellerDetails } from "@/components/terms-of-sale";
@@ -77,14 +78,12 @@ export async function generateMetadata({
   };
 }
 
-type ReturnState = QuoteReturn;
-
 export default async function QuotePage({
   params,
   searchParams,
 }: {
   params: Promise<{ locale: string; token: string }>;
-  searchParams: Promise<{ session_id?: string }>;
+  searchParams: Promise<{ session_id?: string | string[] }>;
 }) {
   const { locale, token } = await params;
   if (!isLocale(locale)) notFound();
@@ -104,7 +103,10 @@ export default async function QuotePage({
   let quote = await resolveQuoteToken(token);
   if (!quote) return <InvalidPanel locale={l} />;
 
-  const sessionId = (await searchParams).session_id?.trim();
+  // A string or nothing: a repeated `?session_id=` arrives as an array, and
+  // the query string is the visitor's to type.
+  const rawSessionId = (await searchParams).session_id;
+  const sessionId = typeof rawSessionId === "string" ? rawSessionId.trim() : undefined;
   const returned = sessionId ? await reconcileQuoteReturn(sessionId, quote.id) : null;
   if (returned) quote = (await getQuote(quote.id)) ?? quote;
 
@@ -112,7 +114,7 @@ export default async function QuotePage({
 
   // The return banner only while the instalment it is about is still unpaid;
   // once it is, the receipt state says so on its own.
-  const returnState: ReturnState =
+  const returnState: QuoteReturn =
     returned &&
     quote.payments.find((payment) => payment.id === returned.paymentId)?.status !== "paid"
       ? returned
@@ -146,7 +148,7 @@ function QuoteView({
   token: string;
   quote: QuoteWithPayments;
   name: string | null;
-  returnState: ReturnState;
+  returnState: QuoteReturn;
 }) {
   const c = quotePageContent;
   const money = (cents: number) => formatPrice(cents, locale, quote.currency);
@@ -265,7 +267,7 @@ function QuoteView({
 
         <div aria-live="polite">
           {returnState ? (
-            <Notice
+            <QuoteNotice
               icon={
                 returnState.kind === "confirming" ? (
                   <CheckCircle2 className="size-5" />
@@ -286,7 +288,7 @@ function QuoteView({
               )}
             />
           ) : due.kind === "not-yet" ? (
-            <Notice
+            <QuoteNotice
               icon={<Clock className="size-5" />}
               title={fill(t(c.notYet.title, locale), { date: formatDay(due.dueDate, locale) })}
               body={fill(t(c.notYet.body, locale), { days: String(BALANCE_DUE_DAYS_BEFORE) })}
@@ -360,25 +362,6 @@ function Row({ label, value, mono = false }: { label: string; value: string; mon
   );
 }
 
-function Notice({
-  icon,
-  title,
-  body,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div role="status" className="flex items-start gap-3 rounded-xl border bg-muted/40 p-4">
-      <span className="mt-0.5 text-primary">{icon}</span>
-      <div>
-        <p className="font-medium">{title}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-      </div>
-    </div>
-  );
-}
 
 function Contacts({ locale }: { locale: Locale }) {
   const c = quotePageContent;

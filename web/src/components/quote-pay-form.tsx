@@ -10,6 +10,7 @@ import { termsContent } from "@/content/terms";
 import { t, type Locale } from "@/i18n/config";
 import { href } from "@/lib/routes";
 import { payQuote, type QuotePayState } from "@/app/[locale]/orcamento/actions";
+import { QuoteNotice } from "@/components/quote-notice";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -44,7 +45,7 @@ export function QuotePayForm({
   if (state.status === "paid" || state.status === "awaiting") {
     const copy = state.status === "paid" ? c.confirming : c.awaiting;
     return (
-      <Notice
+      <QuoteNotice
         icon={
           state.status === "paid" ? (
             <CheckCircle2 className="size-5" />
@@ -59,7 +60,7 @@ export function QuotePayForm({
   }
 
   if (state.status === "invalid") {
-    return <Notice title={t(c.invalid.title, locale)} body={t(c.invalid.body, locale)} />;
+    return <QuoteNotice title={t(c.invalid.title, locale)} body={t(c.invalid.body, locale)} />;
   }
 
   return (
@@ -95,25 +96,5 @@ function SubmitButton({ label }: { label: string }) {
       {pending ? <Loader2 className="size-4 animate-spin" /> : null}
       {label}
     </Button>
-  );
-}
-
-function Notice({
-  icon,
-  title,
-  body,
-}: {
-  icon?: React.ReactNode;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div role="status" className="flex items-start gap-3 rounded-xl border bg-muted/40 p-4">
-      {icon ? <span className="mt-0.5 text-primary">{icon}</span> : null}
-      <div>
-        <p className="font-medium">{title}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-      </div>
-    </div>
   );
 }

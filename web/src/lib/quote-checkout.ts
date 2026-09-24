@@ -227,12 +227,18 @@ async function checkoutFor(
       const closed = await expireSession(previous);
       if (closed?.status === "complete") return settleCompleted(closed, context.now);
     } else if (existing?.status === "complete") {
-      return settleCompleted(existing, context.now);
+      // A delayed method (Multibanco) that failed leaves the session
+      // `complete` and `unpaid` for good; only its payment intent says the
+      // attempt is over. Without this the couple would read "waiting for your
+      // payment" for ever and never be offered the button again.
+      if (!(await delayedPaymentFailed(existing))) {
+        return settleCompleted(existing, context.now);
+      }
     }
-    // Expired (or unknown to Stripe): mint a new one below.
+    // Expired, failed, or unknown to Stripe: mint a new one below.
   }
 
-  const lead = quote.tourRequestId ? await readLead(quote.tourRequestId) : null;
+  const lead = quote.tourRequestId ? await readQuoteLead(quote.tourRequestId) : null;
   const kind = payment.kind === "balance" ? "balance" : "deposit";
   const connected = connectedAccountId();
   const fee = connected ? commissionOn("event", payment.amountCents) : null;
@@ -317,15 +323,47 @@ async function settleCompleted(
   return { status: "paid" };
 }
 
-/** A session as Stripe has it now, on whichever account owns it — `null` if gone. */
+/**
+ * A session as Stripe has it now, on whichever account owns it — `null` only
+ * when Stripe says it does not exist.
+ *
+ * Any other failure (a timeout, a 5xx) is thrown, and the tap answers
+ * "try again": reading a session we could not see as "gone" would mint a
+ * second one beside a first that may still be open and payable.
+ */
 async function retrieveSession(id: string): Promise<Stripe.Checkout.Session | null> {
   try {
     return await onOwningAccount((account) =>
       stripe().checkout.sessions.retrieve(id, undefined, account),
     );
   } catch (err) {
-    console.warn(`[quote-checkout] couldn't read session ${id} — treating it as gone`, err);
-    return null;
+    if ((err as { code?: string } | null)?.code === "resource_missing") return null;
+    throw err;
+  }
+}
+
+/**
+ * Whether a completed-but-unpaid session's delayed payment has failed — its
+ * payment intent back to wanting a payment method, or cancelled. Unreadable
+ * counts as "not failed": the safe answer keeps the couple waiting rather
+ * than minting a second payable session.
+ */
+async function delayedPaymentFailed(session: Stripe.Checkout.Session): Promise<boolean> {
+  if (session.payment_status === "paid") return false;
+  const intentId =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : (session.payment_intent?.id ?? null);
+  if (!intentId) return false;
+
+  try {
+    const intent = await onOwningAccount((account) =>
+      stripe().paymentIntents.retrieve(intentId, undefined, account),
+    );
+    return intent.status === "requires_payment_method" || intent.status === "canceled";
+  } catch (err) {
+    console.warn(`[quote-checkout] couldn't read ${intentId} behind ${session.id}`, err);
+    return false;
   }
 }
 
@@ -350,10 +388,6 @@ async function expireSession(id: string): Promise<Stripe.Checkout.Session | null
 
 /** The enquiry behind a quote — the couple's name and address. */
 export async function readQuoteLead(id: string): Promise<TourRequest | null> {
-  return readLead(id);
-}
-
-async function readLead(id: string): Promise<TourRequest | null> {
   const [lead] = await db.select().from(tourRequests).where(eq(tourRequests.id, id)).limit(1);
   return lead ?? null;
 }
@@ -422,7 +456,28 @@ export async function recordQuotePayment(
 
   const quote = marked ?? (await getQuote(found.quote.id));
   const paid = quote?.payments.find((payment) => payment.id === found.payment.id);
-  if (quote && paid?.status === "paid") {
+  const secondCharge =
+    !marked &&
+    paid?.status === "paid" &&
+    paid.stripePaymentIntentId !== null &&
+    paymentIntentId !== null &&
+    paid.stripePaymentIntentId !== paymentIntentId;
+
+  if (quote?.status === "cancelled" || secondCharge) {
+    // A session left open in a tab and paid after the quote was replaced by a
+    // new version, or a second session paid for an instalment already paid:
+    // either way the couple have paid for something they do not owe, and
+    // only a person can say what to give back. No receipt — "the date is
+    // held" would be untrue for a cancelled quote and a duplicate otherwise.
+    console.error(
+      `[quote-checkout] ${quoteRef(found.quote.id)}: ${session.id} was paid on a ${secondCharge ? "paid instalment" : "cancelled quote"} — needs a human`,
+    );
+    captureAlert("Paid Stripe quote session that nothing was owed on", {
+      area: "stripe-webhook",
+      tags: { outcome: secondCharge ? "second-charge" : "cancelled-quote" },
+      extra: { sessionId: session.id, quoteRef: quoteRef(found.quote.id) },
+    });
+  } else if (quote && paid?.status === "paid") {
     await sendQuoteReceipts(quote, paid);
   } else if (paid) {
     // Money arrived on an instalment that was no longer payable — written off
@@ -545,7 +600,7 @@ async function sendQuoteReceipts(
     console.warn(`[quote-checkout] ${quoteRef(quote.id)} has no lead — no receipt sent`);
     return;
   }
-  const lead = await readLead(quote.tourRequestId);
+  const lead = await readQuoteLead(quote.tourRequestId);
   if (!lead) return;
 
   const instalment: QuoteReceiptInstalment = paid.kind;
