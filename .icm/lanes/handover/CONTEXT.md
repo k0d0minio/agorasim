@@ -44,8 +44,8 @@ Context budget: the Inputs table above is the budget (see `.icm/CONTEXT.md` → 
    ```
 
    Draft, `type:handover`, Summary with a `- slug:` line, Steps to test — no checklist. (On a UAT
-   repo the PR targets the UAT branch like every lane and reaches `main` with the batch's
-   promotion — `.icm/uat/CONTEXT.md`; a handover normally follows the last promotion.)
+   repo the merge reaches UAT like every lane and production with the batch's promotion —
+   `_shared/promotion.md`; a handover normally follows the last promotion.)
 7. **The gate, then settle**: `.icm/scripts/security-check.sh <slug> --branch --audit` →
    `OK` (a handover that ships a known-high dependency or a pasted key is not a handover), the
    cheap tier, `usage-snapshot.sh <slug> handover end` (so the close-out commit carries the
@@ -54,12 +54,25 @@ Context budget: the Inputs table above is the budget (see `.icm/CONTEXT.md` → 
    disk, write `08-handover.md` into the engagement folder there (icm-board,
    `workspaces/deals/<client>/<engagement>/`): the date, the support tier, the accounts table,
    the env keys documented, the money line, the repo's `setup.sh` verdict, the PR link. Where
-   it is **not** on disk — a cloud session, a client's own machine — **STOP with the pointer**:
-   "the handover record goes into the operator's deal folder; write `08-handover.md` there
-   from `notes.md`". Nothing here reads or writes a path outside the repo to find it.
-9. **STOP.** (The usage `end` line was written before the close-out.) Report the PR, the accounts still owed,
-   the money line, and — where it was written — the record's location. "Smoke-test, then
-   squash-merge from GitHub."
+   it is **not** on disk — a cloud session, a client's own machine — write nothing and carry the
+   pointer to the stop report as an `Operator:` item (step 9). Nothing here reads or writes a
+   path outside the repo to find it.
+9. **STOP.** (The usage `end` line was written before the close-out.) Report per
+   `.icm/_shared/output.md` — the transfers still owed and the money line are human acts that
+   never land in git, so they are `Operator:` items:
+
+   ```
+   **handover <slug> ready** · CI GREEN · <PR link>
+
+   - support <tier> · setup.sh <verdict> · record <at <deal-folder path>/08-handover.md | not written — no deal folder on disk>
+   - <any env key or account the audit could not document>
+
+   Operator:
+   1. <per transfer still owed> <the account> — <the transfer>, owner <who>
+   2. <the money line>
+   3. <where the deal folder was not on disk> write 08-handover.md into the deal folder (icm-board workspaces/deals/<client>/<engagement>/) from notes.md
+   4. smoke-test, then squash-merge the PR from GitHub
+   ```
 
 ## Outputs
 
@@ -99,6 +112,6 @@ Plus, where the deal folder is on disk, `08-handover.md` in the engagement folde
 - `notes.md`'s `- support:` equals `project.json → support.tier`; a `basic`/`retainer` tier has
   the fail-safe page and the Sentry key declared (`setup.sh` section 11).
 - One PR, `type:handover`, draft, no gate checkboxes; `close-out.sh` `CLOSED` on its head.
-- The record went into the deal folder **or** the stop message says where it must go — never
+- The record went into the deal folder **or** the stop report's `Operator:` list says where it must go — never
   a path outside the repo assumed, never a write outside the repo from a session that could
   not see the folder.

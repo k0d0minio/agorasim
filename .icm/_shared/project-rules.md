@@ -27,25 +27,23 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   Vocabulary: the site is bilingual PT/EN and the admin is Portuguese-only (register decision D4);
   the admin's one-word-per-thing glossary is `.icm/docs/admin-pt-inventory.md`; everything the
   pipeline writes is English.
-- **UAT sign-off** — declared 2026-09-23 (`uat` in `.icm/project.json`): the long-lived branch is
-  `uat` and the one fixed address is **https://uat.agorasim.jamienisbet.com** — a host on Jamie's
-  Vercel-managed `jamienisbet.com` zone, assigned to the `uat` branch in the `agorasim` project.
-  Not the branch alias, because the project's SSO protection covers every non-custom domain and
-  the client could not open it; not a host under `agorasim.pt`, because that zone's DNS is at the
-  client's registrar (amenworld) and a record there is theirs to make. Every run's PR — spine and
-  lane — targets `uat`; a hotfix and a docs-only knowledge PR still target `main`. What has merged
-  into `uat` since the last promotion is the batch (`.icm/uat/batch.json`, true on that branch).
-  Diogo & Rita test the batch at that address — on the **Preview** environment's variables, so the
-  sandbox Stripe keys and the preview database — and say yes the way the relationship works (the
-  Friday meeting, a call, WhatsApp). Jamie records it: `.icm/scripts/promote-uat.sh approve --by
-  "Diogo"` (or Rita), which opens the one promotion PR into `main`; Jamie merges it from GitHub
-  and runs `promote-uat.sh sync`. No script merges, and no message, PR comment or silence is ever
-  read as an approval (`.icm/uat/CONTEXT.md`). **One-time acts still owed** (`promote-uat.sh
-  init` lists them): push the branch once — `git push origin main:uat`; add the host to the
-  Vercel project's domains and assign it to branch `uat`; decide which data the client tests
-  against (the Preview environment's `DATABASE_URL`, unless a custom environment is attached to
-  the branch). Branch protection is unavailable on this plan (below), so `uat` is guarded exactly
-  as `main` is — by `ci-status.sh` `GREEN` and the merge button.
+- **UAT sign-off** — `uat` in `.icm/project.json` (declared 2026-09-23; one branch since the
+  2026-09-24 cutover, D39): the Vercel custom environment `uat` on the `agorasim` project,
+  branch-tracking `main`, at the one fixed address **https://uat.agorasim.pt**. Every merge to
+  `main` — spine, lane, hotfix, knowledge — deploys there, and builds a production deployment that
+  stays **Staged** (Auto-assign Custom Production Domains is off): production moves only on a
+  promotion. The batch is what has merged since the last published promotion Release
+  (`git log <last release>..origin/main`; `promote.sh status`). Diogo & Rita test the batch at
+  that address — on the `uat` environment's own variables (the sandbox Stripe keys, the UAT
+  database below) — and say yes the way the relationship works (the Friday meeting, a call,
+  WhatsApp). Jamie records it: `.icm/scripts/promote.sh approve --by "Diogo"` (or Rita) drafts the
+  promotion Release; Jamie publishes it on GitHub, and `.github/workflows/release.yaml` migrates
+  production, promotes the staged build of that SHA and announces. No script publishes, and no
+  message, PR comment or silence is ever read as an approval (`_shared/promotion.md`). The host is
+  under the client's `agorasim.pt` zone (Jamie's choice at the cutover, over the earlier
+  `uat.agorasim.jamienisbet.com`): it resolves only once a `CNAME uat → cname.vercel-dns.com`
+  exists at the zone's registrar (amenworld) — theirs to add, owed at the cutover. The branch
+  alias is no substitute: the project's SSO protection covers every non-custom domain.
 - **The front pushes straight to `main`.** There is **no ruleset and no branch protection**: the
   repo is private on the GitHub free plan, where both are unavailable (the API answers 403). Anyone
   with write access pushes to `main`, and the merge settings allow merge, squash and rebase.
@@ -131,24 +129,36 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   (`database.neon.api_key_env`; the value is never in git). No psql and no docker on Jamie's
   machine, which is why `schema` and `container` were not chosen. Until the key is exported,
   `db-branch.sh` answers SKIP and a session runs no migration locally — the preview applies it.
-- **The environments' databases** — Neon project `nameless-sea-98952497` (Kodominio, a
-  Vercel-managed database; `database.neon` in `.icm/project.json`): production is the `main`
-  branch — **not yet protected** (Jamie's, in the Neon Console). Previews are the Vercel
-  integration's `preview/<git-branch>` (`neon.previews: vercel`; its Preview-branching toggle is
-  **on** since 2026-09-23, so every deployment now gets a branch born from production — the
-  previews built before that day read production's database). The UAT branch's database is
-  `preview/uat`, created by the integration on the `uat` branch's first deployment, 2026-09-23.
-  Migrations reach previews and UAT **at build**: `web/scripts/vercel-build.sh`, the
-  `vercel-build` script Vercel runs in place of `build`, applies the Drizzle journal to the
+- **The environments' databases** — two Vercel Marketplace (Neon) databases since the
+  2026-09-24 cutover (estate decision D41). **Production**: Neon project `nameless-sea-98952497`
+  (store `agorasim`; `database.neon` in `.icm/project.json`), its `main` branch — **not yet
+  protected** (Jamie's, in the Neon Console) — connected to the **Production** environment only,
+  preview branching off. **UAT and previews**: the second database `uat-agorasim` (Neon project
+  `UAT_PROJECT_ID`), connected to the `uat` environment, Preview and Development with preview
+  branching on: UAT reads its default branch, a PR preview gets `preview/<git-branch>` inside it.
+  Nothing non-production is wired to production's project, and no database variable is set by
+  hand — every one is the integration's. The UAT database starts empty and is built by the
+  migrations the UAT build runs (the catalogue seeds are migrations); it holds no copy of
+  production's data, so its first owner account is seeded by hand (`pnpm db:seed-owner` against
+  it). `database.neon.uat_branch` still reads `"uat"` because the template's schema requires a name
+  with UAT declared — it names no branch in production's project, and the template learns the
+  second project in `one-branch-two-targets/uat-database-resource` (icm-board). Until then
+  `db-branch.sh` runs and `neon-cleanup.yaml` still look in production's project (run branches are
+  cut there; a PR's `preview/*` in `uat-agorasim` is deleted by hand), and `db-env.sh reset-uat`
+  has no parent to reset from — re-migrate instead. Migrations reach previews and UAT **at build**:
+  `web/scripts/vercel-build.sh`, the `vercel-build` script Vercel runs in place of `build`, applies the Drizzle journal to the
   deployment's own branch and verifies it (`pnpm db:migrate && pnpm db:verify`, over
   `DATABASE_URL_UNPOOLED`) before `next build` — only when `VERCEL_ENV` is `preview`; production,
-  and a build where `VERCEL_ENV` is not exposed, build without migrating, and `db-migrate.yml` on
-  `main` stays the one production migrator (chore `vercel-build-migrates-previews`, 2026-09-23).
-  CI's `pnpm build` is untouched. `.github/workflows/neon-cleanup.yaml` deletes a PR's `preview/*`
-  and `run/*` branches on close; `NEON_API_KEY` is in the Actions secrets and exported on Jamie's
-  machine. The stray branch `verify-0026-quote-flow-message-kinds` (a console verification copy
-  from 2026-09-18) is not the pipeline's — Jamie's to delete. `db-env.sh status` reads the
-  project; `db-env.sh reset-uat --apply` is the operator's reset after a promotion.
+  and a build where `VERCEL_ENV` is not exposed, build without migrating, and `db-migrate.yml`
+  stays the one production migrator (chore `vercel-build-migrates-previews`, 2026-09-23).
+  Inside the `uat` custom environment `VERCEL_ENV` is `preview`, so the UAT build migrates the UAT
+  database exactly like a preview; `db-migrate.yml` migrates production only when release.yaml
+  calls it on a published promotion Release (its `gate` skips the push to `main`, D39 (5)).
+  CI's `pnpm build` is untouched. `.github/workflows/neon-cleanup.yaml` deletes a PR's `run/*`
+  branches on close (see above for `preview/*`); `NEON_API_KEY` is in the Actions secrets and
+  exported on Jamie's machine. The stray branch `verify-0026-quote-flow-message-kinds` (a console
+  verification copy from 2026-09-18) is not the pipeline's — Jamie's to delete. `db-env.sh status` reads the
+  project.
 - **Migrations** — `migrations` in `.icm/project.json`: `web/drizzle`, generated by
   `drizzle-kit generate` as `NNNN_<name>.sql` with `meta/_journal.json` as the order of record.
   That is neither stamp form `check-migrations.sh` reads, so it answers SKIP ("no stamped SQL
@@ -159,16 +169,17 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   schema, and `rollback.sh` says so.
 - **Health endpoint** — `health_endpoint` in `.icm/project.json`: `https://agorasim.pt/`, the
   home page, which answers 200 when production is up (`www.agorasim.pt` redirects to it; there
-  is no `/api/health`). `health-check.sh` reads it once after a promotion merge into `main`;
-  a run's merge into `uat` is not a production deploy and Release skips the read.
+  is no `/api/health`). `health-check.sh` reads it once after a promotion; a run's
+  merge into `main` reaches UAT and a Staged build only, and Release skips the read.
 - **Deploy project (Vercel)** — one: project `agorasim` (team Kodominio), status context
   `Vercel`, root directory `web/`. **Previews build on every push, draft or ready** — there is no
   ignore step and no draft suppression, so the contracts' "drafts build no previews" is stricter
   than what happens: a draft head's preview simply exists earlier, and nothing depends on its
-  absence. Production deploys from `main`; the `uat` branch deploys like any other branch and, once
-  the host is assigned to it, answers at https://uat.agorasim.jamienisbet.com (People and gates →
-  UAT sign-off). Environment scoping is the money rule: previews carry
-  the **sandbox** Stripe keys; live keys, the connected account id, the live webhook secret and
+  absence. Every merge to `main` builds twice: a production deployment held **Staged**
+  (Auto-assign off; promoted by `release.yaml`) and the `uat` custom environment's, at
+  https://uat.agorasim.pt (People and gates → UAT sign-off). Environment scoping is the money
+  rule: previews and `uat` carry the **sandbox** Stripe keys (set on `uat` by hand — a custom
+  environment inherits nothing from Preview); live keys, the connected account id, the live webhook secret and
   the live sender go into **Production only**, set by hand at go-live (`.icm/docs/launch-runbook.md`
   § Track G) — never a `sk_test_` key on the live domain, never a live key on a preview. The three
   crons in `web/vercel.json` (retention Mondays 03:00, dispatch daily 06:00, backup daily 02:30)
@@ -194,9 +205,11 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   #95), all of which reach Jamie; `economics` → none (icm-board's `run-economics.sh` writes it
   into the deal folder). Slack and email keep their variable *names* in `project.json` and are
   mapped to no kind; `report.sh` prints SKIPPED for a mapped channel whose variable is unset.
-- **Who calls the hook** — `announce_from: session`. On a repo without UAT that is Release step
-  9; here every run merges into `uat`, Release records `announce: deferred to promotion`, and
-  `promote-uat.sh sync` calls `report.sh announce` once per promoted batch. The client still
+- **Who calls the hook** — with UAT declared, a run's merge announces nothing: Release records
+  `announce: deferred to promotion`, and `release.yaml`, on the published promotion Release, calls
+  `report.sh announce --tag <that Release's tag>` once per batch — the github-release channel
+  reuses the published Release, never a second one. (`reporting.announce_from` reads `ci`; on a UAT
+  repo it changes nothing.) The client still
   hears about a change from Jamie, by WhatsApp or in person, as before — the Release is the
   record, not the conversation. (`scripts/notify.sh`, the earlier unwired stub, was retired by
   the 2026-09-23 sync; `report.sh` replaces it.)
@@ -205,8 +218,11 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   the record for exactly that. What the team needs to know about a changed admin screen goes into
   the phone guide (web/docs/guia-telemovel.md) as a docs update in the same PR — a page kept
   current, not a changelog. Bug and tweak lanes likewise write no page.
-- **Workflows** — the reference `release.yaml` is **absent** on purpose (`announce_from` is
-  `session`; a workflow would announce twice) and the reference `labels.yaml` is **absent** too:
+- **Workflows** — the reference `release.yaml` since the 2026-09-24 cutover (D39): on a UAT repo
+  it is the promotion (stage → migrate → promote → announce on `release: published`) and a merged
+  PR announces nothing, so nothing announces twice; `db-migrate.yml` takes the reference shape
+  (the `gate` job, `workflow_call`), its own pnpm steps and owner seed kept. The reference
+  `labels.yaml` is **absent**:
   `.github/workflows/pipeline.yaml` already carries the same `Project run labels` job plus the
   advisory checks (The factory, above), and `gates.yaml` is this repo's own addition.
 

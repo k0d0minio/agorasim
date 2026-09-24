@@ -95,11 +95,19 @@ open the rest of the docs tree "for consistency"; the map plus one page is the w
    `subscribe_pr_activity` (`_shared/github.md` → PR events). Read CI once,
    `.icm/scripts/ci-status.sh --pr <number>` → `GREEN` (a markdown-only diff settles in about a
    minute; a CI knowledge-map step, where the repo runs one, is advisory and cannot red it), fix
-   and push on `RED`, then **stop** and hand the PR URL to the operator. The merge is theirs,
-   from GitHub. **On a UAT repo** the PR still targets `main`, and the hand-off names the
-   required follow-up: `promote-uat.sh sync` after the merge, because the UAT branch — the base
-   every run is cut from and the ticket base branch the board reads (D38) — does not carry the
-   page until it runs (`.icm/uat/CONTEXT.md`).
+   and push on `RED`, then **stop** and report per `.icm/_shared/output.md`:
+
+   ```
+   **knowledge <slug> ready** · CI GREEN · <PR link>
+
+   - <the page and what changed on it, in a line>
+
+   Operator:
+   1. merge the PR from GitHub
+   ```
+
+   The merge is theirs, from GitHub. **On a UAT repo** the page reaches UAT on the merge and
+   production with the next promotion (`_shared/promotion.md`); nothing else is owed.
 
 ## Outputs
 
