@@ -6,21 +6,13 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Operator smokes the preview (https://agorasim-git-claude-magical-tesla-jhv1jt-kodominio.vercel.app,
-   admin → a wedding/event lead with a sandbox-paid deposit): Reembolsar partial, then full with
-   "Cancelar também o evento"; a refund from the Stripe test dashboard; the "event still held"
-   warning and Cancelar evento. The preview's build migrates its own Neon branch (0029).
-2. Operator ticks **Ready to merge** on https://github.com/k0d0minio/agorasim/pull/142.
-3. Then `/pipeline release quote-refunds` — read `03_build/output/notes.md` → Notes for Release
-   first (audit entity on the lead, the accepted echo race, open sessions not expired on cancel).
+1. Merged and archived; nothing to pick up. The change reaches production with its UAT batch
+   (`promote status`). Follow-ups are the six triage stubs named in the `## Release` record.
 
 ## Blockers
 
-- blocked on operator: smoke the preview and tick **Ready to merge** on PR #142.
+- none
 
 ## Do not
 
-- Do not tick either gate box.
-- Do not widen `message_log_quote_receipt_key`; the refund notice has its own key (D-3).
-- Do not change tour refund behaviour or the existing `route.test.ts` refund cases.
-- `db-branch.sh quote-refunds down` after the merge, not before (the run's Neon branch carries 0029).
+- Do not reopen this run; a follow-up is a lane run from its triage stub.

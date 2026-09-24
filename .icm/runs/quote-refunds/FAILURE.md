@@ -13,12 +13,19 @@ general; keep the retrospectives specific; never restate an `error.log` entry he
 
 ## Retrospectives
 
-### <YYYY-MM-DD> — <what failed, one line>
+### 2026-09-24 — the refund dialog could not be reopened after a successful refund
 
-- what happened: <the observable — the check, the error, the wrong file>
-- why: <the cause, once it was known>
-- fixed by: <the commit, or the action>
+- what happened: Release's code review found that `RefundQuotePaymentDialog` opens only while `!state.ok`; after one refund and `router.refresh()` the component kept its state (same key), so a second partial refund was impossible without a full reload.
+- why: the dialog copied `cancel-booking-dialog.tsx`'s `open && !state.ok` pattern, which is safe there because a cancelled booking loses its button; a partly refunded instalment keeps its.
+- fixed by: keying the dialog on `payment.id:refundedAmountCents` in `lead-quote-card.tsx` (Release commit).
+
+### 2026-09-24 — `/security-review` could not start: `origin/HEAD` unset in the cloud clone
+
+- what happened: the skill's `git log origin/HEAD...` failed with "ambiguous argument".
+- why: a fresh cloud checkout has no `origin/HEAD` symbolic ref.
+- fixed by: `git remote set-head origin main`, then the skill ran.
 
 ## Learned rules
 
-- <one sentence, imperative, general enough to apply to the next run in this repo>
+- An admin dialog that closes on `useActionState`'s `state.ok` stays closed for good unless its component is keyed on the row value the action changes — key it, or derive `open` from a fresh state (as `ConfirmedQuoteAction` does), whenever the action leaves its trigger on screen.
+- In a cloud session, run `git remote set-head origin main` before `/security-review` — it diffs against `origin/HEAD`, which a fresh clone lacks.

@@ -37,3 +37,15 @@
 - `next build` type-checks the tests (Learned rule); the new test files were written with that in mind but have not been compiled locally.
 
 Context budget: read beyond the Inputs — `quote-checkout.ts`, `booking-emails.ts`, `message-log.ts` and their tests, to follow the shipped patterns this spec names as the model.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN on 6113e6e before the Release pushes; re-read after the last push (ci-status.sh)
+- reviews: code high — 10 findings: 2 fixed in-ticket (the refund dialog now remounts on the row's refunded total so it reopens; the "event still held" warning names the balance only when one is still owed), 8 parked · security `security-check.sh --branch --audit`: OK (pnpm audit clean) + /security-review — no finding at the reporting bar · /production-readiness n/a — the skill is not installed in this session; the diff's DB (migration 0029, applied to run/quote-refunds), payments and env surfaces were covered by the code review, `check-migrations.sh` and `env.sh audit --changed` · readiness `env.sh audit --changed`: OK
+- parked: quote-refund-echo-race.md, quote-cancel-expire-open-sessions.md, quote-refund-admin-reads-charge.md, refund-idempotency-cached-declines.md, quote-refund-guard-post-refund-writes.md, refund-paths-dedupe.md (the last groups three de-duplication findings)
+- migrations: skip — check-migrations.sh reads SKIP (drizzle journal; 0029 is the only new entry after main's merge, no conflict)
+- learned: none from retrospective.sh (its one candidate, the STRIPE_WEBHOOK_SECRET scope gap, was fixed at its source in .env.example and cannot recur); 2 from FAILURE.md via close-out
+- docs: .icm/docs/data-protection.md (Resend row names the quote-refunded notice) · announce: deferred to promotion
+
+Context budget: Release read the full branch diff for the reviews, and #149's quotes.ts hunks after main's merge.
