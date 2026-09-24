@@ -123,7 +123,7 @@ export default async function ExperiencesPage({
         <Section>
           <SectionHeading
             eyebrow={dict.labels.complement}
-            title={l === "pt" ? "Complementos à sua medida" : "Add-ons to make it yours"}
+            title={l === "pt" ? "Extras à sua medida" : "Add-ons to make it yours"}
             intro={
               l === "pt"
                 ? "Adicione um almoço, uma degustação ou uma visita ao seu passeio."
