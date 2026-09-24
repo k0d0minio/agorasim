@@ -61,7 +61,9 @@ is icm-board's checkout (`~/Apps/_system/template`); `ICM_TEMPLATE` in the shell
      the read is `SKIP` and nobody is told production is down." Ask it whenever the report
      carries the `health_endpoint empty` line — it is a `[WARN]` for as long as the repo
      deploys somewhere and has no endpoint, so a repo that skipped it is asked again next run.
-   - "`required_checks`: which check-run names must be green before a merge?" · "`personas`?"
+   - "`required_checks`: empty by default — the deploy status is the verdict and the quality job
+     is advisory (`_shared/ci.md` → the cost floor); which check-run names, if any, must this
+     repo still wait for, and why?" · "`personas`?"
    - "`migrations`: where do they live, are they reversible, which tool applies them (flyway /
      prisma / drizzle / mongodb / sql), and does that tool accept out-of-order stamps? New ones
      are named `V<17 digits>__<name>.sql` (`stamp: millis`) unless you keep the legacy `seconds`
