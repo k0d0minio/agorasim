@@ -277,3 +277,8 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 
 <!-- Retrospective Learned Rule [2026-09-24] -->
 - In web/src/lib/booking-emails.test.ts, assert copy containing an apostrophe, quote or ampersand against `message.text` literally and against `message.html` in its escapeHtml form (&#39; &quot; &amp;) — never loop both parts over one raw string. (`(empty)`, seen 1× — day-before-reminder; web/drizzle, web/src)
+
+<!-- Retrospective Learned Rule [2026-09-24] -->
+- `new-run.sh` and `close-out.sh` scope their own `git add` to `.icm/runs/$slug/` only — a lane's actual code fix is never picked up by either script and must be staged and committed with explicit paths (never `git add -A`) by the session itself. Verify with `git show --stat <the run-pointers commit>` before pushing: it should carry only `.icm/runs/**`, not the source files. (`FAILURE.md` — fix-move-back-suppresses-reminder)
+<!-- Retrospective Learned Rule [2026-09-24] -->
+- In a vitest file that mocks `@/db` (or a module that feeds it), keep every value-level import of an app module dynamic — `await import(...)` placed after the `vi.mock` calls and their captured `const`s — never a static `import { x } from "@/lib/y"` at the top: a static import that transitively reaches a mocked module resolves before the file's own top-level `const`s initialise and throws "Cannot access '…' before initialization" (`ReferenceError`, vitest hoisting). Type-only imports (`import type { … }`) are unaffected and can stay static. (`FAILURE.md` — fix-move-back-suppresses-reminder; web/src/lib/booking-move.test.ts)
