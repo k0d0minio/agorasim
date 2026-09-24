@@ -81,11 +81,11 @@ source of truth: never run `build`, `lint`, `typecheck` or `test` locally — `.
 gives changed-files feedback, nothing more.
 
 **Every run reaches UAT first; production is a promotion.** This repo declares a persistent
-client UAT environment (`uat` in `.icm/project.json`; the rule is `.icm/uat/CONTEXT.md`): run
-branches are cut from `uat`, and every PR — spine and lane alike — targets `uat`, not `main`
-(a hotfix and a docs-only knowledge PR still target `main`). What has merged into `uat` since
-the last promotion is the batch Diogo & Rita test at the one fixed address. When they say yes,
-Jamie records it — `/pipeline uat approve "<who>"` — merges the promotion PR it opens, and runs
-`/pipeline uat sync`. No agent infers an approval, no script merges, and `main` is what
-production deploys. Who signs off and how is in `.icm/_shared/project-rules.md` → People and
+client UAT environment (`uat` in `.icm/project.json`; the rule is `.icm/_shared/promotion.md`):
+`main` is the only long-lived branch — run branches are cut from it and every PR targets it — and
+each merge deploys to the Vercel custom environment `uat` while production holds a *Staged*
+build. What has merged since the last published promotion Release is the batch Diogo & Rita test
+at the one fixed address. When they say yes, Jamie records it — `/pipeline promote approve
+"<who>"` drafts the promotion Release — and publishes it on GitHub; `release.yaml` migrates
+production and promotes the staged build. No agent infers an approval and no script publishes. Who signs off and how is in `.icm/_shared/project-rules.md` → People and
 gates.

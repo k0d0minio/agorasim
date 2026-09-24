@@ -49,7 +49,7 @@
       "Bash(.icm/scripts/report.sh:*)",
       "Bash(.icm/scripts/setup.sh:*)",
       "Bash(.icm/scripts/env.sh:*)",
-      "Bash(.icm/scripts/promote-uat.sh:*)",
+      "Bash(.icm/scripts/promote.sh:*)",
       "Bash(.icm/scripts/client-status.sh:*)",
       "Bash(.icm/scripts/deploy-status.sh:*)",
       "Bash(.icm/scripts/health-check.sh:*)",

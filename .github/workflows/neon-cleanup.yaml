@@ -7,8 +7,9 @@ name: Neon cleanup
 # itself expires, which Vercel's retention policy can put months away
 # (https://neon.com/docs/guides/vercel-branch-cleanup). This job deletes that branch the moment the
 # PR closes, and the run's own `run/<slug>` branch beside it where db-branch.sh made one and the
-# session never ran `down`. It names nothing else: not production, and not the UAT branch — the
-# UAT git branch has no PR that closes, and a PR INTO it closes the head branch's copies only.
+# session never ran `down`. It names nothing else: not production, and not the UAT database — a
+# named branch (`database.neon.uat_branch`, D39) that is never `preview/<git-branch>`, and that
+# lib/neon.sh refuses on every delete besides.
 #
 # The project id and the key's NAME come from `.icm/project.json` (one home per fact — the same
 # `database.neon` block every pipeline script reads); the key's VALUE is this repository's Actions
@@ -56,13 +57,12 @@ jobs:
             echo "previews=$(jq -r '.database.neon.previews // ""' "$f")"
             echo "project_id=$(jq -r '.database.neon.project_id // ""' "$f")"
             echo "key_name=$(jq -r '.database.neon.api_key_env // "NEON_API_KEY"' "$f")"
-            echo "uat_branch=$(jq -r '.uat.branch // ""' "$f")"
             echo "preview_branch=preview/${HEAD_REF}"
             echo "run_branch=run/${HEAD_REF#claude/}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Delete preview/<branch> and run/<slug> when they exist
-        if: steps.cfg.outputs.provider == 'neon' && github.head_ref != steps.cfg.outputs.uat_branch
+        if: steps.cfg.outputs.provider == 'neon'
         env:
           NEON_API_KEY: ${{ secrets[steps.cfg.outputs.key_name] }}
           KEY_NAME: ${{ steps.cfg.outputs.key_name }}
