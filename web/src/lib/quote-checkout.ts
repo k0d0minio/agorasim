@@ -441,6 +441,41 @@ export async function recordQuotePayment(
   return marked ? { status: "recorded", quote: marked } : { status: "already", quote };
 }
 
+/** What the quote page says after Stripe sends the couple back, or nothing. */
+export type QuoteReturn = { kind: "confirming" | "awaiting"; paymentId: string } | null;
+
+/**
+ * Back from Stripe with `?session_id=`: record the payment if Stripe says it
+ * is paid, the way `/reservar/confirmacao` reconciles a tour.
+ *
+ * A session that is not one of *this* quote's is ignored — the query string is
+ * the visitor's to type, and the only thing it may do here is name a payment
+ * of the quote whose token opened the page. Every failure resolves to `null`
+ * (no banner): the webhook is the authority and records the payment anyway.
+ */
+export async function reconcileQuoteReturn(
+  sessionId: string,
+  quoteId: string,
+  options: { now?: Date } = {},
+): Promise<QuoteReturn> {
+  if (!/^cs_[A-Za-z0-9_]{8,250}$/.test(sessionId) || !isStripeConfigured()) return null;
+
+  try {
+    const session = await onOwningAccount((account) =>
+      stripe().checkout.sessions.retrieve(sessionId, undefined, account),
+    );
+    const meta = quoteSessionMetadata(session);
+    if (!meta || meta.quoteId !== quoteId || session.status !== "complete") return null;
+    if (session.payment_status !== "paid") return { kind: "awaiting", paymentId: meta.paymentId };
+
+    await recordQuotePayment(session, options);
+    return { kind: "confirming", paymentId: meta.paymentId };
+  } catch (err) {
+    console.error(`[quote-checkout] couldn't reconcile ${sessionId} for ${quoteRef(quoteId)}`, err);
+    return null;
+  }
+}
+
 /**
  * What Stripe actually took, read back from the charge — the charge id, the
  * account it lives on, and the application fee — as `readCommissionAudit`

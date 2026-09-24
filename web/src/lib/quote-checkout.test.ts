@@ -114,9 +114,8 @@ vi.mock("@/lib/email", () => ({
 }));
 vi.mock("@/lib/observability", () => ({ captureAlert: vi.fn(), captureError: vi.fn() }));
 
-const { recordQuotePayment, startQuoteCheckout, quoteSessionMetadata } = await import(
-  "./quote-checkout"
-);
+const { reconcileQuoteReturn, recordQuotePayment, startQuoteCheckout, quoteSessionMetadata } =
+  await import("./quote-checkout");
 const { issueQuoteToken } = await import("@/lib/quote-token");
 const { TERMS_VERSION } = await import("@/content/terms");
 const { commissionOn } = await import("@/lib/commission");
@@ -658,6 +657,68 @@ describe("recordQuotePayment", () => {
 
     expect(captureAlert).toHaveBeenCalledTimes(1);
     expect(sendLoggedEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("reconcileQuoteReturn — the page Stripe sends the couple back to", () => {
+  beforeEach(() => {
+    getPaymentBySessionId.mockResolvedValue({
+      quote: quote([]),
+      payment: instalment("deposit", "issued", { stripeSessionId: "cs_test_back_home" }),
+    });
+    intentsRetrieve.mockResolvedValue({ latest_charge: null });
+    markPaymentPaid.mockResolvedValue(
+      quote([instalment("deposit", "paid"), instalment("balance", "pending")], {
+        status: "deposit_paid",
+      }),
+    );
+  });
+
+  it("records a paid session of this quote, as the webhook would", async () => {
+    sessionsRetrieve.mockResolvedValue(
+      session({ id: "cs_test_back_home", status: "complete", payment_status: "paid" }),
+    );
+
+    expect(await reconcileQuoteReturn("cs_test_back_home", QUOTE_ID, { now: NOW })).toEqual({
+      kind: "confirming",
+      paymentId: DEPOSIT_ID,
+    });
+    expect(markPaymentPaid).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the money is on its way for a delayed method, and records nothing", async () => {
+    sessionsRetrieve.mockResolvedValue(
+      session({ id: "cs_test_back_home", status: "complete", payment_status: "unpaid" }),
+    );
+
+    expect(await reconcileQuoteReturn("cs_test_back_home", QUOTE_ID, { now: NOW })).toEqual({
+      kind: "awaiting",
+      paymentId: DEPOSIT_ID,
+    });
+    expect(markPaymentPaid).not.toHaveBeenCalled();
+  });
+
+  it("ignores a session that belongs to another quote, or to a tour", async () => {
+    sessionsRetrieve.mockResolvedValueOnce(
+      session({
+        id: "cs_test_someone_else",
+        status: "complete",
+        payment_status: "paid",
+        metadata: { ...session().metadata, quoteId: "eeeeeeee-5555-4555-8555-555555555555" },
+      }),
+    );
+    expect(await reconcileQuoteReturn("cs_test_someone_else", QUOTE_ID)).toBeNull();
+
+    sessionsRetrieve.mockResolvedValueOnce(
+      session({ id: "cs_test_a_tour", status: "complete", payment_status: "paid", metadata: {} }),
+    );
+    expect(await reconcileQuoteReturn("cs_test_a_tour", QUOTE_ID)).toBeNull();
+    expect(markPaymentPaid).not.toHaveBeenCalled();
+  });
+
+  it("does not ask Stripe about something that is not a session id", async () => {
+    expect(await reconcileQuoteReturn("<script>", QUOTE_ID)).toBeNull();
+    expect(sessionsRetrieve).not.toHaveBeenCalled();
   });
 });
 

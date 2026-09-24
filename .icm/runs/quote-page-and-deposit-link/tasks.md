@@ -21,4 +21,9 @@ step, so a resuming session can pick up the first unticked line.
 
 ## Queue
 
-- [ ] <task — small enough for one commit; name the file or area>
+- [x] Terms amendment + `message_log_quote_receipt_key` migration + receipt subject type (1e5e440)
+- [x] `dueInstalment`, session compare-and-set, accepted-terms stamp in `lib/quotes.ts` (095486a)
+- [x] `lib/quote-checkout.ts`: mint, recording, receipts; webhook quote branch (095486a)
+- [x] Receipt emails; quote page + action + pay form; booking bar (095486a)
+- [x] Return-path reconciliation moved into `quote-checkout.ts` and tested; `termsSection` test
+- [ ] Cheap-tier GREEN → merge `origin/main` + `origin/uat` → flip ready → full GREEN

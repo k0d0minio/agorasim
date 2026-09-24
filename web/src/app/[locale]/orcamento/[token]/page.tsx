@@ -11,10 +11,10 @@ import { isLocale, t, type Locale } from "@/i18n/config";
 import { formatDay, todayKey } from "@/lib/availability";
 import { formatPrice } from "@/lib/money";
 import {
-  quoteSessionMetadata,
   readQuoteLead,
-  recordQuotePayment,
+  reconcileQuoteReturn,
   resolveQuoteToken,
+  type QuoteReturn,
 } from "@/lib/quote-checkout";
 import {
   BALANCE_DUE_DAYS_BEFORE,
@@ -26,7 +26,6 @@ import {
 import { QUOTE_LOOKUP_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { href } from "@/lib/routes";
-import { isStripeConfigured, onOwningAccount, stripe } from "@/lib/stripe";
 import { QuotePayForm } from "@/components/quote-pay-form";
 import { Section } from "@/components/section";
 import { SellerDetails } from "@/components/terms-of-sale";
@@ -78,7 +77,7 @@ export async function generateMetadata({
   };
 }
 
-type ReturnState = { kind: "confirming" | "awaiting"; paymentId: string } | null;
+type ReturnState = QuoteReturn;
 
 export default async function QuotePage({
   params,
@@ -106,7 +105,7 @@ export default async function QuotePage({
   if (!quote) return <InvalidPanel locale={l} />;
 
   const sessionId = (await searchParams).session_id?.trim();
-  const returned = sessionId ? await reconcileReturn(sessionId, quote) : null;
+  const returned = sessionId ? await reconcileQuoteReturn(sessionId, quote.id) : null;
   if (returned) quote = (await getQuote(quote.id)) ?? quote;
 
   const lead = quote.tourRequestId ? await readQuoteLead(quote.tourRequestId) : null;
@@ -128,36 +127,6 @@ export default async function QuotePage({
       returnState={returnState}
     />
   );
-}
-
-/**
- * Back from Stripe: record the payment if Stripe says it is paid.
- *
- * A `session_id` that is not one of this quote's sessions is ignored — the
- * query string is the visitor's to type, and the only thing it may do here is
- * name a payment of *this* quote. Every failure resolves to "no banner"; the
- * webhook is the authority and will record the payment regardless.
- */
-async function reconcileReturn(
-  sessionId: string,
-  quote: QuoteWithPayments,
-): Promise<ReturnState> {
-  if (!/^cs_[A-Za-z0-9_]{8,250}$/.test(sessionId) || !isStripeConfigured()) return null;
-
-  try {
-    const session = await onOwningAccount((account) =>
-      stripe().checkout.sessions.retrieve(sessionId, undefined, account),
-    );
-    const meta = quoteSessionMetadata(session);
-    if (!meta || meta.quoteId !== quote.id || session.status !== "complete") return null;
-    if (session.payment_status !== "paid") return { kind: "awaiting", paymentId: meta.paymentId };
-
-    await recordQuotePayment(session);
-    return { kind: "confirming", paymentId: meta.paymentId };
-  } catch (err) {
-    console.error(`[quote-page] couldn't reconcile ${sessionId} for ${quoteRef(quote.id)}`, err);
-    return null;
-  }
 }
 
 function fill(template: string, values: Record<string, string>): string {
