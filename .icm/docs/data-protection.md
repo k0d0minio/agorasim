@@ -15,13 +15,13 @@ signed the text off. Nothing in this file is legal advice.
 |---|---|---|---|---|
 | Vercel | Hosting, experience photos | Request logs (IP), pages served | TODO(legal): confirm region | `web/` deploy |
 | Neon | Postgres — enquiries, bookings, quotes, audit log, message log | Everything the forms collect; booking and quote amounts and Stripe references; the venue and line labels on an event quote; audit IPs | TODO(legal): confirm region | `web/src/db/` |
-| Stripe | Payment processing via **Checkout (redirect)** — card data never touches the app | Guest email, line items (experience, date, party), amount, booking id in metadata | Stripe Payments Europe (Ireland) expected for a PT account — TODO(legal): confirm the contracting entity | `web/src/lib/booking-checkout.ts`, `web/src/lib/stripe.ts` |
-| Resend | Transactional email — booking confirmation/cancellation, enquiry reply, team copy | Recipient address, name, booking details in the body | **EU-west (Ireland)** region; US parent → standard contractual clauses as the transfer safeguard | `web/src/lib/email.ts`, `web/src/lib/message-log.ts` |
+| Stripe | Payment processing via **Checkout (redirect)** — card data never touches the app | Guest email, line items (experience, date, party), amount, booking id in metadata; for a wedding/event instalment, the couple's email, the instalment ("Sinal — QT-…"), its amount, the quote and instalment ids and the terms version in metadata, and the quote page's return URL (which carries the couple's link token) for the session's hour | Stripe Payments Europe (Ireland) expected for a PT account — TODO(legal): confirm the contracting entity | `web/src/lib/booking-checkout.ts`, `web/src/lib/quote-checkout.ts`, `web/src/lib/stripe.ts` |
+| Resend | Transactional email — booking confirmation/cancellation, the day-before reminder (every confirmed booking, online or by phone), enquiry reply, quote sent, deposit-received / balance-paid receipts, team copies | Recipient address, name, booking or quote details in the body | **EU-west (Ireland)** region; US parent → standard contractual clauses as the transfer safeguard | `web/src/lib/email.ts`, `web/src/lib/message-log.ts` |
 
 Money model, as the policy states it: the charge is a **direct charge on the client's own
 Stripe account** (`STRIPE_CONNECTED_ACCOUNT_ID`), so Agorasim is merchant of record; the
-platform takes an `application_fee_amount` (4%, `web/src/lib/commission.ts`) that Stripe
-routes automatically. The platform never receives card data. Until the client's account
+platform takes an `application_fee_amount` (4% of a tour, 6% of each wedding/event instalment,
+`web/src/lib/commission.ts`) that Stripe routes automatically. The platform never receives card data. Until the client's account
 exists the session is a plain platform charge on Jamie's sandbox keys — the policy wording
 describes the live state, not the sandbox one.
 
@@ -51,7 +51,9 @@ describes the live state, not the sandbox one.
 4. **Liability insurance (provider + policy number) — unanswered.** Same source, same
    blocker. Chase alongside the RNAAT number.
 5. **Lawful basis wording.** The policy states Art. 6(1)(b) for enquiries (pre-contractual
-   steps) and for paid bookings (contract performance), Art. 6(1)(a) for marketing email.
+   steps) and for bookings — online or taken by phone — (contract performance, which since
+   2026-09-24 names the day-before reminder beside the confirmation and cancellation),
+   Art. 6(1)(a) for marketing email.
    Counsel to confirm, and to say whether tax obligations attached to paid bookings need
    describing as a separate purpose.
 6. **Hosting regions and transfer mechanisms.** Confirm Vercel and Neon regions, the Stripe

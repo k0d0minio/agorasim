@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SQL } from "drizzle-orm";
+
 import type { Quote, QuotePayment } from "@/db";
 
 /**
@@ -75,8 +77,24 @@ vi.mock("@/db", async () => {
 
 vi.mock("@/lib/request-ip", () => ({ clientIp: async () => "203.0.113.9" }));
 
-const { cancelPayment, markPaymentPaid, markQuoteSent, quoteRef } =
-  await import("./quotes");
+const {
+  cancelPayment,
+  copyQuoteAsDraft,
+  discardDraft,
+  markPaymentIssued,
+  markPaymentPaid,
+  markQuoteSent,
+  quoteRef,
+  reissuePayment,
+  supersedeSentQuotes,
+} = await import("./quotes");
+const { PgDialect } = await import("drizzle-orm/pg-core");
+
+/** The `WHERE` of the n-th `.where()` call, rendered as Postgres would get it. */
+function whereSql(n = 0): { sql: string; params: unknown[] } {
+  const clause = calls.filter((call) => call.method === "where")[n]?.args[0];
+  return new PgDialect().sqlToQuery(clause as SQL);
+}
 
 const QUOTE_ID = "aaaaaaaa-1111-4111-8111-111111111111";
 const LEAD_ID = "bbbbbbbb-2222-4222-8222-222222222222";
@@ -262,6 +280,19 @@ describe("markPaymentPaid — the deposit through Stripe", () => {
     expect(auditRows()).toEqual([]);
   });
 
+  it("stamps the terms version the page showed at the tap, over the one sent", async () => {
+    queueResult([instalment(DEPOSIT_ID, "deposit", "paid")]);
+    queueSyncAfter("paid");
+
+    // Sent under 2026-09-01; the terms moved before the couple paid, and the
+    // page they read — and the session's metadata — said 2026-09-24.
+    await markPaymentPaid(DEPOSIT_ID, { acceptedTermsVersion: "2026-09-24" }, NOW);
+
+    expect(updatedValues()[1]).toMatchObject({ acceptedTermsVersion: "2026-09-24" });
+    // The send-time stamp is left where it was.
+    expect(updatedValues()[1]).not.toHaveProperty("termsVersion");
+  });
+
   it("stays idempotent: a repeat webhook delivery moves nothing", async () => {
     queueResult([]);
 
@@ -312,5 +343,170 @@ describe("markQuoteSent", () => {
       await markQuoteSent(QUOTE_ID, { termsVersion: "2026-09-01", now: NOW }),
     ).toBeNull();
     expect(updatedValues()).toHaveLength(1);
+  });
+});
+
+/**
+ * The guards the quote builder rests on (`lib/quote-builder.ts`), asserted in
+ * the SQL itself: two phones and a double tap are answered by the `WHERE`
+ * clause, not by a read that came first.
+ */
+describe("markQuoteSent — the builder's guards", () => {
+  it("lands on a draft only when asked to send a draft", async () => {
+    queueResult([quote()]);
+    queueResult([]);
+
+    await markQuoteSent(QUOTE_ID, { termsVersion: "2026-09-10", from: ["draft"], now: NOW });
+
+    const { sql, params } = whereSql();
+    expect(sql).toContain('"quotes"."status" in');
+    expect(params).toContain("draft");
+    // Without the narrowing, `sent → sent` would let a second tap rotate the
+    // link and mail the couple twice.
+    expect(params).not.toContain("sent");
+  });
+
+  it("pins a re-send to the send the operator saw", async () => {
+    const seen = new Date("2026-05-20T09:00:00Z");
+    queueResult([quote()]);
+    queueResult([]);
+
+    await markQuoteSent(QUOTE_ID, {
+      termsVersion: "2026-09-10",
+      from: ["sent"],
+      ifSentAt: seen,
+      now: NOW,
+    });
+
+    const { sql, params } = whereSql();
+    expect(sql).toContain('"quotes"."sent_at" =');
+    expect(params).toContain("sent");
+    expect(params).not.toContain("draft");
+  });
+
+  it("writes nothing when asked to send from a status that cannot be sent", async () => {
+    expect(
+      await markQuoteSent(QUOTE_ID, { termsVersion: "2026-09-10", from: ["paid"], now: NOW }),
+    ).toBeNull();
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("supersedeSentQuotes — a new version replaces the old", () => {
+  const OLD_ID = "ffffffff-6666-4666-8666-666666666666";
+
+  it("cancels the lead's other sent quotes, and says which replaced which", async () => {
+    queueResult([quote({ id: OLD_ID, status: "cancelled" } as Partial<Quote>)]);
+
+    const superseded = await supersedeSentQuotes(
+      { id: QUOTE_ID, tourRequestId: LEAD_ID },
+      { actorUserId: OPERATOR_ID, now: NOW },
+    );
+
+    expect(superseded).toHaveLength(1);
+    expect(updatedValues()[0]).toMatchObject({ status: "cancelled", cancelledAt: NOW });
+
+    const { sql, params } = whereSql();
+    expect(sql).toContain('"quotes"."tour_request_id" =');
+    expect(sql).toContain('"quotes"."id" <>');
+    expect(params).toEqual(expect.arrayContaining([LEAD_ID, QUOTE_ID, "sent"]));
+    // Money is never superseded — only `sent` is touched.
+    expect(params).not.toContain("deposit_paid");
+
+    expect(auditRows()[0]).toMatchObject({
+      actorUserId: OPERATOR_ID,
+      action: "quote.superseded",
+      entityType: "tour_request",
+      entityId: LEAD_ID,
+      after: { quoteRef: quoteRef(OLD_ID), status: "cancelled", replacedBy: quoteRef(QUOTE_ID) },
+    });
+  });
+
+  it("does nothing for a quote with no lead behind it", async () => {
+    expect(await supersedeSentQuotes({ id: QUOTE_ID, tourRequestId: null })).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("discardDraft", () => {
+  it("cancels a draft, and nothing else", async () => {
+    queueResult([quote({ status: "cancelled" } as Partial<Quote>)]);
+
+    expect(await discardDraft(QUOTE_ID, NOW)).not.toBeNull();
+
+    const { params } = whereSql();
+    expect(params).toContain("draft");
+    expect(params).not.toContain("sent");
+  });
+});
+
+describe("copyQuoteAsDraft", () => {
+  it("refuses to copy a quote that is not sent", async () => {
+    queueResult([quote({ status: "deposit_paid" } as Partial<Quote>)]);
+    queueResult([]);
+
+    expect(await copyQuoteAsDraft(QUOTE_ID, OPERATOR_ID)).toBeNull();
+    expect(calls.some((call) => call.method === "insert")).toBe(false);
+  });
+
+  it("copies the offer but not the send — no link, no terms stamp", async () => {
+    queueResult([quote({ lineItems: [{ label: "Carro", unitCents: 192_000, quantity: 1 }] } as Partial<Quote>)]);
+    queueResult([instalment(DEPOSIT_ID, "deposit", "pending"), instalment(BALANCE_ID, "balance", "pending")]);
+    queueResult([quote({ id: "ffffffff-6666-4666-8666-666666666666", status: "draft" } as Partial<Quote>)]);
+    queueResult([]);
+
+    await copyQuoteAsDraft(QUOTE_ID, OPERATOR_ID);
+
+    const inserted = calls.find((call) => call.method === "values")?.args[0] as Record<
+      string,
+      unknown
+    >;
+    expect(inserted).toMatchObject({
+      tourRequestId: LEAD_ID,
+      createdByUserId: OPERATOR_ID,
+      eventDate: "2026-08-15",
+      venue: "Quinta do Hespanhol, Mafra",
+      totalCents: 192_000,
+      depositPercent: 30,
+    });
+    expect(inserted).not.toHaveProperty("accessTokenHash");
+    expect(inserted).not.toHaveProperty("termsVersion");
+    expect(inserted).not.toHaveProperty("status");
+  });
+});
+
+describe("the Checkout session an instalment carries", () => {
+  it("records a first session only on an instalment that has none", async () => {
+    queueResult([instalment(DEPOSIT_ID, "deposit", "issued")]);
+
+    await markPaymentIssued(DEPOSIT_ID, {
+      stripeSessionId: "cs_test_first",
+      commissionRateBps: 600,
+      now: NOW,
+    });
+
+    expect(updatedValues()[0]).toMatchObject({
+      status: "issued",
+      stripeSessionId: "cs_test_first",
+      commissionRateBps: 600,
+    });
+    // Two taps that both minted a first session: the second finds one here.
+    expect(whereSql().sql).toContain('"stripe_session_id" is null');
+  });
+
+  it("replaces a session only while the row still holds the one it replaces", async () => {
+    queueResult([]);
+
+    const swapped = await reissuePayment(DEPOSIT_ID, {
+      stripeSessionId: "cs_test_second",
+      replacing: "cs_test_expired",
+      now: NOW,
+    });
+
+    // Another tap swapped it first: this write lands nowhere and says so.
+    expect(swapped).toBeNull();
+    const where = whereSql();
+    expect(where.sql).toContain('"stripe_session_id" = $');
+    expect(where.params).toContain("cs_test_expired");
   });
 });

@@ -1,0 +1,6 @@
+## 2026-09-24T12:13:19Z ci Lint, typecheck, test, build — guestReminderEmail test expected a raw apostrophe in the HTML part
+❯ src/lib/booking-emails.test.ts:501:20
+  expect(part).toContain("If you haven't had the exact departure t…
+  (html part carries "If you haven&#39;t had …")
+- resolved: The HTML part escapes every copy string through escapeHtml, so an apostrophe in EN copy arrives as &#39;; the test now asserts the literal on the text part and the escaped form on the HTML part.
+- rule: In web/src/lib/booking-emails.test.ts, assert copy containing an apostrophe, quote or ampersand against `message.text` literally and against `message.html` in its escapeHtml form (&#39; &quot; &amp;) — never loop both parts over one raw string.
