@@ -2,7 +2,8 @@
   "stubs": [
     "vercel-build-migrates-previews",
     "go-live-session-stubs",
-    "next-rce-advisories"
+    "next-rce-advisories",
+    "experiencias-heading-meta"
   ],
   "client_approved": true,
   "approved_by": "Jamie",
