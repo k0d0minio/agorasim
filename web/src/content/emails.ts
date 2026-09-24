@@ -746,6 +746,90 @@ export const bookingEmails = {
     footerNote: "Notificação automática do site — responda para escrever ao cliente.",
   },
 
+  /**
+   * To the couple, when money goes back on an instalment of their quote — from
+   * the Sales board or from the Stripe dashboard, one notice per refund.
+   *
+   * It says what went back this time and in total, and whether the event is
+   * still on: a partial refund is often goodwill on an event that is still
+   * happening, and a couple reading "refund" must not have to guess which.
+   * No link to the quote page, for the receipt's reason: the webhook that
+   * often sends this never holds the plaintext token.
+   */
+  quoteRefund: {
+    subject: {
+      held: {
+        pt: "Reembolso do seu orçamento — {date}",
+        en: "A refund on your quote — {date}",
+      } as Localized,
+      cancelled: {
+        pt: "Evento cancelado e reembolso — {date}",
+        en: "Event cancelled and refunded — {date}",
+      } as Localized,
+    },
+    preheader: {
+      pt: "Referência {ref} · devolvemos {amount}",
+      en: "Reference {ref} · we returned {amount}",
+    } as Localized,
+    banner: {
+      held: { pt: "Reembolso", en: "Refund" } as Localized,
+      cancelled: { pt: "Evento cancelado", en: "Event cancelled" } as Localized,
+    },
+    greeting: { pt: "Olá {name},", en: "Hello {name}," } as Localized,
+    lead: {
+      held: {
+        pt: "Devolvemos {amount} do seu orçamento para {date}. O seu evento continua marcado.",
+        en: "We have returned {amount} of your quote for {date}. Your event is still booked.",
+      } as Localized,
+      cancelled: {
+        pt: "O seu evento de {date} foi cancelado e devolvemos {amount}.",
+        en: "Your event on {date} has been cancelled and we have returned {amount}.",
+      } as Localized,
+    },
+    detailsHeading: { pt: "O reembolso", en: "The refund" } as Localized,
+    labels: {
+      reference: { pt: "Referência", en: "Reference" } as Localized,
+      date: { pt: "Data do evento", en: "Event date" } as Localized,
+      venue: { pt: "Local", en: "Venue" } as Localized,
+      instalment: { pt: "Pagamento", en: "Payment" } as Localized,
+      paid: { pt: "Valor pago", en: "Amount paid" } as Localized,
+      refund: { pt: "Reembolso agora", en: "Refunded now" } as Localized,
+      totalRefunded: {
+        pt: "Total reembolsado neste orçamento",
+        en: "Total refunded on this quote",
+      } as Localized,
+      status: { pt: "O evento", en: "The event" } as Localized,
+    },
+    instalment: {
+      deposit: { pt: "Sinal", en: "Deposit" } as Localized,
+      balance: { pt: "Restante", en: "Balance" } as Localized,
+      other: { pt: "Outro pagamento", en: "Other payment" } as Localized,
+    },
+    status: {
+      held: { pt: "Continua marcado", en: "Still booked" } as Localized,
+      cancelled: { pt: "Cancelado", en: "Cancelled" } as Localized,
+    },
+    moneyNote: {
+      title: { pt: "Quando chega", en: "When it arrives" } as Localized,
+      body: {
+        pt: "O valor volta para o mesmo cartão ou método com que pagou. Costuma aparecer em 5 a 10 dias úteis, consoante o banco.",
+        en: "The money goes back to the same card or method you paid with. It usually appears within 5 to 10 working days, depending on your bank.",
+      } as Localized,
+    },
+    questions: {
+      pt: "Se isto não for o que combinámos, responda a este email ou ligue-nos:",
+      en: "If this is not what we agreed, reply to this email or call us:",
+    } as Localized,
+    signoff: {
+      pt: "Até breve,\nDiogo e Rita\nAgorasim",
+      en: "See you soon,\nDiogo and Rita\nAgorasim",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque pagou um orçamento em {site}.",
+      en: "You are receiving this email because you paid a quote at {site}.",
+    } as Localized,
+  },
+
   /** To Diogo & Rita. Portuguese — a new enquiry has arrived. */
   teamEnquiry: {
     subject: "Novo pedido — {name}",
