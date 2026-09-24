@@ -27,7 +27,7 @@ function ExternalLink({ href, children }: { href: string; children: React.ReactN
 
 export function SiteFooter({ locale }: { locale: Locale }) {
   const dict = getDictionary(locale);
-  const year = 2026;
+  const year = new Date().getFullYear();
 
   return (
     /*
