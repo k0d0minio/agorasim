@@ -6,13 +6,17 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. Jamie reads `02_define/output/spec.md` and ticks **Spec approved** on
+   https://github.com/k0d0minio/agorasim/pull/122 (or `revise quote-page-and-deposit-link "<change>"`).
+2. Then `build quote-page-and-deposit-link` — executor pass on `opus` (complexity: complex),
+   following `plan.md` pass by pass.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
+- none — the gate is the tick.
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Do not start Build before the **Spec approved** tick; never tick it.
+- Do not add an events "we cancel" rule or change the deposit/"sinal" wording (`[LAWYER]`).
+- Do not touch refunds of quote instalments or the T−14 issue job (stubs 4 and 6).

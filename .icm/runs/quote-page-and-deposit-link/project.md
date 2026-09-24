@@ -13,9 +13,17 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- D25: the page mints the Checkout session on tap; no Stripe Payment Link objects, no session
+  minted on page load, no raw session URL in any email.
+- D9: deposit wording unchanged (30%, non-refundable inside 30 days); no "we cancel" rule and
+  no "sinal" change — `[LAWYER]`.
+- The tour paths (`confirmPaidBooking`, `closeUnpaidBooking`, refunds) are untouched for
+  non-quote sessions; refunds of quote instalments are stub 4, the T−14 issue job stub 6.
+- The page is per-guest: `force-dynamic`, never ISR (`/AGENTS.md` § Conventions).
+- The quote token's plaintext never lands in a log, audit row, error or metadata.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read `quotes.ts` (payments, lead move), `quote-token.ts`, `message-log.ts` kinds, the
+  webhook's paid branch, `booking-checkout.ts`'s session creation, `terms.ts` headings and
+  `booking-bar.tsx` to settle the mint, webhook ordering and terms questions.

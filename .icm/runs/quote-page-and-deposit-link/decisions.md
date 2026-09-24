@@ -8,9 +8,17 @@ decision made mid-run has one home.
 
 ## From the scope
 
-- <D-n — the decision, one line, as the scope worded it>
+- No `scope.md` (the epic was re-cut by `/project`); the register's decisions this run rests on:
+- D9 — weddings deposit default: non-refundable inside 30 days, free date change subject to availability.
+- D25 — deposit and balance are paid from a token-gated quote page that mints the Checkout session on tap; no long-lived Payment Links.
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+Settled with the operator at Define, 2026-09-24:
+- RD-1 — `terms.ts`'s events section gains the balance-by-link and no-withdrawal statements; `TERMS_VERSION` moves. The tour withdrawal text (48h) would mislead a couple.
+- RD-2 — the accepted terms version is the one the page showed at the tap (session metadata), not the send-time stamp.
+- RD-3 — the receipt emails carry the events terms section verbatim with its version (durable medium; a link alone is not one).
+- RD-4 — the phone booking bar points at `#orcamento` ("Pedir orçamento") on `/casamentos` and `/eventos`; hidden on the quote page.
+- RD-5 — the team gets an email on each paid instalment, as for tour bookings.
+- RD-6 — superseded, cancelled, unknown and malformed links share one neutral "no longer valid" page with contacts (404 status).
+- RD-7 — the stub's open point (the events "we cancel" rule): its default — state what the terms state, no more.
