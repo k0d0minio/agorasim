@@ -1,7 +1,7 @@
 # Build notes: day-before-reminder
 
 - commits: 594850f feat (query, copy, template, job, privacy, tests) · 50a903d chore (notes) · 133eb73 fix (test: escaped apostrophe in HTML) · 8b6f877 + bc770c4 merges of origin/main and origin/uat
-- ci: GREEN (cheap tier) on bc770c4; full gate settled after the ready flip — see status.md
+- ci: GREEN — cheap tier on bc770c4, full gate on the post-flip head
 
 ## What changed
 
@@ -22,7 +22,7 @@
 - [x] No enquiry / no email → skipped and counted, never claimed — job test.
 - [x] Audit row names `day-before-reminder` with per-variant counts (the dispatcher writes `name: summary` into `cron.dispatch` unchanged); `noop.ts` and import gone.
 - [x] Privacy policy PT/EN lists name the reminder.
-- [ ] Unit tests written as listed; CI green — pending the CI verdict.
+- [x] Unit tests written as listed; CI green on the full gate.
 
 ## Notes for Release
 
