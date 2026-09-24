@@ -280,3 +280,7 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 
 <!-- Retrospective Learned Rule [2026-09-24] -->
 - In web/.env.example, end a new key's comment block with an explicit `# [production,preview,development]` (or its real targets) line — env.sh audit loses the note of a key with no targets suffix until the template is fixed. (`warn] email_opt_out_secret: no note yet (# todo: note) — one sentence `, seen 1× — thankyou-review-email; web, web/drizzle, web/src)
+<!-- Retrospective Learned Rule [2026-09-24] -->
+- A column on `bookings` that describes one departure (like `no_show_at`) must be reset in `web/src/lib/booking-move.ts`'s update — a move changes the departure under it. (`FAILURE.md` — thankyou-review-email)
+<!-- Retrospective Learned Rule [2026-09-24] -->
+- Size a public endpoint's throttle for who actually calls it: a mail provider's one-click POST, a webhook sender or a crawler is not one guest on one IP. (`FAILURE.md` — thankyou-review-email)
