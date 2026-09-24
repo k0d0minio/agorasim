@@ -87,37 +87,41 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
 
 ## The factory
 
-- **Required CI check** — `Lint, typecheck, test, build` (`required_checks` in
-  `.icm/project.json`; the name contains commas, which is why the list is an array and
-  `PIPELINE_REQUIRED_CHECKS`, when used as an override, is newline-separated). The workflow is
-  `CI` (`.github/workflows/ci.yml`); the **check run** is named after its one job. It runs on
-  every PR and on `main`, inside `web/`, with no path filter and **no tiering**: a draft head and
-  a ready head run the same whole job — ESLint, `tsc --noEmit`, the vitest suite, `next build`
-  without a `DATABASE_URL` (the public pages fall back to the shipped catalogue) — so here the
-  "cheap tier" and the "full gate" the contracts distinguish are one and the same verdict, and
-  `ci-status.sh` names the tier by the PR's draft state alone. The full sweep is blocked in-session
-  by the estate's `block-local-checks.sh` hook and `opencode.jsonc`. There is no Husky, no
-  lint-staged and **no formatter** in this repo.
-- **The other check runs and statuses:**
+- **The verdict** — the `Vercel` status (`deploy.projects[].status_context`; `_shared/ci.md`
+  → the cost floor, D43). `required_checks` in `.icm/project.json` is **empty**. Private on
+  GitHub Free: no ruleset exists, so nothing is required by GitHub — the stage contracts and
+  `ci-status.sh` are the gate.
+- **The advisory quality job** — `Quality (advisory)` in `.github/workflows/ci.yml`: ESLint ·
+  `tsc --noEmit` · the vitest suite, inside `web/`, as steps of one job, on a **ready** head
+  only (`ready_for_review` / `synchronize` / `reopened` with a job-level draft guard),
+  path-filtered out of `.icm/**`, markdown and `.github/**`, never on `main`, **no `next
+  build`** (Vercel's is the build — it ran here until 2026-09-24, without a `DATABASE_URL`).
+  Reported by `ci-status.sh`, never required: a red run is a finding the stage fixes on the
+  branch. **A draft head owes CI nothing** — `lint.sh` before every push and
+  `security-check.sh` before every commit are the pre-flip check. The full sweep stays blocked
+  in-session by the estate's `block-local-checks.sh` hook and `opencode.jsonc`. There is no
+  Husky, no lint-staged and **no formatter** in this repo.
+- **Every other workflow, and what each costs:**
 
-  | Name                        | Class    | What it means                                                                                                                                                                                                                                                                                                                                                                             |
-  | --------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `migrate`                   | blocking | `DB migrate` (`.github/workflows/db-migrate.yml`) — runs on `main` only, on pushes touching `web/drizzle/**`, `web/src/db/**` or `drizzle.config.ts`, and by hand: applies the Drizzle journal to Neon, verifies every entry applied (`web/scripts/verify-migrations.ts`), seeds the first owner if configured. **Never present on a PR** — a migration reaches the database only after the merge, so a PR that adds one is smoke-tested on a preview whose database does not yet carry it. Read its verdict on the merge commit. |
-  | `Project run labels`        | blocking | `Pipeline` (`.github/workflows/pipeline.yaml`) — one job: projects `stage:*` / `type:*` / `persona:*` / `complexity:*` from the run's outputs, then re-validates spec structure, intake bookkeeping, release completeness and the knowledge map as **advisory steps** — summary lines and `::warning::`s; only a label-projection fault can red it.                                                                                                     |
-  | `Pipeline gates (advisory)` | advisory | `Gates` (`.github/workflows/gates.yaml`) — reads the two gate anchors in the PR body and is red while a present gate is unticked. A visible signal for the human, not a factory verdict: the stage contracts read the checkbox itself, and nothing requires this check. Advisory by name, so `ci-status.sh` never reds on it.                                                                                                                               |
-  | `Vercel`                    | blocking | the one deploy project's commit status (below).                                                                                                                                                                                                                                                                                                                                           |
+  | Workflow       | Trigger                                                                                                                                                       | Why it is CI                                                                                                                                                                                                                     |
+  | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `DB migrate`   | called by `Release` on a published Release; push to `main` touching `web/drizzle/**`, `web/src/db/**` or `drizzle.config.ts` (its own gate decides); dispatch | Applies the Drizzle journal to production Neon from the `DATABASE_URL` secret, verifies every entry (`web/scripts/verify-migrations.ts`), seeds the first owner. **Never on a PR** — a preview's database is its own Neon branch. |
+  | `Neon cleanup` | PR closed                                                                                                                                                     | Deletes `preview/<branch>` and `run/<slug>` — needs the Neon API key.                                                                                                                                                            |
+  | `Release`      | Release published; PR merged                                                                                                                                  | Migrates, promotes the staged deployment, announces (D39).                                                                                                                                                                       |
 
-  `Vercel Preview Comments` is noise (`_shared/ci.md`). There is no smoke check (`smoke_check` is
-  absent from `.icm/project.json`) — the operator's smoke is by hand, on the preview URL the
-  `Vercel` status carries.
-
+  Retired 2026-09-24 (D43): `Pipeline` and `Gates` — 105 and 129 runs in a month, a billed
+  minute each for seconds of work. Build and Release run `project-labels.sh` themselves; the
+  validations run before the gate as they always did; the stage reads the checkbox from the PR
+  body, and nothing needed the projection. `Vercel Preview Comments` is noise (`_shared/ci.md`).
+  There is no smoke check — the walk is the operator's, at Ready-to-merge, on the preview URL
+  the `Vercel` status carries.
 - **Local feedback scripts** — `.icm/scripts/lint.sh` runs the repo's own ESLint (the
   `eslint.config.mjs` in `web/`, `eslint-config-next`) over the `web/` files the branch changed,
   no `--fix`; an error is `RESULT: PROBLEMS`, a warning is reported and passes — the same bar
   `ci.yml`'s `pnpm lint` applies. `.icm/scripts/format.sh` reports `SKIP`: **this repo runs no
   formatter**, by choice, so there is nothing to wire and nothing that could re-drift a
-  template-owned file on commit. Feedback before a push, never the verdict — CI's
-  `Lint, typecheck, test, build` is the verdict (estate decision D21).
+  template-owned file on commit. Feedback before a push, never the verdict — the deploy is the
+  verdict (estate decisions D21, D43).
 - **The security gate** — `.icm/scripts/security-check.sh` runs before every commit in Build and
   before every lane's push (template-owned; the one local check that is a gate). Not wired as a
   git pre-commit hook — there is no Husky here, by choice — so the stages call it. gitleaks is
@@ -193,14 +197,10 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   `.icm/intake/_done` (both in `.icm/project.json`). Nothing serves them; git is the record. The
   intake tree was purged whole on 2026-09-11 (`git log -- .icm/intake` holds what went before);
   `intake/_done/` starts empty from the adoption.
-- **The labels job** — `pipeline.yaml` re-projects labels on every push touching `.icm/runs/**`
-  and derives `stage:*` from which outputs exist, which is why the contracts tell stages to
-  commit their output rather than call `project-labels.sh` (Release excepted — it projects its
-  own label at step 1). The job diffs `origin/$BASE_REF...$HEAD_SHA` — the PR's own files, never
-  what `main` did in the meantime — and labels only a run whose `run.md` points at this PR. The
-  pipeline's labels were created on GitHub from `.github/labels.yml` on 2026-09-23 (`gh label
-  create`, in the template-sync PR); a new entry in that file is created the same way, once.
-
+- **The labels** — the session projects them (D43; no workflow does): `new-run.sh` at Define,
+  `project-labels.sh <slug> --stage auto` in Build after the first push that carries `notes.md`,
+  `--stage release` at Release's step 1. The script derives `stage:*` from which outputs exist
+  and PUTs the full set; a run's PR is the one `run.md` points at.
 ## Reporting
 
 - **Kinds → channels** — `reporting` in `.icm/project.json`: `announce` → **github-release**
@@ -219,18 +219,15 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   record, not the conversation. (`scripts/notify.sh`, the earlier unwired stub, was retired by
   the 2026-09-23 sync; `report.sh` replaces it.)
 - **Changelog** — **none.** Release records `announce: none` or `announce: internal` in its
-  `## Release` record and writes no page; the release-completeness step in `pipeline.yaml` reads
-  the record for exactly that. The phone guide that once carried admin-screen changes
+  `## Release` record and writes no page; Release's own completeness check reads the record for exactly that (the `pipeline.yaml` step that did so was retired by D43). The phone guide that once carried admin-screen changes
   (web/docs/guia-telemovel.md) was deleted in `6cbf0d4` and has no replacement — a changed admin
   screen currently has no page kept current for it. Bug and tweak lanes likewise write no page.
 - **Workflows** — the reference `release.yaml` since the 2026-09-24 cutover (D39): on a UAT repo
   it is the promotion (stage → migrate → promote → announce on `release: published`) and a merged
   PR announces nothing, so nothing announces twice; `db-migrate.yml` takes the reference shape
-  (the `gate` job, `workflow_call`), its own pnpm steps and owner seed kept. The reference
-  `labels.yaml` is **absent**:
-  `.github/workflows/pipeline.yaml` already carries the same `Project run labels` job plus the
-  advisory checks (The factory, above), and `gates.yaml` is this repo's own addition.
-
+  (the `gate` job, `workflow_call`), its own pnpm steps and owner seed kept. `ci.yml` is this
+  repo's own advisory job (§ The factory). `pipeline.yaml` and `gates.yaml` were retired on
+  2026-09-24 (D43) and the reference `labels.yaml` with them.
 ## Capability skills the stages may call
 
 - **Pipeline capability skills** — `.icm/skills/<name>/SKILL.md` (three-tier, loaded on a
