@@ -296,3 +296,5 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 - When a Drizzle journal conflicts with `main` at merge, keep every entry `main` already has at its index and stamp, and put this branch's migration last with a `when` newer than all of them — never renumber a merged migration, since UAT applies each merge at build and skips anything stamped before its newest applied row. (`FAILURE.md` — fix-uat-migration-ordering)
 <!-- Retrospective Learned Rule [2026-09-25] -->
 - In a cloud session, call `unsubscribe_pr_activity` on the PR as soon as `new-run.sh` opens it — the harness subscribes new PRs by default and this repo subscribes none. (`FAILURE.md` — notifications-page-real)
+<!-- Retrospective Learned Rule [2026-09-25] -->
+- A scheduled email whose making has a side effect (minting a link, rotating a token) must take its message-log claim first — pass a `ClaimedMessage` builder to `sendLoggedEmail`, never a prebuilt message — and must write the email before it retires the old value. (`FAILURE.md` — balance-scheduler)

@@ -2,8 +2,13 @@ import { Inbox, Search } from "lucide-react";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import { lastAuditByEntity } from "@/lib/audit";
+import { formatDay, todayKey } from "@/lib/availability";
+import { balanceMessagesLabel, eventWhenLabel } from "@/lib/balance-schedule";
 import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
 import { listOpenDepartures } from "@/lib/manual-booking";
+import { listQuoteBalanceMessages, type QuoteBalanceMessage } from "@/lib/message-log";
+import { formatPrice } from "@/lib/money";
+import { listUnpaidBalancesDue, quoteRef, type UnpaidBalance } from "@/lib/quotes";
 import { countPendingRetention, retentionDays } from "@/lib/retention";
 import { listSalesBoard } from "@/lib/sales";
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -12,6 +17,10 @@ import { PlaceholderPanel } from "@/components/admin/placeholder-panel";
 import { SalesBoard } from "@/components/admin/sales-board";
 import { SalesSearchResults } from "@/components/admin/sales-search-results";
 import { SubjectExportForm } from "@/components/admin/subject-export-form";
+import {
+  UnpaidBalancesPanel,
+  type UnpaidBalanceItem,
+} from "@/components/admin/unpaid-balances-panel";
 
 // Reads live data — never prerender at build time.
 export const dynamic = "force-dynamic";
@@ -45,25 +54,50 @@ export default async function AdminSalesPage({
   const viewer = await requireAdmin();
   const isOwner = viewer.role === "owner";
 
-  const [{ records, totalEnquiries, countsByStatus }, catalogue, openDays] =
+  const now = new Date();
+  const [{ records, totalEnquiries, countsByStatus }, catalogue, openDays, unpaid] =
     await Promise.all([
       listSalesBoard(query),
       listCatalogue(),
       // The picker behind every card's "Registar reserva": one read for the
       // whole board, shared by all of them. See `lib/manual-booking.ts`.
       listOpenDepartures(),
+      // "Saldo por pagar" — the T−3 flag, computed on every render of the
+      // board (a search hides it). A panel that cannot be read is left out
+      // rather than taking the board down with it.
+      query
+        ? Promise.resolve<UnpaidBalance[]>([])
+        : listUnpaidBalancesDue({ now }).catch((err): UnpaidBalance[] => {
+            console.error("[sales] unpaid balances could not be read", err);
+            return [];
+          }),
     ]);
 
-  const [lastChanged, pendingRetention] = await Promise.all([
+  const [lastChanged, pendingRetention, balanceMessages] = await Promise.all([
     // One query for the whole page's "last changed by" lines, not one per row.
     lastAuditByEntity(
       "tour_request",
       records.map((record) => record.id),
     ),
     countPendingRetention(),
+    listQuoteBalanceMessages(unpaid.map(({ quote }) => quote.id)).catch((err) => {
+      console.error("[sales] balance messages could not be read", err);
+      return new Map<string, QuoteBalanceMessage[]>();
+    }),
   ]);
 
-  const now = new Date();
+  const today = todayKey(now);
+  const unpaidItems: UnpaidBalanceItem[] = unpaid.map(({ quote, payment, leadName }) => ({
+    quoteId: quote.id,
+    href: quote.tourRequestId ? `/admin/sales/${quote.tourRequestId}` : null,
+    ref: quoteRef(quote.id),
+    couple: leadName ?? "—",
+    eventDateLabel: formatDay(quote.eventDate, "pt"),
+    whenLabel: eventWhenLabel(quote.eventDate, today),
+    venue: quote.venue,
+    amountLabel: formatPrice(payment.amountCents, "pt", payment.currency),
+    messagesLabel: balanceMessagesLabel(balanceMessages.get(quote.id)),
+  }));
   const index = catalogueIndex(catalogue);
   // The tours a phone booking can be recorded against — active signature
   // routes, the same set the Calendar's "Nova reserva" sheet sells.
@@ -97,6 +131,8 @@ export default async function AdminSalesPage({
           />
         </div>
       </form>
+
+      {query ? null : <UnpaidBalancesPanel items={unpaidItems} />}
 
       {query ? (
         <SalesSearchResults

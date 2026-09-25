@@ -144,6 +144,16 @@ const fakeDb = {
       },
     };
   },
+  delete() {
+    return {
+      where: () => {
+        trace.push("release");
+        // Only an unsettled claim is ever given back — the wrapper guards on it.
+        rows = rows.filter((row) => row.status !== "sending");
+        return Promise.resolve(undefined);
+      },
+    };
+  },
 };
 
 vi.mock("@/db", async () => {
@@ -663,5 +673,100 @@ describe("the quote refund notice", () => {
         MESSAGE,
       ),
     ).toMatchObject({ status: "sent" });
+  });
+});
+
+describe("the balance kinds, built once the claim is won", () => {
+  const QUOTE = "aaaaaaaa-0000-0000-0000-000000000001";
+
+  const balance = (kind: "balance-request" | "balance-reminder") =>
+    ({ kind, recipient: "guest", tourRequestId: LEAD, quoteId: QUOTE }) as const;
+
+  it("claims under the quote alone, like a receipt", async () => {
+    await sendLoggedEmail(balance("balance-request"), MESSAGE);
+
+    expect(insertedRows[0]).toMatchObject({
+      kind: "balance-request",
+      quoteId: QUOTE,
+      quoteSentAt: null,
+      quotePaymentId: null,
+      bookingId: null,
+    });
+  });
+
+  it("builds the message after the claim and before the send", async () => {
+    const build = vi.fn(async () => {
+      trace.push("build");
+      return MESSAGE;
+    });
+
+    expect(await sendLoggedEmail(balance("balance-request"), build)).toMatchObject({
+      status: "sent",
+    });
+    expect(trace).toEqual(["claim", "build", "send", "settle"]);
+  });
+
+  it("never builds for a claim already held — a rerun mints nothing", async () => {
+    await sendLoggedEmail(balance("balance-request"), MESSAGE);
+    const build = vi.fn(async () => MESSAGE);
+
+    expect(await sendLoggedEmail(balance("balance-request"), build)).toMatchObject({
+      status: "duplicate",
+    });
+    expect(build).not.toHaveBeenCalled();
+  });
+
+  it("gives the claim back when the builder stands down", async () => {
+    expect(
+      await sendLoggedEmail(balance("balance-reminder"), async () => null),
+    ).toMatchObject({ status: "duplicate" });
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(rows).toEqual([]);
+
+    // Nothing was sent, so the next attempt is free to.
+    expect(await sendLoggedEmail(balance("balance-reminder"), MESSAGE)).toMatchObject({
+      status: "sent",
+    });
+  });
+
+  it("gives the claim back and rethrows when the builder throws", async () => {
+    await expect(
+      sendLoggedEmail(balance("balance-request"), async () => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(rows).toEqual([]);
+  });
+
+  it("never builds without a claim — an unreachable log fails the send instead", async () => {
+    claimError = new Error("connection timeout");
+    const build = vi.fn(async () => MESSAGE);
+
+    expect(await sendLoggedEmail(balance("balance-request"), build)).toMatchObject({
+      status: "failed",
+    });
+    expect(build).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("does not claim at all when mail is not configured", async () => {
+    configured = false;
+    const build = vi.fn(async () => MESSAGE);
+
+    expect(await sendLoggedEmail(balance("balance-request"), build)).toMatchObject({
+      status: "skipped",
+      reason: "unconfigured",
+    });
+    expect(build).not.toHaveBeenCalled();
+    expect(insertedRows).toEqual([]);
+  });
+
+  it("keeps the request and the reminder apart", async () => {
+    await sendLoggedEmail(balance("balance-request"), MESSAGE);
+
+    expect(await sendLoggedEmail(balance("balance-reminder"), MESSAGE)).toMatchObject({
+      status: "sent",
+    });
   });
 });

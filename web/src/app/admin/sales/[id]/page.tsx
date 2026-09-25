@@ -22,7 +22,8 @@ import { bookingRef } from "@/lib/bookings";
 import { formatPrice } from "@/lib/money";
 import { canMarkNoShow } from "@/lib/booking-no-show";
 import { refundableCents } from "@/lib/booking-refund";
-import { formatDay, isDateKey } from "@/lib/availability";
+import { formatDay, isDateKey, todayKey } from "@/lib/availability";
+import { isBalanceFlagged } from "@/lib/balance-schedule";
 import { groupMoveTargets, listMoveTargets } from "@/lib/booking-move";
 import { listOpenDepartures, manualBookingPrefill } from "@/lib/manual-booking";
 import { bookingsForLead, bookingSummaries, enquiryRef, recordFromRequest } from "@/lib/sales";
@@ -101,6 +102,8 @@ export default async function AdminLeadPage({
     leadQuotes.filter((quote) => quote.status === "sent"),
   );
 
+  const today = todayKey();
+
   /** The Orçamento card's rows — plain data, the days already in words. */
   const quoteItems: QuoteCardItem[] = leadQuotes.map((quote) => ({
     id: quote.id,
@@ -121,6 +124,7 @@ export default async function AdminLeadPage({
     canNewVersion: canCopyAsNewVersion(quote, leadQuotes),
     emailState: emailStates.get(quote.id) ?? null,
     depositRefundedInFull: depositRefundedInFull(quote.payments),
+    balanceUnpaid: isBalanceFlagged(quote, today),
     payments: quote.payments.map((payment) => ({
       id: payment.id,
       kind: payment.kind,
