@@ -248,6 +248,10 @@ export async function moveBookingToDeparture(options: {
       // holds is the class that was just verified free, and reusing the stored
       // one would be trusting a decision made against a different departure.
       vehicleClass: check.vehicleClass,
+      // A no-show mark belongs to the departure the guest missed, not to the
+      // booking: moved to a new day, they are owed that day's thank-you
+      // (`lib/booking-no-show.ts`).
+      noShowAt: null,
       updatedAt: now,
     })
     .where(

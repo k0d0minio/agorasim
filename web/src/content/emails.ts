@@ -403,6 +403,93 @@ export const bookingEmails = {
     } as Localized,
   },
 
+  /**
+   * The §2.6 thank-you — "Olá, thank you so much… Please leave your review" —
+   * sent by the daily dispatcher the morning after the tour
+   * (`lib/cron/thank-you-review.ts`). The client wrote it "same for both"
+   * tours, so there is no per-tour wording. The EN is theirs with the grammar
+   * lightly mended; the PT is its translation, ungendered towards the guest as
+   * every guest line is (see `guest.lead`) — "estar consigo" rather than
+   * "conhecê-lo/a". "Muito obrigado" is Diogo & Rita speaking, not an
+   * agreement with the guest.
+   *
+   * **Not transactional, so it carries an opt-out.** A review ask is not about
+   * the booking; it goes out under the soft opt-in (D24), which is only lawful
+   * with a way out in every message. `optOut` is that line; the footer says
+   * why the guest got the mail. No money, no cancel link, no booking details
+   * beyond the tour's name.
+   */
+  thankYou: {
+    subject: {
+      pt: "Muito obrigado, {name}",
+      en: "Thank you so much, {name}",
+    } as Localized,
+    /** When the enquiry carries no name — "Muito obrigado, " would read broken. */
+    subjectNoName: {
+      pt: "Muito obrigado",
+      en: "Thank you so much",
+    } as Localized,
+    preheader: {
+      pt: "{experience} · deixe-nos a sua avaliação",
+      en: "{experience} · leave us your review",
+    } as Localized,
+    banner: {
+      pt: "Muito obrigado",
+      en: "Thank you",
+    } as Localized,
+    /** The client's own "Olá", in both languages. */
+    greeting: {
+      pt: "Olá {name},",
+      en: "Olá {name},",
+    } as Localized,
+    greetingNoName: {
+      pt: "Olá,",
+      en: "Olá,",
+    } as Localized,
+    lead: {
+      pt: "Muito obrigado! Esperamos que tenha gostado mesmo desta experiência pela zona rural onde crescemos.",
+      en: "Thank you so much. We hope you really enjoyed this experience around the rural area where we grew up!",
+    } as Localized,
+    reviewAsk: {
+      pt: "Deixe a sua avaliação para que outras pessoas saibam como se sentiu — ajuda-nos a chegar a mais almas como a sua.",
+      en: "Please leave your review so other people know how you felt — it helps us reach more souls like you.",
+    } as Localized,
+    reviewButton: {
+      pt: "Deixar uma avaliação no Google",
+      en: "Leave a Google review",
+    } as Localized,
+    /** `{instagram}` becomes the handle, linked to the profile in the HTML. */
+    close: {
+      pt: "Muito obrigado, foi mesmo bom estar consigo. Conte-nos mais sobre si: encontra-nos no Instagram em {instagram} e mantemo-nos em contacto.",
+      en: "Thank you so much, it was really nice to meet you. Let us know more about you: you can find us on Instagram at {instagram} and we can keep in touch.",
+    } as Localized,
+    instagramHandle: "agorasim.pt",
+    signoff: {
+      pt: "Boas viagens e viva o momento presente!\nDiogo e Rita\nAgorasim",
+      en: "Enjoy your travels and live in the present moment!\nDiogo and Rita\nAgorasim",
+    } as Localized,
+    /** The opt-out line: `{link}` is the confirm page, labelled `linkLabel`. */
+    optOut: {
+      line: {
+        pt: "Não quer receber mais emails destes? {link}",
+        en: "Don't want emails like this one? {link}",
+      } as Localized,
+      linkLabel: {
+        pt: "Deixar de receber",
+        en: "Unsubscribe",
+      } as Localized,
+      /** The plain-text part, where the link is a URL on its own. */
+      textLine: {
+        pt: "Não quer receber mais emails destes? Deixar de receber: {url}",
+        en: "Don't want emails like this one? Unsubscribe: {url}",
+      } as Localized,
+    },
+    footerNote: {
+      pt: "Recebeu este email porque fez uma experiência connosco, reservada em {site}.",
+      en: "You are receiving this email because you took a tour with us, booked at {site}.",
+    } as Localized,
+  },
+
   /** To Diogo & Rita. Portuguese only — see the note above. */
   team: {
     subject: "Nova reserva paga — {date} · {name} ({party}p)",
@@ -754,6 +841,90 @@ export const bookingEmails = {
     cta: "Ver no painel",
     ctaLine: "Ver no painel: {adminUrl}",
     footerNote: "Notificação automática do site — responda para escrever ao cliente.",
+  },
+
+  /**
+   * To the couple, when money goes back on an instalment of their quote — from
+   * the Sales board or from the Stripe dashboard, one notice per refund.
+   *
+   * It says what went back this time and in total, and whether the event is
+   * still on: a partial refund is often goodwill on an event that is still
+   * happening, and a couple reading "refund" must not have to guess which.
+   * No link to the quote page, for the receipt's reason: the webhook that
+   * often sends this never holds the plaintext token.
+   */
+  quoteRefund: {
+    subject: {
+      held: {
+        pt: "Reembolso do seu orçamento — {date}",
+        en: "A refund on your quote — {date}",
+      } as Localized,
+      cancelled: {
+        pt: "Evento cancelado e reembolso — {date}",
+        en: "Event cancelled and refunded — {date}",
+      } as Localized,
+    },
+    preheader: {
+      pt: "Referência {ref} · devolvemos {amount}",
+      en: "Reference {ref} · we returned {amount}",
+    } as Localized,
+    banner: {
+      held: { pt: "Reembolso", en: "Refund" } as Localized,
+      cancelled: { pt: "Evento cancelado", en: "Event cancelled" } as Localized,
+    },
+    greeting: { pt: "Olá {name},", en: "Hello {name}," } as Localized,
+    lead: {
+      held: {
+        pt: "Devolvemos {amount} do seu orçamento para {date}. O seu evento continua marcado.",
+        en: "We have returned {amount} of your quote for {date}. Your event is still booked.",
+      } as Localized,
+      cancelled: {
+        pt: "O seu evento de {date} foi cancelado e devolvemos {amount}.",
+        en: "Your event on {date} has been cancelled and we have returned {amount}.",
+      } as Localized,
+    },
+    detailsHeading: { pt: "O reembolso", en: "The refund" } as Localized,
+    labels: {
+      reference: { pt: "Referência", en: "Reference" } as Localized,
+      date: { pt: "Data do evento", en: "Event date" } as Localized,
+      venue: { pt: "Local", en: "Venue" } as Localized,
+      instalment: { pt: "Pagamento", en: "Payment" } as Localized,
+      paid: { pt: "Valor pago", en: "Amount paid" } as Localized,
+      refund: { pt: "Reembolso agora", en: "Refunded now" } as Localized,
+      totalRefunded: {
+        pt: "Total reembolsado neste orçamento",
+        en: "Total refunded on this quote",
+      } as Localized,
+      status: { pt: "O evento", en: "The event" } as Localized,
+    },
+    instalment: {
+      deposit: { pt: "Sinal", en: "Deposit" } as Localized,
+      balance: { pt: "Restante", en: "Balance" } as Localized,
+      other: { pt: "Outro pagamento", en: "Other payment" } as Localized,
+    },
+    status: {
+      held: { pt: "Continua marcado", en: "Still booked" } as Localized,
+      cancelled: { pt: "Cancelado", en: "Cancelled" } as Localized,
+    },
+    moneyNote: {
+      title: { pt: "Quando chega", en: "When it arrives" } as Localized,
+      body: {
+        pt: "O valor volta para o mesmo cartão ou método com que pagou. Costuma aparecer em 5 a 10 dias úteis, consoante o banco.",
+        en: "The money goes back to the same card or method you paid with. It usually appears within 5 to 10 working days, depending on your bank.",
+      } as Localized,
+    },
+    questions: {
+      pt: "Se isto não for o que combinámos, responda a este email ou ligue-nos:",
+      en: "If this is not what we agreed, reply to this email or call us:",
+    } as Localized,
+    signoff: {
+      pt: "Até breve,\nDiogo e Rita\nAgorasim",
+      en: "See you soon,\nDiogo and Rita\nAgorasim",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque pagou um orçamento em {site}.",
+      en: "You are receiving this email because you paid a quote at {site}.",
+    } as Localized,
   },
 
   /** To Diogo & Rita. Portuguese — a new enquiry has arrived. */

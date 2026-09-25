@@ -51,6 +51,7 @@ import {
   type TourRequest,
 } from "@/db";
 import { normalizeEmail } from "@/lib/admin-users";
+import { optedOutAt } from "@/lib/email-opt-out";
 
 /** Everything the system holds about one person, ready to serialize as JSON. */
 export type SubjectExport = {
@@ -69,7 +70,28 @@ export type SubjectExport = {
   };
   /** Row counts, so an empty section is obviously empty rather than ambiguous. */
   counts: Record<string, number>;
+  /**
+   * Whether this address asked to stop the post-tour thank-you, and since
+   * when. The suppression list holds a hash, not the address (see
+   * `email_opt_outs` in `db/schema.ts`), so it is answered by hashing the
+   * address asked about — and `unavailable` when this deployment has no
+   * `EMAIL_OPT_OUT_SECRET` to hash with, rather than a false "no".
+   */
+  emailOptOut:
+    | { status: "opted-out"; since: string }
+    | { status: "not-opted-out" }
+    | { status: "unavailable" };
 };
+
+async function emailOptOutFor(subjectEmail: string): Promise<SubjectExport["emailOptOut"]> {
+  try {
+    const since = await optedOutAt(subjectEmail);
+    return since ? { status: "opted-out", since: since.toISOString() } : { status: "not-opted-out" };
+  } catch (err) {
+    console.error("[subject-data] the opt-out list could not be read", err);
+    return { status: "unavailable" };
+  }
+}
 
 /** Collect every record held about `email`. Returns empty sections, not null. */
 export async function exportSubjectData(email: string): Promise<SubjectExport> {
@@ -132,6 +154,7 @@ export async function exportSubjectData(email: string): Promise<SubjectExport> {
       quotes: eventQuotes.length,
       quotePayments: instalments.length,
     },
+    emailOptOut: await emailOptOutFor(subjectEmail),
   };
 }
 

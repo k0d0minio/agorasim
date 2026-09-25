@@ -22,6 +22,14 @@ export const site = {
     instagram: "https://www.instagram.com/agorasim.pt",
     facebook: "https://www.facebook.com/agorasim.pt",
   },
+  /**
+   * Where a guest leaves a review — the client's Google Business Profile
+   * review link (info PDF §2.6). Read by the post-tour thank-you; the email
+   * never hard-codes it.
+   */
+  reviews: {
+    google: "https://g.page/r/CWIk-M6uFZMdEBM/review",
+  },
 } as const;
 
 export const taglines: Localized = {

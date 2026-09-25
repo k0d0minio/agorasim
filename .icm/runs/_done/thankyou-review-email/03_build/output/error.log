@@ -1,0 +1,5 @@
+## 2026-09-24T22:40:00Z session — env.sh audit --changed warned "no note yet" for keys that have notes
+  [WARN] EMAIL_OPT_OUT_SECRET: no note yet (# TODO: note) — one sentence above the key
+  [WARN] RESEND_API_KEY: no note yet (# TODO: note) — one sentence above the key
+- resolved: env.sh reads parse_example rows with IFS=$'\t', which collapses an empty targets field and drops the note; the new key carries an explicit `# [production,preview,development]` line so its note survives, and the template fault is parked as triage/template-change-env-audit-empty-targets.md.
+- rule: In web/.env.example, end a new key's comment block with an explicit `# [production,preview,development]` (or its real targets) line — env.sh audit loses the note of a key with no targets suffix until the template is fixed.

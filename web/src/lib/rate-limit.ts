@@ -162,6 +162,30 @@ export const QUOTE_PAY_RATE_LIMIT: RateLimitRule = {
   windowSeconds: 10 * 60,
 };
 
+/**
+ * The thank-you's opt-out link and its one-click endpoint: 20 per IP per 10
+ * minutes. A real guest presses once; a mail client's one-click POST comes
+ * from the provider's own address, a handful at a time. The limit makes a
+ * walk over tokens cost a rejected request rather than an HMAC and a query.
+ */
+export const OPT_OUT_RATE_LIMIT: RateLimitRule = {
+  limit: 20,
+  windowSeconds: 10 * 60,
+};
+
+/**
+ * The RFC 8058 one-click endpoint, on its own key: those POSTs come from the
+ * mailbox provider's servers — a small pool of IPs carrying every guest who
+ * pressed Gmail's "Unsubscribe" — not from the guest, and a provider does not
+ * retry a refused one. So the limit is sized for a provider's burst, and a
+ * throttled objection is never the guest's own doing. The token is verified
+ * (one HMAC) before anything touches the database either way.
+ */
+export const OPT_OUT_ONE_CLICK_RATE_LIMIT: RateLimitRule = {
+  limit: 300,
+  windowSeconds: 10 * 60,
+};
+
 /** Record a hit against the shared store. */
 export function rateLimit(
   key: string,

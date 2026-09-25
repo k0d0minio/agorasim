@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX "quotes_one_draft_per_lead_key" ON "quotes" USING btree ("tour_request_id") WHERE "status" = 'draft';

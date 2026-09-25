@@ -1,5 +1,5 @@
 {
-  "id": "4fc34b81-7b90-4045-9676-5f29fb15eefb",
+  "id": "ff02ba41-36cc-4138-81da-3be4b3d04b9a",
   "prevId": "2dad7cdb-8d8b-42f5-bac9-81606f116a84",
   "version": "7",
   "dialect": "postgresql",
@@ -1433,6 +1433,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "quote_payment_id": {
+          "name": "quote_payment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refunded_total_cents": {
+          "name": "refunded_total_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "message_status",
@@ -1622,7 +1634,41 @@
             }
           ],
           "isUnique": true,
-          "where": "\"booking_id\" is null and \"quote_id\" is not null and \"quote_sent_at\" is null and \"status\" <> 'failed'",
+          "where": "\"booking_id\" is null and \"quote_id\" is not null and \"quote_sent_at\" is null and \"quote_payment_id\" is null and \"status\" <> 'failed'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "message_log_quote_refund_key": {
+          "name": "message_log_quote_refund_key",
+          "columns": [
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recipient",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "quote_payment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "refunded_total_cents",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"quote_payment_id\" is not null and \"status\" <> 'failed'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1721,6 +1767,19 @@
           "tableTo": "quotes",
           "columnsFrom": [
             "quote_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "message_log_quote_payment_id_quote_payments_id_fk": {
+          "name": "message_log_quote_payment_id_quote_payments_id_fk",
+          "tableFrom": "message_log",
+          "tableTo": "quote_payments",
+          "columnsFrom": [
+            "quote_payment_id"
           ],
           "columnsTo": [
             "id"
@@ -2141,22 +2200,6 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "quotes_one_draft_per_lead_key": {
-          "name": "quotes_one_draft_per_lead_key",
-          "columns": [
-            {
-              "expression": "tour_request_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"status\" = 'draft'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -2656,7 +2699,8 @@
         "balance-reminder",
         "quote-sent",
         "deposit-received",
-        "balance-paid"
+        "balance-paid",
+        "quote-refunded"
       ]
     },
     "public.message_recipient": {

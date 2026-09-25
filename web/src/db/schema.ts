@@ -222,7 +222,9 @@ export const commissionBoundEnum = pgEnum("commission_bound", ["rate", "floor", 
  * `quote-sent` is the offer going out, `deposit-received` and `balance-paid`
  * are the two receipts — the confirmations the proposal promises for car hire
  * (§5) and the ones the Sales board already previews as "Wedding deposit
- * received" (`lib/admin-preview.ts`).
+ * received" (`lib/admin-preview.ts`). `quote-refunded` is the couple's notice
+ * that money went back on an instalment — one per refund, keyed on
+ * {@link messageLog.quotePaymentId} and {@link messageLog.refundedTotalCents}.
  *
  * New values go on the **end** of this list, because that is where
  * `ALTER TYPE … ADD VALUE` puts them in Postgres and the two orderings have to
@@ -240,6 +242,7 @@ export const messageKindEnum = pgEnum("message_kind", [
   "quote-sent",
   "deposit-received",
   "balance-paid",
+  "quote-refunded",
 ]);
 
 /**
@@ -901,6 +904,17 @@ export const bookings = pgTable("bookings", {
   cancelledVia: cancelledViaEnum("cancelled_via"),
 
   /**
+   * When the team marked the guest as a no-show ("Faltou" on the Sales board).
+   *
+   * A mark, not a status: the booking stays `confirmed`, keeps its money and
+   * its seat in the history, and nothing but the post-tour thank-you reads it —
+   * a guest who never turned up is not thanked for a tour they did not take.
+   * Null is the ordinary state and means "went, or nobody said otherwise".
+   * Cleared by "Retirar falta"; both writes are audited.
+   */
+  noShowAt: timestamp("no_show_at", { withTimezone: true }),
+
+  /**
    * The guest's credential for this booking, hashed — the only thing that
    * authenticates a self-serve cancellation.
    *
@@ -1172,6 +1186,26 @@ export const messageLog = pgTable("message_log", {
    */
   quoteSentAt: timestamp("quote_sent_at", { withTimezone: true }),
 
+  /**
+   * The instalment a refund notice is about — `quote-refunded` only.
+   *
+   * A quote can be refunded more than once: the deposit and then the balance,
+   * or one instalment in two goes. Keyed on the quote, as the receipts are, the
+   * second notice would find the first one's claim and never go out.
+   */
+  quotePaymentId: uuid("quote_payment_id").references(() => quotePayments.id, {
+    onDelete: "cascade",
+  }),
+  /**
+   * What had gone back on that instalment in total once this refund landed —
+   * the instalment's `refunded_amount_cents` at the moment of sending.
+   *
+   * It names the refund without a Stripe id: the admin action and the webhook
+   * echo of the same refund arrive at the same total and so at one claim, while
+   * a second, deliberate partial refund reaches a new total and a new notice.
+   */
+  refundedTotalCents: integer("refunded_total_cents"),
+
   status: messageStatusEnum("status").notNull().default("sending"),
 
   /**
@@ -1257,8 +1291,18 @@ export const messageLog = pgTable("message_log", {
   uniqueIndex("message_log_quote_receipt_key")
     .on(table.kind, table.recipient, table.quoteId)
     .where(
-      sql`"booking_id" is null and "quote_id" is not null and "quote_sent_at" is null and "status" <> 'failed'`,
+      sql`"booking_id" is null and "quote_id" is not null and "quote_sent_at" is null and "quote_payment_id" is null and "status" <> 'failed'`,
     ),
+  /**
+   * One refund notice per instalment, per recipient, **per refunded total** —
+   * the rule for `quote-refunded`. Split from the receipt index above on
+   * `quote_payment_id`'s nullness, for the reason the booking indexes split on
+   * `subject_date`'s: one key over both shapes would stop a second refund of
+   * the same quote from ever being told.
+   */
+  uniqueIndex("message_log_quote_refund_key")
+    .on(table.kind, table.recipient, table.quotePaymentId, table.refundedTotalCents)
+    .where(sql`"quote_payment_id" is not null and "status" <> 'failed'`),
   // "What did we send about this booking / this lead?" — the Notifications page
   // and the admin's per-row history.
   index("message_log_booking_idx").on(table.bookingId),
@@ -1271,6 +1315,45 @@ export const messageLog = pgTable("message_log", {
 
 export type MessageLogEntry = typeof messageLog.$inferSelect;
 export type NewMessageLogEntry = typeof messageLog.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Email opt-outs — the address-level suppression list
+// ---------------------------------------------------------------------------
+
+/**
+ * How an opt-out arrived: the confirm page's button, or a mail client's own
+ * unsubscribe (RFC 8058 one-click POST).
+ */
+export const optOutViaEnum = pgEnum("opt_out_via", ["page", "one-click"]);
+export type OptOutVia = (typeof optOutViaEnum.enumValues)[number];
+
+/**
+ * Addresses that asked not to receive any email that is not about one of their
+ * bookings — today the post-tour thank-you, sent under the soft opt-in (D24).
+ *
+ * **Keyed by address, not by enquiry**, because the objection is the person's
+ * and outlives any one lead: a guest who opts out and books again next summer
+ * is still not thanked. So the row is not tied to `tour_requests` at all.
+ *
+ * **No address in the clear.** The key is an HMAC of the trimmed, lowercased
+ * address under `EMAIL_OPT_OUT_SECRET` (`lib/email-opt-out.ts`): enough to
+ * answer "has this address opted out?" for an address we are about to write
+ * to, and useless for listing who has. That is what lets the row survive the
+ * retention sweep and an Art. 17 erasure — keeping the objection is the point
+ * of the row, and keeping it hashed is what makes keeping it proportionate.
+ *
+ * **The secret is never rotated**: a new key makes every row here unmatchable,
+ * which silently re-subscribes everybody who opted out.
+ */
+export const emailOptOuts = pgTable("email_opt_outs", {
+  /** HMAC-SHA-256 of the normalised address, hex. */
+  addressHash: text("address_hash").primaryKey(),
+  via: optOutViaEnum("via").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type EmailOptOut = typeof emailOptOuts.$inferSelect;
+export type NewEmailOptOut = typeof emailOptOuts.$inferInsert;
 
 // ---------------------------------------------------------------------------
 // Quotes — the events and weddings side, priced per job

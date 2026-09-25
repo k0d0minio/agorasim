@@ -70,15 +70,20 @@ export const AUDIT_ACTIONS = [
   "booking.cancelled",
   "booking.refunded",
   "booking.moved",
+  "booking.no_show_marked",
+  "booking.no_show_cleared",
   "quote.created",
   "quote.updated",
   "quote.discarded",
   "quote.sent",
   "quote.resent",
   "quote.superseded",
+  "quote.payment_refunded",
+  "quote.cancelled",
   "blog_post.updated",
   "blog_post.published",
   "blog_post.unpublished",
+  "email.opted_out",
   "cron.dispatch",
   "cron.backup",
 ] as const;
@@ -94,6 +99,7 @@ export type AuditEntityType =
   | "availability"
   | "booking"
   | "blog_post"
+  | "email_opt_out"
   | "cron";
 
 export type AuditInput = {

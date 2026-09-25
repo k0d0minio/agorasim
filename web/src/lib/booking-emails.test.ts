@@ -6,8 +6,10 @@ import {
   guestEnquiryAckEmail,
   guestMoveEmail,
   guestQuoteReceiptEmail,
+  guestQuoteRefundEmail,
   guestQuoteSentEmail,
   guestReminderEmail,
+  guestThankYouEmail,
   partyLabel,
   teamCancellationEmail,
   teamEnquiryEmail,
@@ -18,9 +20,11 @@ import {
   type BookingMoveFacts,
   type EnquiryEmailFacts,
   type QuoteReceiptEmailFacts,
+  type QuoteRefundEmailFacts,
   type QuoteSentEmailFacts,
   type ReminderEmailFacts,
   type TeamCancellationFacts,
+  type ThankYouEmailFacts,
 } from "@/lib/booking-emails";
 import { termsContent, termsSection } from "@/content/terms";
 import { emailPalette } from "@/lib/email-layout";
@@ -549,6 +553,130 @@ describe("guestReminderEmail", () => {
     expect(message.html).toContain(`href="tel:${diogo.phone}"`);
     expect(message.html).toContain(`href="tel:${rita.phone}"`);
     expect(message.replyTo).toBe(site.email);
+  });
+});
+
+describe("guestThankYouEmail", () => {
+  const TOKEN = `${"a".repeat(43)}.${"b".repeat(43)}`;
+
+  function thankYou(overrides: Partial<ThankYouEmailFacts> = {}): ThankYouEmailFacts {
+    return {
+      guestName: "Sofia Almeida",
+      guestEmail: "sofia@example.com",
+      locale: "pt",
+      experience: "Rural Saloia",
+      optOutUrl: `https://agorasim.pt/pt/reserva/deixar-de-receber/${TOKEN}`,
+      oneClickUrl: `https://agorasim.pt/api/email/opt-out/${TOKEN}`,
+      ...overrides,
+    };
+  }
+
+  it("substitutes every placeholder — no stray braces reach a guest", () => {
+    for (const message of [
+      guestThankYouEmail(thankYou()),
+      guestThankYouEmail(thankYou({ locale: "en" })),
+      guestThankYouEmail(thankYou({ guestName: "" })),
+    ]) {
+      expect(message.subject).not.toMatch(/\{/);
+      expect(message.text).not.toMatch(/\{/);
+      expect(message.html).not.toMatch(/\{(name|experience|url|site|link|instagram)\}/);
+    }
+  });
+
+  it("thanks the guest in the client's §2.6 words, in their language", () => {
+    const pt = guestThankYouEmail(thankYou());
+    expect(pt.subject).toBe("Muito obrigado, Sofia Almeida");
+    expect(pt.html).toContain('lang="pt"');
+    expect(pt.text).toContain("Olá Sofia Almeida,");
+    expect(pt.text).toContain("pela zona rural onde crescemos");
+    expect(pt.text).toContain("viva o momento presente");
+
+    const en = guestThankYouEmail(thankYou({ locale: "en" }));
+    expect(en.subject).toBe("Thank you so much, Sofia Almeida");
+    expect(en.html).toContain('lang="en"');
+    expect(en.text).toContain("around the rural area where we grew up");
+    expect(en.text).toContain("reach more souls like you");
+    expect(en.text).toContain("live in the present moment");
+  });
+
+  it("reads whole when the enquiry has no name", () => {
+    const message = guestThankYouEmail(thankYou({ guestName: "  " }));
+    expect(message.subject).toBe("Muito obrigado");
+    expect(message.text.startsWith("Olá,")).toBe(true);
+  });
+
+  it("carries the Google review link from site.ts as the one button", () => {
+    for (const locale of ["pt", "en"] as const) {
+      const message = guestThankYouEmail(thankYou({ locale }));
+      expect(message.html).toContain(`href="${site.reviews.google}"`);
+      expect(message.text).toContain(site.reviews.google);
+    }
+    expect(guestThankYouEmail(thankYou()).html).toContain("Deixar uma avaliação no Google");
+    expect(guestThankYouEmail(thankYou({ locale: "en" })).html).toContain("Leave a Google review");
+  });
+
+  it("carries the Instagram line, with the handle linked to the profile", () => {
+    const pt = guestThankYouEmail(thankYou());
+    expect(pt.html).toContain(`href="${site.social.instagram}"`);
+    expect(pt.text).toContain("Instagram em agorasim.pt");
+    expect(pt.text).toContain(site.social.instagram);
+
+    const en = guestThankYouEmail(thankYou({ locale: "en" }));
+    expect(en.text).toContain("Instagram at agorasim.pt");
+  });
+
+  it("carries an opt-out line to the confirm page in both parts, in the guest's language", () => {
+    const pt = guestThankYouEmail(thankYou());
+    expect(pt.html).toContain(`href="${thankYou().optOutUrl}"`);
+    expect(pt.html).toContain("Deixar de receber");
+    expect(pt.text).toContain(`Deixar de receber: ${thankYou().optOutUrl}`);
+
+    const en = guestThankYouEmail(thankYou({ locale: "en" }));
+    expect(en.html).toContain("Unsubscribe");
+    expect(en.text).toContain(`Unsubscribe: ${thankYou().optOutUrl}`);
+  });
+
+  it("sends the RFC 8058 one-click headers against the endpoint", () => {
+    const message = guestThankYouEmail(thankYou());
+    expect(message.headers).toEqual({
+      "List-Unsubscribe": `<${thankYou().oneClickUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    });
+  });
+
+  it("carries no money, no cancel link and no booking details", () => {
+    const message = guestThankYouEmail(thankYou());
+    expect(message.text).not.toMatch(/€|cancelar|BK-/);
+    expect(message.html).not.toContain("/reserva/cancelar/");
+  });
+
+  it("never agrees with the guest's gender in Portuguese", () => {
+    // "Muito obrigado" is Diogo & Rita speaking and is allowed; nothing may
+    // agree with the guest — see `bookingEmails.guest.lead`.
+    const gendered =
+      /\b(bem-vind[oa]s?|car[oa]s?|querid[oa]s?|pront[oa]s?|convidad[oa]s?)\b|conhecê-l[oa]/i;
+    const message = guestThankYouEmail(thankYou());
+    expect(message.subject).not.toMatch(gendered);
+    expect(message.text).not.toMatch(gendered);
+  });
+
+  it("escapes anything a guest could have typed", () => {
+    const message = guestThankYouEmail(
+      thankYou({ guestName: `<script>alert("x")</script> O'Brien` }),
+    );
+    expect(message.html).not.toContain("<script>");
+    expect(message.html).toContain("&lt;script&gt;");
+    expect(message.html).toContain("O&#39;Brien");
+    expect(message.text).toContain("O'Brien");
+  });
+
+  it("replies to a person", () => {
+    expect(guestThankYouEmail(thankYou()).replyTo).toBe(site.email);
+  });
+
+  // Booking mail has nothing to unsubscribe from; only the thank-you sets headers.
+  it("leaves the headers off the booking mail", () => {
+    expect(guestConfirmationEmail(facts()).headers).toBeUndefined();
   });
 });
 
@@ -1161,5 +1289,72 @@ describe("the quote receipts — deposit-received and balance-paid", () => {
     );
     expect(platformOnly.subject).toMatch(/^Restante pago/);
     expect(platformOnly.text).toContain("Comissão (6%): —");
+  });
+});
+
+describe("guestQuoteRefundEmail — quote-refunded", () => {
+  function refundFacts(overrides: Partial<QuoteRefundEmailFacts> = {}): QuoteRefundEmailFacts {
+    return {
+      instalment: "deposit",
+      ref: "QT-A1B2C3",
+      guestName: "Inês & Tomás",
+      guestEmail: "ines@example.com",
+      locale: "pt",
+      date: "sábado, 15 de agosto de 2026",
+      venue: "Quinta do Hespanhol, Mafra",
+      paid: "486 €",
+      amount: "243 €",
+      totalRefunded: "243 €",
+      eventCancelled: false,
+      ...overrides,
+    };
+  }
+
+  it("says what went back and that the event is still on, in Portuguese", () => {
+    const mail = refundFacts();
+    const pt = guestQuoteRefundEmail(mail);
+
+    expect(pt.subject).toBe("Reembolso do seu orçamento — sábado, 15 de agosto de 2026");
+    expect(pt.text).toContain(
+      "Devolvemos 243 € do seu orçamento para sábado, 15 de agosto de 2026. O seu evento continua marcado.",
+    );
+    expect(pt.text).toContain("Referência: QT-A1B2C3");
+    expect(pt.text).toContain("Pagamento: Sinal");
+    expect(pt.text).toContain("Valor pago: 486 €");
+    expect(pt.text).toContain("Reembolso agora: 243 €");
+    expect(pt.text).toContain("Total reembolsado neste orçamento: 243 €");
+    expect(pt.text).toContain("O evento: Continua marcado");
+    expect(pt.to).toEqual(["ines@example.com"]);
+    expect(pt.replyTo).toBe(site.email);
+  });
+
+  it("says the event is off when it was cancelled with the refund, in English", () => {
+    const en = guestQuoteRefundEmail(
+      refundFacts({
+        locale: "en",
+        instalment: "balance",
+        date: "Saturday, 15 August 2026",
+        amount: "€1,134",
+        totalRefunded: "€1,620",
+        eventCancelled: true,
+      }),
+    );
+
+    expect(en.subject).toBe("Event cancelled and refunded — Saturday, 15 August 2026");
+    expect(en.text).toContain(
+      "Your event on Saturday, 15 August 2026 has been cancelled and we have returned €1,134.",
+    );
+    expect(en.text).toContain("Payment: Balance");
+    expect(en.text).toContain("Total refunded on this quote: €1,620");
+    expect(en.text).toContain("The event: Cancelled");
+    expect(en.html).toContain('lang="en"');
+  });
+
+  it("carries no quote link — the webhook that sends it has no token", () => {
+    const mail = guestQuoteRefundEmail(refundFacts());
+    expect(mail.text).not.toContain("/orcamento/");
+    expect(mail.html).not.toContain("/orcamento/");
+    // The couple's names are escaped in the HTML part, as every name is.
+    expect(mail.html).toContain("Inês &amp; Tomás");
   });
 });

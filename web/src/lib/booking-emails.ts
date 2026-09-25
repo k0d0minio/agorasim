@@ -34,6 +34,7 @@ import {
   emailNote,
   emailPalette,
   emailParagraph,
+  emailParagraphWithLink,
   emailSpacer,
   escapeHtml,
   type DetailRow,
@@ -601,6 +602,115 @@ export function guestReminderEmail(facts: ReminderEmailFacts): EmailMessage {
     text,
     html,
     replyTo: site.email,
+  };
+}
+
+/**
+ * Everything the post-tour thank-you needs. Deliberately little: the tour's
+ * name for the preheader, who to write to, and the two opt-out addresses —
+ * the confirm page for the footer link and the one-click endpoint for the
+ * `List-Unsubscribe` header, both absolute and both carrying the address's
+ * opt-out token (`lib/email-opt-out-token.ts`).
+ */
+export type ThankYouEmailFacts = {
+  guestName: string;
+  guestEmail: string;
+  locale: Locale;
+  /** "Rural Saloia" — the tour's name in the guest's language. */
+  experience: string;
+  /** `https://…/pt/reserva/deixar-de-receber/<token>` */
+  optOutUrl: string;
+  /** `https://…/api/email/opt-out/<token>` — the RFC 8058 one-click target. */
+  oneClickUrl: string;
+};
+
+/**
+ * The §2.6 thank-you, in the language the guest booked in.
+ *
+ * **The review link is the point**, so it is the one button in the mail and a
+ * bare URL on its own line in the text part. It comes from `site.reviews`,
+ * never from here.
+ *
+ * **It carries its own way out.** This is the one guest mail that is not about
+ * a booking (soft opt-in, D24): the footer's opt-out line links the confirm
+ * page, and the `List-Unsubscribe` / `List-Unsubscribe-Post` headers let a mail
+ * client offer its own one-click unsubscribe (RFC 8058) against the endpoint.
+ */
+export function guestThankYouEmail(facts: ThankYouEmailFacts): EmailMessage {
+  const c = bookingEmails.thankYou;
+  const l = facts.locale;
+  const name = facts.guestName.trim();
+
+  const values: Record<string, string> = {
+    name,
+    experience: facts.experience,
+    url: facts.optOutUrl,
+    site: siteUrl(),
+  };
+
+  const subject = name ? fill(t(c.subject, l), values) : t(c.subjectNoName, l);
+  const greeting = name ? fill(t(c.greeting, l), values) : t(c.greetingNoName, l);
+  const reviewUrl = site.reviews.google;
+  const close = t(c.close, l);
+
+  const text = textLines([
+    greeting,
+    "",
+    t(c.lead, l),
+    "",
+    t(c.reviewAsk, l),
+    reviewUrl,
+    "",
+    fill(close, { instagram: `${c.instagramHandle} (${site.social.instagram})` }),
+    "",
+    t(c.signoff, l),
+    siteUrl(),
+    "",
+    fill(t(c.optOut.textLine, l), values),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader, l), values),
+    banner: { text: t(c.banner, l) },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(t(c.lead, l), { spaceBelow: 20 }),
+      emailParagraph(t(c.reviewAsk, l), { spaceBelow: 20 }),
+      emailButton({ label: t(c.reviewButton, l), href: reviewUrl }),
+      emailSpacer(28),
+      emailParagraphWithLink(close.replace("{instagram}", "{link}"), {
+        label: c.instagramHandle,
+        href: site.social.instagram,
+      }),
+      emailSpacer(8),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [
+      escapeHtml(t(taglines, l)),
+      footerWithSiteLink(t(c.footerNote, l)),
+      t(c.optOut.line, l)
+        .split("{link}")
+        .map(escapeHtml)
+        .join(
+          `<a href="${escapeHtml(facts.optOutUrl)}" style="color:${emailPalette.textMuted};text-decoration:underline;">${escapeHtml(t(c.optOut.linkLabel, l))}</a>`,
+        ),
+    ],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+    headers: {
+      "List-Unsubscribe": `<${facts.oneClickUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
   };
 }
 
@@ -1596,5 +1706,126 @@ export function teamQuoteReceiptEmail(
     html,
     // Reply writes to the couple, as on every team notification.
     replyTo: facts.guestEmail,
+  };
+}
+
+/** Which instalment a refund went back on — the three kinds a quote carries. */
+export type QuoteRefundInstalment = "deposit" | "balance" | "other";
+
+/**
+ * Everything the couple's refund notice needs, already formatted in their
+ * language by the caller (`lib/quote-refund.ts`) — this builder stays pure.
+ */
+export type QuoteRefundEmailFacts = {
+  instalment: QuoteRefundInstalment;
+  /** `QT-1A2B3C`. */
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  /** The quote's own language, which is the enquiry's. */
+  locale: Locale;
+  /** The event day, formatted. */
+  date: string;
+  venue: string | null;
+  /** What the instalment was, formatted. */
+  paid: string;
+  /** What went back this time, formatted. */
+  amount: string;
+  /** What has gone back on the whole quote so far, formatted. */
+  totalRefunded: string;
+  /** Whether the event was called off with it. */
+  eventCancelled: boolean;
+};
+
+/**
+ * The couple's notice that money went back on their quote — one per refund,
+ * whoever issued it and wherever.
+ *
+ * It leads with whether the event is still on, because that is the question a
+ * refund raises and the one thing the amount alone cannot answer.
+ */
+export function guestQuoteRefundEmail(facts: QuoteRefundEmailFacts): EmailMessage {
+  const c = bookingEmails.quoteRefund;
+  const l = facts.locale;
+  const state = facts.eventCancelled ? "cancelled" : "held";
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    ref: facts.ref,
+    date: facts.date,
+    amount: facts.amount,
+    site: siteUrl(),
+  };
+
+  const subject = fill(t(c.subject[state], l), values);
+  const greeting = fill(t(c.greeting, l), values);
+  const lead = fill(t(c.lead[state], l), values);
+  const moneyNote = { title: t(c.moneyNote.title, l), body: t(c.moneyNote.body, l) };
+
+  const rows: DetailRow[] = [
+    { label: t(c.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(c.labels.date, l), value: facts.date },
+    ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
+    { label: t(c.labels.status, l), value: t(c.status[state], l) },
+    { label: t(c.labels.instalment, l), value: t(c.instalment[facts.instalment], l) },
+    { label: t(c.labels.paid, l), value: facts.paid },
+    { label: t(c.labels.totalRefunded, l), value: facts.totalRefunded },
+    { label: t(c.labels.refund, l), value: facts.amount, emphasis: true },
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    lead,
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    `${moneyNote.title}: ${moneyNote.body}`,
+    "",
+    t(c.questions, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(c.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader, l), values),
+    // The muted strip, as on the tour cancellation: this is money going back,
+    // not a confirmation, and must not wear the confirmation's green.
+    banner: { text: t(c.banner[state], l), background: emailPalette.textMuted },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(lead, { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      emailSpacer(24),
+      emailNote(moneyNote),
+      emailSpacer(16),
+      emailParagraph(t(c.questions, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
   };
 }
