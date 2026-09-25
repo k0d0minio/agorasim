@@ -13,12 +13,18 @@ general; keep the retrospectives specific; never restate an `error.log` entry he
 
 ## Retrospectives
 
-### <YYYY-MM-DD> — <what failed, one line>
+### 2026-09-25 — the spec ordered the link rotation before the log claim
 
-- what happened: <the observable — the check, the error, the wrong file>
-- why: <the cause, once it was known>
-- fixed by: <the commit, or the action>
+- what happened: the spec said "pre-check the log → rotate the link (CAS) → send". Build found that a second run reading the quote after the first run's swap, but before its claim, could rotate again and kill the link the first run was mailing.
+- why: the claim is the only arbiter across runs, and anything with a side effect done before it can be done twice. The pre-check is only a read.
+- fixed by: `ClaimedMessage` in `sendLoggedEmail` (the message is built only by the claim winner, and never without a claim row); decisions D-4.
+
+### 2026-09-25 — a base-branch migration order broke UAT and every preview mid-run
+
+- what happened: `0031_add_booking_move_seq` merged after `0032` had been applied to `uat-agorasim`, so drizzle skipped it and `db:verify` failed UAT and this run's draft previews.
+- why: two runs in flight each stamped a migration; the one with the older `when` merged second.
+- fixed by: #154 on `main`, merged into this branch before the flip.
 
 ## Learned rules
 
-- <one sentence, imperative, general enough to apply to the next run in this repo>
+- A scheduled email whose making has a side effect (minting a link, rotating a token) must take its message-log claim first — pass a `ClaimedMessage` builder to `sendLoggedEmail`, never a prebuilt message — and must write the email before it retires the old value.

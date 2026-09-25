@@ -6,18 +6,15 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Operator: smoke the preview https://agorasim-git-claude-friendly-pasteur-6bboxr-kodominio.vercel.app
-   — the Sales board (`/admin/sales`: no "Saldo por pagar" panel unless a deposit-paid quote is ≤ 3 days
-   out), a lead's quote card, and the dispatcher's summary line (`/api/cron/dispatch` with the cron secret).
-2. Operator: tick **Ready to merge** on https://github.com/k0d0minio/agorasim/pull/152, then run
-   `/pipeline release balance-scheduler`.
+1. Nothing to pick up — merged into `main` and archived. The change reaches production with the
+   next published promotion Release (`promote status`).
 
 ## Blockers
 
-- blocked on operator: smoke the preview and tick **Ready to merge** on https://github.com/k0d0minio/agorasim/pull/152
+- none
 
 ## Do not
 
-- Do not tick Ready to merge; never merge without it.
-- Do not add an `overdue` status, a release-the-date action or a team email — out of scope.
-- Read `03_build/output/notes.md` → Notes for Release (spec gaps D-4, D-5) before the reviews.
+- Do not re-open or re-run this run; follow-ups are the parked triage stubs
+  (`balance-request-not-on-event-day`, `unpaid-balances-panel-order`, `one-open-instalment-rule`,
+  `privacy-lists-quote-emails`).

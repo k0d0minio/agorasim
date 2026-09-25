@@ -30,3 +30,14 @@
 - `sendLoggedEmail` can now throw — only when a `ClaimedMessage` builder throws, after giving its claim back. Every existing caller passes a plain message and is unaffected.
 - The base's migration-order failure (`0031_add_booking_move_seq` after 0032 on `uat-agorasim`) was fixed on `main` by #154 and merged into this branch before the flip; the preview migrated and built green.
 - `web/.env.example`: `CRON_SECRET` now declares `# [production,preview]` (decisions D-7) — `env.sh audit --changed` flagged it because the dispatcher route changed.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN on the close-out head (ci-status.sh, after the last push) — GREEN on 124c2dc at the stage's start
+- reviews: code high (10 findings — 7 fixed on the branch in b018471: the link swapped last in the builder, no ClaimedMessage built without a claim, a floor on the due query and its stale comment, no past due date in the emails, an alert on a missing BOOKING_TOKEN_SECRET, the Sales panel read skipped on search and failing soft; 3 parked) · security security-check.sh --branch --audit: OK + /security-review — no findings (token handling, email escaping, query construction, admin auth, logging) · readiness env.sh audit --changed: OK · /production-readiness n/a — not installed in this session
+- merge of main: #153 (notifications-page-real) conflicted in `web/src/lib/message-log.ts` — both additions kept; its Notifications page now carries the two balance cards it left for this run (`web/src/lib/admin-messages.ts`)
+- parked: balance-request-not-on-event-day.md, unpaid-balances-panel-order.md, one-open-instalment-rule.md, privacy-lists-quote-emails.md
+- migrations: skip — none of this run's own
+- learned: none from retrospective.sh (NONE); 1 rule from FAILURE.md via close-out (claim before a side-effecting build)
+- docs: .icm/docs/data-protection.md (Resend row names the balance request and reminder) · announce: deferred to promotion
