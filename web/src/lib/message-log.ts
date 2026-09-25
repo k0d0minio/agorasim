@@ -60,9 +60,16 @@
  */
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
-import { db, messageLog, type MessageKind, type MessageRecipient } from "@/db";
+import {
+  db,
+  messageLog,
+  tourRequests,
+  type MessageKind,
+  type MessageRecipient,
+  type MessageStatus,
+} from "@/db";
 import { isEmailConfigured, sendEmail, type EmailMessage } from "@/lib/email";
 
 /**
@@ -346,4 +353,51 @@ async function settle(
       err,
     );
   }
+}
+
+/**
+ * One send as the Notifications page shows it — linkage and status, plus the
+ * guest's name borrowed from the enquiry. Never the provider id: it is not
+ * actionable on that page and retention expires it anyway.
+ */
+export type LoggedMessage = {
+  id: string;
+  kind: MessageKind;
+  recipient: MessageRecipient;
+  status: MessageStatus;
+  bookingId: string | null;
+  tourRequestId: string | null;
+  /** `tour_requests.name` — null when the row names no enquiry. */
+  guestName: string | null;
+  sentAt: Date | null;
+  createdAt: Date;
+};
+
+/**
+ * Every send from `since` on, newest first — the Notifications page's one read.
+ *
+ * Dated by `sent_at` where the provider accepted it and by the claim otherwise,
+ * so a failed or stuck send sits where it happened. An erased enquiry has
+ * already taken its rows with it (`cascade`), so every name here is a live one.
+ */
+export async function recentMessages(since: Date): Promise<LoggedMessage[]> {
+  const happenedAt = sql`coalesce(${messageLog.sentAt}, ${messageLog.createdAt})`;
+  return db
+    .select({
+      id: messageLog.id,
+      kind: messageLog.kind,
+      recipient: messageLog.recipient,
+      status: messageLog.status,
+      bookingId: messageLog.bookingId,
+      tourRequestId: messageLog.tourRequestId,
+      guestName: tourRequests.name,
+      sentAt: messageLog.sentAt,
+      createdAt: messageLog.createdAt,
+    })
+    .from(messageLog)
+    .leftJoin(tourRequests, eq(tourRequests.id, messageLog.tourRequestId))
+    // An ISO string cast in SQL rather than a bound Date: a raw `sql` operand
+    // has no column to map the value through, so the type is said here.
+    .where(sql`${happenedAt} >= ${since.toISOString()}::timestamptz`)
+    .orderBy(desc(happenedAt));
 }

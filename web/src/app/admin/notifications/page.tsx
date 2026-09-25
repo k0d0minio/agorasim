@@ -1,111 +1,186 @@
-import { History, MessageSquareShare } from "lucide-react";
+import Link from "next/link";
+import { History, MailCheck, TriangleAlert } from "lucide-react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { requireAdmin } from "@/lib/admin-auth";
-import { AdminInDevBanner } from "@/components/admin/in-dev-banner";
-import { previewNotificationLog, previewTemplates } from "@/lib/admin-preview";
+import {
+  MESSAGE_CARDS,
+  MESSAGE_WINDOW_DAYS,
+  groupByLisbonDay,
+  lisbonDayLabel,
+  lisbonTime,
+  messageBadge,
+  messageBadgeMeta,
+  messageKindLabel,
+  messageRecipientLabel,
+  messageTime,
+  messageWindowStart,
+  needsAttention,
+  sentCountsByKind,
+} from "@/lib/admin-messages";
+import { bookingRef } from "@/lib/bookings";
+import { recentMessages, type LoggedMessage } from "@/lib/message-log";
+import { enquiryRef } from "@/lib/sales";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+
+// Reads live data — never prerender at build time.
+export const dynamic = "force-dynamic";
 
 /**
- * Notifications (proposal Feature 7) — design preview. Automatic bilingual
- * messages at the right moments: confirmations and reminders for guests,
- * instant alerts for the team.
+ * Mensagens automáticas — what the site has sent by itself, read from
+ * `message_log`, which records every automatic email once.
+ *
+ * Policy-only by decision: there is no switch per message. A message that
+ * should stop, or say something else, is a change to the code that sends it,
+ * so the page only says what goes out, when, to whom — and what went out.
  */
 export default async function AdminNotificationsPage() {
   // Authorized here, not by `proxy.ts` — see the note at the top of
-  // `lib/admin-auth.ts`. The page renders example data today, so this guards
-  // the shape of the area rather than the rows; it is the call that has to
-  // already be here on the day the preview is wired to real data.
+  // `lib/admin-auth.ts`.
   await requireAdmin();
+
+  const now = new Date();
+  const rows = await recentMessages(messageWindowStart(now));
+  const attention = rows.filter((row) => needsAttention(row, now));
+  const counts = sentCountsByKind(rows);
+  const days = groupByLisbonDay(rows);
 
   return (
     <AdminShell>
-      {/*
-        The banner note only — the rest of this screen belongs to
-        `lifecycle-messages/notifications-page-real`. "Set-and-forget" and "hot
-        lead" are idiom, not language: rendered per inventory §4.1.
-      */}
-      <AdminInDevBanner note="Configura-se uma vez e trabalha sozinho: os clientes recebem confirmações, lembretes e agradecimentos na altura certa; e recebe um aviso imediato assim que entra uma reserva ou um pedido com valor." />
-
-      <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-        <MessageSquareShare className="size-4" />
-        <span>Message templates</span>
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-2">
-        {previewTemplates.map((template) => (
-          <Card key={template.name}>
-            <CardContent className="flex items-start justify-between gap-4 p-4">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium">{template.name}</p>
-                  <Badge variant={template.audience === "Team" ? "secondary" : "ghost"}>
-                    {template.audience === "Team" ? "For you" : "For guests"}
-                  </Badge>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">{template.trigger}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {template.channels.map((channel) => (
-                    <Badge key={channel} variant="outline">
-                      {channel}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-              {/*
-                Decorative on/off switch — live toggles come with the feature.
-                It used to carry role="switch" on a <span> with no tabindex, so
-                it announced as an interactive control that could not be reached.
-              */}
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "mt-0.5 inline-flex h-5.5 w-9.5 shrink-0 items-center rounded-full border transition-colors",
-                  template.enabled ? "border-primary bg-primary" : "border-border bg-muted",
-                )}
-              >
-                <span
-                  className={cn(
-                    "mx-0.5 size-4 rounded-full bg-background shadow-xs transition-transform",
-                    template.enabled && "translate-x-4",
-                  )}
-                />
-              </span>
-              {/* The state the switch depicts, in text, since it is hidden. */}
-              <span className="sr-only">{template.enabled ? "On" : "Off"}</span>
-            </CardContent>
+      {attention.length > 0 ? (
+        <section aria-labelledby="attention-heading" className="mb-8">
+          <h2
+            id="attention-heading"
+            className="mb-3 flex items-center gap-2 text-sm font-medium text-destructive"
+          >
+            <TriangleAlert className="size-4" />
+            Precisa de atenção
+          </h2>
+          <p className="mb-3 text-sm text-muted-foreground">
+            «Falhou»: a mensagem não saiu. «Por confirmar»: o envio começou e ficou sem resposta
+            do serviço de email — pode ter saído ou não; confirme com o cliente antes de voltar a
+            escrever.
+          </p>
+          <Card className="divide-y border-destructive/30 p-0">
+            {attention.map((row) => (
+              <MessageRow key={row.id} row={row} now={now} withDay />
+            ))}
           </Card>
-        ))}
-      </div>
+        </section>
+      ) : null}
 
-      <div className="mt-8 mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-        <History className="size-4" />
-        <span>Recently sent</span>
-      </div>
-
-      <Card className="p-0">
-        <ul className="divide-y">
-          {previewNotificationLog.map((entry) => (
-            <li key={entry.what} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="font-medium">{entry.what}</p>
-                <p className="text-xs text-muted-foreground">
-                  {entry.channel} · {entry.when}
+      <section aria-labelledby="messages-heading" className="mb-8">
+        <h2
+          id="messages-heading"
+          className="mb-3 flex items-center gap-2 text-sm text-muted-foreground"
+        >
+          <MailCheck className="size-4" />
+          As mensagens
+        </h2>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {MESSAGE_CARDS.map((card) => (
+            <Card key={card.kind}>
+              <CardContent className="flex items-start justify-between gap-4 p-4">
+                <div className="min-w-0">
+                  <p className="font-medium">{messageKindLabel[card.kind]}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{card.when}</p>
+                </div>
+                <p className="shrink-0 text-right">
+                  <span className="block text-lg font-semibold tabular-nums">
+                    {counts[card.kind]}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {counts[card.kind] === 1 ? "enviada" : "enviadas"} em {MESSAGE_WINDOW_DAYS}{" "}
+                    dias
+                  </span>
                 </p>
-              </div>
-              <Badge variant="ghost" className="w-fit">
-                {entry.status}
-              </Badge>
-            </li>
+              </CardContent>
+            </Card>
           ))}
-        </ul>
-      </Card>
+        </div>
+      </section>
 
-      <p className="mt-4 text-xs text-muted-foreground">
-        Reminders cut no-shows; a well-timed thank-you drives reviews. All messages go out in
-        the guest&apos;s language.
-      </p>
+      <section aria-labelledby="recent-heading">
+        <h2
+          id="recent-heading"
+          className="mb-3 flex items-center gap-2 text-sm text-muted-foreground"
+        >
+          <History className="size-4" />
+          Enviadas recentemente
+        </h2>
+
+        {days.length === 0 ? (
+          <Card className="px-4 py-6 text-sm text-muted-foreground">
+            Ainda não saiu nenhuma mensagem automática nos últimos {MESSAGE_WINDOW_DAYS} dias.
+          </Card>
+        ) : (
+          <div className="space-y-6">
+            {days.map((day) => (
+              <div key={day.key}>
+                <h3 className="mb-2 text-sm font-medium">{day.label}</h3>
+                <Card className="divide-y p-0">
+                  {day.rows.map((row) => (
+                    <MessageRow key={row.id} row={row} now={now} />
+                  ))}
+                </Card>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </AdminShell>
+  );
+}
+
+/**
+ * One send: what it was, to whom, about which booking or pedido, how it went.
+ * The reference is the booking's where the message is about one — it is the
+ * string the guest quotes — and the pedido's otherwise; either opens the
+ * pedido in Vendas.
+ */
+function MessageRow({
+  row,
+  now,
+  withDay = false,
+}: {
+  row: LoggedMessage;
+  now: Date;
+  /** The attention block mixes days, so its rows carry their own date. */
+  withDay?: boolean;
+}) {
+  const at = messageTime(row);
+  const badge = messageBadgeMeta[messageBadge(row, now)];
+  const ref = row.bookingId
+    ? bookingRef(row.bookingId)
+    : row.tourRequestId
+      ? enquiryRef(row.tourRequestId)
+      : null;
+
+  return (
+    <div className="flex flex-col gap-1 px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{messageKindLabel[row.kind]}</p>
+        <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+          <span>{messageRecipientLabel(row.recipient, row.guestName)}</span>
+          {ref && row.tourRequestId ? (
+            <Link
+              href={`/admin/sales/${row.tourRequestId}`}
+              className="inline-flex min-h-11 items-center font-mono text-foreground underline-offset-4 hover:underline"
+            >
+              {ref}
+            </Link>
+          ) : ref ? (
+            <span className="font-mono">{ref}</span>
+          ) : null}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Badge variant={badge.variant}>{badge.label}</Badge>
+        <time dateTime={at.toISOString()} className="tabular-nums">
+          {withDay ? `${lisbonDayLabel(at)} · ` : ""}
+          {lisbonTime(at)}
+        </time>
+      </div>
+    </div>
   );
 }
