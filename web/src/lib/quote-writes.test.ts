@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { NeonDbError } from "@neondatabase/serverless";
 import type { SQL } from "drizzle-orm";
 
 import type { Quote, QuotePayment } from "@/db";
@@ -8,8 +9,8 @@ import type { Quote, QuotePayment } from "@/db";
  * The quote writes that move something other than the quote — through the real
  * functions, with only the Neon client faked.
  *
- * Three rules are asserted here rather than in `quotes.test.ts`, because all
- * three are database writes rather than arithmetic and each one is a way the
+ * Four rules are asserted here rather than in `quotes.test.ts`, because all
+ * four are database writes rather than arithmetic and each one is a way the
  * shipped schema would have failed on the first real wedding:
  *
  * 1. A deposit settled by **bank transfer** is written off rather than paid, and
@@ -21,6 +22,11 @@ import type { Quote, QuotePayment } from "@/db";
  *    two years after the money arrived.
  * 3. Writing an instalment off is the team's bookkeeping, not the couple's act,
  *    so it must not stamp `accepted_at` — evidence of an agreement nobody made.
+ * 4. `createQuote`'s insert is what actually stops two phones each writing a
+ *    draft for the same lead — `quotes_one_draft_per_lead_key` catches what
+ *    `canStartQuote` and `canCopyAsNewVersion` only check for — so the unique
+ *    violation it raises must become {@link QuoteDraftConflictError}, and
+ *    nothing else the database might refuse should be mistaken for it.
  *
  * The harness is the one `admin/calendar/manual-booking.test.ts` uses: a
  * chainable proxy that records every call and resolves to whatever the test
@@ -29,11 +35,21 @@ import type { Quote, QuotePayment } from "@/db";
 
 type QueryCall = { method: string; args: unknown[] };
 
+/** A marker `queueResult` never produces, so `then` knows to reject instead. */
+class QueuedRejection {
+  constructor(readonly error: unknown) {}
+}
+
 let calls: QueryCall[] = [];
 let results: unknown[] = [];
 
 function queueResult(value: unknown): void {
   results.push(value);
+}
+
+/** The next call this proxy resolves throws `error` instead of returning. */
+function queueReject(error: unknown): void {
+  results.push(new QueuedRejection(error));
 }
 
 function makeQuery(): unknown {
@@ -43,10 +59,12 @@ function makeQuery(): unknown {
       get(_target, prop) {
         if (prop === "then") {
           const value = results.length > 0 ? results.shift() : [];
+          const settled =
+            value instanceof QueuedRejection ? Promise.reject(value.error) : Promise.resolve(value);
           return (
             onFulfilled?: (value: unknown) => unknown,
             onRejected?: (reason: unknown) => unknown,
-          ) => Promise.resolve(value).then(onFulfilled, onRejected);
+          ) => settled.then(onFulfilled, onRejected);
         }
         return (...args: unknown[]) => {
           calls.push({ method: String(prop), args });
@@ -86,6 +104,7 @@ const {
   markPaymentPaid,
   markQuoteSent,
   quoteRef,
+  QuoteDraftConflictError,
   reissuePayment,
   supersedeSentQuotes,
   updateQuoteDraft,
@@ -474,6 +493,32 @@ describe("copyQuoteAsDraft", () => {
     expect(inserted).not.toHaveProperty("accessTokenHash");
     expect(inserted).not.toHaveProperty("termsVersion");
     expect(inserted).not.toHaveProperty("status");
+  });
+});
+
+describe("createQuote — the second phone's insert", () => {
+  it("maps quotes_one_draft_per_lead_key's violation to QuoteDraftConflictError", async () => {
+    const conflict = new NeonDbError("duplicate key value violates unique constraint");
+    conflict.code = "23505";
+    conflict.constraint = "quotes_one_draft_per_lead_key";
+    queueReject(conflict);
+
+    await expect(
+      createQuote({ tourRequestId: LEAD_ID, eventDate: "2026-08-15", totalCents: 100_000 }),
+    ).rejects.toBeInstanceOf(QuoteDraftConflictError);
+  });
+
+  it("leaves any other database error as it found it", async () => {
+    // Same SQLSTATE, a different index — createQuote's own conflict is the
+    // only one it is allowed to swallow and rename.
+    const other = new NeonDbError("duplicate key value violates unique constraint");
+    other.code = "23505";
+    other.constraint = "quotes_access_token_key";
+    queueReject(other);
+
+    await expect(
+      createQuote({ tourRequestId: LEAD_ID, eventDate: "2026-08-15", totalCents: 100_000 }),
+    ).rejects.toBe(other);
   });
 });
 
