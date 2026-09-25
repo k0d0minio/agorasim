@@ -470,6 +470,13 @@ export async function listQuoteBalanceMessages(
  * One send as the Notifications page shows it — linkage and status, plus the
  * guest's name borrowed from the enquiry. Never the provider id: it is not
  * actionable on that page and retention expires it anyway.
+ *
+ * The five subject columns below (`subjectDate` through `refundedTotalCents`)
+ * are read for one reason: they are what `message_log`'s partial unique
+ * indexes key a claim on (`db/schema.ts`), so together with `bookingId` and
+ * `tourRequestId` they tell two rows apart as *the same slot* — which is how
+ * the page knows a failed send was superseded by a retry that went out under
+ * the same claim (`lib/admin-messages.ts`'s `attentionRows`).
  */
 export type LoggedMessage = {
   id: string;
@@ -478,6 +485,12 @@ export type LoggedMessage = {
   status: MessageStatus;
   bookingId: string | null;
   tourRequestId: string | null;
+  subjectDate: string | null;
+  moveSeq: number | null;
+  quoteId: string | null;
+  quoteSentAt: Date | null;
+  quotePaymentId: string | null;
+  refundedTotalCents: number | null;
   /** `tour_requests.name` — null when the row names no enquiry. */
   guestName: string | null;
   sentAt: Date | null;
@@ -501,6 +514,12 @@ export async function recentMessages(since: Date): Promise<LoggedMessage[]> {
       status: messageLog.status,
       bookingId: messageLog.bookingId,
       tourRequestId: messageLog.tourRequestId,
+      subjectDate: messageLog.subjectDate,
+      moveSeq: messageLog.moveSeq,
+      quoteId: messageLog.quoteId,
+      quoteSentAt: messageLog.quoteSentAt,
+      quotePaymentId: messageLog.quotePaymentId,
+      refundedTotalCents: messageLog.refundedTotalCents,
       guestName: tourRequests.name,
       sentAt: messageLog.sentAt,
       createdAt: messageLog.createdAt,

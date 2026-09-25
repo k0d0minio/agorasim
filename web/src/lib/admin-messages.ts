@@ -127,6 +127,15 @@ export type MessageRowCore = {
   status: MessageStatus;
   sentAt: Date | null;
   createdAt: Date;
+  /** The subject columns — present on a real row, absent on a badge-only fixture. */
+  bookingId?: string | null;
+  tourRequestId?: string | null;
+  subjectDate?: string | null;
+  moveSeq?: number | null;
+  quoteId?: string | null;
+  quoteSentAt?: Date | null;
+  quotePaymentId?: string | null;
+  refundedTotalCents?: number | null;
 };
 
 /** A row's badge, `now` deciding whether a `sending` row has been left behind. */
@@ -140,6 +149,76 @@ export function messageBadge(row: MessageRowCore, now: Date = new Date()): Messa
 export function needsAttention(row: MessageRowCore, now: Date = new Date()): boolean {
   const badge = messageBadge(row, now);
   return badge === "failed" || badge === "unconfirmed";
+}
+
+/**
+ * The claim slot a row occupies — the same columns as whichever of
+ * `message_log`'s partial unique indexes applies to its kind (`db/schema.ts`),
+ * so two rows share a key exactly when a retry of one would have claimed the
+ * other's row. Read off nullness, not the kind, because that is what the
+ * indexes themselves split on.
+ */
+function subjectKey(row: MessageRowCore): string {
+  if (row.quotePaymentId) {
+    return JSON.stringify([
+      "refund",
+      row.kind,
+      row.recipient,
+      row.quotePaymentId,
+      row.refundedTotalCents,
+    ]);
+  }
+  if (row.bookingId) {
+    return row.subjectDate
+      ? JSON.stringify([
+          "booking-date",
+          row.kind,
+          row.recipient,
+          row.bookingId,
+          row.subjectDate,
+          row.moveSeq,
+        ])
+      : JSON.stringify(["booking", row.kind, row.recipient, row.bookingId]);
+  }
+  if (row.quoteId) {
+    return row.quoteSentAt
+      ? JSON.stringify([
+          "quote-send",
+          row.kind,
+          row.recipient,
+          row.quoteId,
+          row.quoteSentAt.getTime(),
+        ])
+      : JSON.stringify(["quote-receipt", row.kind, row.recipient, row.quoteId]);
+  }
+  return JSON.stringify(["enquiry", row.kind, row.recipient, row.tourRequestId]);
+}
+
+/**
+ * The rows "Precisa de atenção" shows — every row {@link needsAttention} flags,
+ * except a `failed` one whose claim was won again: a failed send releases its
+ * slot (`lib/message-log.ts` module note), so the thank-you cron, a
+ * re-delivered webhook or a later dispatcher run can send the same message
+ * under a fresh row. Once that later row is `sent` or `sending`, the failed
+ * attempt is history, not a warning — the guest already has, or is getting,
+ * the mail. An `unconfirmed` row is never superseded this way: nobody knows
+ * it failed, so nothing has released its claim.
+ */
+export function attentionRows<T extends MessageRowCore>(
+  rows: readonly T[],
+  now: Date = new Date(),
+): T[] {
+  return rows.filter((row) => {
+    if (!needsAttention(row, now)) return false;
+    if (messageBadge(row, now) !== "failed") return true;
+    const key = subjectKey(row);
+    return !rows.some(
+      (other) =>
+        other !== row &&
+        (other.status === "sent" || other.status === "sending") &&
+        subjectKey(other) === key,
+    );
+  });
 }
 
 /** When a row happened: the provider's acceptance, else the claim. */

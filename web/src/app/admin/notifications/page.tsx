@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import {
   MESSAGE_CARDS,
   MESSAGE_WINDOW_DAYS,
+  attentionRows,
   groupByLisbonDay,
   lisbonDayLabel,
   lisbonTime,
@@ -14,7 +15,6 @@ import {
   messageRecipientLabel,
   messageTime,
   messageWindowStart,
-  needsAttention,
   sentCountsByKind,
 } from "@/lib/admin-messages";
 import { bookingRef } from "@/lib/bookings";
@@ -41,7 +41,7 @@ export default async function AdminNotificationsPage() {
 
   const now = new Date();
   const rows = await recentMessages(messageWindowStart(now));
-  const attention = rows.filter((row) => needsAttention(row, now));
+  const attention = attentionRows(rows, now);
   const counts = sentCountsByKind(rows);
   const days = groupByLisbonDay(rows);
 
