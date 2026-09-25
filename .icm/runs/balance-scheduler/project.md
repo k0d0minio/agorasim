@@ -13,9 +13,15 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- D25: the quote page mints the Checkout session and stamps `issued`; the job never mints a
+  session and never stamps `issued` — its once-only is the message-log claim.
+- The quote token's plaintext lives only in the email (`lib/quote-token.ts`); never log, audit or
+  persist it. Rotation touches `access_token_hash` only.
+- Nothing auto-releases a date or cancels a quote for an unpaid balance (client's open question).
+- No migration: the balance kinds ride the existing `message_log_quote_receipt_key`.
+- No local `build`/`lint`/`typecheck`/`test` — CI is the source of truth.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read `lib/quotes.ts`, `lib/message-log.ts`, `lib/quote-token.ts`, `lib/quote-checkout.ts`
+  (mint path), `lib/cron/*` and the Sales page to settle the link and idempotency design.

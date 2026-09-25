@@ -6,18 +6,17 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. Operator: read `02_define/output/spec.md` (or the PR's Spec block), tick **Spec approved** on
+   https://github.com/k0d0minio/agorasim/pull/152, then run `/pipeline build balance-scheduler`.
+2. Build: execute `plan.md` pass by pass on `claude/friendly-pasteur-6bboxr`.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
-- blocked on operator: <the human-only act that unblocks the run — tick a gate, merge, a
-  dashboard or env change>
-
-A blocking operator act is written here **and** in the stop report's `Operator:` list; a
-non-blocking one lives only in that list, never here (`_shared/output.md` → Split by actor).
+- blocked on operator: tick **Spec approved** on https://github.com/k0d0minio/agorasim/pull/152
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Do not start Build before the **Spec approved** tick; never tick it.
+- Do not mint a Checkout session or stamp `issued` from the job (D25).
+- Do not add an `overdue` status, a release-the-date action or a team email — out of scope.
+- Do not touch `event-holds-capacity` territory (capacity, the Calendar).
