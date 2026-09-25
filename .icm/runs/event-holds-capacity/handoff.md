@@ -6,18 +6,15 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. Jamie reads `02_define/output/spec.md` (or the PR's Spec block) and ticks **Spec approved** on https://github.com/k0d0minio/agorasim/pull/155 — or runs `revise event-holds-capacity "<what>"`.
+2. Then `/pipeline build event-holds-capacity`, executing `plan.md` pass by pass.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
-- blocked on operator: <the human-only act that unblocks the run — tick a gate, merge, a
-  dashboard or env change>
-
-A blocking operator act is written here **and** in the stop report's `Operator:` list; a
-non-blocking one lives only in that list, never here (`_shared/output.md` → Split by actor).
+- blocked on operator: tick **Spec approved** in the body of PR #155.
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Do not start Build before the tick; never tick it.
+- Do not add slot/vehicle columns to `quotes` or write to `availability` — D-1/D-2.
+- Do not edit `.icm/project.md` to close the open question — `/project agorasim` in icm-board does.
