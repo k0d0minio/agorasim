@@ -19,8 +19,8 @@ import {
   type AvailabilityActionState,
 } from "@/app/admin/calendar/actions";
 import type { DaySlots, SlotAvailability } from "@/lib/availability";
-import type { BookingStatus } from "@/db/schema";
-import { bookingStatusMeta } from "@/lib/admin-format";
+import type { BookingStatus, EnquiryKind } from "@/db/schema";
+import { bookingStatusMeta, enquiryKindMeta } from "@/lib/admin-format";
 import { VEHICLE_CLASSES, type VehicleClass } from "@/lib/fleet";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -123,6 +123,23 @@ export type CalendarBooking = {
   status: BookingStatus;
 };
 
+/**
+ * One deposit-paid wedding or event holding a whole day, as the day sheet
+ * lists it (`eventHoldsBetween` in `lib/event-holds.ts`). Its day is off sale
+ * for every tour, both departures, while the quote holds it.
+ */
+export type CalendarEvent = {
+  /** `QT-XXXXXX` — the quote's reference. Precomputed, server-side. */
+  ref: string;
+  /** The lead's id — the sheet links through to its sales page. Null after erasure. */
+  tourRequestId: string | null;
+  /** Wedding or event; null when the enquiry is gone. */
+  kind: EnquiryKind | null;
+  /** The couple's or client's name, from the lead. Null once erased. */
+  name: string | null;
+  venue: string | null;
+};
+
 const SLOT_SHORT: Record<string, string> = { morning: "10h", afternoon: "14h" };
 
 /**
@@ -210,9 +227,20 @@ function rangeWords(list: CalendarDay[]): string {
  *   not closed.
  * - **fechada** — solid red with the time struck through and a cross.
  * - **sem decisão** — a faint dashed outline, no fill at all.
+ *
+ * And one that outranks all four: **evento** — a dark chip, struck through,
+ * when a deposit-paid wedding or event holds the whole day. Whatever the row
+ * says, nothing leaves that day, and the operator needs to see *why* rather
+ * than a green that reads "sold out".
  */
 function slotChip(slot: SlotAvailability): { className: string; text: React.ReactNode } {
   const short = SLOT_SHORT[slot.slot] ?? slot.slot;
+  if (slot.heldByEvent) {
+    return {
+      className: "bg-foreground text-background",
+      text: <s>{short}</s>,
+    };
+  }
   if (slot.status === null) {
     return {
       className: "border border-dashed border-input text-muted-foreground",
@@ -247,6 +275,7 @@ function slotChip(slot: SlotAvailability): { className: string; text: React.Reac
 /** One departure, spoken for a screen reader and for the day sheet's summary. */
 function slotSentence(slot: SlotAvailability): string {
   const short = SLOT_SHORT[slot.slot] ?? slot.slot;
+  if (slot.heldByEvent) return `${short} ocupada por um evento`;
   if (slot.status === null) return `${short} não está à venda`;
   if (slot.status === "closed") return `${short} fechada`;
   // "Sem condutores livres" rather than the English's "both drivers out": the
@@ -328,6 +357,69 @@ function WriteFields({ dates, slots }: { dates: string[]; slots: string[] }) {
         <input key={slot} type="hidden" name="slots" value={slot} />
       ))}
     </>
+  );
+}
+
+/**
+ * The wedding or event holding this day, above the tours: kind, who, where,
+ * "Dia inteiro", and the quote's reference, linking through to the lead.
+ *
+ * **The clash marker.** A deposit is paid through Stripe and cannot be
+ * refused, so it can land on a day that already has tours sold. Those bookings
+ * stay exactly as they are — the marker says how many, and sorting it out is
+ * Rita's call, by phone (D-3 in the run `event-holds-capacity`).
+ */
+function DayEvents({
+  events,
+  bookingCount,
+}: {
+  events: CalendarEvent[];
+  bookingCount: number;
+}) {
+  if (events.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-1.5 border-t pt-3">
+      <p className="text-sm font-medium">Evento neste dia</p>
+      {events.map((event) => {
+        const kind = event.kind ? enquiryKindMeta[event.kind].label : "Evento";
+        const row = (
+          <>
+            <Badge variant="secondary">{kind}</Badge>
+            <span className="text-sm font-medium">{event.name ?? event.ref}</span>
+            {event.name ? (
+              <span className="font-mono text-xs text-muted-foreground">{event.ref}</span>
+            ) : null}
+            {event.venue ? (
+              <span className="text-sm text-muted-foreground">{event.venue}</span>
+            ) : null}
+            <span aria-hidden>·</span>
+            <span className="text-sm text-muted-foreground">Dia inteiro</span>
+            {bookingCount > 0 ? (
+              <Badge variant="destructive">
+                Conflito: {bookingCount} {bookingCount === 1 ? "reserva" : "reservas"} neste dia
+              </Badge>
+            ) : null}
+          </>
+        );
+        return event.tourRequestId ? (
+          <Link
+            key={event.ref}
+            href={`/admin/sales/${event.tourRequestId}`}
+            className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-muted/40 px-2 py-1.5 transition-colors hover:bg-muted/70 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            {row}
+          </Link>
+        ) : (
+          <div
+            key={event.ref}
+            className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-muted/40 px-2 py-1.5"
+          >
+            {row}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -424,6 +516,7 @@ function DayBookings({
 function DayEditor({
   day,
   bookings,
+  events,
   experienceNames,
   tours,
   defaultDrivers,
@@ -434,6 +527,8 @@ function DayEditor({
   day: CalendarDay;
   /** The live bookings on this day, for the sheet. */
   bookings: CalendarBooking[];
+  /** The deposit-paid events holding this day, for the sheet. */
+  events: CalendarEvent[];
   /** Tour slug → name in Portuguese, for the sheet's rows. */
   experienceNames: Record<string, string>;
   /** Active signature tours, for the manual-booking sheet. */
@@ -513,6 +608,8 @@ function DayEditor({
               {error}
             </p>
           ) : null}
+
+          <DayEvents events={events} bookingCount={bookings.length} />
 
           <DayBookings bookings={bookings} experienceNames={experienceNames} />
 
@@ -1346,6 +1443,7 @@ export function AvailabilityCalendar({
   maxRangeDays,
   fleet,
   bookingsByDate,
+  eventsByDate,
   experienceNames,
   tours,
   today,
@@ -1366,6 +1464,8 @@ export function AvailabilityCalendar({
   fleet: CalendarVehicle[];
   /** Live bookings grouped by date — the dot on the tile and the day sheet. */
   bookingsByDate: Record<string, CalendarBooking[]>;
+  /** Deposit-paid events grouped by date — each holds its whole day. */
+  eventsByDate: Record<string, CalendarEvent[]>;
   /** Tour slug → name in Portuguese, for the day sheet's rows. */
   experienceNames: Record<string, string>;
   /** Active signature tours, for the manual-booking sheet. */
@@ -1442,6 +1542,8 @@ export function AvailabilityCalendar({
 
   /** A date's live bookings — the tile's dot and the day sheet's rows. */
   const bookingsOf = (date: string): CalendarBooking[] => bookingsByDate[date] ?? [];
+  /** A date's holding events — the day sheet's first rows. */
+  const eventsOf = (date: string): CalendarEvent[] => eventsByDate[date] ?? [];
 
   // A tile is inside a picked stripe when its key compares in the streak.
   const inRange = (date: string): boolean =>
@@ -1643,7 +1745,8 @@ export function AvailabilityCalendar({
       <p className="text-xs text-muted-foreground">
         Um número é o de condutores ainda livres; um risco sobre a hora diz que a
         partida já não leva mais grupos — esgotada ou fechada, o verde e o
-        vermelho dizem qual. Uma partida pode esgotar com um condutor livre: o
+        vermelho dizem qual; a escuro, o dia inteiro está ocupado por um evento
+        com sinal pago. Uma partida pode esgotar com um condutor livre: o
         grupo precisa de um veículo que outro grupo já tem. A frota:{" "}
         {fleet.map((vehicle) => `${vehicle.name} (${vehicle.seats})`).join(" · ")}.
       </p>
@@ -1653,6 +1756,7 @@ export function AvailabilityCalendar({
           key={selectedDay.date}
           day={selectedDay}
           bookings={bookingsOf(selectedDay.date)}
+          events={eventsOf(selectedDay.date)}
           experienceNames={experienceNames}
           tours={tours}
           defaultDrivers={defaultDrivers}

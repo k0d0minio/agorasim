@@ -27,7 +27,7 @@ import { isBalanceFlagged } from "@/lib/balance-schedule";
 import { groupMoveTargets, listMoveTargets } from "@/lib/booking-move";
 import { listOpenDepartures, manualBookingPrefill } from "@/lib/manual-booking";
 import { bookingsForLead, bookingSummaries, enquiryRef, recordFromRequest } from "@/lib/sales";
-import { quoteEmailStates } from "@/lib/quote-builder";
+import { bookingClashesForDrafts, quoteEmailStates } from "@/lib/quote-builder";
 import {
   canCopyAsNewVersion,
   canStartQuote,
@@ -98,9 +98,12 @@ export default async function AdminLeadPage({
       ? Promise.resolve<QuoteWithPayments[]>([])
       : listQuotesForLead(lead.id),
   ]);
-  const emailStates = await quoteEmailStates(
-    leadQuotes.filter((quote) => quote.status === "sent"),
-  );
+  const [emailStates, clashes] = await Promise.all([
+    quoteEmailStates(leadQuotes.filter((quote) => quote.status === "sent")),
+    // Tours already sold on a draft's event day — the builder warns before
+    // "Enviar", because a paid deposit takes the whole day but cannot un-sell them.
+    bookingClashesForDrafts(leadQuotes),
+  ]);
 
   const today = todayKey();
 
@@ -123,6 +126,7 @@ export default async function AdminLeadPage({
     termsVersion: quote.termsVersion,
     canNewVersion: canCopyAsNewVersion(quote, leadQuotes),
     emailState: emailStates.get(quote.id) ?? null,
+    bookingClash: clashes.get(quote.id) ?? null,
     depositRefundedInFull: depositRefundedInFull(quote.payments),
     balanceUnpaid: isBalanceFlagged(quote, today),
     payments: quote.payments.map((payment) => ({

@@ -30,7 +30,8 @@ import { eq, inArray } from "drizzle-orm";
 import { db, messageLog, tourRequests, type Quote, type QuoteLineItem, type TourRequest } from "@/db";
 import { TERMS_VERSION } from "@/content/terms";
 import { recordAuditOrWarn } from "@/lib/audit";
-import { formatDay, type DateKey } from "@/lib/availability";
+import { formatDay, TOUR_SLOTS, type DateKey } from "@/lib/availability";
+import { bookingsBetween, type BookingForCalendar } from "@/lib/bookings";
 import { guestQuoteSentEmail } from "@/lib/booking-emails";
 import { isEmailConfigured } from "@/lib/email";
 import { sendLoggedEmail, type LoggedSend } from "@/lib/message-log";
@@ -479,4 +480,56 @@ export async function quoteEmailStates(
     );
   }
   return states;
+}
+
+// ---------------------------------------------------------------------------
+// Tours already sold on the event's day
+// ---------------------------------------------------------------------------
+
+/**
+ * The live tour bookings already on a quote's event day — what the builder
+ * warns about before the quote goes out.
+ *
+ * A paid deposit takes the whole day (`lib/event-holds.ts`), but it cannot
+ * un-sell the tours already on it: the couple pay through Stripe and the
+ * payment cannot be refused. So the time to notice is before sending, and the
+ * warning never blocks — Rita may well quote the date and move the tour.
+ */
+export type BookingClash = {
+  count: number;
+  /** The departures those bookings are on, in day order. */
+  slots: ("morning" | "afternoon")[];
+};
+
+/** Summarise a day's live bookings into a clash, or `null` when there are none. */
+export function summariseClash(
+  bookings: readonly Pick<BookingForCalendar, "slot">[],
+): BookingClash | null {
+  if (bookings.length === 0) return null;
+  return {
+    count: bookings.length,
+    slots: TOUR_SLOTS.filter((slot) => bookings.some((booking) => booking.slot === slot)),
+  };
+}
+
+/**
+ * The clash on each draft's event day, keyed by quote id. Drafts only: that is
+ * where the date can still change, and "Enviar" is where the warning is read.
+ *
+ * "Live" is the occupancy's own predicate — `bookingsBetween` reads through
+ * `holdsCapacitySql` — never a second definition of it here.
+ */
+export async function bookingClashesForDrafts(
+  leadQuotes: readonly Pick<Quote, "id" | "status" | "eventDate">[],
+  now: Date = new Date(),
+): Promise<Map<string, BookingClash>> {
+  const drafts = leadQuotes.filter((quote) => quote.status === "draft");
+  const clashes = new Map<string, BookingClash>();
+  for (const quote of drafts) {
+    const clash = summariseClash(
+      await bookingsBetween({ from: quote.eventDate, to: quote.eventDate, now }),
+    );
+    if (clash) clashes.set(quote.id, clash);
+  }
+  return clashes;
 }

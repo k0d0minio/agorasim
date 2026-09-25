@@ -45,6 +45,11 @@ vi.mock("@/lib/quote-refund", () => ({
 vi.mock("@/lib/experience-catalogue", () => ({ listCatalogue: async () => [] }));
 vi.mock("@/lib/observability", () => ({ captureAlert: vi.fn(), captureError: vi.fn() }));
 
+const revalidatePath = vi.fn();
+vi.mock("next/cache", () => ({
+  revalidatePath: (...args: unknown[]) => revalidatePath(...args),
+}));
+
 const recordQuotePayment = vi.fn();
 const alertUnknownQuoteSession = vi.fn();
 vi.mock("@/lib/quote-checkout", () => ({
@@ -108,6 +113,53 @@ describe("POST /api/stripe/webhook — a paid quote session", () => {
     expect(recordQuotePayment).toHaveBeenCalledTimes(1);
     expect(confirmPaidBooking).not.toHaveBeenCalled();
     expect(captureAlert).not.toHaveBeenCalled();
+  });
+
+  it("busts the cached public calendar when the paid quote now holds its day", async () => {
+    recordQuotePayment.mockResolvedValue({
+      status: "recorded",
+      quote: { status: "deposit_paid" },
+    });
+
+    await post(
+      sessionEvent("checkout.session.completed", {
+        id: "cs_test_quote",
+        payment_status: "paid",
+        metadata: QUOTE_METADATA,
+      }),
+    );
+
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+
+  it("busts it on a redelivery too — the quote page may have recorded it first", async () => {
+    recordQuotePayment.mockResolvedValue({ status: "already", quote: { status: "paid" } });
+
+    await post(
+      sessionEvent("checkout.session.async_payment_succeeded", {
+        id: "cs_test_quote",
+        payment_status: "paid",
+        metadata: QUOTE_METADATA,
+      }),
+    );
+
+    expect(revalidatePath).toHaveBeenCalledWith("/", "layout");
+  });
+
+  it("leaves the cache alone when the quote holds nothing", async () => {
+    // Paid on a quote already cancelled (replaced while a tab sat open): the
+    // money needs a human, and the day was never held.
+    recordQuotePayment.mockResolvedValue({ status: "recorded", quote: { status: "cancelled" } });
+
+    await post(
+      sessionEvent("checkout.session.completed", {
+        id: "cs_test_quote",
+        payment_status: "paid",
+        metadata: QUOTE_METADATA,
+      }),
+    );
+
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("treats a redelivery as success, not as an alarm", async () => {

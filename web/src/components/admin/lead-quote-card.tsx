@@ -72,6 +72,12 @@ export type QuoteCardItem = {
   /** For a sent quote: whether the email with its current link left. */
   emailState: "sent" | "sending" | "not-sent" | null;
   /**
+   * For a draft: the live tour bookings already on its event day. A paid
+   * deposit takes the whole day but leaves them sold, so the card warns before
+   * "Enviar" — and never blocks it.
+   */
+  bookingClash: { count: number; slots: ("morning" | "afternoon")[] } | null;
+  /**
    * The deposit has all gone back. With the quote not cancelled, the event is
    * still held and its balance still asked for — the card warns and offers
    * "Cancelar evento".
@@ -171,6 +177,12 @@ export function LeadQuoteCard({
 }
 
 /** One quote: its summary, and the actions its state allows. */
+/** "2 reservas de passeio neste dia (10:00, 14:00)" — the clash in words. */
+function clashWords(clash: NonNullable<QuoteCardItem["bookingClash"]>): string {
+  const times = clash.slots.map((slot) => (slot === "morning" ? "10:00" : "14:00")).join(", ");
+  return `${clash.count} ${clash.count === 1 ? "reserva" : "reservas"} de passeio neste dia (${times})`;
+}
+
 function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: string }) {
   // The quote's `updatedAt` when "Editar" was pressed: a save moves it, which
   // closes the editor on the refreshed render without an effect.
@@ -326,6 +338,14 @@ function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: s
         </p>
       ) : null}
 
+      {quote.status === "draft" && quote.bookingClash ? (
+        <p className="text-sm text-destructive" role="status">
+          Já há {clashWords(quote.bookingClash)}. Com o sinal pago, o evento ocupa o
+          dia inteiro e estas reservas mantêm-se — resolva-as antes ou depois de
+          enviar.
+        </p>
+      ) : null}
+
       {quote.status === "draft" ? (
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={() => setEditingAt(quote.updatedAt)}>
@@ -337,7 +357,11 @@ function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: s
             fields={{ quoteId: quote.id }}
             trigger={{ label: "Enviar orçamento", icon: <Send className="size-4" /> }}
             title={`Enviar o orçamento ${quote.ref}?`}
-            description={`O cliente recebe por email, em ${guestEmail}, o orçamento de ${money(quote.totalCents)} com o link para a página onde paga o sinal. Depois de enviado já não pode ser editado — só substituído por uma nova versão.`}
+            description={`O cliente recebe por email, em ${guestEmail}, o orçamento de ${money(quote.totalCents)} com o link para a página onde paga o sinal. Depois de enviado já não pode ser editado — só substituído por uma nova versão.${
+              quote.bookingClash
+                ? ` Atenção: já há ${clashWords(quote.bookingClash)}; o sinal pago fecha o dia a novos passeios, mas não cancela estas.`
+                : ""
+            }`}
             confirm={{ label: "Enviar", pending: "A enviar…" }}
           />
           <ConfirmedQuoteAction

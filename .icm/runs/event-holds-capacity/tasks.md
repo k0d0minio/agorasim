@@ -22,4 +22,10 @@ step, so a resuming session can pick up the first unticked line.
 
 ## Queue
 
-- [ ] <task — small enough for one commit; name the file or area>
+- [x] event-holds.ts — the hold predicate, the merge, the two reads
+- [x] bookings.ts / availability.ts — hold merged into the shared occupancy; describeSlot + fitsParty refuse a held day
+- [x] webhook + sales actions — revalidate the public site on a hold flip
+- [x] admin Calendar — held-day chips, event on the day sheet, clash marker
+- [x] quote builder — clash warning on the draft and in the send confirmation
+- [x] tests — event-holds, availability, quote-builder, webhook route
+- [ ] CI green on the ready head

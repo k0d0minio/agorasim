@@ -30,6 +30,7 @@ import {
   type Booking,
   type BookingStatus,
 } from "@/db";
+import { applyEventHolds, eventHoldKeysBetween } from "@/lib/event-holds";
 import { isVehicleClass, noVehicles, type VehicleCounts } from "@/lib/fleet";
 import type { DateKey } from "@/lib/availability";
 
@@ -70,6 +71,12 @@ export type SlotOccupancy = {
   drivers: number;
   /** Vehicles committed, per class. */
   vehicles: VehicleCounts;
+  /**
+   * The quotes whose paid deposit holds this departure's whole day
+   * (`lib/event-holds.ts`). Absent or empty when no event holds it; any entry
+   * makes the departure unsellable, whatever the counts above say.
+   */
+  eventHolds?: string[];
 };
 
 /** Nothing committed yet. A fresh object: callers add to it. */
@@ -114,11 +121,14 @@ function holdsCapacitySql(now: Date) {
 }
 
 /**
- * Occupancy per (day, departure) between two dates, across every tour.
+ * Occupancy per (day, departure) between two dates, across every tour — and
+ * every deposit-paid event, which takes its whole day (`lib/event-holds.ts`).
  *
  * The map is what the calendars pass to `describeMonth` as `occupancy`, keyed
  * with `occupancySlotKey` from `lib/availability.ts`; a departure missing from
- * it has nothing committed against it.
+ * it has nothing committed against it. Because the checkout re-check, the
+ * enquiry form, the manual booking and a booking move all read through here
+ * (`slotOccupancyOn`), an event hold is refused by all of them at once.
  */
 export async function countSlotOccupancy(options: {
   from: DateKey;
@@ -127,20 +137,23 @@ export async function countSlotOccupancy(options: {
 }): Promise<Map<string, SlotOccupancy>> {
   const { from, to, now = new Date() } = options;
 
-  const rows = await db
-    .select({
-      date: bookings.date,
-      slot: bookings.slot,
-      vehicleClass: bookings.vehicleClass,
-      // One driver and one car per booking — see the note in `lib/fleet.ts`
-      // on why nothing that would need two of either is sellable.
-      taken: sql<number>`count(*)::int`,
-    })
-    .from(bookings)
-    .where(
-      and(sql`${bookings.date} between ${from} and ${to}`, holdsCapacitySql(now)),
-    )
-    .groupBy(bookings.date, bookings.slot, bookings.vehicleClass);
+  const [rows, holds] = await Promise.all([
+    db
+      .select({
+        date: bookings.date,
+        slot: bookings.slot,
+        vehicleClass: bookings.vehicleClass,
+        // One driver and one car per booking — see the note in `lib/fleet.ts`
+        // on why nothing that would need two of either is sellable.
+        taken: sql<number>`count(*)::int`,
+      })
+      .from(bookings)
+      .where(
+        and(sql`${bookings.date} between ${from} and ${to}`, holdsCapacitySql(now)),
+      )
+      .groupBy(bookings.date, bookings.slot, bookings.vehicleClass),
+    eventHoldKeysBetween({ from, to }),
+  ]);
 
   const byKey = new Map<string, SlotOccupancy>();
   for (const row of rows) {
@@ -155,7 +168,7 @@ export async function countSlotOccupancy(options: {
     }
     byKey.set(key, entry);
   }
-  return byKey;
+  return applyEventHolds(byKey, holds);
 }
 
 /**
