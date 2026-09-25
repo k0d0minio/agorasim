@@ -13,6 +13,11 @@ stops, so nothing is carried in anyone's head.
 ## Blockers
 
 - blocked on operator: tick **Spec approved** on https://github.com/k0d0minio/agorasim/pull/152
+- Base is red, not this run's: `main`'s UAT deploy of 8f918d7 (#150) and this PR's Vercel build fail
+  `db:verify` — `0031_add_booking_move_seq` (when 1790289025381) merged after `0032_quote_one_draft_per_lead`
+  (when 1790324401235) was already applied to `uat-agorasim`, so drizzle skips 0031 forever. Fix is a
+  bug lane on `main` (move the move-seq migration after 0032 with a newer `when`, and apply it to the
+  UAT database). Build merges `main` once that lands; until then `ci-status.sh` reads RED on Vercel.
 
 ## Do not
 
