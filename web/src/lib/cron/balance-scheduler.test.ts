@@ -229,6 +229,8 @@ const sentKinds = () => delivered.map(({ subject }) => `${subject.kind}:${subjec
 const linkIn = (message: EmailMessage) => message.text.match(/\/orcamento\/(\S+)/)?.[1];
 
 beforeEach(() => {
+  // Ids, leads and digests number from 1 in every test, so a test can name them.
+  serial = 0;
   store = new Map();
   leads = new Map();
   log = [];
