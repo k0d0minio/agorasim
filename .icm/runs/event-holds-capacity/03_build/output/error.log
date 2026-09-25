@@ -1,0 +1,6 @@
+## 2026-09-25T17:24:00Z ci Quality (advisory) — backup.test.ts fails on the merged main, not on this run's code
+FAIL src/lib/backup.test.ts > BACKUP_TABLES > covers every table the schema exports, so a new table cannot go unbacked-up
+AssertionError: expected [ 'admin_users', 'audit_log', …(13) ] to deeply equal [ 'admin_users', 'audit_log', …(14) ]
+-   "rate_limit_windows",
+- resolved: Not this run's: #156 (rate-limit-neon-store) added `rate_limit_windows` without a `BACKUP_TABLES` entry, so every head carrying main since ea53a7b fails it; parked as intake/triage/backup-registry-rate-limit-windows.md with the proposed patch, and stated on PR #155. The blocking Vercel verdict is green.
+- rule: A new `pgTable` in `web/src/db/schema.ts` must be registered in `BACKUP_TABLES` (`web/src/lib/backup.ts`) — or explicitly excluded — in the same PR; `backup.test.ts` fails otherwise, and the advisory job that runs it never runs on `main`.

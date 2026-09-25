@@ -4,7 +4,7 @@ Where the run is, in five lines. Updated at every stage start and stop, and when
 flips. A resuming session reads this first, then `handoff.md` (`_shared/stage-preamble.md`).
 
 - phase: build
-- step: 7 — code and tests committed on the draft; next: env audit, merge main, flip ready
-- ci: not read yet
-- blocked: no
+- step: done — PR ready, waiting on the preview smoke and Ready to merge
+- ci: GREEN (blocking); Quality (advisory) RED on backup.test.ts from main (#156), parked in triage
+- blocked: yes — on the Ready to merge tick
 - updated: 2026-09-25

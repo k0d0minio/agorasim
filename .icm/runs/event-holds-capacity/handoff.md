@@ -6,15 +6,16 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Jamie reads `02_define/output/spec.md` (or the PR's Spec block) and ticks **Spec approved** on https://github.com/k0d0minio/agorasim/pull/155 — or runs `revise event-holds-capacity "<what>"`.
-2. Then `/pipeline build event-holds-capacity`, executing `plan.md` pass by pass.
+1. Jamie smokes the preview of PR #155 (https://agorasim-git-claude-zealous-allen-4e7331-kodominio.vercel.app): with a quote at `deposit_paid` on an opened date, `/reservar` shows the day unavailable and a checkout for it is refused; `/admin/calendar` shows the dark chips and the event on the day sheet (with the Conflito badge when tours exist); a draft quote on a day with tours shows the warning and still sends; "Cancelar evento" / a refund that cancels puts the day back.
+2. Tick **Ready to merge** on https://github.com/k0d0minio/agorasim/pull/155, then `/pipeline release event-holds-capacity`.
 
 ## Blockers
 
-- blocked on operator: tick **Spec approved** in the body of PR #155.
+- blocked on operator: smoke the preview and tick **Ready to merge** on PR #155.
+- `Quality (advisory)` is red on `backup.test.ts` from `main` (#156) — not this run's; `intake/triage/backup-registry-rate-limit-windows.md` fixes it. The merge does not wait on the advisory job.
 
 ## Do not
 
-- Do not start Build before the tick; never tick it.
-- Do not add slot/vehicle columns to `quotes` or write to `availability` — D-1/D-2.
-- Do not edit `.icm/project.md` to close the open question — `/project agorasim` in icm-board does.
+- Do not tick Ready to merge; never merge without it.
+- Do not fix `backup.ts` inside this run — it is the triage stub's.
+- Do not write to `availability` or add quote columns — D-1/D-2.

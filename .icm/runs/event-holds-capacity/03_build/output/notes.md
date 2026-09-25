@@ -1,7 +1,7 @@
 # Build notes: event-holds-capacity
 
-- commits: feat: event-holds-capacity — a deposit-paid event holds its whole day
-- ci: pending — draft head owes nothing; full verdict read after the ready flip (status.md carries it)
+- commits: feat: event-holds-capacity — a deposit-paid event holds its whole day · merge origin/main · chore: build close
+- ci: GREEN (blocking — Vercel preview) on d6e4904; `Quality (advisory)` RED on one test not this run's — see Notes for Release
 
 ## What changed
 
@@ -27,9 +27,11 @@
 - [x] Clash marker on the day sheet; bookings untouched.
 - [x] Builder warning on the draft and at send; sending still works.
 - [x] No public leak — `toPublicDay` payload asserted free of any event field or note.
-- [ ] Unit tests + CI green — tests written; CI verdict pending the ready flip.
+- [ ] Unit tests + CI green — every new and touched test passes in CI (1145/1146); the blocking verdict is green; the advisory job is red on `backup.test.ts`, which `main` broke (#156), not this run.
 
 ## Notes for Release
+
+- **`Quality (advisory)` is red, and not this run's to fix.** `web/src/lib/backup.test.ts` → "covers every table the schema exports" fails because #156 (`rate-limit-neon-store`) added `rate_limit_windows` without a `BACKUP_TABLES` entry; the table arrived here with the pre-flip merge of `main`. Parked as `intake/triage/backup-registry-rate-limit-windows.md` (bug lane, proposed patch inside) and stated on PR #155. Every test this run adds passes.
 
 - **Two paths that change the hold cannot revalidate, by design:** `reconcileQuoteReturn` runs inside the quote page's render (Next forbids `revalidatePath` there), and `cancelPayment` (the transfer write-off) has no UI caller yet. The webhook revalidates on `already` to cover the first; the second is only a lib function today. In both cases the checkout re-check is dynamic and refuses the day at once — only the cached public grid can lag by up to the hourly ISR window.
 - The "checkout re-check refuses a held day" criterion is tested at `describeSlot` + `fitsParty` (the whole of `checkSlotAvailable`'s decision); `checkSlotAvailable` itself only adds `readDay`, a DB read, per the repo's convention that queries are covered by the build.

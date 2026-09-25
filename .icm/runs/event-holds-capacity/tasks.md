@@ -28,4 +28,4 @@ step, so a resuming session can pick up the first unticked line.
 - [x] admin Calendar — held-day chips, event on the day sheet, clash marker
 - [x] quote builder — clash warning on the draft and in the send confirmation
 - [x] tests — event-holds, availability, quote-builder, webhook route
-- [ ] CI green on the ready head
+- [x] CI green on the ready head (blocking verdict; advisory red on a main-side test — see notes)
