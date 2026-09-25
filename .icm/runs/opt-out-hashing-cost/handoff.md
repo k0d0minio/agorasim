@@ -6,18 +6,16 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. `.icm/scripts/ci-status.sh opt-out-hashing-cost` on the draft head, then finish the run
+   (retrospective, close-out) and flip the PR ready.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
-- blocked on operator: <the human-only act that unblocks the run — tick a gate, merge, a
-  dashboard or env change>
-
-A blocking operator act is written here **and** in the stop report's `Operator:` list; a
-non-blocking one lives only in that list, never here (`_shared/output.md` → Split by actor).
+- none yet.
+- blocked on operator: once ready, smoke the PR and squash-merge it from GitHub.
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Do not implement the "skip the consent rescan on a repeat press" part of the stub as a bare
+  `inserted.length === 0` check — it breaks the module's documented retry guarantee (see
+  `lane/output/notes.md`).
