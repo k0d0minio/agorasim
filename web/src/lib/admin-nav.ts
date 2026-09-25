@@ -177,7 +177,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
     group: "Sistema",
     description:
       "Confirmações, lembretes e agradecimentos automáticos para os clientes — avisos imediatos para si.",
-    dev: true,
+    dev: false,
     primary: false,
   },
   {
