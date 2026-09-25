@@ -6,18 +6,14 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. PR open — smoke, then squash-merge from GitHub (https://github.com/k0d0minio/agorasim/pull/154). The merge redeploys UAT, whose build applies 0032_add_booking_move_seq and passes `pnpm db:verify`.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
-- blocked on operator: <the human-only act that unblocks the run — tick a gate, merge, a
-  dashboard or env change>
-
-A blocking operator act is written here **and** in the stop report's `Operator:` list; a
-non-blocking one lives only in that list, never here (`_shared/output.md` → Split by actor).
+- none
+- blocked on operator: the squash-merge of #154
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- renumber or restamp 0031_quote_one_draft_per_lead again — UAT has it applied at that stamp
+- merge the PR or re-invoke the lane

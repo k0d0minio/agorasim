@@ -13,12 +13,12 @@ general; keep the retrospectives specific; never restate an `error.log` entry he
 
 ## Retrospectives
 
-### <YYYY-MM-DD> — <what failed, one line>
+### 2026-09-25 — UAT skipped a migration slotted in front of one it had already applied
 
-- what happened: <the observable — the check, the error, the wrong file>
-- why: <the cause, once it was known>
-- fixed by: <the commit, or the action>
+- what happened: the UAT deploy failed `pnpm db:verify` — `0031_add_booking_move_seq` not applied
+- why: #150 resolved its journal conflict with #148 by inserting its own older-stamped migration at 0031 and renumbering #148's (already on `main`, already applied to UAT) to 0032. `migrations-journal.test.ts` only checks the journal is monotonic, which it still was; it cannot see that an entry was inserted before one a database already holds
+- fixed by: 8296060 — `quote_one_draft_per_lead` back at 0031, `add_booking_move_seq` at 0032 with a `when` after it
 
 ## Learned rules
 
-- <one sentence, imperative, general enough to apply to the next run in this repo>
+- When a Drizzle journal conflicts with `main` at merge, keep every entry `main` already has at its index and stamp, and put this branch's migration last with a `when` newer than all of them — never renumber a merged migration, since UAT applies each merge at build and skips anything stamped before its newest applied row.
