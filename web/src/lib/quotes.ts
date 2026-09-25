@@ -39,7 +39,7 @@
 import "server-only";
 
 import { NeonDbError } from "@neondatabase/serverless";
-import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or } from "drizzle-orm";
 
 import {
   db,
