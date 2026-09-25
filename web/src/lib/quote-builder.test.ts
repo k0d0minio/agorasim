@@ -71,6 +71,7 @@ const {
   saveDraft,
   sendQuote,
   startNewVersion,
+  summariseClash,
 } = await import("./quote-builder");
 const { QuoteDraftConflictError } = await import("./quotes");
 const { quoteTokenDigest } = await import("./quote-token");
@@ -537,5 +538,21 @@ describe("resendQuote — Reenviar", () => {
       await resendQuote({ quoteId: QUOTE_ID, sentAt: SENT_AT, actorUserId: OPERATOR_ID }),
     ).toEqual({ status: "not-sendable" });
     expect(sendLoggedEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("summariseClash — tours already sold on the event's day", () => {
+  it("says nothing when the day has no live booking", () => {
+    expect(summariseClash([])).toBeNull();
+  });
+
+  it("counts the bookings and names their departures in day order", () => {
+    expect(
+      summariseClash([{ slot: "afternoon" }, { slot: "morning" }, { slot: "afternoon" }]),
+    ).toEqual({ count: 3, slots: ["morning", "afternoon"] });
+  });
+
+  it("names one departure when only one is sold", () => {
+    expect(summariseClash([{ slot: "morning" }])).toEqual({ count: 1, slots: ["morning"] });
   });
 });

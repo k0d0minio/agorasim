@@ -1,8 +1,10 @@
+import { revalidatePath } from "next/cache";
 import type Stripe from "stripe";
 
 import { closeUnpaidBooking, confirmPaidBooking } from "@/lib/booking-checkout";
 import { syncRefundFromStripe } from "@/lib/booking-refund";
 import { listCatalogue } from "@/lib/experience-catalogue";
+import { quoteHoldsDate } from "@/lib/event-holds";
 import { captureAlert, captureError } from "@/lib/observability";
 import {
   alertUnknownQuoteSession,
@@ -181,6 +183,17 @@ export async function POST(request: Request): Promise<Response> {
       if (quoteSessionMetadata(session)) {
         const outcome = await recordQuotePayment(session);
         if (outcome.status === "unknown") alertUnknownQuoteSession(session.id, event.type);
+        // A paid deposit takes the event's whole day off sale (`lib/event-holds.ts`),
+        // and the public calendar is cached for an hour. `already` too: the
+        // couple's return to the quote page may have recorded it first, and a
+        // page render cannot revalidate — this delivery is the one that can.
+        if (
+          (outcome.status === "recorded" || outcome.status === "already") &&
+          outcome.quote &&
+          quoteHoldsDate(outcome.quote)
+        ) {
+          revalidatePath("/", "layout");
+        }
         return Response.json({ received: true, outcome: outcome.status });
       }
 

@@ -25,6 +25,10 @@ daily slots (10:00 and 14:00). A booking takes one driver and one car; groups ab
 third car and therefore a third driver, which is an open question with Diogo & Rita — those
 groups are arranged by conversation, not online.
 
+A wedding or event whose deposit is paid **takes the whole day**: both departures on its date
+come off sale for every tour until the event is cancelled (Diogo & Rita's answer, 2026-09-25).
+Guests are only ever told the day is unavailable, never why.
+
 ## Experiences
 - **Rural Saloia** (signature, **~4h30**): natural monuments between Sintra and Mafra,
   National Palace of Mafra, vineyards, villages, Ericeira (UNESCO World Surfing Reserve), Atlantic

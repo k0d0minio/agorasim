@@ -340,6 +340,12 @@ export type SlotAvailability = {
   weekend: boolean;
   /** The team has put this departure on sale and it has not happened yet. */
   onSale: boolean;
+  /**
+   * A deposit-paid wedding or event holds this whole day (`lib/event-holds.ts`).
+   * Admin-only, like `note`: {@link toPublicDay} never carries it, and a guest
+   * is told the departure is unavailable, not why.
+   */
+  heldByEvent: boolean;
   /** Whether *some* party could still be sold this departure. */
   bookable: boolean;
   note: string | null;
@@ -349,8 +355,8 @@ export type SlotAvailability = {
  * Turn one departure's supply and demand into the shape both calendars render.
  *
  * The whole bookability rule lives in this function: the day is not in the
- * past, a row exists and says `open`, a driver is still free, and some vehicle
- * is still free. Which vehicle *this* party needs is a different question —
+ * past, a row exists and says `open`, no paid event holds the day, a driver is
+ * still free, and some vehicle is still free. Which vehicle *this* party needs is a different question —
  * {@link fitsParty} — because a departure with only the T3 left is bookable
  * and is still a no to a couple who would take a 2CV somebody else already has.
  *
@@ -369,10 +375,16 @@ export function describeSlot(options: {
   const occupancy = options.occupancy ?? noOccupancy();
 
   const drivers = row?.drivers ?? 0;
+  // A held day has nothing left to sell, whatever the bookings on it say: the
+  // drivers and the cars are at the event. Zeroed here rather than only in
+  // `bookable`, so every sum over "what is left" agrees with the refusal.
+  const heldByEvent = (occupancy.eventHolds?.length ?? 0) > 0;
   // `max(0, …)`: the roster can be cut below what is already out, and a
   // negative "drivers left" would render as an offer to un-sell a tour.
-  const driversLeft = Math.max(0, drivers - occupancy.drivers);
-  const vehiclesLeft = remainingVehicles(FLEET_SIZE, occupancy.vehicles);
+  const driversLeft = heldByEvent ? 0 : Math.max(0, drivers - occupancy.drivers);
+  const vehiclesLeft = heldByEvent
+    ? noVehicles()
+    : remainingVehicles(FLEET_SIZE, occupancy.vehicles);
   const past = date < today;
   const onSale = !past && row?.status === "open";
 
@@ -390,7 +402,8 @@ export function describeSlot(options: {
     past,
     weekend: isWeekend(date),
     onSale,
-    bookable: onSale && driversLeft > 0 && anyVehicleFree(vehiclesLeft),
+    heldByEvent,
+    bookable: onSale && !heldByEvent && driversLeft > 0 && anyVehicleFree(vehiclesLeft),
     note: row?.note ?? null,
   };
 }
@@ -424,7 +437,8 @@ export function fitsParty(
       reason: assignment.reason === "empty-party" ? "bad-party" : "party-too-large",
     };
   }
-  if (!slot.onSale) return { ok: false, reason: "unavailable" };
+  // A held day is closed to every party, not "full": there is no car to wait for.
+  if (!slot.onSale || slot.heldByEvent) return { ok: false, reason: "unavailable" };
   if (slot.driversLeft < 1) return { ok: false, reason: "no-driver" };
   if (slot.vehiclesLeft[assignment.vehicleClass] < 1) {
     return { ok: false, reason: "no-vehicle" };
