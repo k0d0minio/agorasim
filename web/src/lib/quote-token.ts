@@ -57,6 +57,16 @@ export function looksLikeQuoteToken(value: unknown): value is string {
 }
 
 /**
+ * The token segment `proxy.ts` rewrites a dead link to, so `[token]/page.tsx`
+ * can answer with a real 404 status via one synchronous check — no second
+ * lookup, and no await before `notFound()` for the render to suspend on
+ * (`web/src/app/[locale]/orcamento/[token]/page.tsx`; `FAILURE.md` —
+ * quote-page-and-deposit-link). `looksLikeQuoteToken` never accepts a value
+ * this short, so a live token can never collide with it.
+ */
+export const DEAD_QUOTE_TOKEN = "invalido";
+
+/**
  * Where the emailed link points: `/pt/orcamento/<token>`.
  *
  * One function so the mail that mints the link and the page that reads it
