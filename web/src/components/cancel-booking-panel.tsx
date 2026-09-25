@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   CalendarDays,
   CheckCircle2,
+  Clock,
   HelpCircle,
   MessageCircle,
   Phone,
@@ -204,6 +205,26 @@ export function UnknownPanel({ locale }: { locale: Locale }) {
       lead={t(c.unknownBody, locale)}
     >
       <Contacts locale={locale} />
+      <HomeLinks locale={locale} />
+    </Panel>
+  );
+}
+
+/**
+ * A throttled lookup, not a dead link — same shared-IP reasoning as the quote
+ * page (`app/[locale]/orcamento/[token]/page.tsx`). Says nothing about
+ * whether the token was real, same as {@link UnknownPanel}, but tells a
+ * genuine guest to wait rather than that their booking is gone.
+ */
+export function ThrottledPanel({ locale }: { locale: Locale }) {
+  const c = bookingContent.cancellation;
+  return (
+    <Panel
+      tone="wait"
+      icon={<Clock className="size-5" />}
+      title={t(c.throttledTitle, locale)}
+      lead={t(c.throttledBody, locale)}
+    >
       <HomeLinks locale={locale} />
     </Panel>
   );
