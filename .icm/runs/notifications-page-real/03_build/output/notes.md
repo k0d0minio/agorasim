@@ -32,3 +32,13 @@
 - Worth a look in review: the raw-`sql` window bound in `recentMessages`, and the `Intl` output the day-label test pins ("Sexta-feira … setembro") — Node's full ICU is assumed, as elsewhere in the admin.
 
 Context budget: read `admin-format.ts`, `availability.ts` (the Lisbon formatter idiom), `bookings.ts`/`sales.ts` (ref helpers), the audit page (layout idiom) and each `sendLoggedEmail` call site — beyond `touches:`, to reuse helpers and verify the card lines.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN on c19efff (ci-status.sh, full gate); re-read after the last push below
+- reviews: code medium · security security-check.sh --branch --audit: OK + /security-review — no findings (auth by requireAdmin before the read; guest names already visible to the same roles in Vendas; parameterised window bound; React-escaped output) · readiness env.sh audit --changed: OK
+- parked: notifications-attention-hides-retried.md (code review: a failed send stays in "Precisa de atenção" after a later retry succeeds — behaviour change against D-4, so a tweak, not a Release fix)
+- migrations: skip — none of this run's own
+- learned: skip — no error.log (Build); 1 rule in FAILURE.md, copied by close-out
+- docs: no docs impact · announce: deferred to promotion
