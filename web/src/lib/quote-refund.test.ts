@@ -96,6 +96,8 @@ const refundsCreate = vi.fn();
 const refundsList = vi.fn();
 const feesRetrieve = vi.fn();
 const feesCreateRefund = vi.fn();
+const sessionsExpire = vi.fn();
+const sessionsRetrieve = vi.fn();
 let stripeConfigured = true;
 
 vi.mock("@/lib/stripe", () => ({
@@ -111,6 +113,12 @@ vi.mock("@/lib/stripe", () => ({
     applicationFees: {
       retrieve: (...args: unknown[]) => feesRetrieve(...args),
       createRefund: (...args: unknown[]) => feesCreateRefund(...args),
+    },
+    checkout: {
+      sessions: {
+        expire: (...args: unknown[]) => sessionsExpire(...args),
+        retrieve: (...args: unknown[]) => sessionsRetrieve(...args),
+      },
     },
   }),
 }));
@@ -275,6 +283,7 @@ beforeEach(() => {
     return { quote: quoteRow(), writtenOff };
   });
   sendLoggedEmail.mockResolvedValue({ status: "sent", providerMessageId: "re_mail" });
+  sessionsExpire.mockImplementation(async (id: string) => ({ id, status: "expired" }));
 });
 
 function auditActions(): string[] {
@@ -677,6 +686,31 @@ describe("cancelHeldQuote — Cancelar evento", () => {
     expect(payments.get(BALANCE_ID)?.status).toBe("cancelled");
     expect(auditActions()).toEqual(["quote.cancelled"]);
     expect(sendLoggedEmail).not.toHaveBeenCalled();
+  });
+
+  it("expires the written-off balance's open Checkout session, so its page can no longer pay it", async () => {
+    payments.set(DEPOSIT_ID, instalment("deposit", "refunded", { refundedAmountCents: 57_600 }));
+    payments.set(BALANCE_ID, instalment("balance", "issued", { stripeSessionId: "cs_test_balance" }));
+
+    await cancelHeldQuote({ quoteId: QUOTE_ID, actorUserId: ADMIN_ID });
+
+    expect(sessionsExpire).toHaveBeenCalledWith(
+      "cs_test_balance",
+      undefined,
+      expect.objectContaining({ stripeAccount: "acct_test_agorasim" }),
+    );
+  });
+
+  it("does not let a failed expiry undo the cancellation already recorded", async () => {
+    payments.set(DEPOSIT_ID, instalment("deposit", "refunded", { refundedAmountCents: 57_600 }));
+    payments.set(BALANCE_ID, instalment("balance", "issued", { stripeSessionId: "cs_test_balance" }));
+    sessionsExpire.mockRejectedValue(new Error("Stripe is down"));
+    sessionsRetrieve.mockRejectedValue(new Error("Stripe is down"));
+
+    const outcome = await cancelHeldQuote({ quoteId: QUOTE_ID, actorUserId: ADMIN_ID });
+
+    expect(outcome).toMatchObject({ status: "cancelled" });
+    expect(payments.get(BALANCE_ID)?.status).toBe("cancelled");
   });
 
   it("refuses while the deposit is still held, or once already cancelled", async () => {
