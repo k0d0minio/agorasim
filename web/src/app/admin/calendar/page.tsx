@@ -18,6 +18,8 @@ import {
   type MonthKey,
 } from "@/lib/availability";
 import { countSlotOccupancy, bookingsBetween } from "@/lib/bookings";
+import { eventHoldsBetween } from "@/lib/event-holds";
+import { quoteRef } from "@/lib/quotes";
 import { FLEET } from "@/lib/fleet";
 import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
 import { t } from "@/i18n/config";
@@ -25,6 +27,7 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import {
   AvailabilityCalendar,
   type CalendarDay,
+  type CalendarEvent,
 } from "@/components/admin/availability-calendar";
 
 // Reads live data — never prerender at build time.
@@ -78,7 +81,13 @@ export default async function AdminCalendarPage({
     listCatalogue(),
   ]);
   const days = await readMonth({ month, today, occupancy });
-  const bookings = await bookingsBetween({ from: monthStart, to: monthEnd });
+  const [bookings, events] = await Promise.all([
+    bookingsBetween({ from: monthStart, to: monthEnd }),
+    // The deposit-paid weddings and events that hold their whole day — the
+    // occupancy above already refuses those days; this is who and where, for
+    // the day sheet (`lib/event-holds.ts`).
+    eventHoldsBetween({ from: monthStart, to: monthEnd }),
+  ]);
 
   const calendarDays: CalendarDay[] = days.map((day) => ({
     ...day,
@@ -107,6 +116,17 @@ export default async function AdminCalendarPage({
     {},
   );
 
+  const eventsByDate = events.reduce<Record<string, CalendarEvent[]>>((groups, event) => {
+    (groups[event.date] ??= []).push({
+      ref: quoteRef(event.quoteId),
+      tourRequestId: event.tourRequestId,
+      kind: event.kind,
+      name: event.name,
+      venue: event.venue,
+    });
+    return groups;
+  }, {});
+
   return (
     <AdminShell>
       <p className="mb-4 text-sm text-muted-foreground">
@@ -129,6 +149,7 @@ export default async function AdminCalendarPage({
         maxRangeDays={MAX_RANGE_DAYS}
         fleet={FLEET.map((vehicle) => ({ name: vehicle.name, seats: vehicle.seats }))}
         bookingsByDate={bookingsByDate}
+        eventsByDate={eventsByDate}
         experienceNames={experienceNames}
         tours={tours}
         today={today}

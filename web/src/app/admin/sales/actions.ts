@@ -292,8 +292,10 @@ export async function moveBooking(
  * The work is in `lib/quote-builder.ts`, arranged like the move above; these
  * decide who may ask and turn an outcome into Rita's words. `requireAdmin()`
  * for the reason moving a booking needs no more: quoting a wedding is the day
- * job. No `revalidatePath` — the Sales detail is dynamic and the card calls
- * `router.refresh()` on success (the note at the top of `app/admin/actions.ts`).
+ * job. No `revalidatePath` for the Sales detail — it is dynamic and the card
+ * calls `router.refresh()` on success (the note at the top of
+ * `app/admin/actions.ts`). The two that call off a held event do bust the
+ * public site: its calendar is cached, and the day is back on sale.
  */
 export type QuoteActionState = {
   ok?: boolean;
@@ -502,6 +504,9 @@ export async function refundLeadQuotePayment(
 
   switch (outcome.status) {
     case "refunded": {
+      // A cancelled event gives its day back to the tours (`lib/event-holds.ts`),
+      // and the public calendar that shows it is cached.
+      if (outcome.eventCancelled) revalidatePath("/", "layout");
       const money = formatPrice(outcome.refundedCents, "pt", outcome.payment.currency);
       return {
         ok: true,
@@ -574,6 +579,8 @@ export async function cancelLeadHeldQuote(
 
   switch (outcome.status) {
     case "cancelled":
+      // The day it held is back on sale — bust the cached public calendar.
+      revalidatePath("/", "layout");
       return { ok: true, message: "Evento cancelado. O saldo já não será pedido." };
     case "not-found":
       return { error: "Este orçamento já não existe. Recarregue a página." };

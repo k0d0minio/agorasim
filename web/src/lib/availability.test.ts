@@ -518,3 +518,111 @@ describe("expandDateRange", () => {
     ]);
   });
 });
+
+describe("a day held by a deposit-paid event", () => {
+  const today = "2026-08-10";
+  const QUOTE = "aaaaaaaa-1111-4111-8111-111111111111";
+
+  /** What `countSlotOccupancy` hands back for a held departure. */
+  function held(...classes: VehicleClass[]): SlotOccupancy {
+    return { ...committed(...classes), eventHolds: [QUOTE] };
+  }
+
+  it("is not bookable, though the row is open and every car is free", () => {
+    const slot = describeSlot({
+      date: "2026-08-15",
+      slot: "morning",
+      row: row(),
+      occupancy: held(),
+      today,
+    });
+    expect(slot).toMatchObject({
+      onSale: true,
+      heldByEvent: true,
+      bookable: false,
+      driversLeft: 0,
+      vehiclesLeft: noVehicles(),
+    });
+  });
+
+  it("is refused to every party as unavailable — the checkout's and the manual booking's answer", () => {
+    const slot = describeSlot({
+      date: "2026-08-15",
+      slot: "afternoon",
+      row: row({ slot: "afternoon" }),
+      occupancy: held(),
+      today,
+    });
+    expect(fitsParty(slot, CLASSIC_TOUR, 2)).toEqual({ ok: false, reason: "unavailable" });
+    expect(fitsParty(slot, TOURING_TOUR, 6)).toEqual({ ok: false, reason: "unavailable" });
+  });
+
+  it("keeps counting the tours already sold on it", () => {
+    const slot = describeSlot({
+      date: "2026-08-15",
+      slot: "morning",
+      row: row(),
+      occupancy: held("classic-small"),
+      today,
+    });
+    expect(slot.driversUsed).toBe(1);
+    expect(slot.vehiclesUsed["classic-small"]).toBe(1);
+  });
+
+  it("closes both departures of the day in the month the calendars render", () => {
+    const month = describeMonth({
+      month: "2026-08",
+      rows: [row({ slot: "morning" }), row({ slot: "afternoon", id: "x" })],
+      occupancy: new Map([
+        [occupancySlotKey("2026-08-15", "morning"), held()],
+        [occupancySlotKey("2026-08-15", "afternoon"), held()],
+      ]),
+      today,
+    });
+    const day = month.find((entry) => entry.date === "2026-08-15")!;
+    expect(day.slots.every((slot) => !slot.bookable && slot.heldByEvent)).toBe(true);
+  });
+
+  it("returns to what the rows and bookings alone say once released", () => {
+    const released = describeSlot({
+      date: "2026-08-15",
+      slot: "morning",
+      row: row(),
+      occupancy: { ...committed("classic-small"), eventHolds: [] },
+      today,
+    });
+    expect(released.heldByEvent).toBe(false);
+    expect(released.bookable).toBe(true);
+
+    // A day Rita never opened stays unopened: the release reopens nothing.
+    const neverOpened = describeSlot({
+      date: "2026-08-15",
+      slot: "morning",
+      row: null,
+      occupancy: { ...committed(), eventHolds: [] },
+      today,
+    });
+    expect(neverOpened.bookable).toBe(false);
+    expect(neverOpened.status).toBeNull();
+  });
+
+  it("tells a guest only that the day is unavailable — never that an event is on", () => {
+    const day = {
+      date: "2026-08-15",
+      slots: TOUR_SLOTS.map((slot) =>
+        describeSlot({
+          date: "2026-08-15",
+          slot,
+          row: row({ slot, note: "Casamento — Quinta do Hespanhol" }),
+          occupancy: held(),
+          today,
+        }),
+      ),
+    };
+    const publicDay = toPublicDay(day);
+    expect(publicDay.bookable).toBe(false);
+    expect(publicDay.slots.every((slot) => slot.driversLeft === 0)).toBe(true);
+    const payload = JSON.stringify(publicDay);
+    expect(payload).not.toMatch(/event|heldByEvent|eventHolds|Casamento|Quinta/i);
+  });
+});

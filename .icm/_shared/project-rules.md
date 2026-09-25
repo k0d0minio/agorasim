@@ -298,3 +298,6 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 - In a cloud session, call `unsubscribe_pr_activity` on the PR as soon as `new-run.sh` opens it — the harness subscribes new PRs by default and this repo subscribes none. (`FAILURE.md` — notifications-page-real)
 <!-- Retrospective Learned Rule [2026-09-25] -->
 - A scheduled email whose making has a side effect (minting a link, rotating a token) must take its message-log claim first — pass a `ClaimedMessage` builder to `sendLoggedEmail`, never a prebuilt message — and must write the email before it retires the old value. (`FAILURE.md` — balance-scheduler)
+
+<!-- Retrospective Learned Rule [2026-09-25] -->
+- A new `pgTable` in `web/src/db/schema.ts` must be registered in `BACKUP_TABLES` (`web/src/lib/backup.ts`) — or explicitly excluded — in the same PR; `backup.test.ts` fails otherwise, and the advisory job that runs it never runs on `main`. (`AssertionError`, seen 2× — event-holds-capacity, balance-scheduler; web/src, workspaces/_config)
