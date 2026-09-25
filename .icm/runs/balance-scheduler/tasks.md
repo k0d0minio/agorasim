@@ -17,4 +17,9 @@ step, so a resuming session can pick up the first unticked line.
 
 ## Queue
 
-- [ ] <task — small enough for one commit; name the file or area>
+- [x] message log: balance kinds keyed on the quote; `listQuoteBalanceMessages`; `ClaimedMessage` (build after the claim) — `web/src/lib/message-log.ts` (+ tests)
+- [x] the calendar rules, one module — `web/src/lib/balance-schedule.ts` (+ tests); constants in `web/src/lib/quote-math.ts`
+- [x] queries and the link swap — `listQuotesForBalanceReminder`, `listUnpaidBalancesDue`, `listBalanceRecipients`, `rotateQuoteLink` in `web/src/lib/quotes.ts`
+- [x] the two emails, PT/EN — `web/src/content/emails.ts`, `guestBalanceEmail` in `web/src/lib/booking-emails.ts` (+ tests)
+- [x] the job, registered on the dispatcher — `web/src/lib/cron/balance-scheduler.ts` (+ tests), `web/src/app/api/cron/dispatch/route.ts`
+- [x] the team flag — `web/src/components/admin/unpaid-balances-panel.tsx`, `web/src/app/admin/sales/page.tsx`, the badge in `lead-quote-card.tsx` via `web/src/app/admin/sales/[id]/page.tsx`

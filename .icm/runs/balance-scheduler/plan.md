@@ -48,6 +48,13 @@ was abandoned.
    `.icm/docs/admin-pt-inventory.md` (orçamento, saldo) — done when: the page renders with and
    without due balances.
 
+## As built (Build rewrote these points)
+
+- Pass 1 also gave `sendLoggedEmail` a `ClaimedMessage` (build after the claim) — the rotation
+  moved inside the claim (decisions D-4); pass 4's order is claim → mint → CAS → send.
+- The calendar rules and the panel labels live in a new `web/src/lib/balance-schedule.ts`; the
+  three day constants sit in `web/src/lib/quote-math.ts` so `quotes.ts` has no import cycle.
+
 ## Risks
 
 - **Rotation without an email** — a rotate that lands and a send that never happens leaves the

@@ -39,7 +39,7 @@
 import "server-only";
 
 import { NeonDbError } from "@neondatabase/serverless";
-import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, ne, or } from "drizzle-orm";
 
 import {
   db,
@@ -53,6 +53,7 @@ import {
   type QuotePaymentStatus,
   type QuoteStatus,
   type RequestStatus,
+  type TourRequest,
   type AppLocale,
 } from "@/db";
 import { recordAuditOrWarn } from "@/lib/audit";
@@ -60,6 +61,8 @@ import { dateKey, isDateKey, parseDateKey, todayKey, type DateKey } from "@/lib/
 import { BOOKING_CURRENCY } from "@/lib/money";
 import {
   BALANCE_DUE_DAYS_BEFORE,
+  BALANCE_FLAG_DAYS_BEFORE,
+  BALANCE_REMINDER_DAYS_BEFORE,
   DEFAULT_DEPOSIT_PERCENT,
   balanceDueKey,
   lineItemsTotal,
@@ -570,6 +573,143 @@ export async function listQuotesDueForBalance(options: {
     .limit(limit);
 
   return rows;
+}
+
+/**
+ * The balances the T−7 reminder looks at today: deposit-paid quotes whose
+ * event is between today and seven days out, with the balance still open —
+ * `issued` included, because a couple who tapped "Pagar saldo" and walked
+ * away from Checkout has still not paid.
+ *
+ * Whether each one is actually reminded is the job's question (the request
+ * must have reached them three days earlier, and the reminder not already be
+ * claimed — `lib/balance-schedule.ts`); this is only what is in view.
+ */
+export async function listQuotesForBalanceReminder(options: {
+  now?: Date;
+  limit?: number;
+} = {}): Promise<{ quote: Quote; payment: QuotePayment }[]> {
+  const { now = new Date(), limit = 100 } = options;
+  const today = todayKey(now);
+
+  return db
+    .select({ quote: quotes, payment: quotePayments })
+    .from(quotePayments)
+    .innerJoin(quotes, eq(quotePayments.quoteId, quotes.id))
+    .where(
+      and(
+        eq(quotes.status, "deposit_paid"),
+        eq(quotePayments.kind, "balance"),
+        inArray(quotePayments.status, ["pending", "issued"]),
+        gte(quotes.eventDate, today),
+        lte(quotes.eventDate, shiftDays(today, BALANCE_REMINDER_DAYS_BEFORE)),
+      ),
+    )
+    .orderBy(asc(quotes.eventDate))
+    .limit(limit);
+}
+
+/** One row of the Sales board's "Saldo por pagar" panel. */
+export type UnpaidBalance = {
+  quote: Quote;
+  payment: QuotePayment;
+  /** The couple, from the enquiry — null when the lead is gone. */
+  leadName: string | null;
+};
+
+/**
+ * The balances the team should see as unpaid today — deposit-paid quotes whose
+ * event is three days away or fewer (or already past), with the balance still
+ * open. The same rule as `isBalanceFlagged`, which the lead's own quote card
+ * applies to one quote; this is the query for all of them, soonest first.
+ */
+export async function listUnpaidBalancesDue(options: {
+  now?: Date;
+  limit?: number;
+} = {}): Promise<UnpaidBalance[]> {
+  const { now = new Date(), limit = 50 } = options;
+  const horizon = shiftDays(todayKey(now), BALANCE_FLAG_DAYS_BEFORE);
+
+  const rows = await db
+    .select({ quote: quotes, payment: quotePayments, leadName: tourRequests.name })
+    .from(quotePayments)
+    .innerJoin(quotes, eq(quotePayments.quoteId, quotes.id))
+    .leftJoin(tourRequests, eq(quotes.tourRequestId, tourRequests.id))
+    .where(
+      and(
+        eq(quotes.status, "deposit_paid"),
+        eq(quotePayments.kind, "balance"),
+        inArray(quotePayments.status, ["pending", "issued"]),
+        gt(quotePayments.amountCents, 0),
+        lte(quotes.eventDate, horizon),
+      ),
+    )
+    .orderBy(asc(quotes.eventDate))
+    .limit(limit);
+
+  return rows;
+}
+
+/** Who a balance email goes to — the enquiry behind the quote. */
+export type BalanceRecipient = Pick<TourRequest, "id" | "name" | "email" | "anonymisedAt">;
+
+/** The enquiries behind these quotes, by id — one read for the whole morning. */
+export async function listBalanceRecipients(
+  tourRequestIds: readonly string[],
+): Promise<Map<string, BalanceRecipient>> {
+  const byId = new Map<string, BalanceRecipient>();
+  if (tourRequestIds.length === 0) return byId;
+
+  const rows = await db
+    .select({
+      id: tourRequests.id,
+      name: tourRequests.name,
+      email: tourRequests.email,
+      anonymisedAt: tourRequests.anonymisedAt,
+    })
+    .from(tourRequests)
+    .where(inArray(tourRequests.id, [...new Set(tourRequestIds)]));
+
+  for (const row of rows) byId.set(row.id, row);
+  return byId;
+}
+
+/**
+ * Give a deposit-paid quote a new link — the balance emails' way of carrying
+ * one (`lib/cron/balance-scheduler.ts`).
+ *
+ * Only a digest of a quote's token is stored, so no later email can repeat a
+ * link that already went out; the scheduler mints a fresh token and this
+ * stores its digest, which retires every earlier link to the quote. Nothing
+ * else moves: not the status, not `sent_at` (the quote-sent log is keyed on
+ * it), not the terms version, not the lead's stage.
+ *
+ * A compare-and-swap on the digest the caller read: of two runs rotating the
+ * same quote at once, the second finds the first's digest in place of the one
+ * it expected and gets `null` — it sends nothing, and the link the first run
+ * mails is the one stored.
+ */
+export async function rotateQuoteLink(
+  id: string,
+  options: { expectedDigest: string | null; digest: string; now?: Date },
+): Promise<Quote | null> {
+  const { expectedDigest, digest, now = new Date() } = options;
+
+  const [quote] = await db
+    .update(quotes)
+    .set({ accessTokenHash: digest, updatedAt: now })
+    .where(
+      and(
+        eq(quotes.id, id),
+        eq(quotes.status, "deposit_paid"),
+        expectedDigest === null
+          ? isNull(quotes.accessTokenHash)
+          : eq(quotes.accessTokenHash, expectedDigest),
+      ),
+    )
+    .returning();
+
+  return quote ?? null;
 }
 
 /** The instalment behind a Stripe Checkout Session — how the webhook resolves one. */

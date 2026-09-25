@@ -60,7 +60,7 @@
  */
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { db, messageLog, type MessageKind, type MessageRecipient } from "@/db";
 import { isEmailConfigured, sendEmail, type EmailMessage } from "@/lib/email";
@@ -102,6 +102,20 @@ export const QUOTE_RECEIPT_KINDS = ["deposit-received", "balance-paid"] as const
 
 /** A kind from {@link QUOTE_RECEIPT_KINDS}. */
 export type QuoteReceiptKind = (typeof QUOTE_RECEIPT_KINDS)[number];
+
+/**
+ * The kinds that ask a couple for their balance — the T−14 request and the
+ * T−7 reminder (`lib/cron/balance-scheduler.ts`).
+ *
+ * Once each per quote, like a receipt, so they share the receipt's shape and
+ * its index (`message_log_quote_receipt_key` — kind, recipient, quote): the
+ * dispatcher asks every morning, and the claim is what makes the second
+ * morning a `duplicate` rather than a second email.
+ */
+export const QUOTE_BALANCE_KINDS = ["balance-request", "balance-reminder"] as const;
+
+/** A kind from {@link QUOTE_BALANCE_KINDS}. */
+export type QuoteBalanceKind = (typeof QUOTE_BALANCE_KINDS)[number];
 
 /**
  * The kinds whose subject is money going back on one instalment: one notice
@@ -164,8 +178,8 @@ export type MessageSubject =
       refundedTotalCents?: never;
     })
   | (SubjectRows & {
-      kind: QuoteReceiptKind;
-      /** The quote whose instalment was paid. */
+      kind: QuoteReceiptKind | QuoteBalanceKind;
+      /** The quote whose instalment was paid, or whose balance is being asked for. */
       quoteId: string;
       bookingId?: never;
       subjectDate?: never;
@@ -190,7 +204,7 @@ export type MessageSubject =
   | (SubjectRows & {
       kind: Exclude<
         MessageKind,
-        DateBoundKind | QuoteSendKind | QuoteReceiptKind | QuoteRefundKind
+        DateBoundKind | QuoteSendKind | QuoteReceiptKind | QuoteBalanceKind | QuoteRefundKind
       >;
       /**
        * The booking this message is about, for the booking-shaped kinds
@@ -226,15 +240,27 @@ export type LoggedSend =
   | { status: "failed"; reason: SendFailure };
 
 /**
+ * A message built only once its claim is won — for a mail whose making has a
+ * side effect that must not happen twice. The balance emails mint the quote's
+ * link as they are built, which retires the previous one: built before the
+ * claim, a run that then lost it would already have killed the link the
+ * winner is mailing. Resolve to `null` to stand down — the claim is released
+ * and the send reported as a `duplicate`.
+ */
+export type ClaimedMessage = () => Promise<EmailMessage | null>;
+
+/**
  * Send one message and record it, exactly once.
  *
  * Returns what happened rather than throwing — see the module note. Callers log
  * the non-`sent` outcomes in their own terms, because "the guest's confirmation
- * did not go out" reads differently from "the team's copy did not".
+ * did not go out" reads differently from "the team's copy did not". The one
+ * exception is a {@link ClaimedMessage} that throws: its claim is released and
+ * the error is the caller's, since nothing was sent.
  */
 export async function sendLoggedEmail(
   subject: MessageSubject,
-  message: EmailMessage,
+  content: EmailMessage | ClaimedMessage,
 ): Promise<LoggedSend> {
   // Asked before the claim, not after: an unconfigured deployment has not
   // attempted anything, so it must not consume the one row that would stop
@@ -245,12 +271,24 @@ export async function sendLoggedEmail(
     );
     return { status: "skipped", reason: "unconfigured" };
   }
-  if (message.to.length === 0) {
+  if (typeof content !== "function" && content.to.length === 0) {
     return { status: "skipped", reason: "no-recipient" };
   }
 
   const claim = await claimSend(subject);
   if (claim === "duplicate") return { status: "duplicate" };
+
+  let message: EmailMessage | null;
+  try {
+    message = typeof content === "function" ? await content() : content;
+  } catch (err) {
+    if (claim) await release(claim);
+    throw err;
+  }
+  if (!message || message.to.length === 0) {
+    if (claim) await release(claim);
+    return message ? { status: "skipped", reason: "no-recipient" } : { status: "duplicate" };
+  }
 
   const result = await sendEmail(message);
 
@@ -322,6 +360,23 @@ async function claimSend(subject: MessageSubject): Promise<string | "duplicate" 
   }
 }
 
+/**
+ * Give back a claim nothing was sent under — a {@link ClaimedMessage} that
+ * stood down or threw. Deleted rather than marked `failed`: no attempt was
+ * made, and a failed row would read on the Notifications page as a mail that
+ * did not go out. A failure here is logged, never thrown; the row then stays
+ * `sending`, which blocks a retry — the safe way round.
+ */
+async function release(id: string): Promise<void> {
+  try {
+    await db
+      .delete(messageLog)
+      .where(and(eq(messageLog.id, id), eq(messageLog.status, "sending")));
+  } catch (err) {
+    console.error(`[message-log] could not release claim ${id}`, err);
+  }
+}
+
 /** Close out a claimed row. A failure here is logged, never thrown. */
 async function settle(
   id: string,
@@ -346,4 +401,53 @@ async function settle(
       err,
     );
   }
+}
+
+/** One balance message as the log holds it — what the scheduler and the Sales board read back. */
+export type QuoteBalanceMessage = {
+  kind: QuoteBalanceKind;
+  status: "sending" | "sent" | "failed";
+  /** When the provider accepted it; null until then. */
+  sentAt: Date | null;
+};
+
+/**
+ * The balance messages each of these quotes has had, to the couple.
+ *
+ * Read by the scheduler *before* it rotates a quote's link — a claim already
+ * held means this morning has nothing to send, and minting a link anyway
+ * would kill the one the earlier email carries — and by the Sales board's
+ * "Saldo por pagar" panel, to say what has gone out. Failed rows come back
+ * too; whether one counts is the caller's question (it releases the claim).
+ */
+export async function listQuoteBalanceMessages(
+  quoteIds: readonly string[],
+): Promise<Map<string, QuoteBalanceMessage[]>> {
+  const byQuote = new Map<string, QuoteBalanceMessage[]>();
+  if (quoteIds.length === 0) return byQuote;
+
+  const rows = await db
+    .select({
+      quoteId: messageLog.quoteId,
+      kind: messageLog.kind,
+      status: messageLog.status,
+      sentAt: messageLog.sentAt,
+    })
+    .from(messageLog)
+    .where(
+      and(
+        inArray(messageLog.quoteId, [...quoteIds]),
+        inArray(messageLog.kind, [...QUOTE_BALANCE_KINDS]),
+        eq(messageLog.recipient, "guest"),
+        isNull(messageLog.bookingId),
+      ),
+    );
+
+  for (const row of rows) {
+    if (!row.quoteId) continue;
+    const list = byQuote.get(row.quoteId) ?? [];
+    list.push({ kind: row.kind as QuoteBalanceKind, status: row.status, sentAt: row.sentAt });
+    byQuote.set(row.quoteId, list);
+  }
+  return byQuote;
 }

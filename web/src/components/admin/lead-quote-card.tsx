@@ -77,6 +77,12 @@ export type QuoteCardItem = {
    * "Cancelar evento".
    */
   depositRefundedInFull: boolean;
+  /**
+   * The T−3 flag: deposit paid, the event three days away or fewer (or past),
+   * and the balance neither paid nor written off — `isBalanceFlagged`, the
+   * rule the Sales board's "Saldo por pagar" panel shows too.
+   */
+  balanceUnpaid: boolean;
   payments: {
     id: string;
     kind: QuotePaymentKind;
@@ -204,6 +210,7 @@ function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: s
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
         <span className="font-mono">{quote.ref}</span>
         <Badge variant={status.variant}>{status.label}</Badge>
+        {quote.balanceUnpaid ? <Badge variant="destructive">Saldo por pagar</Badge> : null}
         <span aria-hidden>·</span>
         <span>{quote.eventDateLabel}</span>
       </div>

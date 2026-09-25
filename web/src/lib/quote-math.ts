@@ -19,6 +19,16 @@ export const DEFAULT_DEPOSIT_PERCENT = 30;
  */
 export const BALANCE_DUE_DAYS_BEFORE = 14;
 
+/**
+ * The balance's chaser and the team's flag, counted like the due date in
+ * calendar days before the event (`lib/balance-schedule.ts` has the rules):
+ * one reminder from T−7, only if the request reached the couple at least three
+ * days earlier; the Sales board's "Saldo por pagar" from T−3.
+ */
+export const BALANCE_REMINDER_DAYS_BEFORE = 7;
+export const BALANCE_REMINDER_GAP_DAYS = 3;
+export const BALANCE_FLAG_DAYS_BEFORE = 3;
+
 /** What the two instalments come to. Always sums to the total, exactly. */
 export type QuoteSplit = { depositCents: number; balanceCents: number };
 
