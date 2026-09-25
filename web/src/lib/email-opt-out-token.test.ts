@@ -13,6 +13,34 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+describe("the imported HMAC key", () => {
+  it("is imported once per process and reused across calls", async () => {
+    vi.resetModules();
+    const importKey = vi.spyOn(crypto.subtle, "importKey");
+    const { optOutAddressHash } = await import("./email-opt-out-token");
+
+    await optOutAddressHash("marta@example.pt");
+    await optOutAddressHash("joao@example.pt");
+
+    expect(importKey).toHaveBeenCalledTimes(1);
+    importKey.mockRestore();
+  });
+
+  it("re-imports when the secret changes, rather than signing under a stale key", async () => {
+    vi.resetModules();
+    const importKey = vi.spyOn(crypto.subtle, "importKey");
+    const { optOutAddressHash } = await import("./email-opt-out-token");
+
+    const first = await optOutAddressHash("marta@example.pt");
+    vi.stubEnv("EMAIL_OPT_OUT_SECRET", "another-secret");
+    const second = await optOutAddressHash("marta@example.pt");
+
+    expect(importKey).toHaveBeenCalledTimes(2);
+    expect(second).not.toBe(first);
+    importKey.mockRestore();
+  });
+});
+
 describe("optOutAddressHash", () => {
   it("is 64 hex characters and never contains the address", async () => {
     const hash = await optOutAddressHash("marta@example.pt");

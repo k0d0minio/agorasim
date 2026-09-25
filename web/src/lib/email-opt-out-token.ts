@@ -49,14 +49,31 @@ function optOutSecret(): string {
   return value;
 }
 
+/**
+ * The imported key, cached for the process's life. Keyed by the secret string
+ * itself (never just "already cached") so a test that swaps
+ * `EMAIL_OPT_OUT_SECRET` mid-run — or a real rotation — re-imports instead of
+ * signing under a stale key.
+ */
+let cachedKey: { secret: string; key: CryptoKey } | undefined;
+
+async function hmacKey(): Promise<CryptoKey> {
+  const secret = optOutSecret();
+  if (cachedKey?.secret !== secret) {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    cachedKey = { secret, key };
+  }
+  return cachedKey.key;
+}
+
 async function hmacBytes(value: string): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(optOutSecret()),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
+  const key = await hmacKey();
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(value)));
 }
 
@@ -101,12 +118,21 @@ async function linkSignature(addressHash: string): Promise<string> {
 }
 
 /**
+ * The link token for an already-hashed address — for a caller (the thank-you
+ * dispatcher) that also has to ask {@link isAddressHashOptedOut} about the
+ * same address, so it hashes it once and mints the token from that hash
+ * rather than normalising and hashing the address a second time.
+ */
+export async function optOutTokenFromHash(addressHash: string): Promise<string> {
+  return `${base64UrlEncode(fromHex(addressHash))}.${await linkSignature(addressHash)}`;
+}
+
+/**
  * The link token for an address: `<hash, base64url>.<signature, base64url>` —
  * two 43-character halves. Carries the row key and its proof, nothing else.
  */
 export async function optOutToken(email: string): Promise<string> {
-  const addressHash = await optOutAddressHash(email);
-  return `${base64UrlEncode(fromHex(addressHash))}.${await linkSignature(addressHash)}`;
+  return optOutTokenFromHash(await optOutAddressHash(email));
 }
 
 /**

@@ -35,12 +35,13 @@ import { dateKey, parseDateKey, todayKey, type DateKey } from "@/lib/availabilit
 import { guestThankYouEmail } from "@/lib/booking-emails";
 import { bookingRef, bookingsToThankOn, type BookingToThank } from "@/lib/bookings";
 import { register, type CronJobResult } from "@/lib/cron/jobs";
-import { isOptedOut } from "@/lib/email-opt-out";
+import { isAddressHashOptedOut } from "@/lib/email-opt-out";
 import {
   isOptOutConfigured,
+  optOutAddressHash,
   optOutOneClickPath,
   optOutPath,
-  optOutToken,
+  optOutTokenFromHash,
 } from "@/lib/email-opt-out-token";
 import { listCatalogue } from "@/lib/experience-catalogue";
 import { sendLoggedEmail } from "@/lib/message-log";
@@ -101,13 +102,17 @@ async function thankDay(
     }
 
     try {
+      // Hashed once and reused below — the opt-out check and the link token
+      // both need the same address hash.
+      const addressHash = await optOutAddressHash(booking.email);
+
       // Asked before the claim, so an opted-out address leaves no log row.
-      if (await isOptedOut(booking.email)) {
+      if (await isAddressHashOptedOut(addressHash)) {
         tally.optedOut += 1;
         continue;
       }
 
-      const token = await optOutToken(booking.email);
+      const token = await optOutTokenFromHash(addressHash);
       const result = await sendLoggedEmail(
         {
           kind: "thank-you-review",

@@ -39,7 +39,13 @@ vi.mock("@/lib/bookings", async () => {
 });
 
 vi.mock("@/lib/email-opt-out", () => ({
-  isOptedOut: async (email: string) => optedOut.has(email.trim().toLowerCase()),
+  isAddressHashOptedOut: async (addressHash: string) => {
+    const { optOutAddressHash } = await import("@/lib/email-opt-out-token");
+    for (const email of optedOut) {
+      if ((await optOutAddressHash(email)) === addressHash) return true;
+    }
+    return false;
+  },
 }));
 
 vi.mock("@/lib/message-log", () => ({
@@ -196,6 +202,19 @@ describe("thankYouReview", () => {
     expect(await verifyOptOutToken(pageToken)).toBe(await optOutAddressHash(guest.email as string));
     // No address in the link.
     expect(pageToken).not.toContain("guest");
+  });
+
+  it("hashes a guest's address once, reusing it for both the suppression check and the link", async () => {
+    const guest = booking();
+    seed(guest);
+    const sign = vi.spyOn(crypto.subtle, "sign");
+
+    await thankYouReview(NOW);
+
+    // One HMAC for the address hash, one for the link's signature over it —
+    // never the address normalised and hashed a second time for the token.
+    expect(sign).toHaveBeenCalledTimes(2);
+    sign.mockRestore();
   });
 
   it("catches up the day before, and counts one already thanked as already", async () => {
