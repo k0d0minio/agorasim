@@ -176,13 +176,13 @@ export function LeadQuoteCard({
   );
 }
 
-/** One quote: its summary, and the actions its state allows. */
 /** "2 reservas de passeio neste dia (10:00, 14:00)" — the clash in words. */
 function clashWords(clash: NonNullable<QuoteCardItem["bookingClash"]>): string {
   const times = clash.slots.map((slot) => (slot === "morning" ? "10:00" : "14:00")).join(", ");
   return `${clash.count} ${clash.count === 1 ? "reserva" : "reservas"} de passeio neste dia (${times})`;
 }
 
+/** One quote: its summary, and the actions its state allows. */
 function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: string }) {
   // The quote's `updatedAt` when "Editar" was pressed: a save moves it, which
   // closes the editor on the refreshed render without an effect.

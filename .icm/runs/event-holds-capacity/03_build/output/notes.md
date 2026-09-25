@@ -37,3 +37,14 @@
 - The "checkout re-check refuses a held day" criterion is tested at `describeSlot` + `fitsParty` (the whole of `checkSlotAvailable`'s decision); `checkSlotAvailable` itself only adds `readDay`, a DB read, per the repo's convention that queries are covered by the build.
 - `countSlotOccupancy` now issues two queries in parallel instead of one on every availability read (public calendar, checkout, admin). Both indexed.
 - Context budget: Build read `quote-refund.ts`, `quote-checkout.ts`, the webhook route and the Sales detail page beyond `touches:` to place the revalidation and the builder warning.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN on 4174b1a (ci-status.sh, full gate); re-read after the last push before the merge. `Quality (advisory)` red on `backup.test.ts` only — `main`'s (#156), parked
+- reviews: code medium — no bugs; one misplaced doc comment in `lead-quote-card.tsx` fixed in-ticket · security `security-check.sh --branch --audit`: OK + /security-review — no findings (no event data reaches a public payload; SQL parameterised; every admin path still `requireAdmin()`) · /production-readiness n/a — not installed in this session; the diff's DB reads are covered by the code and security passes · readiness `env.sh audit --changed`: OK
+- parked: backup-registry-rate-limit-windows.md (Build — the advisory failure from main)
+- migrations: skip — none of this run's own
+- learned: 1 rule appended to _shared/project-rules.md
+- docs: workspaces/_config/business-facts.md → Capacity (a deposit-paid event takes the whole day) · announce: deferred to promotion
+- Context budget: read `workspaces/_config/business-facts.md` → Capacity for the docs sync.
