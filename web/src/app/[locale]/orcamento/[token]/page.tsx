@@ -52,8 +52,10 @@ import { Card, CardContent } from "@/components/ui/card";
  * same events section, so the page and the durable copy cannot disagree.
  *
  * **A link that no longer works** — unknown, malformed, replaced by a new
- * version, cancelled, or throttled — gets one neutral panel, so it says nothing
- * about whether the quote ever existed. It is served as a `noindex` page rather
+ * version, or cancelled — gets one neutral panel; a throttled lookup gets its
+ * own wording ("too many attempts, try again"), so a couple sharing an IP
+ * with other traffic isn't told a live quote is dead. Neither panel says
+ * anything about whether the quote ever existed. It is served as a `noindex` page rather
  * than a 404 status: the locale's `loading.tsx` streams this route, and a
  * streamed response has sent its 200 before the lookup finishes (Next's
  * streaming note).
@@ -97,7 +99,7 @@ export default async function QuotePage({
     console.warn(
       `[quote-page] throttled lookup from ${ip} — retry in ${throttle.retryAfterSeconds}s`,
     );
-    return <InvalidPanel locale={l} />;
+    return <InvalidPanel locale={l} reason="throttled" />;
   }
 
   let quote = await resolveQuoteToken(token);
@@ -397,21 +399,30 @@ function Contacts({ locale }: { locale: Locale }) {
   );
 }
 
-/** Unknown, malformed, replaced, cancelled or throttled — one neutral answer. */
-function InvalidPanel({ locale }: { locale: Locale }) {
+/** Unknown, malformed, replaced or cancelled shares one panel; throttled gets its own copy. */
+function InvalidPanel({
+  locale,
+  reason = "invalid",
+}: {
+  locale: Locale;
+  reason?: "invalid" | "throttled";
+}) {
   const c = quotePageContent;
+  const copy = reason === "throttled" ? c.throttled : c.invalid;
   return (
     <Section>
       <div className="mx-auto max-w-xl space-y-8">
         <Card>
           <CardContent className="p-6">
             <div className="flex size-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-              <HelpCircle className="size-5" />
+              {reason === "throttled" ? (
+                <Clock className="size-5" />
+              ) : (
+                <HelpCircle className="size-5" />
+              )}
             </div>
-            <h1 className="mt-4 font-heading text-2xl font-semibold">
-              {t(c.invalid.title, locale)}
-            </h1>
-            <p className="mt-2 text-muted-foreground">{t(c.invalid.body, locale)}</p>
+            <h1 className="mt-4 font-heading text-2xl font-semibold">{t(copy.title, locale)}</h1>
+            <p className="mt-2 text-muted-foreground">{t(copy.body, locale)}</p>
           </CardContent>
         </Card>
         <Contacts locale={locale} />

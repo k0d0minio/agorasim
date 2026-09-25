@@ -1564,6 +1564,17 @@ export const quotes = pgTable("quotes", {
   // would hand one couple another's event; Postgres allows any number of nulls
   // under a unique index, which is what keeps the drafts above legal.
   uniqueIndex("quotes_access_token_key").on(table.accessTokenHash),
+  /**
+   * At most one draft per lead — the other half of {@link canStartQuote}'s
+   * rule, and the half a read-then-insert cannot close on its own: two taps of
+   * "Criar orçamento" or "Nova versão" within the same check-then-insert
+   * window both read "no draft yet" and both insert. This is what actually
+   * stops the second one; `createQuote` maps the violation back to the outcome
+   * the pre-check would have given it (`already-quoted` / `not-editable`).
+   */
+  uniqueIndex("quotes_one_draft_per_lead_key")
+    .on(table.tourRequestId)
+    .where(sql`"status" = 'draft'`),
 ]);
 
 export type Quote = typeof quotes.$inferSelect;

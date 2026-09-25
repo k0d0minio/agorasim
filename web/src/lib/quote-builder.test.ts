@@ -72,6 +72,7 @@ const {
   sendQuote,
   startNewVersion,
 } = await import("./quote-builder");
+const { QuoteDraftConflictError } = await import("./quotes");
 const { quoteTokenDigest } = await import("./quote-token");
 const { TERMS_VERSION } = await import("@/content/terms");
 
@@ -226,6 +227,17 @@ describe("createDraftForLead — Criar orçamento", () => {
     ).toBe("saved");
   });
 
+  it("reads the other phone's insert winning the same race as already-quoted", async () => {
+    // The pre-check above passed on both phones' reads; only the database's
+    // own unique index caught the second insert.
+    quotesMock.createQuote.mockRejectedValue(new QuoteDraftConflictError());
+
+    expect(
+      await createDraftForLead({ leadId: LEAD_ID, input: INPUT, actorUserId: OPERATOR_ID }),
+    ).toEqual({ status: "already-quoted" });
+    expect(recordAuditOrWarn).not.toHaveBeenCalled();
+  });
+
   it("refuses a quote with no lines, or lines that come to nothing", async () => {
     expect(
       await createDraftForLead({
@@ -329,6 +341,19 @@ describe("startNewVersion — Nova versão", () => {
       });
     },
   );
+
+  it("reads the other phone's insert winning the same race as not-editable", async () => {
+    const sent = quote({ status: "sent", sentAt: NOW });
+    quotesMock.getQuote.mockResolvedValue(sent);
+    quotesMock.listQuotesForLead.mockResolvedValue([sent]);
+    // The pre-check above passed on both phones' reads; only the database's
+    // own unique index caught the second insert.
+    quotesMock.copyQuoteAsDraft.mockRejectedValue(new QuoteDraftConflictError());
+
+    expect(await startNewVersion({ quoteId: QUOTE_ID, actorUserId: OPERATOR_ID })).toEqual({
+      status: "not-editable",
+    });
+  });
 });
 
 describe("sendQuote — Enviar orçamento", () => {

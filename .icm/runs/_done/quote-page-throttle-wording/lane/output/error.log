@@ -1,0 +1,18 @@
+## 2026-09-24 — Vercel RED, not this PR's
+
+- Vercel commit status `failure` on every push to `claude/optimistic-ptolemy-wi4mpz`
+  (`ae219e4` and `f328656`), `errorCode: BUILD_FAILED`, `errorMessage: "Resource provisioning
+  failed"` — read directly via `mcp__Vercel__get_deployment` (deployment state `ERROR`, no
+  build logs emitted — the failure is pre-build).
+- Root cause: `uat-agorasim` (Neon project `lingering-frog-97017403`,
+  `database.neon.nonprod_project_id`) is a `free_v3` org plan capped at `branches_limit: 10`
+  (`mcp__Neon__describe_project`), and held exactly 10 branches at the time — `main`, five other
+  sessions' `preview/claude/*` and four other runs' `run/<slug>` — when Vercel's Neon
+  integration tried to provision this PR's own preview branch.
+- Reproduces on a head of this PR that predates its code diff: `ae219e4`, the run-pointer commit
+  `new-run.sh` made before any of this tweak's file changes, failed identically. Confirms the
+  fault is not in this PR's diff.
+- No fix to port: this is an org-level quota, not a code defect. Parked:
+  `.icm/intake/triage/neon-uat-branch-limit-blocks-previews.md`.
+- resolved: no — degraded hand-off per `_shared/ci.md` → "The one exit from RED"; the operator
+  decides (raise the Neon plan, or cap concurrent sessions).
