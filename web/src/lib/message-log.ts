@@ -19,12 +19,16 @@
  * **Except where the subject is a departure, not a booking.** A booking's date
  * is not fixed: a weather move edits it in place, the afternoon before, which
  * is exactly when the day-before reminder has just gone out. So the
- * {@link DATE_BOUND_KINDS} carry the date they are about and are keyed on it —
- * the moved booking earns a reminder for its new morning, the old date keeps
+ * {@link DATE_BOUND_KINDS} carry the date they are about, and the booking's
+ * move-seq (`bookings.moveSeq`) alongside it, and are keyed on both — the
+ * moved booking earns a reminder for its new morning, the old date keeps
  * its own row and is never reminded twice, and a booking moved twice is told
- * twice. The type below makes that date mandatory for those kinds and
- * impossible for the others, because the two are different indexes in
- * `db/schema.ts` and a send that guessed wrong would quietly key on nothing.
+ * twice. The move-seq is what keeps a *third* move honest: a booking moved
+ * back onto a date it already left (`X → A → B → A`) would otherwise find
+ * `A`'s row still claimed from the first visit and go untold on the second.
+ * The type below makes both fields mandatory for those kinds and impossible
+ * for the others, because the two are different indexes in `db/schema.ts`
+ * and a send that guessed wrong would quietly key on nothing.
  *
  * **And except where the subject is a quote.** A lead is quoted more than
  * once — a new version replaces a sent quote, a re-send rotates a link that
@@ -134,6 +138,14 @@ export type MessageSubject =
       bookingId: string;
       /** `2026-08-15` — the departure this message is about, from `bookings.date`. */
       subjectDate: string;
+      /**
+       * `bookings.moveSeq` at the moment of sending — the other half of the
+       * date-bound key. A date alone cannot tell "reminded for the 22nd" apart
+       * from "reminded for the 22nd, again, after leaving and coming back", so
+       * a caller that skipped it would claim under a key that silently
+       * collides with an earlier visit to the same date.
+       */
+      moveSeq: number;
       quoteId?: never;
       quoteSentAt?: never;
       quotePaymentId?: never;
@@ -147,6 +159,7 @@ export type MessageSubject =
       quoteSentAt: Date;
       bookingId?: never;
       subjectDate?: never;
+      moveSeq?: never;
       quotePaymentId?: never;
       refundedTotalCents?: never;
     })
@@ -156,6 +169,7 @@ export type MessageSubject =
       quoteId: string;
       bookingId?: never;
       subjectDate?: never;
+      moveSeq?: never;
       quoteSentAt?: never;
       quotePaymentId?: never;
       refundedTotalCents?: never;
@@ -170,6 +184,7 @@ export type MessageSubject =
       refundedTotalCents: number;
       bookingId?: never;
       subjectDate?: never;
+      moveSeq?: never;
       quoteSentAt?: never;
     })
   | (SubjectRows & {
@@ -184,6 +199,7 @@ export type MessageSubject =
        */
       bookingId?: string | null;
       subjectDate?: never;
+      moveSeq?: never;
       quoteId?: never;
       quoteSentAt?: never;
       quotePaymentId?: never;
@@ -283,6 +299,7 @@ async function claimSend(subject: MessageSubject): Promise<string | "duplicate" 
         bookingId: subject.bookingId ?? null,
         tourRequestId: subject.tourRequestId ?? null,
         subjectDate: subject.subjectDate ?? null,
+        moveSeq: subject.moveSeq ?? null,
         quoteId: subject.quoteId ?? null,
         quoteSentAt: subject.quoteSentAt ?? null,
         quotePaymentId: subject.quotePaymentId ?? null,

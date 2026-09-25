@@ -16,13 +16,16 @@
  * Lisbon's next day.
  *
  * **Once per booking per date, whichever morning.** Both passes claim the same
- * `day-before-reminder` row, keyed on the booking and the date it is on
- * (`lib/message-log.ts` → `DATE_BOUND_KINDS`). So the second pass reaches a
- * booking reminded yesterday, loses the claim and sends nothing; a rerun the
- * same morning sends nothing at all; a booking moved to another date is
- * reminded again for that date; and a send that failed released its claim, so
- * the next run tries again. There is no second cron and no flag on the booking
- * — the log's unique index is the whole mechanism.
+ * `day-before-reminder` row, keyed on the booking, the date it is on and its
+ * move-seq (`lib/message-log.ts` → `DATE_BOUND_KINDS`; `bookings.moveSeq`). So
+ * the second pass reaches a booking reminded yesterday, loses the claim and
+ * sends nothing; a rerun the same morning sends nothing at all; a booking
+ * moved to another date is reminded again for that date; a booking moved back
+ * onto a date it was already reminded for is reminded again too, because the
+ * move changed its move-seq even though the date repeats; and a send that
+ * failed released its claim, so the next run tries again. There is no second
+ * cron and no flag on the booking — the log's unique index is the whole
+ * mechanism.
  *
  * A booking created on the morning of its own tour, after this run, is not
  * reminded: the next run is after the departure. Accepted by the spec.
@@ -98,8 +101,10 @@ async function remindDay(
           recipient: "guest",
           bookingId: booking.id,
           tourRequestId: booking.tourRequestId,
-          // The departure this reminder is about — the claim's key.
+          // The departure this reminder is about, and which visit to it —
+          // together the claim's key (see `bookings.moveSeq`).
           subjectDate: booking.date,
+          moveSeq: booking.moveSeq,
         },
         guestReminderEmail({
           when,

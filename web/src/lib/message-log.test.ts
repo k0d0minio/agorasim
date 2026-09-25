@@ -14,12 +14,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * answered here the way Postgres answers it. That is deliberately not a proof
  * that the indexes exist — they are in
  * `drizzle/0025_message_log_subject_date.sql`,
- * `drizzle/0027_quote_sent_per_quote.sql` and
- * `drizzle/0028_quote_receipt_per_quote.sql`, and only a database can check
+ * `drizzle/0027_quote_sent_per_quote.sql`,
+ * `drizzle/0028_quote_receipt_per_quote.sql` and
+ * `drizzle/0029_add_booking_move_seq.sql`, and only a database can check
  * them. What it does prove is the half of the mechanism that lives in this
  * file: the key each send is claimed under. A reminder that forgot its date
- * would land under the wrong index in production and be silently permanent,
- * and that is the mistake these tests are here to catch.
+ * — or its move-seq — would land under the wrong index in production and be
+ * silently permanent, and that is the mistake these tests are here to catch.
  */
 
 /** Every call the wrapper makes, in order — the claim-before-send assertion. */
@@ -32,6 +33,7 @@ type LogRow = {
   bookingId: string | null;
   tourRequestId: string | null;
   subjectDate: string | null;
+  moveSeq: number | null;
   quoteId: string | null;
   quoteSentAt: string | null;
   quotePaymentId: string | null;
@@ -62,10 +64,12 @@ function indexKey(row: LogRow): string | null {
   if (row.bookingId !== null) {
     // message_log_booking_kind_key / message_log_booking_date_kind_key — the
     // split is on `subject_date is null`, because a departure is a subject in
-    // its own right and a booking's date can change under it.
+    // its own right and a booking's date can change under it. `move_seq`
+    // rides alongside the date: a booking moved back onto a date it already
+    // left is a different visit, not the same claim.
     return row.subjectDate === null
       ? `booking:${row.kind}:${row.recipient}:${row.bookingId}`
-      : `booking-date:${row.kind}:${row.recipient}:${row.bookingId}:${row.subjectDate}`;
+      : `booking-date:${row.kind}:${row.recipient}:${row.bookingId}:${row.subjectDate}:${row.moveSeq}`;
   }
   if (row.quoteId !== null) {
     // message_log_quote_kind_key — one row per send of a quote, the send named
@@ -100,6 +104,7 @@ const fakeDb = {
           bookingId: text(values.bookingId),
           tourRequestId: text(values.tourRequestId),
           subjectDate: text(values.subjectDate),
+          moveSeq: typeof values.moveSeq === "number" ? values.moveSeq : null,
           quoteId: text(values.quoteId),
           quoteSentAt:
             values.quoteSentAt instanceof Date ? values.quoteSentAt.toISOString() : null,
@@ -182,13 +187,14 @@ const MESSAGE = {
 };
 
 /** The dispatcher's reminder for one morning — the only date-bound send today. */
-const reminder = (subjectDate: string) =>
+const reminder = (subjectDate: string, moveSeq = 0) =>
   ({
     kind: "day-before-reminder",
     recipient: "guest",
     bookingId: BOOKING,
     tourRequestId: LEAD,
     subjectDate,
+    moveSeq,
   }) as const;
 
 beforeEach(() => {
@@ -219,6 +225,7 @@ describe("sendLoggedEmail", () => {
       // Null, not absent: it is what puts this row under the booking-shaped
       // index rather than the date-bound one.
       subjectDate: null,
+      moveSeq: null,
       quoteId: null,
       quoteSentAt: null,
       quotePaymentId: null,
@@ -305,22 +312,21 @@ describe("sendLoggedEmail", () => {
  */
 describe("a booking whose date changes", () => {
   it("is reminded again for the new date, and never twice for either", async () => {
-    expect(await sendLoggedEmail(reminder("2026-08-15"), MESSAGE)).toMatchObject({
+    expect(await sendLoggedEmail(reminder("2026-08-15", 0), MESSAGE)).toMatchObject({
       status: "sent",
     });
 
     // The dispatcher asks every morning; the answer for a date already done is
     // no, whether it is asked once more or ten times.
-    expect(await sendLoggedEmail(reminder("2026-08-15"), MESSAGE)).toEqual({
+    expect(await sendLoggedEmail(reminder("2026-08-15", 0), MESSAGE)).toEqual({
       status: "duplicate",
     });
 
-    // Moved to the 22nd. Same booking, same kind, same recipient — a different
-    // departure, so a message that has not been sent.
-    expect(await sendLoggedEmail(reminder("2026-08-22"), MESSAGE)).toMatchObject({
+    // Moved to the 22nd — a real move, so a new move-seq as well as a new date.
+    expect(await sendLoggedEmail(reminder("2026-08-22", 1), MESSAGE)).toMatchObject({
       status: "sent",
     });
-    expect(await sendLoggedEmail(reminder("2026-08-22"), MESSAGE)).toEqual({
+    expect(await sendLoggedEmail(reminder("2026-08-22", 1), MESSAGE)).toEqual({
       status: "duplicate",
     });
 
@@ -329,25 +335,27 @@ describe("a booking whose date changes", () => {
   });
 
   it("is told about each move, and not told twice about the same one", async () => {
-    const moved = (subjectDate: string) =>
+    const moved = (subjectDate: string, moveSeq: number) =>
       ({
         kind: "booking-moved",
         recipient: "guest",
         bookingId: BOOKING,
         tourRequestId: LEAD,
         subjectDate,
+        moveSeq,
       }) as const;
 
-    expect(await sendLoggedEmail(moved("2026-08-22"), MESSAGE)).toMatchObject({
+    expect(await sendLoggedEmail(moved("2026-08-22", 1), MESSAGE)).toMatchObject({
       status: "sent",
     });
-    // The operator presses the button twice, or the action is retried.
-    expect(await sendLoggedEmail(moved("2026-08-22"), MESSAGE)).toEqual({
+    // The operator presses the button twice, or the action is retried — the
+    // same move, so the same move-seq.
+    expect(await sendLoggedEmail(moved("2026-08-22", 1), MESSAGE)).toEqual({
       status: "duplicate",
     });
-    // The forecast turns again: a real second move, and a guest who has to hear
-    // about it.
-    expect(await sendLoggedEmail(moved("2026-08-29"), MESSAGE)).toMatchObject({
+    // The forecast turns again: a real second move, a new move-seq even though
+    // it lands on a different date.
+    expect(await sendLoggedEmail(moved("2026-08-29", 2), MESSAGE)).toMatchObject({
       status: "sent",
     });
 
@@ -356,16 +364,59 @@ describe("a booking whose date changes", () => {
 
   it("keeps a date-bound send retryable after a failure on that same date", async () => {
     sendEmail.mockResolvedValue({ sent: false, reason: "failed" });
-    expect(await sendLoggedEmail(reminder("2026-08-15"), MESSAGE)).toMatchObject({
+    expect(await sendLoggedEmail(reminder("2026-08-15", 0), MESSAGE)).toMatchObject({
       status: "failed",
     });
 
     // A failed reminder is a reminder the guest did not get: tomorrow's run of
     // the dispatcher must be free to try the same morning again.
     sendEmail.mockResolvedValue({ sent: true, id: "re_2" });
-    expect(await sendLoggedEmail(reminder("2026-08-15"), MESSAGE)).toMatchObject({
+    expect(await sendLoggedEmail(reminder("2026-08-15", 0), MESSAGE)).toMatchObject({
       status: "sent",
     });
+  });
+
+  /**
+   * The compounding case AGORA's review found: Saturday is a write-off, Diogo
+   * moves the booking to the following Saturday, then the forecast improves
+   * and it goes back to the original date — both calls made on the eve of
+   * departure, exactly when the day-before reminder for the original date has
+   * already gone out (info PDF §1.4).
+   */
+  it("earns a fresh move notice and a fresh reminder when it comes back to a date already visited", async () => {
+    const moved = (subjectDate: string, moveSeq: number) =>
+      ({
+        kind: "booking-moved",
+        recipient: "guest",
+        bookingId: BOOKING,
+        tourRequestId: LEAD,
+        subjectDate,
+        moveSeq,
+      }) as const;
+
+    // X → A: the reminder for A already went out, at move-seq 1.
+    expect(await sendLoggedEmail(reminder("2026-08-22", 1), MESSAGE)).toMatchObject({
+      status: "sent",
+    });
+
+    // A → B: the forecast turns, move-seq 2.
+    expect(await sendLoggedEmail(moved("2026-08-29", 2), MESSAGE)).toMatchObject({
+      status: "sent",
+    });
+
+    // B → A: back to the original date, move-seq 3 — a real, distinct move,
+    // so it must not find move-seq 1's claim on the 22nd still standing.
+    expect(await sendLoggedEmail(moved("2026-08-22", 3), MESSAGE)).toMatchObject({
+      status: "sent",
+    });
+
+    // And the reminder is owed again too: the dispatcher must not stay silent
+    // about the 22nd because move-seq 1 already claimed that date once.
+    expect(await sendLoggedEmail(reminder("2026-08-22", 3), MESSAGE)).toMatchObject({
+      status: "sent",
+    });
+
+    expect(sendEmail).toHaveBeenCalledTimes(4);
   });
 });
 

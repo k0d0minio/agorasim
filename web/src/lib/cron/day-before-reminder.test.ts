@@ -10,18 +10,19 @@ import type { LoggedSend, MessageSubject } from "@/lib/message-log";
  * catalogue that names the tour.
  *
  * The fake log keys a claim exactly as the date-bound index does —
- * kind, recipient, booking, date — and releases it when a send fails, so
- * "a rerun sends nothing", "a moved booking is reminded again" and "a failed
- * send is retried" are answered here the way Postgres would answer them. That
- * the index itself exists is `message-log.test.ts`'s and the migration's
- * business; what this file proves is that the job claims under the right key
- * on both mornings.
+ * kind, recipient, booking, date, move-seq — and releases it when a send
+ * fails, so "a rerun sends nothing", "a moved booking is reminded again", "a
+ * booking that flip-flops back to an already-claimed date is reminded again
+ * too" and "a failed send is retried" are answered here the way Postgres
+ * would answer them. That the index itself exists is `message-log.test.ts`'s
+ * and the migration's business; what this file proves is that the job claims
+ * under the right key on both mornings.
  */
 
 /** The confirmed bookings each day holds, as `confirmedBookingsOn` returns them. */
 let bookingsByDate: Record<string, BookingToRemind[]> = {};
 
-/** Claimed `(kind, recipient, booking, date)` keys — the unique index. */
+/** Claimed `(kind, recipient, booking, date, move-seq)` keys — the unique index. */
 let claims = new Set<string>();
 /** Every message that reached the provider, in order. */
 let delivered: { subject: MessageSubject; message: EmailMessage }[] = [];
@@ -33,7 +34,7 @@ let throwFor = new Set<string>();
 let unreadable = new Set<string>();
 
 const claimKey = (subject: MessageSubject) =>
-  `${subject.kind}:${subject.recipient}:${subject.bookingId}:${subject.subjectDate}`;
+  `${subject.kind}:${subject.recipient}:${subject.bookingId}:${subject.subjectDate}:${subject.moveSeq}`;
 
 vi.mock("@/lib/bookings", async () => {
   const actual = await vi.importActual<typeof import("@/lib/bookings")>("@/lib/bookings");
@@ -100,6 +101,7 @@ function booking(overrides: Partial<BookingToRemind> = {}): BookingToRemind {
     email: `guest${serial}@example.com`,
     locale: "pt",
     date: TOMORROW,
+    moveSeq: 0,
     experienceSlug: "rural-saloia",
     slot: "morning",
     mode: "public",
@@ -119,8 +121,8 @@ function seed(...rows: BookingToRemind[]) {
 }
 
 /** A reminder an earlier run already sent for this booking on this date. */
-function alreadyReminded(row: BookingToRemind, date = row.date) {
-  claims.add(`day-before-reminder:guest:${row.id}:${date}`);
+function alreadyReminded(row: BookingToRemind, date = row.date, moveSeq = row.moveSeq) {
+  claims.add(`day-before-reminder:guest:${row.id}:${date}:${moveSeq}`);
 }
 
 beforeEach(() => {
@@ -223,15 +225,35 @@ describe("dayBeforeReminder", () => {
   });
 
   it("reminds a moved booking again for its new date", async () => {
-    // Reminded yesterday for the 14th, then moved to the 15th by the weather.
-    const moved = booking({ date: TOMORROW });
-    alreadyReminded(moved, TODAY);
+    // Reminded yesterday for the 14th, at move-seq 0, then moved to the 15th
+    // by the weather — move-seq 1.
+    const moved = booking({ date: TOMORROW, moveSeq: 1 });
+    alreadyReminded(moved, TODAY, 0);
     seed(moved);
 
     await dayBeforeReminder(NOW);
 
     expect(delivered).toHaveLength(1);
     expect(delivered[0].subject.subjectDate).toBe(TOMORROW);
+  });
+
+  /**
+   * The compounding case the review found: a booking moved away and back on
+   * the eve of departure earns a fresh reminder even though the date it
+   * lands on already has a claim, because that claim belongs to an earlier
+   * visit (`lib/booking-move.ts` → `bookings.moveSeq`).
+   */
+  it("reminds again when a booking flip-flops back to a date already reminded", async () => {
+    // Reminded for tomorrow at move-seq 0, then moved away and back — two
+    // real moves — landing on the same date at move-seq 2.
+    const flippedBack = booking({ date: TOMORROW, moveSeq: 2 });
+    alreadyReminded(flippedBack, TOMORROW, 0);
+    seed(flippedBack);
+
+    await dayBeforeReminder(NOW);
+
+    expect(delivered).toHaveLength(1);
+    expect(delivered[0].subject).toMatchObject({ subjectDate: TOMORROW, moveSeq: 2 });
   });
 
   it("retries a failed send on the next run", async () => {
