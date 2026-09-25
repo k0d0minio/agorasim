@@ -11,6 +11,11 @@
 > Cut for the night of 2026-09-11; the transfer had not run by 2026-09-18 (`agorasim.pt` still
 > answers from Amen's nameservers and the old WordPress host). PR #100 carries the committed
 > pre-transfer snapshot and the fixed diff tool; the runbook's Track T is unchanged. Slug kept.
+>
+> Re-dated 2026-09-25 (Jamie, `/day`): still open, no night fixed yet. Live DNS 2026-09-25:
+> NS `ns1/ns2.vercel-dns.com`, MX still Google, apex A still `130.185.83.150` — the
+> nameservers have moved (to Vercel DNS, not the registrar's zone this stub plans); whether the
+> registrar transfer and the registrant change have run is unverified.
 
 ## Problem
 
