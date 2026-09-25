@@ -11,6 +11,7 @@ stops, so nothing is carried in anyone's head.
 
 ## Blockers
 
+- Vercel preview is red from `main`, not from this run: migration `0031_add_booking_move_seq` is skipped on the UAT database (0032 applied first). Build's ready-flip preview will fail the same way until a lane on `main` fixes it — see `02_define/output/error.log`.
 - blocked on operator: tick **Spec approved** in the body of https://github.com/k0d0minio/agorasim/pull/153
 
 ## Do not

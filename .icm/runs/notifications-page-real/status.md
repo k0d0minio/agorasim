@@ -5,6 +5,6 @@ flips. A resuming session reads this first, then `handoff.md` (`_shared/stage-pr
 
 - phase: define
 - step: 7 (stopped — awaiting Spec approved)
-- ci: none yet
+- ci: RED — Vercel preview, inherited from main (migration 0031 skipped on the UAT database; see 02_define/output/error.log)
 - blocked: no
 - updated: 2026-09-25
