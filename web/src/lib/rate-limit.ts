@@ -1,21 +1,24 @@
 /**
  * Minimal per-key rate limiting (fixed window).
  *
- * Used to throttle the two unauthenticated entry points into the app: the admin
- * login form and the public tour-request form. Both key on the caller's IP.
+ * Used to throttle the admin login form and five public entry points (tour
+ * requests, cancellation/quote link lookups and their actions, the opt-out
+ * endpoints). All key on the caller's IP.
  *
- * **Storage.** There is no shared store in this deployment today — no Vercel KV,
- * no Upstash Redis, no Redis add-on — so the default implementation keeps
- * counters in module memory. That is per-instance and resets on cold start, so
- * on a serverless platform it throttles a burst from one attacker hitting one
- * instance but not a slow attack spread across instances. It is deliberately
- * hidden behind {@link RateLimitStore}: when a real store is provisioned, add an
- * implementation of that interface (one `hit` method) and swap the value of
- * {@link rateLimitStore} — no caller changes.
+ * **Storage.** {@link rateLimitStore} backs onto the `rate_limit_windows` Neon
+ * table ({@link createNeonRateLimitStore}) whenever `DATABASE_URL` is set, so a
+ * count is shared across every instance; where it isn't (local dev with no
+ * database configured) it falls back to {@link createMemoryRateLimitStore},
+ * which counts per-instance and resets on cold start. Both implement the same
+ * {@link RateLimitStore} interface (one `hit` method), so no caller changes
+ * with the store behind it.
  *
  * Keep this module free of `next/*` imports so it stays unit-testable; the
  * request-bound part (reading the client IP) lives in `request-ip.ts`.
  */
+
+import { sql } from "drizzle-orm";
+import { db } from "@/db";
 
 export type RateLimitDecision = {
   /** False when the caller has exhausted its allowance for the window. */
@@ -90,14 +93,73 @@ export function createMemoryRateLimitStore(
 }
 
 /**
- * Process-wide store used by the server actions. Swap this for a KV/Redis-backed
- * {@link RateLimitStore} once one is available in the deployment.
+ * Neon-backed store: one row per key in `rate_limit_windows`, incremented with
+ * a single upserting statement so concurrent instances hitting the same key
+ * still count correctly (the row lock inside the `ON CONFLICT` update is what
+ * makes the increment atomic — there is no read-then-write race).
+ *
+ * Expiry is opportunistic rather than scheduled: each hit has a small chance
+ * of also sweeping windows that closed a while ago, so the table stays small
+ * without a cron. `db` defaults to the shared client but takes an override so
+ * tests can pass a fake.
  */
-export const rateLimitStore: RateLimitStore = createMemoryRateLimitStore();
+export function createNeonRateLimitStore(
+  database: Pick<typeof db, "execute"> = db,
+): RateLimitStore {
+  return {
+    async hit(key, { limit, windowSeconds }) {
+      const result = await database.execute<{ count: number; reset_at: string }>(sql`
+        insert into rate_limit_windows (key, count, reset_at)
+        values (${key}, 1, now() + (${windowSeconds}::text || ' seconds')::interval)
+        on conflict (key) do update set
+          count = case
+            when rate_limit_windows.reset_at <= now() then 1
+            else rate_limit_windows.count + 1
+          end,
+          reset_at = case
+            when rate_limit_windows.reset_at <= now() then excluded.reset_at
+            else rate_limit_windows.reset_at
+          end
+        returning count, reset_at
+      `);
+      const row = result.rows[0];
+      const resetAt = new Date(row.reset_at).getTime();
+      const retryAfterSeconds = Math.max(0, Math.ceil((resetAt - Date.now()) / 1000));
 
-/** Admin login: 8 attempts per IP per 15 minutes. */
+      // ~1 in 200 hits also sweeps windows that closed over a day ago — cheap
+      // enough to run inline, and frequent enough that nothing accumulates.
+      if (Math.random() < 0.005) {
+        await database.execute(
+          sql`delete from rate_limit_windows where reset_at < now() - interval '1 day'`,
+        );
+      }
+
+      return {
+        allowed: row.count <= limit,
+        remaining: Math.max(0, limit - row.count),
+        retryAfterSeconds,
+      };
+    },
+  };
+}
+
+/**
+ * Process-wide store used by the server actions: the Neon-backed store once a
+ * database is configured, the in-memory one otherwise (local dev with no
+ * `DATABASE_URL`). Read once at module load — `DATABASE_URL`'s presence is
+ * deployment configuration, not something that changes mid-process.
+ */
+export const rateLimitStore: RateLimitStore = process.env.DATABASE_URL
+  ? createNeonRateLimitStore()
+  : createMemoryRateLimitStore();
+
+/**
+ * Admin login: 5 attempts per IP per 15 minutes — tighter than the 8 this
+ * repo started with, now that the count survives across instances instead of
+ * resetting on the next cold start.
+ */
 export const LOGIN_RATE_LIMIT: RateLimitRule = {
-  limit: 8,
+  limit: 5,
   windowSeconds: 15 * 60,
 };
 

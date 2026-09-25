@@ -232,6 +232,13 @@
       "when": 1790338972837,
       "tag": "0032_add_booking_move_seq",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790355532770,
+      "tag": "0033_rate_limit_windows",
+      "breakpoints": true
     }
   ]
 }
