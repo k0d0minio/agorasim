@@ -252,7 +252,8 @@ export type LoggedSend =
  * link as they are built, which retires the previous one: built before the
  * claim, a run that then lost it would already have killed the link the
  * winner is mailing. Resolve to `null` to stand down — the claim is released
- * and the send reported as a `duplicate`.
+ * and the send reported as a `duplicate`. When the claim cannot be written at
+ * all (the log is unreachable) it is never built, and the send is `failed`.
  */
 export type ClaimedMessage = () => Promise<EmailMessage | null>;
 
@@ -284,6 +285,12 @@ export async function sendLoggedEmail(
 
   const claim = await claimSend(subject);
   if (claim === "duplicate") return { status: "duplicate" };
+  // A message whose making has a side effect is made only under a claim. The
+  // unlogged send below is for mail downstream of something that already
+  // happened (a payment); a scheduler that cannot claim tries again tomorrow.
+  if (claim === null && typeof content === "function") {
+    return { status: "failed", reason: "failed" };
+  }
 
   let message: EmailMessage | null;
   try {

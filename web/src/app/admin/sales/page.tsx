@@ -6,9 +6,9 @@ import { formatDay, todayKey } from "@/lib/availability";
 import { balanceMessagesLabel, eventWhenLabel } from "@/lib/balance-schedule";
 import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
 import { listOpenDepartures } from "@/lib/manual-booking";
-import { listQuoteBalanceMessages } from "@/lib/message-log";
+import { listQuoteBalanceMessages, type QuoteBalanceMessage } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
-import { listUnpaidBalancesDue, quoteRef } from "@/lib/quotes";
+import { listUnpaidBalancesDue, quoteRef, type UnpaidBalance } from "@/lib/quotes";
 import { countPendingRetention, retentionDays } from "@/lib/retention";
 import { listSalesBoard } from "@/lib/sales";
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -62,8 +62,15 @@ export default async function AdminSalesPage({
       // The picker behind every card's "Registar reserva": one read for the
       // whole board, shared by all of them. See `lib/manual-booking.ts`.
       listOpenDepartures(),
-      // "Saldo por pagar" — the T−3 flag, computed on every render.
-      listUnpaidBalancesDue({ now }),
+      // "Saldo por pagar" — the T−3 flag, computed on every render of the
+      // board (a search hides it). A panel that cannot be read is left out
+      // rather than taking the board down with it.
+      query
+        ? Promise.resolve<UnpaidBalance[]>([])
+        : listUnpaidBalancesDue({ now }).catch((err): UnpaidBalance[] => {
+            console.error("[sales] unpaid balances could not be read", err);
+            return [];
+          }),
     ]);
 
   const [lastChanged, pendingRetention, balanceMessages] = await Promise.all([
@@ -73,7 +80,10 @@ export default async function AdminSalesPage({
       records.map((record) => record.id),
     ),
     countPendingRetention(),
-    listQuoteBalanceMessages(unpaid.map(({ quote }) => quote.id)),
+    listQuoteBalanceMessages(unpaid.map(({ quote }) => quote.id)).catch((err) => {
+      console.error("[sales] balance messages could not be read", err);
+      return new Map<string, QuoteBalanceMessage[]>();
+    }),
   ]);
 
   const today = todayKey(now);

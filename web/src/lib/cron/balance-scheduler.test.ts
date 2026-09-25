@@ -156,8 +156,10 @@ vi.mock("@/lib/quote-token", async () => {
 });
 
 const captureError = vi.fn();
+const captureAlert = vi.fn();
 vi.mock("@/lib/observability", () => ({
   captureError: (...args: unknown[]) => captureError(...args),
+  captureAlert: (...args: unknown[]) => captureAlert(...args),
 }));
 
 const register = vi.fn();
@@ -242,6 +244,7 @@ beforeEach(() => {
   tokensConfigured = true;
   minted = 0;
   captureError.mockReset();
+  captureAlert.mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -343,6 +346,9 @@ describe("the T−7 reminder", () => {
     expect(linkIn(delivered[1].message)).toBe("token-2");
     expect(digestOf(id)).toBe("digest-2");
     expect(delivered[1].message.subject).toMatch(/^Lembrete: /);
+    // The request states the T−14 due date; the reminder, a week past it, does not.
+    expect(delivered[0].message.text).toContain("Pagar até:");
+    expect(delivered[1].message.text).not.toContain("Pagar até");
   });
 
   it("chases a couple who opened Checkout and left — the balance is issued, not paid", async () => {
@@ -440,9 +446,12 @@ describe("the link and the claim", () => {
 
     emailConfigured = false;
     expect((await runAt(morning(14))).summary).toMatch(/^not run/);
+    expect(captureAlert).not.toHaveBeenCalled();
     emailConfigured = true;
     tokensConfigured = false;
     expect((await runAt(morning(14))).summary).toMatch(/^not run/);
+    // A missing token secret stops only this job's contracted collection, so it alerts.
+    expect(captureAlert).toHaveBeenCalledOnce();
 
     expect(delivered).toEqual([]);
     expect(log).toEqual([]);

@@ -1483,8 +1483,12 @@ export type BalanceEmailFacts = {
   venue: string | null;
   /** The balance, formatted. */
   amount: string;
-  /** The day it falls due, formatted. */
-  dueDate: string;
+  /**
+   * The day it falls due, formatted — or `null` once that day is behind the
+   * couple (the T−7 reminder, a request after a late deposit), when the row is
+   * left out rather than printed as an overdue date.
+   */
+  dueDate: string | null;
   /**
    * The quote page, absolute, carrying the token the scheduler minted for this
    * very email — the only place that plaintext will ever be (`lib/quote-token.ts`).
@@ -1510,7 +1514,7 @@ export function guestBalanceEmail(facts: BalanceEmailFacts): EmailMessage {
     name: facts.guestName,
     date: facts.date,
     amount: facts.amount,
-    due: facts.dueDate,
+    due: facts.dueDate ?? "",
   };
 
   const subject = fill(t(c.subject[stage], l), values);
@@ -1521,7 +1525,7 @@ export function guestBalanceEmail(facts: BalanceEmailFacts): EmailMessage {
     { label: t(c.labels.date, l), value: facts.date },
     ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
     { label: t(c.labels.balance, l), value: facts.amount, emphasis: true },
-    { label: t(c.labels.due, l), value: facts.dueDate },
+    ...(facts.dueDate ? [{ label: t(c.labels.due, l), value: facts.dueDate }] : []),
   ];
 
   const text = textLines([
@@ -1548,7 +1552,7 @@ export function guestBalanceEmail(facts: BalanceEmailFacts): EmailMessage {
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: fill(t(c.preheader, l), values),
+    preheader: facts.dueDate ? fill(t(c.preheader, l), values) : facts.amount,
     banner: { text: t(c.banner[stage], l) },
     content: [
       emailHeading(greeting),

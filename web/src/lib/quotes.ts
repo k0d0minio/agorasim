@@ -544,17 +544,24 @@ export async function listUpcomingQuotes(options: {
  *
  * `<=` rather than `=`, and that matters — a dispatcher that fails to run on a
  * Tuesday must still catch Tuesday's events on the Wednesday, rather than
- * leaving a couple's balance permanently unasked-for. Nothing is sent twice
- * because the filter is on `issued_at` being null, which the issuing write
- * sets; the date is only what brings the row into view.
+ * leaving a couple's balance permanently unasked-for. It stops at today: a
+ * balance still open after the party is the team's, on the Sales board, and
+ * past events left in view would crowd new ones out of the limit.
+ *
+ * The date only brings a row into view; it does not make the send once-only.
+ * That is the message log's claim (`balance-request`, keyed on the quote —
+ * `lib/cron/balance-scheduler.ts`), because the scheduler never stamps
+ * `issued_at`: the quote page does, when it mints the session (D25). A row
+ * with `issued_at` set is a couple already paying, and is left alone.
  */
 export async function listQuotesDueForBalance(options: {
   now?: Date;
   limit?: number;
 } = {}): Promise<{ quote: Quote; payment: QuotePayment }[]> {
   const { now = new Date(), limit = 100 } = options;
-  // Events at or inside T−14 — i.e. happening on or before today + 14 days.
-  const horizon = shiftDays(todayKey(now), BALANCE_DUE_DAYS_BEFORE);
+  const today = todayKey(now);
+  // Events at or inside T−14 — i.e. happening between today and today + 14 days.
+  const horizon = shiftDays(today, BALANCE_DUE_DAYS_BEFORE);
 
   const rows = await db
     .select({ quote: quotes, payment: quotePayments })
@@ -566,6 +573,7 @@ export async function listQuotesDueForBalance(options: {
         eq(quotePayments.kind, "balance"),
         eq(quotePayments.status, "pending"),
         isNull(quotePayments.issuedAt),
+        gte(quotes.eventDate, today),
         lte(quotes.eventDate, horizon),
       ),
     )

@@ -8,7 +8,7 @@
  * 1. **The request** — every quote `listQuotesDueForBalance` returns: deposit
  *    paid (by Stripe, or by transfer and written off — `statusAfterPayment`),
  *    the balance still `pending`, the event fourteen days away or fewer but
- *    not past. `<=` rather than `=`, so a missed morning and a deposit paid
+ *    not past (the query's floor; `isRequestInWindow` says it again). `<=` rather than `=`, so a missed morning and a deposit paid
  *    inside T−14 are caught on the next run.
  * 2. **The reminder** — every deposit-paid quote with the event seven days
  *    away or fewer, the balance still open, and a request that reached the
@@ -59,7 +59,7 @@ import {
   type QuoteBalanceMessage,
 } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
-import { captureError } from "@/lib/observability";
+import { captureAlert, captureError } from "@/lib/observability";
 import {
   balanceDueDate,
   listBalanceRecipients,
@@ -95,27 +95,25 @@ function summarise(stage: BalanceEmailStage, tally: BalanceTally): string {
 }
 
 /**
- * The message for one quote, built once its claim is won: mint a link, swap
- * its digest onto the quote, and write the email around it. `null` — the claim
- * is given back — when another run changed the link first.
+ * The message for one quote, built once its claim is won: mint a link, write
+ * the email around it, and only then swap the link's digest onto the quote —
+ * the last step, so nothing that can throw runs after the old link has been
+ * retired. `null` — the claim is given back — when another run changed the
+ * link first.
  */
 function buildBalanceEmail(
   stage: BalanceEmailStage,
   { quote, payment }: DueBalance,
   recipient: BalanceRecipient,
+  today: DateKey,
   now: Date,
 ) {
   return async () => {
     const link = await issueQuoteToken();
-    const rotated = await rotateQuoteLink(quote.id, {
-      expectedDigest: quote.accessTokenHash,
-      digest: link.digest,
-      now,
-    });
-    if (!rotated) return null;
-
     const locale = quote.locale;
-    return guestBalanceEmail({
+    const due = payment.dueDate ?? balanceDueDate(quote.eventDate);
+
+    const message = guestBalanceEmail({
       stage,
       ref: quoteRef(quote.id),
       guestName: recipient.name,
@@ -124,9 +122,18 @@ function buildBalanceEmail(
       date: formatDay(quote.eventDate, locale),
       venue: quote.venue,
       amount: formatPrice(payment.amountCents, locale, payment.currency),
-      dueDate: formatDay(payment.dueDate ?? balanceDueDate(quote.eventDate), locale),
+      // A due date already behind them (the reminder, a late deposit's
+      // request) reads as "overdue" or as a mistake; the event date says when.
+      dueDate: due >= today ? formatDay(due, locale) : null,
       quoteUrl: `${siteUrl()}${quotePath(locale, link.token)}`,
     });
+
+    const rotated = await rotateQuoteLink(quote.id, {
+      expectedDigest: quote.accessTokenHash,
+      digest: link.digest,
+      now,
+    });
+    return rotated ? message : null;
   };
 }
 
@@ -135,6 +142,7 @@ async function sendPass(
   stage: BalanceEmailStage,
   due: DueBalance[],
   messages: Map<string, QuoteBalanceMessage[]>,
+  today: DateKey,
   now: Date,
 ): Promise<BalanceTally> {
   const tally = emptyTally();
@@ -166,7 +174,7 @@ async function sendPass(
     try {
       const result = await sendLoggedEmail(
         { kind, recipient: "guest", tourRequestId: recipient.id, quoteId: quote.id },
-        buildBalanceEmail(stage, row, recipient, now),
+        buildBalanceEmail(stage, row, recipient, today, now),
       );
 
       switch (result.status) {
@@ -200,7 +208,7 @@ async function requestPass(now: Date, today: DateKey): Promise<BalanceTally> {
     ({ quote, payment }) => isBalanceOpen(payment) && isRequestInWindow(quote.eventDate, today),
   );
   const messages = await listQuoteBalanceMessages(due.map(({ quote }) => quote.id));
-  return sendPass("request", due, messages, now);
+  return sendPass("request", due, messages, today, now);
 }
 
 /** T−7: the quotes still unpaid a week out whose request reached them in time. */
@@ -216,7 +224,7 @@ async function reminderPass(now: Date, today: DateKey): Promise<BalanceTally> {
       requestSentAt: balanceMessageSentAt(messages.get(quote.id), "balance-request"),
     }),
   );
-  return sendPass("reminder", due, messages, now);
+  return sendPass("reminder", due, messages, today, now);
 }
 
 /**
@@ -242,11 +250,19 @@ async function runPass(
  * nothing, claims nothing and rotates nothing — and says so.
  */
 export async function balanceScheduler(now: Date = new Date()): Promise<CronJobResult> {
-  if (!isEmailConfigured() || !isQuoteTokenConfigured()) {
-    return {
-      name: BALANCE_SCHEDULER_JOB,
-      summary: "not run — email or quote links are not configured",
-    };
+  if (!isQuoteTokenConfigured()) {
+    // Unlike a missing mail key, which every mailing job shares and reports,
+    // this one stops only the contracted T−14 collection — so it is said
+    // somewhere a person reads, not only in the dispatcher's audit row.
+    console.error("[balance] BOOKING_TOKEN_SECRET is not set — no balance asked for");
+    captureAlert("BOOKING_TOKEN_SECRET is not set — the balance job sent nothing", {
+      area: "cron",
+      tags: { job: BALANCE_SCHEDULER_JOB },
+    });
+    return { name: BALANCE_SCHEDULER_JOB, summary: "not run — quote links are not configured" };
+  }
+  if (!isEmailConfigured()) {
+    return { name: BALANCE_SCHEDULER_JOB, summary: "not run — email is not configured" };
   }
 
   const today = todayKey(now);

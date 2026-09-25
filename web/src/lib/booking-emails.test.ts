@@ -1431,4 +1431,13 @@ describe("guestBalanceEmail", () => {
 
     expect(mail.text).not.toContain("Local:");
   });
+
+  it("prints no due date once it is behind the couple — the reminder, a late request", () => {
+    const mail = guestBalanceEmail(balanceFacts({ stage: "reminder", dueDate: null }));
+
+    expect(mail.text).not.toContain("Pagar até");
+    expect(mail.text).toContain("1134 €");
+    expect(mail.text).toContain(QUOTE_URL);
+    expect(mail.text).not.toMatch(/\{\w+\}/);
+  });
 });

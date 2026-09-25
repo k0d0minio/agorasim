@@ -739,6 +739,17 @@ describe("the balance kinds, built once the claim is won", () => {
     expect(rows).toEqual([]);
   });
 
+  it("never builds without a claim — an unreachable log fails the send instead", async () => {
+    claimError = new Error("connection timeout");
+    const build = vi.fn(async () => MESSAGE);
+
+    expect(await sendLoggedEmail(balance("balance-request"), build)).toMatchObject({
+      status: "failed",
+    });
+    expect(build).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
   it("does not claim at all when mail is not configured", async () => {
     configured = false;
     const build = vi.fn(async () => MESSAGE);
