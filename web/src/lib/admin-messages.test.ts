@@ -5,6 +5,7 @@ import { messageKindEnum } from "@/db/schema";
 import {
   MESSAGE_CARDS,
   STUCK_AFTER_MS,
+  attentionRows,
   groupByLisbonDay,
   lisbonDayKey,
   lisbonTime,
@@ -111,6 +112,93 @@ describe("needsAttention", () => {
       false,
     );
     expect(needsAttention(row({ status: "sent" }), NOW)).toBe(false);
+  });
+});
+
+describe("attentionRows", () => {
+  it("drops a failed row once a later send under the same booking and kind went out", () => {
+    const failed = row({
+      kind: "booking-confirmation",
+      bookingId: "b1",
+      status: "failed",
+      sentAt: null,
+    });
+    const retried = row({ kind: "booking-confirmation", bookingId: "b1", status: "sent" });
+    expect(attentionRows([failed, retried], NOW)).toEqual([]);
+  });
+
+  it("keeps a failed row with no later send under its key", () => {
+    const failed = row({
+      kind: "booking-confirmation",
+      bookingId: "b1",
+      status: "failed",
+      sentAt: null,
+    });
+    const other = row({ kind: "booking-confirmation", bookingId: "b2", status: "sent" });
+    expect(attentionRows([failed, other], NOW)).toEqual([failed]);
+  });
+
+  it("does not let a sent row for a different move-seq hide a date-bound failure", () => {
+    const failed = row({
+      kind: "day-before-reminder",
+      bookingId: "b1",
+      subjectDate: "2026-09-30",
+      moveSeq: 0,
+      status: "failed",
+      sentAt: null,
+    });
+    const laterMove = row({
+      kind: "day-before-reminder",
+      bookingId: "b1",
+      subjectDate: "2026-10-02",
+      moveSeq: 1,
+      status: "sent",
+    });
+    expect(attentionRows([failed, laterMove], NOW)).toEqual([failed]);
+  });
+
+  it("matches a quote-sent retry only on the same send (kind, quote and quote-sent-at)", () => {
+    const sentAtV1 = new Date("2026-09-20T10:00:00Z");
+    const failedV1 = row({
+      kind: "quote-sent",
+      bookingId: null,
+      quoteId: "q1",
+      quoteSentAt: sentAtV1,
+      status: "failed",
+      sentAt: null,
+    });
+    const resendV2 = row({
+      kind: "quote-sent",
+      bookingId: null,
+      quoteId: "q1",
+      quoteSentAt: new Date("2026-09-21T10:00:00Z"),
+      status: "sent",
+    });
+    // A new version's link is a different send — it says nothing about whether
+    // the couple ever got the first one.
+    expect(attentionRows([failedV1, resendV2], NOW)).toEqual([failedV1]);
+
+    const retryV1 = row({
+      kind: "quote-sent",
+      bookingId: null,
+      quoteId: "q1",
+      quoteSentAt: sentAtV1,
+      status: "sent",
+    });
+    expect(attentionRows([failedV1, retryV1], NOW)).toEqual([]);
+  });
+
+  it("never treats a stuck, unconfirmed send as superseded", () => {
+    const stuck = new Date(NOW.getTime() - 2 * STUCK_AFTER_MS);
+    const unconfirmed = row({
+      kind: "booking-confirmation",
+      bookingId: "b1",
+      status: "sending",
+      sentAt: null,
+      createdAt: stuck,
+    });
+    const retried = row({ kind: "booking-confirmation", bookingId: "b1", status: "sent" });
+    expect(attentionRows([unconfirmed, retried], NOW)).toEqual([unconfirmed]);
   });
 });
 
