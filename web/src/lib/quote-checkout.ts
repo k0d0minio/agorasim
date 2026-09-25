@@ -374,7 +374,7 @@ async function delayedPaymentFailed(session: Stripe.Checkout.Session): Promise<b
  * paying a moment ago — so a refusal is answered by reading it back: the
  * caller then records the payment instead of minting a second one.
  */
-async function expireSession(id: string): Promise<Stripe.Checkout.Session | null> {
+export async function expireSession(id: string): Promise<Stripe.Checkout.Session | null> {
   try {
     return await onOwningAccount((account) =>
       stripe().checkout.sessions.expire(id, undefined, account),
