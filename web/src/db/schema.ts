@@ -510,6 +510,25 @@ export const auditLog = pgTable("audit_log", {
 export type AuditLogEntry = typeof auditLog.$inferSelect;
 export type NewAuditLogEntry = typeof auditLog.$inferInsert;
 
+/**
+ * Backs `RateLimitStore` (`lib/rate-limit.ts`) across serverless instances. One
+ * row per fixed-window key (`<rule>:<ip>`); `resetAt` is when the window rolls
+ * over. Expiry is opportunistic — a hit sometimes sweeps rows whose window
+ * closed a while ago — so there is no cron and no unbounded growth from one-off
+ * callers.
+ */
+export const rateLimitWindows = pgTable("rate_limit_windows", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull(),
+  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+}, (table) => [
+  // The sweep deletes by age; nothing else queries this table by key range.
+  index("rate_limit_windows_reset_at_idx").on(table.resetAt),
+]);
+
+export type RateLimitWindow = typeof rateLimitWindows.$inferSelect;
+export type NewRateLimitWindow = typeof rateLimitWindows.$inferInsert;
+
 // ---------------------------------------------------------------------------
 // Inbound leads
 // ---------------------------------------------------------------------------
