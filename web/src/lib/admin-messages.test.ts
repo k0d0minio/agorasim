@@ -52,12 +52,12 @@ describe("messageKindLabel", () => {
 });
 
 describe("MESSAGE_CARDS", () => {
-  it("has one card for each of the ten kinds with a sender, and none for the balance kinds", () => {
+  it("has one card for each of the twelve kinds with a sender, the balance kinds included", () => {
     const kinds = MESSAGE_CARDS.map((card) => card.kind);
-    expect(kinds).toHaveLength(10);
-    expect(new Set(kinds).size).toBe(10);
-    expect(kinds).not.toContain("balance-request");
-    expect(kinds).not.toContain("balance-reminder");
+    expect(kinds).toHaveLength(12);
+    expect(new Set(kinds).size).toBe(12);
+    expect(kinds).toContain("balance-request");
+    expect(kinds).toContain("balance-reminder");
   });
 
   it("says when and to whom for every card, without SMS or an exclamation mark", () => {

@@ -1,0 +1,6 @@
+## 2026-09-25T12:44:00Z ci Quality (advisory) — balance-scheduler.test.ts asserted fixed digests across tests
+FAIL src/lib/cron/balance-scheduler.test.ts > the link and the claim > skips a quote with no lead, no address or an anonymised lead — no claim, no new link
+AssertionError: expected 'original-digest-19' to be 'original-digest-1'
+FAIL src/lib/cron/balance-scheduler.test.ts > the link and the claim > does nothing at all where mail or quote links are not configured
+AssertionError: expected 'original-digest-22' to be 'original-digest-1'
+- resolved: the fixture counter `serial` was module-level and never reset, so seeded ids and digests depended on test order; `beforeEach` now resets it to 0 so each test's first quote is `original-digest-1`.

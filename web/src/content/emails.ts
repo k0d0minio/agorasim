@@ -707,6 +707,80 @@ export const bookingEmails = {
   },
 
   /**
+   * The balance, asked for — `balance-request` at T−14 and, if it is still
+   * unpaid, one `balance-reminder` at T−7 (`lib/cron/balance-scheduler.ts`).
+   *
+   * Each carries a fresh link to the quote page — the only way an email sent
+   * later can carry one, since only a digest of the token is kept — so each
+   * says that it replaces the earlier ones. The page takes the balance from
+   * its due date; the mail's job is to say how much, by when, and where.
+   *
+   * Ungendered Portuguese, as every guest line: see `guest.lead`.
+   */
+  balanceRequest: {
+    subject: {
+      request: {
+        pt: "O restante do seu evento — {date}",
+        en: "The balance for your event — {date}",
+      } as Localized,
+      reminder: {
+        pt: "Lembrete: o restante do seu evento — {date}",
+        en: "Reminder: the balance for your event — {date}",
+      } as Localized,
+    },
+    preheader: {
+      pt: "{amount} · até {due}",
+      en: "{amount} · due {due}",
+    } as Localized,
+    banner: {
+      request: { pt: "O restante", en: "Your balance" } as Localized,
+      reminder: { pt: "Lembrete de pagamento", en: "Payment reminder" } as Localized,
+    },
+    greeting: { pt: "Olá {name},", en: "Hello {name}," } as Localized,
+    lead: {
+      request: {
+        pt: "O seu evento está quase a chegar. Como combinado, o restante do valor é pago agora — pode fazê-lo na página do seu orçamento.",
+        en: "Your event is getting close. As agreed, the balance is paid now — you can pay it on your quote page.",
+      } as Localized,
+      reminder: {
+        pt: "Ainda não recebemos o pagamento do restante do seu evento. Pode pagá-lo na página do seu orçamento.",
+        en: "We have not yet received the balance for your event. You can pay it on your quote page.",
+      } as Localized,
+    },
+    detailsHeading: { pt: "Por pagar", en: "Still to pay" } as Localized,
+    labels: {
+      reference: { pt: "Referência", en: "Reference" } as Localized,
+      date: { pt: "Data do evento", en: "Event date" } as Localized,
+      venue: { pt: "Local", en: "Venue" } as Localized,
+      balance: { pt: "Restante", en: "Balance" } as Localized,
+      due: { pt: "Pagar até", en: "Due by" } as Localized,
+    },
+    cta: { pt: "Pagar o restante", en: "Pay the balance" } as Localized,
+    ctaTextLine: { pt: "Pagar o restante: {url}", en: "Pay the balance: {url}" } as Localized,
+    /** Every balance email mints a new link and retires the earlier ones. */
+    linkNote: {
+      pt: "Este link substitui os dos emails anteriores — use sempre o do email mais recente.",
+      en: "This link replaces the ones in our earlier emails — always use the most recent one.",
+    } as Localized,
+    alreadyPaid: {
+      pt: "Se já pagou por transferência, ignore este email — confirmamos consigo.",
+      en: "If you have already paid by bank transfer, please ignore this email — we will confirm it with you.",
+    } as Localized,
+    questions: {
+      pt: "Alguma dúvida? Responda a este email ou ligue-nos:",
+      en: "Any questions? Reply to this email or call us:",
+    } as Localized,
+    signoff: {
+      pt: "Até breve,\nDiogo e Rita\nAgorasim",
+      en: "See you soon,\nDiogo and Rita\nAgorasim",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque tem um evento marcado em {site}.",
+      en: "You are receiving this email because you have an event booked at {site}.",
+    } as Localized,
+  },
+
+  /**
    * The receipt a couple get when an instalment of their quote is paid —
    * `deposit-received` for the sinal, `balance-paid` for the rest.
    *
@@ -772,8 +846,8 @@ export const bookingEmails = {
     next: {
       title: { pt: "O que acontece a seguir", en: "What happens next" } as Localized,
       body: {
-        pt: "Enviamos-lhe o link para pagar o restante {days} dias antes do evento. O seu orçamento continua disponível no link do email em que o recebeu.",
-        en: "We will send you the link to pay the balance {days} days before the event. Your quote stays available at the link in the email you received it with.",
+        pt: "Enviamos-lhe o link para pagar o restante {days} dias antes do evento. Até lá, o seu orçamento continua disponível no link do email em que o recebeu.",
+        en: "We will send you the link to pay the balance {days} days before the event. Until then, your quote stays available at the link in the email you received it with.",
       } as Localized,
     },
     /** Heading over the events terms, reproduced verbatim below it. */

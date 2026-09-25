@@ -1463,6 +1463,132 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
   };
 }
 
+/** Which of the two balance emails — the T−14 request or the T−7 reminder. */
+export type BalanceEmailStage = "request" | "reminder";
+
+/**
+ * Everything a balance email needs, already formatted in the couple's language
+ * by the caller (`lib/cron/balance-scheduler.ts`) — this builder stays pure.
+ */
+export type BalanceEmailFacts = {
+  stage: BalanceEmailStage;
+  /** `QT-1A2B3C`. */
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  /** The quote's own language. */
+  locale: Locale;
+  /** The event day, formatted. */
+  date: string;
+  venue: string | null;
+  /** The balance, formatted. */
+  amount: string;
+  /**
+   * The day it falls due, formatted — or `null` once that day is behind the
+   * couple (the T−7 reminder, a request after a late deposit), when the row is
+   * left out rather than printed as an overdue date.
+   */
+  dueDate: string | null;
+  /**
+   * The quote page, absolute, carrying the token the scheduler minted for this
+   * very email — the only place that plaintext will ever be (`lib/quote-token.ts`).
+   */
+  quoteUrl: string;
+};
+
+/**
+ * The balance, asked for: the T−14 request, or the one T−7 reminder.
+ *
+ * Shaped like the quote email it follows — the facts table, one button, the
+ * phone numbers — and short, because it is a request for money the couple
+ * already agreed to, not a new offer. The link is the one action, and the note
+ * under it says this link replaces the earlier ones: each balance email mints
+ * its own, which retires the rest.
+ */
+export function guestBalanceEmail(facts: BalanceEmailFacts): EmailMessage {
+  const c = bookingEmails.balanceRequest;
+  const l = facts.locale;
+  const stage = facts.stage;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    date: facts.date,
+    amount: facts.amount,
+    due: facts.dueDate ?? "",
+  };
+
+  const subject = fill(t(c.subject[stage], l), values);
+  const greeting = fill(t(c.greeting, l), values);
+
+  const rows: DetailRow[] = [
+    { label: t(c.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(c.labels.date, l), value: facts.date },
+    ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
+    { label: t(c.labels.balance, l), value: facts.amount, emphasis: true },
+    ...(facts.dueDate ? [{ label: t(c.labels.due, l), value: facts.dueDate }] : []),
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    t(c.lead[stage], l),
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    // The URL on its own line, as the quote email's is.
+    fill(t(c.ctaTextLine, l), { url: facts.quoteUrl }),
+    t(c.linkNote, l),
+    "",
+    t(c.alreadyPaid, l),
+    "",
+    t(c.questions, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(c.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: facts.dueDate ? fill(t(c.preheader, l), values) : facts.amount,
+    banner: { text: t(c.banner[stage], l) },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(t(c.lead[stage], l), { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      emailSpacer(24),
+      emailButton({ label: t(c.cta, l), href: facts.quoteUrl }),
+      emailSpacer(12),
+      emailParagraph(t(c.linkNote, l), { muted: true, spaceBelow: 16 }),
+      emailParagraph(t(c.alreadyPaid, l), { muted: true, spaceBelow: 16 }),
+      emailParagraph(t(c.questions, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+  };
+}
+
 /** Which instalment a quote receipt is for — the two kinds the log keys apart. */
 export type QuoteReceiptInstalment = "deposit" | "balance";
 

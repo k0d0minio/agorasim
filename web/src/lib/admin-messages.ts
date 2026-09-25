@@ -54,9 +54,7 @@ export type MessageCard = { kind: MessageKind; when: string };
  * The kinds that have a sender today, in the order a guest meets them.
  *
  * Each "to whom" was read off the `recipient` at that kind's `sendLoggedEmail`
- * call. `balance-request` and `balance-reminder` are absent on purpose: nothing
- * sends them until `quote-flow/balance-scheduler` ships, and that stub adds
- * their cards with their sender.
+ * call — for the two balance kinds, at `lib/cron/balance-scheduler.ts`.
  */
 export const MESSAGE_CARDS: readonly MessageCard[] = [
   {
@@ -90,6 +88,14 @@ export const MESSAGE_CARDS: readonly MessageCard[] = [
   {
     kind: "deposit-received",
     when: "Quando o sinal de um orçamento é pago — ao cliente e à equipa.",
+  },
+  {
+    kind: "balance-request",
+    when: "14 dias antes do evento, com o link para pagar o saldo — ao cliente.",
+  },
+  {
+    kind: "balance-reminder",
+    when: "7 dias antes do evento, se o saldo ainda não foi pago — ao cliente.",
   },
   {
     kind: "balance-paid",

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  guestBalanceEmail,
   guestCancellationEmail,
   guestConfirmationEmail,
   guestEnquiryAckEmail,
@@ -15,6 +16,7 @@ import {
   teamEnquiryEmail,
   teamNotificationEmail,
   teamQuoteReceiptEmail,
+  type BalanceEmailFacts,
   type BookingCancellationFacts,
   type BookingEmailFacts,
   type BookingMoveFacts,
@@ -1356,5 +1358,86 @@ describe("guestQuoteRefundEmail — quote-refunded", () => {
     expect(mail.html).not.toContain("/orcamento/");
     // The couple's names are escaped in the HTML part, as every name is.
     expect(mail.html).toContain("Inês &amp; Tomás");
+  });
+});
+
+describe("guestBalanceEmail", () => {
+  const QUOTE_URL = "https://agorasim.pt/pt/orcamento/N3w_t0ken-abcdefghijklmnopqrstuvwxyz0123";
+
+  function balanceFacts(overrides: Partial<BalanceEmailFacts> = {}): BalanceEmailFacts {
+    return {
+      stage: "request",
+      ref: "QT-A1B2C3",
+      guestName: "Inês Costa",
+      guestEmail: "ines@example.com",
+      locale: "pt",
+      date: "sábado, 15 de agosto de 2026",
+      venue: "Quinta do Hespanhol, Mafra",
+      amount: "1134 €",
+      dueDate: "sábado, 1 de agosto de 2026",
+      quoteUrl: QUOTE_URL,
+      ...overrides,
+    };
+  }
+
+  it("asks the couple, and replies to the business inbox", () => {
+    const mail = guestBalanceEmail(balanceFacts());
+
+    expect(mail.to).toEqual(["ines@example.com"]);
+    expect(mail.replyTo).toBe(site.email);
+    expect(mail.subject).toBe("O restante do seu evento — sábado, 15 de agosto de 2026");
+  });
+
+  it("states the ref, the event, the balance, its due date and the new link, in both parts", () => {
+    const mail = guestBalanceEmail(balanceFacts());
+
+    for (const part of [mail.text, mail.html ?? ""]) {
+      expect(part).toContain("QT-A1B2C3");
+      expect(part).toContain("sábado, 15 de agosto de 2026");
+      expect(part).toContain("Quinta do Hespanhol, Mafra");
+      expect(part).toContain("1134 €");
+      expect(part).toContain("sábado, 1 de agosto de 2026");
+      expect(part).toContain(QUOTE_URL);
+      expect(part).toContain("Este link substitui os dos emails anteriores");
+    }
+    expect(mail.text).toContain(`Pagar o restante: ${QUOTE_URL}`);
+    expect(mail.text).not.toMatch(/\{\w+\}/);
+  });
+
+  it("words the reminder as a chaser", () => {
+    const mail = guestBalanceEmail(balanceFacts({ stage: "reminder" }));
+
+    expect(mail.subject).toBe("Lembrete: o restante do seu evento — sábado, 15 de agosto de 2026");
+    expect(mail.text).toContain("Ainda não recebemos o pagamento do restante");
+    expect(mail.text).toContain(QUOTE_URL);
+  });
+
+  it("writes in English for an English quote, request and reminder", () => {
+    const request = guestBalanceEmail(
+      balanceFacts({ locale: "en", date: "Saturday, 15 August 2026", dueDate: "Saturday, 1 August 2026" }),
+    );
+    expect(request.subject).toBe("The balance for your event — Saturday, 15 August 2026");
+    expect(request.text).toContain("Pay the balance:");
+    expect(request.text).toContain("This link replaces the ones in our earlier emails");
+    expect(request.text).toContain("Due by: Saturday, 1 August 2026");
+
+    const reminder = guestBalanceEmail(balanceFacts({ locale: "en", stage: "reminder" }));
+    expect(reminder.subject).toMatch(/^Reminder: the balance for your event/);
+    expect(reminder.text).toContain("We have not yet received the balance");
+  });
+
+  it("leaves the venue row out when the quote has none", () => {
+    const mail = guestBalanceEmail(balanceFacts({ venue: null }));
+
+    expect(mail.text).not.toContain("Local:");
+  });
+
+  it("prints no due date once it is behind the couple — the reminder, a late request", () => {
+    const mail = guestBalanceEmail(balanceFacts({ stage: "reminder", dueDate: null }));
+
+    expect(mail.text).not.toContain("Pagar até");
+    expect(mail.text).toContain("1134 €");
+    expect(mail.text).toContain(QUOTE_URL);
+    expect(mail.text).not.toMatch(/\{\w+\}/);
   });
 });
