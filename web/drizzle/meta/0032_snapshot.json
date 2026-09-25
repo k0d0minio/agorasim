@@ -1,6 +1,6 @@
 {
-  "id": "4dc178eb-50ec-4fe5-a3ea-fe63c0af481d",
-  "prevId": "4f8740f5-0126-438b-9ad7-eb79c72d0d54",
+  "id": "f3d7f3ac-4a27-4dce-af18-ddf4ddf87a20",
+  "prevId": "4dc178eb-50ec-4fe5-a3ea-fe63c0af481d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2258,6 +2258,22 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "quotes_one_draft_per_lead_key": {
+          "name": "quotes_one_draft_per_lead_key",
+          "columns": [
+            {
+              "expression": "tour_request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"status\" = 'draft'",
           "concurrently": false,
           "method": "btree",
           "with": {}

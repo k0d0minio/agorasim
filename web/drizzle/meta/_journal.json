@@ -222,8 +222,15 @@
     {
       "idx": 31,
       "version": "7",
+      "when": 1790289025381,
+      "tag": "0031_add_booking_move_seq",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
       "when": 1790324401235,
-      "tag": "0031_quote_one_draft_per_lead",
+      "tag": "0032_quote_one_draft_per_lead",
       "breakpoints": true
     }
   ]

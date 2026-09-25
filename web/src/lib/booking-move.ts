@@ -248,6 +248,15 @@ export async function moveBookingToDeparture(options: {
       // holds is the class that was just verified free, and reusing the stored
       // one would be trusting a decision made against a different departure.
       vehicleClass: check.vehicleClass,
+      // Bumped from the snapshot this function read, not a raw increment: the
+      // guard below only matches a row still on `from`, so a concurrent mover
+      // that wins this race leaves the loser's `existing.moveSeq` stale and
+      // its update unmatched — the same protection `date`/`slot` already have.
+      // What this buys is a departure `message_log`'s date-bound kinds can key
+      // on alongside `subject_date`, so a booking moved back onto a date it
+      // already left (`X → A → B → A`) is not mistaken for the visit that
+      // came before it (`lib/message-log.ts` → `DATE_BOUND_KINDS`).
+      moveSeq: existing.moveSeq + 1,
       // A no-show mark belongs to the departure the guest missed, not to the
       // booking: moved to a new day, they are owed that day's thank-you
       // (`lib/booking-no-show.ts`).
@@ -312,12 +321,13 @@ export async function moveBookingToDeparture(options: {
  * plaintext reached nobody and must not replace the digest the guest holds.
  *
  * **Through the message log, under `booking-moved`/`guest`, keyed on the date
- * moved to.** A second press of the button sends nothing; a second, real move
- * is a different date and so a different message, and the guest is told about
- * it. The gap that leaves is a booking moved back to a day it has already been
- * moved to — the same key, so no second notice. That is the price of having no
- * move history to count against (`register default`), and it is the rarer
- * mistake than telling a guest twice.
+ * moved to and the move itself.** A second press of the button touches a row
+ * already on its target departure, so `moveBookingToDeparture`'s guard never
+ * calls this a second time and no second claim is even attempted; a real
+ * move — even one back to a day the booking already visited — bumps
+ * `moveSeq`, which is the other half of the key, so it always earns its own
+ * notice rather than finding an earlier visit's row still claiming the date
+ * (`lib/message-log.ts` → `DATE_BOUND_KINDS`).
  */
 async function sendMoveEmail(booking: Booking, from: MoveTarget): Promise<void> {
   if (!isEmailConfigured()) return;
@@ -355,8 +365,9 @@ async function sendMoveEmail(booking: Booking, from: MoveTarget): Promise<void> 
         recipient: "guest",
         bookingId: booking.id,
         tourRequestId: booking.tourRequestId,
-        // The date it moved *to*, which is what this mail is about.
+        // The date it moved *to*, and which move this is — together the claim.
         subjectDate: booking.date,
+        moveSeq: booking.moveSeq,
       },
       guestMoveEmail({
         ref: bookingRef(booking.id),
