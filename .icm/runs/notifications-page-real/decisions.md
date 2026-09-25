@@ -8,9 +8,12 @@ decision made mid-run has one home.
 
 ## From the scope
 
-- <D-n — the decision, one line, as the scope worded it>
+- No scope.md (epic re-cut by `/project`). Register decisions the spec honours: D4 (admin hardcoded Portuguese), D5 (email-first, SMS post-live), D22 (social stays parked), D24 (thank-you soft opt-in — its card line names the Google review link).
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-1 — Provider id (`re_…`) is not shown on the page; it expires at 90 days and is not actionable there. Define, Jamie, 2026-09-25.
+- D-2 — Recipient shown as the guest's name from the pedido (or "Equipa") plus the reference (`BK-…` / `EN-…`) linked to the pedido in Vendas. Define, Jamie, 2026-09-25.
+- D-3 — The log shows every send of the last 30 days, grouped by Lisbon day, no pagination. Define, Jamie, 2026-09-25.
+- D-4 — Failed sends and sends `sending` over 1 hour are listed in a "Precisa de atenção" block above the log, hidden when empty. Define, Jamie, 2026-09-25.
+- D-5 — No card for `balance-request` / `balance-reminder` until `quote-flow/balance-scheduler` gives them a sender. Define, 2026-09-25.

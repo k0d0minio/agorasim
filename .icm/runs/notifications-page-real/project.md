@@ -13,9 +13,10 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- Portuguese only, admin vocabulary from `.icm/docs/admin-pt-inventory.md` (D4); *saldo*, not *restante*, in the admin.
+- No SMS or WhatsApp anywhere on the page (D5); no per-message switch (policy-only page).
+- No provider id on screen; no schema change; the social preview and `AdminInDevBanner` component stay.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read the `sendLoggedEmail` call sites and `content/emails.ts` subjects to make each card's "to whom" true, beyond its Inputs table.
