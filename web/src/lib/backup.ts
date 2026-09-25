@@ -55,6 +55,7 @@ import {
   messageLog,
   quotePayments,
   quotes,
+  rateLimitWindows,
   socialPostDrafts,
   tourRequests,
 } from "@/db/schema";
@@ -91,6 +92,7 @@ export const BACKUP_TABLES: readonly BackupTable[] = [
   { name: "email_opt_outs", table: emailOptOuts, redact: [] },
   { name: "feature_requests", table: featureRequests, redact: [] },
   { name: "audit_log", table: auditLog, redact: [] },
+  { name: "rate_limit_windows", table: rateLimitWindows, redact: [] },
   { name: "geo_content_drafts", table: geoContentDrafts, redact: [] },
   { name: "blog_post_drafts", table: blogPostDrafts, redact: [] },
   { name: "social_post_drafts", table: socialPostDrafts, redact: [] },
