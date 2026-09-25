@@ -5,7 +5,7 @@ import { isLocale, type Locale } from "@/i18n/config";
 import { resolveGuestCancellation } from "@/lib/booking-cancellation";
 import { CANCELLATION_LOOKUP_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
-import { CancelBookingPanel, UnknownPanel } from "@/components/cancel-booking-panel";
+import { CancelBookingPanel, ThrottledPanel, UnknownPanel } from "@/components/cancel-booking-panel";
 import { Section } from "@/components/section";
 
 /**
@@ -55,8 +55,9 @@ export default async function CancelBookingPage({
    * A token is 32 bytes out of the CSPRNG, so guessing one is hopeless with or
    * without this — what the limit buys is that trying costs the attacker a
    * rejected request rather than us a database round-trip. A throttled caller
-   * gets the same neutral page a wrong token gets, so the limit itself leaks
-   * nothing about whether the link was real.
+   * gets its own panel, not the wrong-token one — a guest on shared Wi-Fi or a
+   * carrier's CGNAT shouldn't be told their booking is gone — but it still
+   * leaks nothing about whether the link was real.
    */
   const ip = await clientIp();
   const throttle = await rateLimit(
@@ -66,7 +67,7 @@ export default async function CancelBookingPage({
 
   const view = throttle.allowed
     ? await resolveGuestCancellation({ token, locale: l })
-    : ({ kind: "unknown" } as const);
+    : ({ kind: "throttled" } as const);
 
   if (!throttle.allowed) {
     console.warn(
@@ -79,6 +80,8 @@ export default async function CancelBookingPage({
       <div className="mx-auto max-w-xl">
         {view.kind === "unknown" ? (
           <UnknownPanel locale={l} />
+        ) : view.kind === "throttled" ? (
+          <ThrottledPanel locale={l} />
         ) : (
           <CancelBookingPanel
             locale={l}
