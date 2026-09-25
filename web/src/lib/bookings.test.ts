@@ -9,6 +9,7 @@ import {
   holdExpiryFrom,
   holdsCapacity,
   remindableOnSql,
+  thankableOnSql,
 } from "@/lib/bookings";
 import type { Booking } from "@/db";
 
@@ -113,5 +114,27 @@ describe("remindableOnSql", () => {
     const { params } = rendered();
     expect(params).toEqual(expect.arrayContaining(["morning", "afternoon"]));
     expect(params).not.toContain("full_day");
+  });
+});
+
+describe("thankableOnSql", () => {
+  const rendered = () => new PgDialect().sqlToQuery(thankableOnSql("2026-08-15") as SQL);
+
+  it("is the reminder's rule — that day, confirmed only, the two departures", () => {
+    const { sql, params } = rendered();
+    expect(sql).toContain('"bookings"."date" = $');
+    expect(sql).toContain('"bookings"."status" = $');
+    expect(params).toEqual(
+      expect.arrayContaining(["2026-08-15", "confirmed", "morning", "afternoon"]),
+    );
+    for (const status of ["pending", "expired", "cancelled", "refunded"]) {
+      expect(params).not.toContain(status);
+    }
+    // Cash bookings are confirmed like Stripe ones — no payment clause.
+    expect(sql).not.toMatch(/payment_method/);
+  });
+
+  it("leaves out a booking the team marked as a no-show", () => {
+    expect(rendered().sql).toContain('"bookings"."no_show_at" is null');
   });
 });

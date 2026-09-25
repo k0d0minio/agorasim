@@ -69,6 +69,16 @@ describe("sendEmail — reply-to", () => {
     expect(lastBody().reply_to).toBe(site.email);
   });
 
+  it("passes extra headers through to Resend, and sends none when the message has none", async () => {
+    await sendEmail(
+      message({ headers: { "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }),
+    );
+    expect(lastBody().headers).toEqual({ "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" });
+
+    await sendEmail(message());
+    expect(lastBody()).not.toHaveProperty("headers");
+  });
+
   it("sends from BOOKING_EMAIL_FROM, never from the reply-to", async () => {
     await sendEmail(message());
 

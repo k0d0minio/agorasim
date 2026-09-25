@@ -1,5 +1,5 @@
 {
-  "id": "5a9e48d5-f772-4e15-b96f-8934a63b1299",
+  "id": "4f8740f5-0126-438b-9ad7-eb79c72d0d54",
   "prevId": "ff02ba41-36cc-4138-81da-3be4b3d04b9a",
   "version": "7",
   "dialect": "postgresql",
@@ -514,13 +514,6 @@
           "notNull": true,
           "default": "'morning'"
         },
-        "move_seq": {
-          "name": "move_seq",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
         "experience_slug": {
           "name": "experience_slug",
           "type": "text",
@@ -654,6 +647,12 @@
           "name": "cancelled_via",
           "type": "cancelled_via",
           "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "no_show_at": {
+          "name": "no_show_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -952,6 +951,39 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.email_opt_outs": {
+      "name": "email_opt_outs",
+      "schema": "",
+      "columns": {
+        "address_hash": {
+          "name": "address_hash",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "via": {
+          "name": "via",
+          "type": "opt_out_via",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1428,12 +1460,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "move_seq": {
-          "name": "move_seq",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "quote_id": {
           "name": "quote_id",
           "type": "uuid",
@@ -1551,12 +1577,6 @@
             },
             {
               "expression": "subject_date",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "move_seq",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2737,6 +2757,14 @@
         "sending",
         "sent",
         "failed"
+      ]
+    },
+    "public.opt_out_via": {
+      "name": "opt_out_via",
+      "schema": "public",
+      "values": [
+        "page",
+        "one-click"
       ]
     },
     "public.payment_method": {

@@ -48,6 +48,7 @@ import {
   blogPostDrafts,
   bookings,
   emailCampaignDrafts,
+  emailOptOuts,
   experienceCatalogue,
   featureRequests,
   geoContentDrafts,
@@ -85,6 +86,9 @@ export const BACKUP_TABLES: readonly BackupTable[] = [
   { name: "quotes", table: quotes, redact: [] },
   { name: "quote_payments", table: quotePayments, redact: [] },
   { name: "message_log", table: messageLog, redact: [] },
+  // Keyed hashes, no addresses — and the one table a restore must not lose:
+  // an empty list silently re-subscribes everyone who opted out.
+  { name: "email_opt_outs", table: emailOptOuts, redact: [] },
   { name: "feature_requests", table: featureRequests, redact: [] },
   { name: "audit_log", table: auditLog, redact: [] },
   { name: "geo_content_drafts", table: geoContentDrafts, redact: [] },

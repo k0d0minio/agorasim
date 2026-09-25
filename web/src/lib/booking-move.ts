@@ -257,6 +257,10 @@ export async function moveBookingToDeparture(options: {
       // already left (`X → A → B → A`) is not mistaken for the visit that
       // came before it (`lib/message-log.ts` → `DATE_BOUND_KINDS`).
       moveSeq: existing.moveSeq + 1,
+      // A no-show mark belongs to the departure the guest missed, not to the
+      // booking: moved to a new day, they are owed that day's thank-you
+      // (`lib/booking-no-show.ts`).
+      noShowAt: null,
       updatedAt: now,
     })
     .where(

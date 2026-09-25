@@ -8,8 +8,10 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { EVENT_CANCEL_CONFIRMATION, REFUND_CONFIRMATION } from "@/lib/admin-format";
 import { formatDay } from "@/lib/availability";
 import { moveBookingToDeparture } from "@/lib/booking-move";
+import { setNoShow } from "@/lib/booking-no-show";
 import { cancelAndRefundBooking } from "@/lib/booking-refund";
 import {
+  bookingNoShowSchema,
   cancelBookingSchema,
   cancelHeldQuoteSchema,
   formValues,
@@ -137,6 +139,48 @@ export async function cancelBooking(
         error:
           "A reserva foi cancelada e o lugar libertado, mas o Stripe recusou o reembolso. " +
           "Emita-o no painel do Stripe e avise o cliente.",
+      };
+  }
+}
+
+export type NoShowState = { ok?: boolean; error?: string };
+
+/**
+ * Mark a paid booking as a no-show ("Marcar falta") — or clear the mark
+ * ("Retirar falta"). The only effect is that the guest is not sent the
+ * post-tour thank-you; the work and the audit entry are in
+ * `lib/booking-no-show.ts`. `requireAdmin()`, like cancelling and moving:
+ * whether a guest turned up is the day job.
+ *
+ * No `revalidatePath`: the mark renders on admin pages only, which are
+ * dynamic (see the note at the top of `app/admin/actions.ts`).
+ */
+export async function setBookingNoShow(
+  _prevState: NoShowState,
+  formData: FormData,
+): Promise<NoShowState> {
+  const actor = await requireAdmin();
+
+  const parsed = bookingNoShowSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Essa reserva já não existe." };
+
+  const outcome = await setNoShow({
+    bookingId: parsed.data.bookingId,
+    noShow: parsed.data.mark,
+    actorUserId: actor.id,
+  });
+  switch (outcome.status) {
+    case "marked":
+    case "cleared":
+    case "unchanged":
+      // A double-submitted form lands here as `unchanged` — already the
+      // state asked for, which is the truth and not an error.
+      return { ok: true };
+    case "not-found":
+      return { error: "Essa reserva já não existe." };
+    case "not-markable":
+      return {
+        error: "Só é possível marcar falta numa reserva paga, no dia do passeio ou depois.",
       };
   }
 }

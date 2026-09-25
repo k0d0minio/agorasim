@@ -919,6 +919,17 @@ export const bookings = pgTable("bookings", {
   cancelledVia: cancelledViaEnum("cancelled_via"),
 
   /**
+   * When the team marked the guest as a no-show ("Faltou" on the Sales board).
+   *
+   * A mark, not a status: the booking stays `confirmed`, keeps its money and
+   * its seat in the history, and nothing but the post-tour thank-you reads it —
+   * a guest who never turned up is not thanked for a tour they did not take.
+   * Null is the ordinary state and means "went, or nobody said otherwise".
+   * Cleared by "Retirar falta"; both writes are audited.
+   */
+  noShowAt: timestamp("no_show_at", { withTimezone: true }),
+
+  /**
    * The guest's credential for this booking, hashed — the only thing that
    * authenticates a self-serve cancellation.
    *
@@ -1336,6 +1347,45 @@ export const messageLog = pgTable("message_log", {
 
 export type MessageLogEntry = typeof messageLog.$inferSelect;
 export type NewMessageLogEntry = typeof messageLog.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Email opt-outs — the address-level suppression list
+// ---------------------------------------------------------------------------
+
+/**
+ * How an opt-out arrived: the confirm page's button, or a mail client's own
+ * unsubscribe (RFC 8058 one-click POST).
+ */
+export const optOutViaEnum = pgEnum("opt_out_via", ["page", "one-click"]);
+export type OptOutVia = (typeof optOutViaEnum.enumValues)[number];
+
+/**
+ * Addresses that asked not to receive any email that is not about one of their
+ * bookings — today the post-tour thank-you, sent under the soft opt-in (D24).
+ *
+ * **Keyed by address, not by enquiry**, because the objection is the person's
+ * and outlives any one lead: a guest who opts out and books again next summer
+ * is still not thanked. So the row is not tied to `tour_requests` at all.
+ *
+ * **No address in the clear.** The key is an HMAC of the trimmed, lowercased
+ * address under `EMAIL_OPT_OUT_SECRET` (`lib/email-opt-out.ts`): enough to
+ * answer "has this address opted out?" for an address we are about to write
+ * to, and useless for listing who has. That is what lets the row survive the
+ * retention sweep and an Art. 17 erasure — keeping the objection is the point
+ * of the row, and keeping it hashed is what makes keeping it proportionate.
+ *
+ * **The secret is never rotated**: a new key makes every row here unmatchable,
+ * which silently re-subscribes everybody who opted out.
+ */
+export const emailOptOuts = pgTable("email_opt_outs", {
+  /** HMAC-SHA-256 of the normalised address, hex. */
+  addressHash: text("address_hash").primaryKey(),
+  via: optOutViaEnum("via").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type EmailOptOut = typeof emailOptOuts.$inferSelect;
+export type NewEmailOptOut = typeof emailOptOuts.$inferInsert;
 
 // ---------------------------------------------------------------------------
 // Quotes — the events and weddings side, priced per job

@@ -53,6 +53,13 @@ export type EmailMessage = {
    * exists: the team's copy of a booking answers to the guest.
    */
   replyTo?: string;
+  /**
+   * Extra MIME headers, passed to Resend as they are. Only the thank-you sets
+   * any today: `List-Unsubscribe` and `List-Unsubscribe-Post` (RFC 8058), so a
+   * mail client can offer its own unsubscribe for a message that is not about
+   * a booking. Booking mail carries none — it has nothing to unsubscribe from.
+   */
+  headers?: Record<string, string>;
 };
 
 export type EmailResult =
@@ -113,6 +120,7 @@ export async function sendEmail(message: EmailMessage): Promise<EmailResult> {
         text: message.text,
         ...(message.html ? { html: message.html } : {}),
         reply_to: message.replyTo || site.email,
+        ...(message.headers ? { headers: message.headers } : {}),
       }),
     });
 
