@@ -25,4 +25,4 @@ step, so a resuming session can pick up the first unticked line.
 - [x] Read — `recentMessages` in `web/src/lib/message-log.ts`
 - [x] Page — `web/src/app/admin/notifications/page.tsx` rewritten over the log
 - [x] Cleanup — notifications fixtures out of `admin-preview.ts`; `dev: false` in `admin-nav.ts`
-- [ ] Merge `origin/main`, flip ready, settle the full gate
+- [x] Merge `origin/main` (#154, the migration fix), flip ready, settle the full gate

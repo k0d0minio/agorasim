@@ -4,7 +4,7 @@ Where the run is, in five lines. Updated at every stage start and stop, and when
 flips. A resuming session reads this first, then `handoff.md` (`_shared/stage-preamble.md`).
 
 - phase: build
-- step: 9 (pre-flip verdict)
-- ci: RED — Vercel preview, inherited from main (migration 0031 skipped on the UAT database; see 02_define/output/error.log)
+- step: 11 (flip ready)
+- ci: pending — main (#154) merged in; ready flip next
 - blocked: no
 - updated: 2026-09-25
