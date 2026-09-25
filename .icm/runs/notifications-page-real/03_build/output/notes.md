@@ -1,7 +1,7 @@
 # Build notes: notifications-page-real
 
 - commits: feat: notifications-page-real — Mensagens automáticas reads message_log
-- ci: pending — see status.md; the Vercel preview is expected red until `main` fixes migration 0031 on the UAT database (02_define/output/error.log)
+- ci: GREEN on 155dcb9 (full gate — Vercel preview built after main's migration fix #154 was merged in)
 
 ## What changed
 
@@ -24,7 +24,7 @@
 - [x] Fixtures and `PreviewTemplate` deleted; grep finds no importer.
 - [x] Tap targets ≥44px (the reference link is `min-h-11`; nothing else on the page is interactive); smallest text is `text-xs` (12px).
 - [x] Unit tests as the criterion lists.
-- [ ] CI green — see `ci:` above.
+- [x] CI green — full gate GREEN on 155dcb9.
 
 ## Notes for Release
 

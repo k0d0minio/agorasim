@@ -6,15 +6,14 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Operator: read `02_define/output/spec.md`; change it with `revise notifications-page-real "<what>"`, or tick **Spec approved** on https://github.com/k0d0minio/agorasim/pull/153.
-2. Then `build notifications-page-real` — executes `plan.md` passes 1–4 on branch `claude/kind-gauss-r4k114`.
+1. Operator: smoke the preview — https://agorasim-git-claude-kind-gauss-r4k114-kodominio.vercel.app/admin/notifications (sign in; check the three sections, a reference link opens the pedido, the Início card has no "em construção" marker).
+2. Operator: tick **Ready to merge** on https://github.com/k0d0minio/agorasim/pull/153, then `release notifications-page-real`.
 
 ## Blockers
 
-- blocked on operator: tick **Spec approved** in the body of https://github.com/k0d0minio/agorasim/pull/153
+- blocked on operator: smoke the preview and tick **Ready to merge** on https://github.com/k0d0minio/agorasim/pull/153
 
 ## Do not
 
-- Do not start Build before the Spec approved tick; never tick it.
+- Do not tick Ready to merge; do not merge outside Release.
 - Do not add cards for `balance-request` / `balance-reminder` (D-5) or touch the social preview page.
-- Do not change `message_log`'s schema or indexes.

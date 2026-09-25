@@ -17,7 +17,7 @@ step, so a resuming session can pick up the first unticked line.
 - [x] The notifications fixtures and their type are deleted from `web/src/lib/admin-preview.ts`; nothing imports them
 - [x] Tap targets on the page are ≥44px and no text is below 12px, at phone width
 - [x] Unit tests cover the Lisbon-day grouping (a send at 23:30 UTC in summer lands on the next Lisbon day), the status→badge mapping including the 1-hour stuck threshold, the per-kind counts, and that every `MessageKind` has a label
-- [ ] CI green
+- [x] CI green
 
 ## Queue
 
