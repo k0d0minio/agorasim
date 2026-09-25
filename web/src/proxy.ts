@@ -2,8 +2,17 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ADMIN_SESSION_COOKIE, verifySessionToken } from "@/lib/admin-session";
 import { adminCsp } from "@/lib/security-headers";
+import { getQuoteByAccessTokenHash } from "@/lib/quotes";
+import { DEAD_QUOTE_TOKEN, looksLikeQuoteToken, quoteTokenDigest } from "@/lib/quote-token";
+import { QUOTE_LOOKUP_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
+import { pickClientIp } from "@/lib/request-ip";
 
 /**
+ * Two unrelated jobs share this file because both need to run before Next
+ * starts rendering: gating `/admin` (below), and turning a dead quote link
+ * into a real 404 (`quoteLinkIsDead`) — see `loading.tsx`'s Status Codes note
+ * for why the check has to live here rather than in the page.
+ *
  * Two jobs on `/admin`, and only one of them is a security boundary.
  *
  * **1. Gate navigation behind a session cookie.** *Navigation* is the operative
@@ -66,8 +75,49 @@ function isServerAction(request: NextRequest): boolean {
   return request.method === "POST" && request.headers.has("next-action");
 }
 
+/** `/pt/orcamento/<token>` or `/en/orcamento/<token>` — nothing deeper. */
+const QUOTE_PATH = /^\/(pt|en)\/orcamento\/([^/]+)$/;
+
+/**
+ * Whether a quote link is dead — unknown, malformed, replaced by a new
+ * version, or cancelled — decided here, before Next ever starts rendering
+ * `[token]/page.tsx`, so that page can answer 404 with one synchronous check
+ * instead of a second lookup that streams a 200 before it resolves (`the
+ * locale's loading.tsx streams every page under [locale]` — `FAILURE.md`,
+ * quote-page-and-deposit-link).
+ *
+ * Throttled under its own key, separate from the page's own
+ * `quote-lookup:<ip>` budget: the check below is the same database
+ * round-trip `QUOTE_LOOKUP_RATE_LIMIT` exists to bound ("a walk costs a
+ * request, not a query"), and a real visitor's reload must not spend the
+ * page's own allowance twice. A throttled caller is passed through
+ * unchanged — the page's own throttle then answers with its own "too many
+ * attempts" panel, at 200; a 404 here is only for a link that is actually
+ * dead, not a caller asked to slow down.
+ */
+async function quoteLinkIsDead(request: NextRequest, token: string): Promise<boolean> {
+  if (!looksLikeQuoteToken(token)) return true;
+
+  const ip = pickClientIp((name) => request.headers.get(name));
+  const throttle = await rateLimit(`quote-lookup-proxy:${ip}`, QUOTE_LOOKUP_RATE_LIMIT);
+  if (!throttle.allowed) return false;
+
+  const quote = await getQuoteByAccessTokenHash(await quoteTokenDigest(token));
+  if (!quote) return true;
+  return quote.status !== "sent" && quote.status !== "deposit_paid" && quote.status !== "paid";
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const quoteMatch = pathname.match(QUOTE_PATH);
+  if (quoteMatch) {
+    const [, locale, token] = quoteMatch;
+    if (token !== DEAD_QUOTE_TOKEN && (await quoteLinkIsDead(request, token))) {
+      return NextResponse.rewrite(new URL(`/${locale}/orcamento/${DEAD_QUOTE_TOKEN}`, request.url));
+    }
+    return NextResponse.next();
+  }
 
   const nonce = crypto.randomUUID().replaceAll("-", "");
   const csp = adminCsp(nonce);
@@ -119,5 +169,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/admin/:path*",
+  matcher: ["/admin/:path*", "/(pt|en)/orcamento/:token"],
 };

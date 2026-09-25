@@ -16,6 +16,7 @@ import {
   resolveQuoteToken,
   type QuoteReturn,
 } from "@/lib/quote-checkout";
+import { DEAD_QUOTE_TOKEN } from "@/lib/quote-token";
 import {
   BALANCE_DUE_DAYS_BEFORE,
   dueInstalment,
@@ -52,13 +53,18 @@ import { Card, CardContent } from "@/components/ui/card";
  * same events section, so the page and the durable copy cannot disagree.
  *
  * **A link that no longer works** — unknown, malformed, replaced by a new
- * version, or cancelled — gets one neutral panel; a throttled lookup gets its
- * own wording ("too many attempts, try again"), so a couple sharing an IP
- * with other traffic isn't told a live quote is dead. Neither panel says
- * anything about whether the quote ever existed. It is served as a `noindex` page rather
- * than a 404 status: the locale's `loading.tsx` streams this route, and a
- * streamed response has sent its 200 before the lookup finishes (Next's
- * streaming note).
+ * version, or cancelled — gets a real 404: `proxy.ts` does the same lookup
+ * ahead of rendering and rewrites the token to {@link DEAD_QUOTE_TOKEN} when
+ * it is dead, so the one check below fires before any `await` this component
+ * makes and answers with a true 404 status (`loading.tsx`'s Status Codes
+ * note — the locale's `loading.tsx` streams this route, and a streamed
+ * response has sent its 200 before an async lookup finishes; see
+ * `orcamento/[token]/not-found.tsx`). This component's own `resolveQuoteToken`
+ * call below is the fallback for the narrow race where a link dies in the
+ * moment between the proxy's check and this render, and for a throttled
+ * lookup, which gets its own wording ("too many attempts, try again") at 200
+ * so a couple sharing an IP with other traffic isn't told a live quote is
+ * dead. Neither panel says anything about whether the quote ever existed.
  *
  * **It also reconciles**, as `/reservar/confirmacao` does. Stripe returns the
  * couple here with `?session_id=`; the page asks Stripe whether that session —
@@ -90,6 +96,11 @@ export default async function QuotePage({
   const { locale, token } = await params;
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
+
+  // Set by `proxy.ts` once it has already established the link is dead — no
+  // await precedes this, so the throw lands before this render can suspend
+  // and `orcamento/[token]/not-found.tsx` answers with a real 404.
+  if (token === DEAD_QUOTE_TOKEN) notFound();
 
   // Throttled on the way in, before the token is hashed or looked up — and a
   // throttled caller sees the same panel a wrong token does.

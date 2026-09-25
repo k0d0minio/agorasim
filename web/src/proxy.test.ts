@@ -1,8 +1,28 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 import { ADMIN_SESSION_COOKIE, createSessionToken } from "@/lib/admin-session";
-import { proxy } from "./proxy";
+
+// ---------------------------------------------------------------------------
+// The quote lookup the dead-link check makes — stubbed so the suite below
+// never touches a database, and throttling is asserted without burning real
+// rate-limit budget or wall-clock time.
+// ---------------------------------------------------------------------------
+
+const getQuoteByAccessTokenHash = vi.fn();
+vi.mock("@/lib/quotes", () => ({
+  getQuoteByAccessTokenHash: (...args: unknown[]) => getQuoteByAccessTokenHash(...args),
+}));
+
+let throttled = false;
+vi.mock("@/lib/rate-limit", () => ({
+  QUOTE_LOOKUP_RATE_LIMIT: { limit: 20, windowSeconds: 600 },
+  rateLimit: async () =>
+    throttled ? { allowed: false, remaining: 0, retryAfterSeconds: 60 } : { allowed: true, remaining: 19, retryAfterSeconds: 0 },
+}));
+
+const { proxy } = await import("./proxy");
+const { DEAD_QUOTE_TOKEN } = await import("@/lib/quote-token");
 
 /**
  * What the proxy does to a request, by method.
@@ -118,6 +138,74 @@ describe("proxy — signed in", () => {
 
     const response = await proxy(request("/admin/sales", { cookie: `${payload}.forged` }));
     expect(response.status).toBe(307);
+  });
+});
+
+/** 43 base64url characters — the shape `looksLikeQuoteToken` accepts. */
+const SHAPED_TOKEN = "A".repeat(43);
+
+function rewriteTarget(response: Response): string | null {
+  return response.headers.get("x-middleware-rewrite");
+}
+
+describe("proxy — dead quote links", () => {
+  beforeEach(() => {
+    getQuoteByAccessTokenHash.mockReset();
+    throttled = false;
+  });
+
+  it("rewrites a malformed token to the dead sentinel without touching the database", async () => {
+    const response = await proxy(request("/pt/orcamento/too-short"));
+
+    expect(rewriteTarget(response)).toBe(`${ORIGIN}/pt/orcamento/${DEAD_QUOTE_TOKEN}`);
+    expect(getQuoteByAccessTokenHash).not.toHaveBeenCalled();
+  });
+
+  it("rewrites an unknown token to the dead sentinel", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue(null);
+
+    const response = await proxy(request(`/en/orcamento/${SHAPED_TOKEN}`));
+
+    expect(rewriteTarget(response)).toBe(`${ORIGIN}/en/orcamento/${DEAD_QUOTE_TOKEN}`);
+  });
+
+  it("rewrites a cancelled quote's token the same as an unknown one", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue({ status: "cancelled" });
+
+    const response = await proxy(request(`/pt/orcamento/${SHAPED_TOKEN}`));
+
+    expect(rewriteTarget(response)).toBe(`${ORIGIN}/pt/orcamento/${DEAD_QUOTE_TOKEN}`);
+  });
+
+  it("passes a live quote's token straight through", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue({ status: "sent" });
+
+    const response = await proxy(request(`/pt/orcamento/${SHAPED_TOKEN}`));
+
+    expect(rewriteTarget(response)).toBeNull();
+    expect(response.status).toBe(200);
+  });
+
+  it("passes a throttled lookup through unchanged, never touching the database", async () => {
+    throttled = true;
+
+    const response = await proxy(request(`/pt/orcamento/${SHAPED_TOKEN}`));
+
+    expect(rewriteTarget(response)).toBeNull();
+    expect(getQuoteByAccessTokenHash).not.toHaveBeenCalled();
+  });
+
+  it("lets a request already carrying the dead sentinel through without a second lookup", async () => {
+    const response = await proxy(request(`/pt/orcamento/${DEAD_QUOTE_TOKEN}`));
+
+    expect(rewriteTarget(response)).toBeNull();
+    expect(getQuoteByAccessTokenHash).not.toHaveBeenCalled();
+  });
+
+  it("leaves every other route alone", async () => {
+    const response = await proxy(request("/pt/reservar"));
+
+    expect(rewriteTarget(response)).toBeNull();
   });
 });
 
