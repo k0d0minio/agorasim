@@ -1,7 +1,7 @@
 # Build notes: balance-scheduler
 
 - commits: feat: balance-scheduler — the T−14 request, the T−7 reminder, the T−3 flag
-- ci: pending — see `status.md`
+- ci: GREEN on c4df0bd (full gate: Vercel preview pass, Quality (advisory) pass)
 
 ## What changed
 
@@ -21,11 +21,12 @@
 - [x] Each email's link is the stored one; a racing run stands down; skip cases claim and rotate nothing — "the link and the claim"; `message-log.test.ts` "the balance kinds".
 - [x] "Saldo por pagar" panel and badge from T−3 while open; cleared by paid / written off; absent when empty — `isBalanceFlagged` tests; the panel renders nothing for an empty list. Verified by reading, not in a browser — the preview smoke is the check.
 - [x] Nothing released or cancelled after the event — "releases, cancels and re-states nothing…".
-- [ ] CI green — pending the full gate; see Notes for Release on the base.
+- [x] CI green — full gate on c4df0bd.
 
 ## Notes for Release
 
 - **Spec gap D-4:** the spec's order was "pre-check → rotate (CAS) → send". Build found that a run reading the quote *after* another run's swap but *before* its claim could rotate again and kill the winner's link, so the rotation now happens inside the claim (`ClaimedMessage`). The pre-check stays (it saves a mint); the claim decides.
 - **Spec gap D-5:** the request pass skips an event already past, since the due query has no floor.
 - `sendLoggedEmail` can now throw — only when a `ClaimedMessage` builder throws, after giving its claim back. Every existing caller passes a plain message and is unaffected.
-- **Base is red, not this run's:** `main`'s UAT deploy of `8f918d7` fails `db:verify` on `0031_add_booking_move_seq` (applied after 0032 on `uat-agorasim`). This branch's Vercel build fails the same way until `main` carries the fix.
+- The base's migration-order failure (`0031_add_booking_move_seq` after 0032 on `uat-agorasim`) was fixed on `main` by #154 and merged into this branch before the flip; the preview migrated and built green.
+- `web/.env.example`: `CRON_SECRET` now declares `# [production,preview]` (decisions D-7) — `env.sh audit --changed` flagged it because the dispatcher route changed.
