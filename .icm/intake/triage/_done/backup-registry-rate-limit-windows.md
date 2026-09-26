@@ -1,4 +1,5 @@
 # Stub: The backup registry test fails on main — `rate_limit_windows` is not registered
+> Done elsewhere — retired 2026-09-26 (estate audit): fixed by 6054226 (#157) — `web/src/lib/backup.ts:95` registers `rate_limit_windows`; the privacy sub-question (exclude IP-keyed counters) was never decided and is not carried.
 
 - lane: bug
 - found-by: event-holds-capacity (Build, advisory quality job on #155) · 2026-09-25

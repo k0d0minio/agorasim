@@ -1,4 +1,5 @@
 # Stub: STRIPE_WEBHOOK_SECRET is missing on Vercel's Development target
+> Done elsewhere — retired 2026-09-26 (estate audit): fixed by ccfc7d4 (#142) — `web/.env.example:143` narrows the key to `[production,preview]`.
 
 - lane: chore
 - found-by: quote-page-and-deposit-link (Release readiness audit; waived by the operator) · 2026-09-24

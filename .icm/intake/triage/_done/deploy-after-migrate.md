@@ -1,4 +1,5 @@
 # Stub: The Production deploy races db-migrate on main
+> Done elsewhere — retired 2026-09-26 (estate audit): superseded by D39/D43 — `release.yaml:282` promotes only after `db-migrate.yml`; `ci.yml` no longer runs on push to main (#128, #133).
 
 - lane: chore
 - found-by: tech lens (/project) · 2026-09-18 — decision D21 (discipline now, this later)

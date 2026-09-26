@@ -15,8 +15,9 @@ changed in one copy only would make opt-out hashes stop matching.
 
 ## Proposed change
 
-A `shiftDateKey(key, days)` in `lib/availability.ts`; a shared catalogue-title + pass-runner
-helper under `lib/cron/`; a DB-free `lib/crypto-encoding.ts` (base64url, hex) and a DB-free
+A shared catalogue-title + pass-runner helper under `lib/cron/` (the `shiftDays`/`shiftDateKey`
+move into `lib/availability.ts` belongs to `booking-logistics-facts-shared` — one owner, decided
+2026-09-26); a DB-free `lib/crypto-encoding.ts` (base64url, hex) and a DB-free
 `normalizeEmail` both token modules and `admin-users.ts` import. No behaviour change.
 
 ## Prompt

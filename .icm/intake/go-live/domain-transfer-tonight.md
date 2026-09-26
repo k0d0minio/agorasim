@@ -16,6 +16,11 @@
 > NS `ns1/ns2.vercel-dns.com`, MX still Google, apex A still `130.185.83.150` — the
 > nameservers have moved (to Vercel DNS, not the registrar's zone this stub plans); whether the
 > registrar transfer and the registrant change have run is unverified.
+>
+> 2026-09-26 (Jamie, estate audit): agorasim.pt still serves the old website — deliberately, for
+> now — and uat.agorasim.pt is not active. The transfer has not run. PR #100 was closed unmerged on
+> 2026-09-18, so the committed snapshot never landed: re-take it with `web/scripts/dns-snapshot.sh`
+> on `main` before the night.
 
 ## Problem
 
