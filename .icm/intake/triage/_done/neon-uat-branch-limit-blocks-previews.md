@@ -1,4 +1,5 @@
 # Stub: uat-agorasim's 10-branch cap blocks new preview deploys
+> Retired 2026-09-26 (Jamie, estate audit): the non-production Neon project stays on the Free plan with its 10-branch cap — the 7-day TTL in db-branch.sh and neon-cleanup.yaml keep it under the cap, and it is working well. Not a problem to solve.
 
 - lane: chore
 - found-by: quote-page-throttle-wording (tweak lane, CI RED) · 2026-09-24
