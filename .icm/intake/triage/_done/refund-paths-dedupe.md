@@ -3,6 +3,7 @@
 - lane: chore
 - found-by: quote-refunds · Release code review · 2026-09-24
 - complexity: low
+- superseded-by: quote-refund-hardening/refund-paths-dedupe.md — batched with the other quote-refunds findings, same file surface
 
 ## Problem
 

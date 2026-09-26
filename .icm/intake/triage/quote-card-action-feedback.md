@@ -2,6 +2,7 @@
 
 - lane: tweak
 - found-by: admin-quote-builder (Release code review) · 2026-09-23
+- priority: P2
 
 ## Problem
 

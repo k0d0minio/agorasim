@@ -3,6 +3,7 @@
 - lane: bug
 - found-by: quote-refunds · Release code review · 2026-09-24
 - complexity: medium
+- superseded-by: quote-refund-hardening/refund-idempotency-cached-declines.md — batched with the other quote-refunds findings, same file surface
 
 ## Problem
 

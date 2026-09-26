@@ -3,6 +3,7 @@
 - lane: bug
 - found-by: quote-refunds · Release code review · 2026-09-24
 - complexity: low
+- superseded-by: quote-refund-hardening/quote-refund-guard-post-refund-writes.md — batched with the other quote-refunds findings, same file surface
 
 ## Problem
 

@@ -3,6 +3,7 @@
 - lane: chore
 - found-by: balance-scheduler / Release code review · 2026-09-25
 - complexity: low
+- superseded-by: balance-scheduler-hardening/one-open-instalment-rule.md — batched with the other balance-scheduler findings, same file surface
 
 ## Problem
 
