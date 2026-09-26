@@ -3,3 +3,13 @@ node_modules
 # Diogo & Rita reference PDFs — agorasim-info.pdf holds credentials/IBAN, never commit
 .icm/docs/agorasim-info.pdf
 .icm/docs/prices.pdf
+
+# Client material never lives in this repository (icm-board decision D47, 2026-09-26): its home is
+# icm-board workspaces/deals/<client>/<engagement>/raw/. raw/ and processed/ are local working
+# folders for process-raw.sh; only the template's README and .gitkeep files are tracked.
+.icm/raw/**
+!.icm/raw/README.md
+!.icm/raw/_processed/
+!.icm/raw/_processed/.gitkeep
+.icm/processed/**
+!.icm/processed/.gitkeep

@@ -141,6 +141,7 @@ One job: **take paid bookings on their own site**, replacing the third party tha
 | D24 | The thank-you email goes to every guest under the soft opt-in (existing customer, own service, one send, an opt-out line; privacy policy's email list updated in the same PR); the day-before reminder is contract performance | 2026-09-18 | — |
 | D25 | The deposit and the balance are paid from a token-gated quote page that mints the Checkout session on tap; no long-lived Stripe Payment Link objects | 2026-09-18 | — |
 | D26 | `.icm/docs/agorasim-info.pdf` (credentials, IBAN) stays tracked while the repo is private; `untrack-credential-pdfs` dropped (#36). The `.gitignore` rule for it is dead on a tracked file | 2026-08-31 | D15 (the untracking half) |
+| D27 | **Client documents live in icm-board, not here** (estate decision D47, 2026-09-26). The five PDFs under `.icm/docs/` — the proposal, the commission and payments agreement, the process guide, `agorasim-info.pdf` (credentials and an IBAN) and `prices.pdf` — moved to icm-board `workspaces/deals/agorasim/agorasim-v1/raw/documents/` and are purged from this repository. Supersedes D26 ("stays tracked while the repo is private"): the repo is public, and the file never belonged here. | 2026-09-26 | D26 |
 
 ## Open questions
 
@@ -181,7 +182,7 @@ One job: **take paid bookings on their own site**, replacing the third party tha
 - `web/docs/` is deleted in the working tree on this machine, uncommitted, by something
   other than the 2026-09-18 session — intended (then the register, the knowledge map
   and five code comments need repointing) or accidental?
-- `.icm/docs/agorasim-info.pdf` holds credentials and an IBAN and is tracked (D26):
+- `.icm/docs/agorasim-info.pdf` held credentials and an IBAN and was tracked (D26) — moved to icm-board and purged on 2026-09-26 (D27):
   keep while private, or untrack and purge history before anyone else is added?
 - `main` gating (D21): revisit GitHub Pro or deploy-from-Actions once live.
 

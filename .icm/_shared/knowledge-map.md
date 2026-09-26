@@ -29,13 +29,13 @@ record.
 
 ### The client's own words — `.icm/docs/`
 
-- `.icm/docs/2026-07-23-agorasim-proposal-platform-booking-commission.pdf` — the accepted
+- icm-board `workspaces/deals/agorasim/agorasim-v1/raw/documents/2026-07-23-agorasim-proposal-platform-booking-commission.pdf` — the accepted
   proposal (23 Jul 2026): the six contracted features, §2.6 the three guest messages in the
   client's words, §5 the weddings deposit and balance terms. `pdftotext` it; quote it, never
   paraphrase a promise.
-- `.icm/docs/agorasim-how-we-will-work-together-process-guide.pdf` — how the client and Jamie
+- icm-board `workspaces/deals/agorasim/agorasim-v1/raw/documents/agorasim-how-we-will-work-together-process-guide.pdf` — how the client and Jamie
   work: who decides what, how requests arrive, what a delivery looks like.
-- `.icm/docs/agorasim-commission-and-payments-agreement.pdf` — the commission model (4% tours,
+- icm-board `workspaces/deals/agorasim/agorasim-v1/raw/documents/agorasim-commission-and-payments-agreement.pdf` — the commission model (4% tours,
   6% weddings/events, minimum and cap, refunds pro-rata) as the client will sign it. Fees are on
   from the first booking by decision; the agreement is signed after.
 
