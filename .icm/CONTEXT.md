@@ -122,7 +122,7 @@ reload the repo "to be safe".
 ```text
 .icm/
   CONTEXT.md               # this file (L1 map)
-  project.md               # the project register — what this is for; written by /project, never by hand
+  project.md               # the project register — what this is for; written by /setup, never by hand
   project.json             # the manifest: name, docs_path, required checks, personas, archives (project-owned)
   docs/                    # the product knowledge: the client's documents, the launch runbook, the data-protection register
   intake/                  # the work: epics + triage
