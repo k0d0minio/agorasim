@@ -1,7 +1,8 @@
 # Build notes: balance-request-not-on-event-day
 
 - commits: feat: balance-request-not-on-event-day — no balance email on the event day
-- ci: pending
+- ci: GREEN on 616f23e (draft, cheap tier)
+- ready: 2026-10-01T10:57:13Z — flipped on 616f23e
 
 ## What changed
 
@@ -36,3 +37,9 @@
 
 - No schema, env or UI change; the preview has nothing visible to smoke for this run — the
   behaviour is the 06:00 job's, proven by the unit and job tests in the advisory quality job.
+- `security-check.sh --branch` is `BLOCKED 1` on a dependency audit that is not this branch's:
+  4 high/critical advisories already on `main` (`next` 16.3.4 — a critical RCE in `next/og`,
+  patched in 16.3.6 — and `undici` via `shadcn` and `@vercel/blob`). The branch changes no
+  manifest or lockfile, and the diff's own secrets scan is clean. Parked as
+  `.icm/intake/triage/dependency-advisories-next-undici.md` (chore, P1) per the
+  security-audit skill's Dependency findings rule.
