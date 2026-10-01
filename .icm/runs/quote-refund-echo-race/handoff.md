@@ -6,19 +6,24 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Operator reads `02_define/output/spec.md` (or the PR's Spec block) and ticks **Spec approved**
-   on https://github.com/k0d0minio/agorasim/pull/166; changes go through
-   `revise quote-refund-echo-race "<what>"`.
-2. Then `build quote-refund-echo-race` — follow `plan.md` pass by pass; pass 1 is a migration, so
-   load the `database-migration` skill first.
+1. Operator smokes the preview https://agorasim-git-claude-friendly-lamport-wvw8qq-kodominio.vercel.app :
+   the Notifications page (`/admin`, "Mensagens automáticas") lists "Evento cancelado"; on a test
+   quote whose deposit was refunded, "Cancelar evento" sends the couple the new email; a refund
+   from the quote card is audited under the admin. Check the preview's build log applied
+   `0034_quote_event_cancelled_kind`.
+2. Operator ticks **Ready to merge** on https://github.com/k0d0minio/agorasim/pull/166, then
+   `release quote-refund-echo-race`.
 
 ## Blockers
 
-- blocked on operator: tick **Spec approved** in the body of https://github.com/k0d0minio/agorasim/pull/166
+- blocked on operator: smoke the preview and tick **Ready to merge** on https://github.com/k0d0minio/agorasim/pull/166
+- `security-check.sh --branch` reports BLOCKED on pre-existing `next`/undici advisories in
+  `main`'s lockfile — parked as `.icm/intake/triage/deps-next-undici-advisories.md`; Release
+  stop class 2 will see it until that chore merges.
 
 ## Do not
 
-- Do not start Build before the tick, and never tick it.
-- Do not touch the stale-total read, the post-refund write guard, the idempotency key or the
-  tour refund path — they belong to the epic's other stubs.
-- Do not run build, lint, typecheck or tests locally — CI is the source of truth.
+- Do not tick either gate.
+- Do not bump dependencies in this PR — that is the parked chore.
+- Do not touch the stale-total read, the post-refund write guard or the idempotency key — the
+  epic's other stubs.

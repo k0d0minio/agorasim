@@ -1,7 +1,7 @@
 # Build notes: quote-refund-echo-race
 
 - commits: feat: quote-refund-echo-race — the admin refund claims first, and a late cancellation is told · chore: park the pre-existing next/undici advisories · chore: ready
-- ci: GREEN on the draft head 62dd7d6; full gate settles on the post-flip head
+- ci: GREEN on 53cabad — full gate: Vercel pass, Quality (advisory) pass
 - ready: 2026-10-01T11:06:00Z — flipped on 076222a
 
 ## What changed
@@ -28,7 +28,7 @@
 - [x] Ordinary refund + cancel sends only `quote-refunded` — "sends only the refund notice…"
 - [x] PT and EN copy, no refunded-now row — `booking-emails.test.ts`
 - [x] Migration adds the kind; Notifications page shows "Evento cancelado" — `0034`, `admin-messages.ts`
-- [ ] A test runs the echo before the admin settle; CI green — the test is written; CI settles after the ready flip
+- [x] A test runs the echo before the admin settle; CI green — "defers the echo…" and "tells the couple it is off when the echo won anyway…"; Quality (advisory) passed on 53cabad
 
 ## Notes for Release
 
