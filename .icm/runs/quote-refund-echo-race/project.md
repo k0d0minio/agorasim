@@ -13,9 +13,15 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- Only `quote-refund.ts`'s claim order and the cancellation notice change — the stale-total read,
+  the post-refund write guard, the idempotency key and the dedupe are the epic's other stubs.
+- The tour refund path (`syncRefundFromStripe`, `booking-refund.ts`) is untouched.
+- D9 (weddings deposit terms) and the `[LAWYER]` items are not decided here.
+- The email copy is the spec's table, PT and EN in sync; admin wording from
+  `.icm/docs/admin-pt-inventory.md`.
+- No new processor: `.icm/docs/data-protection.md` is unchanged.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read excerpts of `booking-emails.ts`, `content/emails.ts`, `message-log.ts`, `schema.ts`
+  and the webhook route to settle the notice's key, copy and migration.

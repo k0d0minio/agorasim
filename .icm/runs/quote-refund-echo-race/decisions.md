@@ -8,9 +8,16 @@ decision made mid-run has one home.
 
 ## From the scope
 
-- <D-n — the decision, one line, as the scope worded it>
+- none — this epic was cut by `triage batch`, with no `scope.md`.
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-1 — The webhook defers to the admin path: an unsynced row whose refund carries
+  `metadata.via = "admin"` and is under 10 minutes old gets HTTP 503 so Stripe redelivers; no
+  schema marker. Operator, Define, 2026-10-01.
+- D-2 — A cancellation that follows a "still booked" notice gets its own message kind,
+  `quote-event-cancelled` (migration), keyed once per quote. Operator, Define, 2026-10-01.
+- D-3 — "Cancelar evento" (`cancelHeldQuote`) sends the same notice — brought into scope.
+  Operator, Define, 2026-10-01.
+- D-4 — The notice is a dedicated short email (no "refunded now" row) with new PT/EN copy, drafted
+  in the spec for the operator to check. Operator, Define, 2026-10-01.

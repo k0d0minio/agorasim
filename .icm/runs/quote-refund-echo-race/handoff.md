@@ -6,18 +6,19 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. Operator reads `02_define/output/spec.md` (or the PR's Spec block) and ticks **Spec approved**
+   on https://github.com/k0d0minio/agorasim/pull/166; changes go through
+   `revise quote-refund-echo-race "<what>"`.
+2. Then `build quote-refund-echo-race` — follow `plan.md` pass by pass; pass 1 is a migration, so
+   load the `database-migration` skill first.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
-- blocked on operator: <the human-only act that unblocks the run — tick a gate, merge, a
-  dashboard or env change>
-
-A blocking operator act is written here **and** in the stop report's `Operator:` list; a
-non-blocking one lives only in that list, never here (`_shared/output.md` → Split by actor).
+- blocked on operator: tick **Spec approved** in the body of https://github.com/k0d0minio/agorasim/pull/166
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Do not start Build before the tick, and never tick it.
+- Do not touch the stale-total read, the post-refund write guard, the idempotency key or the
+  tour refund path — they belong to the epic's other stubs.
+- Do not run build, lint, typecheck or tests locally — CI is the source of truth.
