@@ -36,7 +36,11 @@ import {
   startCheckout,
   type CheckoutState,
 } from "@/app/[locale]/reservar/checkout-actions";
-import { BookingDatePicker, departureUsable } from "@/components/booking-date-picker";
+import {
+  BookingDatePicker,
+  departureUsable,
+  useOnlineNotice,
+} from "@/components/booking-date-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -319,9 +323,14 @@ export function BookingCheckoutForm({
    * and posting it. Now a day that no longer has the right car free simply
    * stops being the chosen day, everywhere at once, and the picker is told to
    * say so out loud rather than let it vanish in silence.
+   *
+   * "The same calendar" is the payload as it stands today by the browser's
+   * clock (`useOnlineNotice`): a cached page can still offer tomorrow just
+   * after midnight, and a day the grid crosses out must not stay chosen here.
    */
+  const calendar = useOnlineNotice(availability);
   const chosenDay = basket.date
-    ? availability.flatMap((month) => month.days).find((day) => day.date === basket.date)
+    ? calendar.flatMap((month) => month.days).find((day) => day.date === basket.date)
     : undefined;
   const usableDepartures = (chosenDay?.slots ?? []).filter((entry) =>
     departureUsable(entry, tour?.slug, seats),
@@ -331,8 +340,21 @@ export function BookingCheckoutForm({
     date && basket.slot && usableDepartures.some((entry) => entry.slot === basket.slot)
       ? basket.slot
       : null;
+  /*
+   * Why the guest's day went, when it did — two sentences, because only one
+   * of them is about the party. A day this party could still have had on the
+   * payload as built was taken by the clock (the notice caught up with a page
+   * left open over midnight, or a day restored from a cancelled checkout);
+   * anything else is the party they have just become.
+   */
+  const usableOnPayload = (
+    availability.flatMap((month) => month.days).find((day) => day.date === basket.date)
+      ?.slots ?? []
+  ).some((entry) => departureUsable(entry, tour?.slug, seats));
+  const dayGone = Boolean(basket.date) && date === null;
+  const dayDroppedByClock = dayGone && usableOnPayload;
   /** The guest had a day, and the party they have just become cannot have it. */
-  const dayDropped = Boolean(basket.date) && date === null;
+  const dayDropped = dayGone && !dayDroppedByClock;
 
   /** Why one add-on cannot join this basket right now, or null when it can. */
   const addOnBlocked = (entry: Experience): string | null => {
@@ -673,7 +695,7 @@ export function BookingCheckoutForm({
             partySize={seats}
             allowFlexible={false}
             contactHref={href(l, "contactos")}
-            months={availability}
+            months={calendar}
             error={state.fieldErrors?.date}
             // Controlled: this form owns the day and the departure, so a
             // rejected submit and a cancelled payment both keep them, and the
@@ -681,6 +703,7 @@ export function BookingCheckoutForm({
             value={date}
             slotValue={slot}
             dropped={dayDropped}
+            droppedUnavailable={dayDroppedByClock}
             onDateChange={(next) => update({ date: next, slot: null })}
             onSlotChange={(next) => update({ slot: next })}
           />

@@ -57,10 +57,19 @@ export const tourRequestContent = {
   calendar: {
     label: { pt: "Escolha o dia", en: "Pick a day" } as Localized,
     hint: {
-      pt: "Mostramos apenas os dias com carro e condutor disponíveis.",
-      en: "We only show days with a car and a driver still free.",
+      pt: "Os dias riscados não estão disponíveis.",
+      en: "Crossed-out days are not available.",
     } as Localized,
-    chosen: { pt: "Dia escolhido", en: "Chosen day" } as Localized,
+    /**
+     * The weekday that opens the summary line under the calendar — "Quarta, 14
+     * de outubro · 10h00". Monday-first, like the grid. Written out rather than
+     * taken from `Intl`, whose Portuguese is "quarta-feira": a summary line
+     * reads as Diogo & Rita would say it.
+     */
+    weekdayNames: {
+      pt: ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"],
+      en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    } as Localized<string[]>,
     clear: { pt: "Limpar", en: "Clear" } as Localized,
     /**
      * Shown under a departure when the car this party needs is the last one
@@ -80,6 +89,15 @@ export const tourRequestContent = {
     partyChanged: {
       pt: "O dia que tinha escolhido já não tem carro livre para este grupo — escolha outro, por favor.",
       en: "The day you had chosen no longer has a car free for this group — please pick another.",
+    } as Localized,
+    /**
+     * The chosen day went off sale while the guest was here — the two days'
+     * notice caught up with a page left open over midnight, or it filled up.
+     * Never why beyond that: the guest is not told why a day is unavailable.
+     */
+    dayUnavailable: {
+      pt: "O dia que tinha escolhido já não está disponível — escolha outro, por favor.",
+      en: "The day you had chosen is no longer available — please pick another.",
     } as Localized,
     previousMonth: { pt: "Mês anterior", en: "Previous month" } as Localized,
     nextMonth: { pt: "Mês seguinte", en: "Next month" } as Localized,

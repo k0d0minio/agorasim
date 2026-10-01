@@ -60,6 +60,24 @@ export const departureLabels: Record<
 };
 
 /**
+ * The clock time of each departure, for the tours that have one — the short
+ * form the /reservar picker puts in its summary line ("Quarta, 14 de outubro
+ * · 10h00"). The same hours as `departureLabels`, written the way each
+ * language writes a time. A tour missing here gets the part of the day instead
+ * ({@link departureShortTime}), because a summary must never state an hour the
+ * business has not given.
+ */
+export const departureClockTimes: Record<
+  string,
+  Record<"morning" | "afternoon", Localized>
+> = {
+  "rural-saloia": {
+    morning: { pt: "10h00", en: "10:00" },
+    afternoon: { pt: "14h00", en: "14:00" },
+  },
+};
+
+/**
  * Tours whose departures still have no clock time.
  *
  * The one thing a guest cannot be sent away from a paid checkout without is
@@ -67,8 +85,9 @@ export const departureLabels: Record<
  * it and is done; where they do not, this set makes the confirmation email
  * promise the time in writing instead of referring to one it never states.
  *
- * The day Diogo & Rita answer with hours: put them in `departureLabels` above
- * and delete the slug from here. Nothing else in the codebase has to move.
+ * The day Diogo & Rita answer with hours: put them in `departureLabels` and
+ * `departureClockTimes` above and delete the slug from here. Nothing else in
+ * the codebase has to move.
  */
 const toursAwaitingDepartureTimes = new Set(["obidos-medieval-villages"]);
 
@@ -86,4 +105,18 @@ export function departureLabel(experienceSlug: string, slot: string): Localized 
   return key === "afternoon"
     ? { pt: "Tarde", en: "Afternoon" }
     : { pt: "Manhã", en: "Morning" };
+}
+
+/**
+ * One departure in a word or two, for the picker's summary line: the clock
+ * time where the tour has one, otherwise the part of the day ("manhã",
+ * "morning") — Óbidos, whose time is confirmed by email.
+ */
+export function departureShortTime(experienceSlug: string, slot: string): Localized {
+  const key: "morning" | "afternoon" = slot === "afternoon" ? "afternoon" : "morning";
+  const clock = departureClockTimes[experienceSlug];
+  if (clock) return clock[key];
+  return key === "afternoon"
+    ? { pt: "tarde", en: "afternoon" }
+    : { pt: "manhã", en: "morning" };
 }

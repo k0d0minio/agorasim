@@ -75,6 +75,28 @@ import {
   type VehicleCounts,
 } from "@/lib/fleet";
 import type { SlotOccupancy } from "@/lib/bookings";
+import {
+  dateKey,
+  firstOnlineDay,
+  isDateKey,
+  parseDateKey,
+  todayKey,
+  type DateKey,
+} from "@/lib/date-keys";
+
+// The date-key primitives moved to `lib/date-keys.ts` so the browser can use
+// them too; server code keeps importing them from here.
+export {
+  addDays,
+  BUSINESS_TIME_ZONE,
+  dateKey,
+  firstOnlineDay,
+  isDateKey,
+  ONLINE_NOTICE_DAYS,
+  parseDateKey,
+  todayKey,
+  type DateKey,
+} from "@/lib/date-keys";
 
 /**
  * The two departures the business actually runs — 10:00 and 14:00, from Diogo
@@ -118,87 +140,14 @@ export const CALENDAR_HORIZON_MONTHS = 18;
 export type Audience = "online" | "team";
 
 /**
- * Calendar days of notice a guest booking online must give (D-3).
- *
- * Counted in days, not hours: on a Monday the first bookable day is
- * Wednesday, both departures, whatever the time on Monday.
- */
-export const ONLINE_NOTICE_DAYS = 2;
-
-/**
  * How many calendar months a guest may book into, this one included (D-2) —
  * this month and the next five, the months the public picker shows.
  */
 export const ONLINE_BOOKING_MONTHS = 6;
 
 // ---------------------------------------------------------------------------
-// Date keys
+// Date keys — the primitives live in `lib/date-keys.ts`
 // ---------------------------------------------------------------------------
-
-/** `2026-08-15` — the only date format this engine passes around. */
-export type DateKey = string;
-
-const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-/**
- * Whether a string is a real calendar day in `YYYY-MM-DD` form.
- *
- * Shape *and* existence: `2026-02-31` matches the regex and is not a day, and
- * a booking engine that accepts it will happily sell a tour on it. The
- * round-trip through `Date.UTC` is what rejects it — an overflowing day rolls
- * into the next month and stops matching the string it came from.
- */
-export function isDateKey(value: unknown): value is DateKey {
-  if (typeof value !== "string" || !DATE_KEY_RE.test(value)) return false;
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
-}
-
-/**
- * The `YYYY-MM-DD` key of a `Date`, read in UTC.
- *
- * UTC rather than local time because the server's timezone is not a fact about
- * the business: the same instant must produce the same key on a laptop in
- * Lisbon and a serverless function in Frankfurt. Callers that mean "today in
- * Portugal" go through {@link todayKey}, which says so.
- */
-export function dateKey(date: Date): DateKey {
-  return date.toISOString().slice(0, 10);
-}
-
-/** The timezone the business, and therefore the calendar, lives in. */
-export const BUSINESS_TIME_ZONE = "Europe/Lisbon";
-
-const businessDayFormatter = new Intl.DateTimeFormat("en-CA", {
-  timeZone: BUSINESS_TIME_ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-/**
- * Today, as the business would say it.
- *
- * Portugal is UTC+1 for eight months of the year, so at 00:30 on the 16th in
- * Sintra a UTC clock still says the 15th — and a calendar that greys out
- * yesterday would be offering a tour that already happened. `en-CA` formats as
- * `YYYY-MM-DD`, which is the key format, which is why it is the locale here.
- */
-export function todayKey(now: Date = new Date()): DateKey {
-  return businessDayFormatter.format(now);
-}
-
-/** `2026-08-15` → a UTC midnight `Date`. Invalid keys give `null`. */
-export function parseDateKey(key: string): Date | null {
-  if (!isDateKey(key)) return null;
-  const [year, month, day] = key.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day));
-}
 
 /** Day of the week for a key, Monday-first: 0 = Monday … 6 = Sunday. */
 export function weekdayIndex(key: DateKey): number {
@@ -211,19 +160,6 @@ export function weekdayIndex(key: DateKey): number {
 /** Whether a key falls on a Saturday or Sunday. */
 export function isWeekend(key: DateKey): boolean {
   return weekdayIndex(key) >= 5;
-}
-
-/**
- * The key `days` calendar days after `key` (negative goes back).
- *
- * Arithmetic on UTC midnights, never on "now": a key is a day in Sintra, and
- * adding 48 hours to an instant near midnight is how two days' notice turns
- * into one.
- */
-export function addDays(key: DateKey, days: number): DateKey {
-  const date = parseDateKey(key);
-  if (!date) return key;
-  return dateKey(new Date(date.getTime() + days * 86_400_000));
 }
 
 // ---------------------------------------------------------------------------
@@ -349,7 +285,7 @@ export function onlineWindow(today: DateKey = todayKey()): {
   last: DateKey;
 } {
   return {
-    first: addDays(today, ONLINE_NOTICE_DAYS),
+    first: firstOnlineDay(today),
     last: monthBounds(addMonths(monthOf(today), ONLINE_BOOKING_MONTHS - 1)).last,
   };
 }
