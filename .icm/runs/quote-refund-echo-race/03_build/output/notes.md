@@ -1,7 +1,8 @@
 # Build notes: quote-refund-echo-race
 
-- commits: feat: quote-refund-echo-race — the admin refund claims first, and a late cancellation is told
-- ci: pending — draft head; full gate settles after the ready flip
+- commits: feat: quote-refund-echo-race — the admin refund claims first, and a late cancellation is told · chore: park the pre-existing next/undici advisories · chore: ready
+- ci: GREEN on the draft head 62dd7d6; full gate settles on the post-flip head
+- ready: 2026-10-01T11:06:00Z — flipped on 076222a
 
 ## What changed
 
