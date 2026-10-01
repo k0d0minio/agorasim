@@ -8,8 +8,8 @@
  * **Derived, never stored** (D-2). Nothing here writes to `availability`: a
  * quote *holds* its `event_date` for exactly as long as its status says the
  * deposit is settled, and stops the moment it is `cancelled`. There is no row
- * to reopen on a refund, so a day Rita closed, or never opened, is left as she
- * left it — and a day she opens *after* the deposit is still held.
+ * to reopen on a refund, so a day Rita blocked stays blocked and an open day is
+ * open again — and a day she unblocks *after* the deposit is still held.
  *
  * The hold is merged into the one occupancy count every reader shares
  * (`countSlotOccupancy` in `lib/bookings.ts`), which is how the public

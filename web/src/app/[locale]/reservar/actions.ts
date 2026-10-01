@@ -101,9 +101,10 @@ export async function submitTourRequest(
      *
      * An enquiry names a tour vaguely or not at all, and may be for fourteen
      * people — which is exactly the lead the team wants and precisely what the
-     * checkout refuses (see `lib/fleet.ts`). So all this asks is whether the
-     * day is on the calendar with a driver and a car still free; which car,
-     * and for whom, is the conversation the enquiry starts.
+     * checkout refuses (see `lib/fleet.ts`). So all this asks is whether a
+     * guest could book the day online — not blocked, two days out, inside six
+     * months, a driver and a car still free; which car, and for whom, is the
+     * conversation the enquiry starts.
      */
     let occupancy;
     try {

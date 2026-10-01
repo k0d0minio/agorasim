@@ -80,7 +80,9 @@ export default async function AdminCalendarPage({
     countSlotOccupancy({ from: monthStart, to: monthEnd }),
     listCatalogue(),
   ]);
-  const days = await readMonth({ month, today, occupancy });
+  // The team's view: today, tomorrow and blocked departures are theirs to sell
+  // on the phone (D-4), so the grid and the day sheet are described as they sell.
+  const days = await readMonth({ month, today, occupancy, audience: "team" });
   const [bookings, events] = await Promise.all([
     bookingsBetween({ from: monthStart, to: monthEnd }),
     // The deposit-paid weddings and events that hold their whole day — the

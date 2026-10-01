@@ -23,4 +23,9 @@ step, so a resuming session can pick up the first unticked line.
 
 ## Queue
 
-- [ ] <task — small enough for one commit; name the file or area>
+- [x] Pass 1 — the rule: `Audience`, `ONLINE_NOTICE_DAYS`, `ONLINE_BOOKING_MONTHS`, `addDays`, `onlineWindow`, `blocked` / `hasRoom` / `inOnlineWindow` in `lib/availability.ts` + `availability.test.ts`
+- [x] Pass 2 — guest paths: checkout `audience: "online"`, enquiry via `checkDayBookable` (online), public calendar (online)
+- [x] Pass 3 — team paths: `readDepartureWindow` (team), `createManualBooking` and `moveBookingToDeparture` (team) + manual-booking and move tests
+- [x] Pass 4 — interim admin chip, day sheet "Nova reserva" list, month count; admin page reads the month as `team`
+- [x] Pass 5 — comments: `db/schema.ts`, module notes, `content/tour-request.ts`, `lib/event-holds.ts`
+- [ ] Ready flip: draft GREEN → merge `origin/main` → `security-check --branch` → flip → ready push → full GREEN

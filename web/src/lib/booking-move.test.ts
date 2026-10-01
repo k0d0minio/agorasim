@@ -124,39 +124,51 @@ const { noVehicles } = await import("@/lib/fleet");
 const CLASSIC_TOUR = "rural-saloia";
 const TOURING_TOUR = "obidos-medieval-villages";
 
-function row(date: string, slot: AvailabilitySlot, drivers = 2): AvailabilityRow {
+function row(
+  date: string,
+  slot: AvailabilitySlot,
+  drivers = 2,
+  status: AvailabilityRow["status"] = "open",
+): AvailabilityRow {
   return {
     id: `${date}-${slot}`,
     date,
     slot,
     drivers,
-    status: "open",
+    status,
     note: null,
     createdAt: new Date("2026-08-01T10:00:00Z"),
     updatedAt: new Date("2026-08-01T10:00:00Z"),
   };
 }
 
-/** A day the calendar has been asked about, with whatever is already out on it. */
+/**
+ * A day the calendar has been asked about, with whatever is already out on it —
+ * described for the team, as `readDepartureWindow` describes it.
+ *
+ * `row` is what the team wrote: an `open` row (the default, carrying
+ * `drivers`), a `closed` one (blocked), or `none` — untouched, which is open.
+ */
 function day(
   date: string,
   options: {
-    open?: boolean;
+    row?: "open" | "closed" | "none";
     drivers?: number;
     used?: Partial<Record<AvailabilitySlot, SlotOccupancy>>;
     today?: string;
   } = {},
 ): DaySlots {
-  const { open = true, drivers = 2, used = {}, today = "2026-08-01" } = options;
+  const { row: written = "open", drivers = 2, used = {}, today = "2026-08-01" } = options;
   return {
     date,
     slots: TOUR_SLOTS.map((slot) =>
       describeSlot({
         date,
         slot,
-        row: open ? row(date, slot, drivers) : null,
+        row: written === "none" ? null : row(date, slot, drivers, written),
         occupancy: used[slot],
         today,
+        audience: "team",
       }),
     ),
   };
@@ -200,15 +212,49 @@ describe("viableMoveTargets", () => {
     expect(targets).toEqual([{ date: "2026-08-15", slot: "afternoon" }]);
   });
 
-  it("skips days nobody has opened", () => {
+  it("offers a day nobody has touched, and a blocked one", () => {
+    // D-13: the move is the team acting, like the manual booking — the block
+    // stops guests online, not a weather reschedule.
     const targets = viableMoveTargets({
-      days: [day("2026-08-20", { open: false }), day("2026-08-21")],
+      days: [day("2026-08-20", { row: "none" }), day("2026-08-21", { row: "closed" })],
       experienceSlug: CLASSIC_TOUR,
       partySize: 2,
       from,
     });
 
-    expect(targets.every((target) => target.date === "2026-08-21")).toBe(true);
+    expect(targets).toEqual([
+      { date: "2026-08-20", slot: "morning" },
+      { date: "2026-08-20", slot: "afternoon" },
+      { date: "2026-08-21", slot: "morning" },
+      { date: "2026-08-21", slot: "afternoon" },
+    ]);
+  });
+
+  it("offers today and tomorrow", () => {
+    const targets = viableMoveTargets({
+      days: [day("2026-08-01", { row: "none" }), day("2026-08-02", { row: "none" })],
+      experienceSlug: CLASSIC_TOUR,
+      partySize: 2,
+      from,
+    });
+
+    expect(targets).toHaveLength(4);
+  });
+
+  it("skips a blocked departure whose drivers are all out", () => {
+    const targets = viableMoveTargets({
+      days: [
+        day("2026-08-20", {
+          row: "closed",
+          used: { morning: committed("classic-small", "touring") },
+        }),
+      ],
+      experienceSlug: CLASSIC_TOUR,
+      partySize: 2,
+      from,
+    });
+
+    expect(targets).toEqual([{ date: "2026-08-20", slot: "afternoon" }]);
   });
 
   it("skips a departure whose drivers are all out, whichever tour took them", () => {
@@ -346,6 +392,22 @@ describe("moveBookingToDeparture", () => {
     recordAuditOrWarn.mockResolvedValue(undefined);
     sendLoggedEmail.mockReset();
     sendLoggedEmail.mockResolvedValue({ status: "sent", providerMessageId: "re_1" });
+  });
+
+  it("re-checks the target as the team, so a blocked or next-day departure can take it", async () => {
+    queueMove({ date: "2026-08-01" }, { date: "2026-08-15", moveSeq: 1 });
+    await moveBookingToDeparture({
+      bookingId: BOOKING_ID,
+      date: "2026-08-15",
+      slot: "morning",
+      actorUserId: "op-1",
+    });
+
+    // D-13: the move skips the guest's notice, window and block; capacity is
+    // what `checkSlotAvailable` still decides.
+    expect(checkSlotAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({ date: "2026-08-15", slot: "morning", audience: "team" }),
+    );
   });
 
   it("earns its own move notice on every real move, including a return to a date already visited", async () => {

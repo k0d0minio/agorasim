@@ -62,8 +62,8 @@ import {
  *   still fits the 320px reflow floor (D2).
  * - A departure reads in its cell the way a host's calendar reads on Airbnb:
  *   a filled chip whose colour *is* the state — light green is on sale with
- *   drivers free, solid green is on sale but spent, solid red is closed, a
- *   dashed outline is undecided — and a live booking is a dot on the tile.
+ *   drivers free (every departure nobody has blocked), solid green is on sale
+ *   but spent, solid red is closed — and a live booking is a dot on the tile.
  *   There is no legend to consult, which is the point: the cells colour
  *   themselves (see {@link slotChip}).
  * - Editing a day opens the shared responsive dialog — a bottom sheet on a
@@ -218,17 +218,18 @@ function rangeWords(list: CalendarDay[]): string {
 /**
  * How one departure reads inside a day cell, at arm's length.
  *
- * A departure is one of four states, and the cell is drawn so each one is a
+ * A departure is one of three states, and the cell is drawn so each one is a
  * colour plus a small mark rather than a code that needs a legend:
  *
  * - **à venda, com vagas** — a light green chip, `10h·2`, where the number is
- *   drivers still free.
+ *   drivers still free. A departure nobody has touched is this: the calendar
+ *   is open by default (D-1). Today and tomorrow read the same way — a guest
+ *   cannot book them online, but the team can, and this is the team's view.
  * - **à venda, esgotada** — solid green with the time struck through: spent,
  *   not closed.
  * - **fechada** — solid red with the time struck through and a cross.
- * - **sem decisão** — a faint dashed outline, no fill at all.
  *
- * And one that outranks all four: **evento** — a dark chip, struck through,
+ * And one that outranks all three: **evento** — a dark chip, struck through,
  * when a deposit-paid wedding or event holds the whole day. Whatever the row
  * says, nothing leaves that day, and the operator needs to see *why* rather
  * than a green that reads "sold out".
@@ -241,13 +242,7 @@ function slotChip(slot: SlotAvailability): { className: string; text: React.Reac
       text: <s>{short}</s>,
     };
   }
-  if (slot.status === null) {
-    return {
-      className: "border border-dashed border-input text-muted-foreground",
-      text: short,
-    };
-  }
-  if (slot.status === "closed") {
+  if (slot.blocked) {
     return {
       className: "bg-destructive text-destructive-foreground",
       text: (
@@ -258,7 +253,9 @@ function slotChip(slot: SlotAvailability): { className: string; text: React.Reac
       ),
     };
   }
-  if (!slot.bookable) {
+  // Capacity, not `bookable`: an open departure is spent when the drivers or
+  // the cars are, whatever a guest's notice would say about it.
+  if (!slot.hasRoom) {
     return {
       className: "bg-primary text-primary-foreground",
       text: <s>{short}</s>,
@@ -276,13 +273,12 @@ function slotChip(slot: SlotAvailability): { className: string; text: React.Reac
 function slotSentence(slot: SlotAvailability): string {
   const short = SLOT_SHORT[slot.slot] ?? slot.slot;
   if (slot.heldByEvent) return `${short} ocupada por um evento`;
-  if (slot.status === null) return `${short} não está à venda`;
-  if (slot.status === "closed") return `${short} fechada`;
+  if (slot.blocked) return `${short} fechada`;
   // "Sem condutores livres" rather than the English's "both drivers out": the
   // roster can be one, and a sentence that says "both" on a one-driver
   // departure is telling the operator something that is not true.
   if (slot.driversLeft === 0) return `${short} sem condutores livres`;
-  if (!slot.bookable) return `${short} sem veículos livres`;
+  if (!slot.hasRoom) return `${short} sem veículos livres`;
   return `${short} ${slot.driversLeft} de ${slot.drivers} condutores livres, ${carsLeft(slot)}`;
 }
 
@@ -570,11 +566,13 @@ function DayEditor({
   const error = save.error ?? clear.error;
   const fieldId = `day-${day.date}`;
   const anyDecided = editable.some((slot) => slot.status !== null);
-  // The departures that could still take a new booking today — the only ones
-  // the "Nova reserva" sheet offers. A closed or spent departure would only be
-  // refused by the action, so it is not offered at all.
+  // The departures the team could still sell — the only ones the "Nova
+  // reserva" sheet offers. A blocked departure is offered: the phone booking
+  // may take it (D-4). A spent or event-held one would only be refused by the
+  // action, so it is not offered at all. `bookable` is the team's here — the
+  // page reads the month for the `team` audience.
   const openSlots = editable
-    .filter((slot) => slot.status === "open" && slot.bookable)
+    .filter((slot) => slot.bookable)
     .map((slot) => slot.slot)
     .filter(
       (slot): slot is "morning" | "afternoon" =>
@@ -1484,8 +1482,10 @@ export function AvailabilityCalendar({
   const byDate = new Map(days.map((day) => [day.date, day]));
   const selectedDay = selected ? byDate.get(selected) : undefined;
 
+  // On sale this month: every departure still to come that nobody blocked —
+  // untouched ones included, since the calendar is open by default.
   const openSlots = days.flatMap((day) =>
-    day.slots.filter((slot) => slot.status === "open"),
+    day.slots.filter((slot) => !slot.past && !slot.blocked),
   );
   const toursLeft = openSlots.reduce((sum, slot) => sum + slot.driversLeft, 0);
 

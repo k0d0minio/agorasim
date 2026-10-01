@@ -398,6 +398,9 @@ export async function createManualBooking(
     slot,
     partySize: quoted.seats,
     occupancy: await slotOccupancyOn(date, slot),
+    // The phone booking skips the notice, the six-month window and the block;
+    // capacity still binds (D-4).
+    audience: "team",
   });
   if (!fit.ok) {
     switch (fit.reason) {
