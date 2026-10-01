@@ -8,9 +8,10 @@ decision made mid-run has one home.
 
 ## From the scope
 
-- <D-n — the decision, one line, as the scope worded it>
+- none — the epic was cut from triage (`triage batch balance-scheduler`), no `scope.md`
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-1 — the T−7 reminder stops at T−1 as well as the T−14 request: it has the same event-morning
+  hole (request at T−3 → reminder due at T−0) and also rotates the link. Operator, Define,
+  2026-10-01.

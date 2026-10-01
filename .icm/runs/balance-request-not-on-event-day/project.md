@@ -13,9 +13,12 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- The T−3 flag (`isBalanceFlagged`, `listUnpaidBalancesDue`) is unchanged — an event-day
+  open balance stays on "Saldo por pagar" and the quote-card badge.
+- No T−0 automation of any kind: nothing releases a date, cancels, or emails on the day.
+- The quote page is untouched — a couple holding a link can still pay on the event day.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read `balance-schedule.ts`, the two queries in `quotes.ts`, the job header and the test
+  fixtures to confirm the reminder had the same event-day hole — within budget.

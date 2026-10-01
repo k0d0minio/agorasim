@@ -62,6 +62,6 @@ card's badge, which already show it (T−3 flag, unchanged). No link is rotated 
 
 - none
 
-Decision taken at Define (operator, 2026-10-01): the T−7 reminder stops at T−1 too, not only the
+D-1, taken at Define (operator, 2026-10-01): the T−7 reminder stops at T−1 too, not only the
 T−14 request — the stub named only the request, but the reminder has the same event-morning
 hole and also rotates the link.

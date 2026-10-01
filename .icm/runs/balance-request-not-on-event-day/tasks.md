@@ -7,14 +7,17 @@ step, so a resuming session can pick up the first unticked line.
 
 ## Definition of done
 
-- [ ] The T−14 balance request never goes out on the event's own day; it still goes out on the
+- [ ] The T−14 balance request never goes out on the event's own day; it still goes out on T−1
 - [ ] The T−7 balance reminder never goes out on the event's own day; it still goes out on T−1
-- [ ] `listQuotesDueForBalance` and `listQuotesForBalanceReminder` floor `event_date` at
-- [ ] `balance-schedule.test.ts` covers the edge for both predicates: event day → false, T−1 →
-- [ ] `cron/balance-scheduler.test.ts` covers a run on the event morning: no request and no
-- [ ] The "Saldo por pagar" panel and the quote-card badge (`isBalanceFlagged`,
+- [ ] Both queries floor `event_date` at `today + 1`, agreeing with both predicates
+- [ ] `balance-schedule.test.ts` covers event day → false, T−1 → true for both predicates
+- [ ] `cron/balance-scheduler.test.ts` covers the event morning (nothing sent, link unchanged) and T−1 (sent)
+- [ ] "Saldo por pagar" panel and quote-card badge unchanged
 - [ ] CI green
 
 ## Queue
 
-- [ ] <task — small enough for one commit; name the file or area>
+- [ ] Pass 1 — predicates + `balance-schedule.test.ts`
+- [ ] Pass 2 — query floors in `quotes.ts`
+- [ ] Pass 3 — job comment + `cron/balance-scheduler.test.ts` edge cases
+- [ ] Pass 4 — push, CI GREEN, flip ready

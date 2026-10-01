@@ -6,18 +6,17 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. Once **Spec approved** is ticked on https://github.com/k0d0minio/agorasim/pull/162, run
+   `/pipeline build balance-request-not-on-event-day` and execute `plan.md` pass by pass.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
-- blocked on operator: <the human-only act that unblocks the run — tick a gate, merge, a
-  dashboard or env change>
-
-A blocking operator act is written here **and** in the stop report's `Operator:` list; a
-non-blocking one lives only in that list, never here (`_shared/output.md` → Split by actor).
+- blocked on operator: tick **Spec approved** in the body of
+  https://github.com/k0d0minio/agorasim/pull/162
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Do not touch `isBalanceFlagged` or `listUnpaidBalancesDue` — the event-day balance stays on
+  the panel.
+- Do not reorder the panel or move `isBalanceOpen` — stubs 2 and 3 of this epic own those.
+- Do not run build, lint, typecheck or test locally — CI is the source of truth.
