@@ -92,6 +92,7 @@ vi.mock("@/lib/quotes", async () => {
 // ---------------------------------------------------------------------------
 
 const intentsRetrieve = vi.fn();
+const chargesRetrieve = vi.fn();
 const refundsCreate = vi.fn();
 const refundsList = vi.fn();
 const feesRetrieve = vi.fn();
@@ -106,6 +107,7 @@ vi.mock("@/lib/stripe", () => ({
     run({ stripeAccount: "acct_test_agorasim" }),
   stripe: () => ({
     paymentIntents: { retrieve: (...args: unknown[]) => intentsRetrieve(...args) },
+    charges: { retrieve: (...args: unknown[]) => chargesRetrieve(...args) },
     refunds: {
       create: (...args: unknown[]) => refundsCreate(...args),
       list: (...args: unknown[]) => refundsList(...args),
@@ -212,18 +214,28 @@ function depositCharge(refundedCents: number, overrides: Partial<Stripe.Charge> 
   } as unknown as Stripe.Charge;
 }
 
-/** Stripe accepts the refund it is asked for, and returns the fee in proportion. */
-function stripeRefundsAsAsked(options: { feeReturnedByStripe?: (target: number) => number } = {}) {
+/**
+ * Stripe accepts the refund it is asked for, and returns the fee in proportion.
+ * The charge counts every refund on it — `refundedBefore` is money already
+ * back that the row may never have heard about (a dashboard refund, which
+ * keeps the fee).
+ */
+function stripeRefundsAsAsked(
+  options: { feeReturnedByStripe?: (target: number) => number; refundedBefore?: number } = {},
+) {
   let feeReturned = 0;
+  let refunded = options.refundedBefore ?? 0;
   intentsRetrieve.mockImplementation(async () => ({
     id: "pi_deposit",
-    latest_charge: depositCharge(0),
+    latest_charge: depositCharge(refunded),
   }));
   refundsCreate.mockImplementation(async (params: { amount: number }) => {
     const target = Math.round((DEPOSIT_FEE * params.amount) / 57_600);
     feeReturned += options.feeReturnedByStripe ? options.feeReturnedByStripe(target) : target;
+    refunded += params.amount;
     return { id: `re_admin_${params.amount}`, amount: params.amount, status: "succeeded" };
   });
+  chargesRetrieve.mockImplementation(async () => depositCharge(refunded));
   feesRetrieve.mockImplementation(async () => ({ id: "fee_deposit", amount_refunded: feeReturned }));
   feesCreateRefund.mockImplementation(async (_id: string, params: { amount: number }) => {
     feeReturned += params.amount;
@@ -509,6 +521,79 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
       expect(cancelQuoteAndOpenInstalments).toHaveBeenCalledTimes(1);
       expect(refundsCreate).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("settles a stale row from Stripe's total, and tells the couple once", async () => {
+    // €192 went back from the dashboard and its webhook never arrived: the row
+    // still says nothing is refunded.
+    stripeRefundsAsAsked({ refundedBefore: 19_200 });
+
+    const outcome = await refundQuotePayment({
+      paymentId: DEPOSIT_ID,
+      refundCents: 19_200,
+      cancelEvent: false,
+      actorUserId: ADMIN_ID,
+    });
+
+    // The board reports what this refund sent back; the row, what Stripe holds.
+    expect(outcome).toMatchObject({ status: "refunded", refundedCents: 19_200 });
+    expect(chargesRetrieve).toHaveBeenCalledWith("ch_deposit", {}, {
+      stripeAccount: "acct_test_agorasim",
+    });
+    expect(payments.get(DEPOSIT_ID)).toMatchObject({
+      status: "paid",
+      refundedAmountCents: 38_400,
+      refundedFeeCents: 2_304,
+    });
+    // Two thirds of €34.56 is €23.04: Stripe returned this refund's €11.52,
+    // the dashboard's €11.52 is topped up here.
+    expect(feesCreateRefund).toHaveBeenCalledWith(
+      "fee_deposit",
+      { amount: 1_152 },
+      { idempotencyKey: `quote-fee-refund:${DEPOSIT_ID}:2304` },
+    );
+    expect(recordAuditOrWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        after: expect.objectContaining({ via: "admin", refundedAmountCents: 38_400 }),
+      }),
+    );
+
+    // One notice for everything newly back: the missed €192 and this €192.
+    expect(sendLoggedEmail).toHaveBeenCalledTimes(1);
+    const [[claim, message]] = sendLoggedEmail.mock.calls;
+    expect(claim).toMatchObject({ kind: "quote-refunded", refundedTotalCents: 38_400 });
+    expect(message.text).toMatch(/Devolvemos 384\s€ do seu orçamento/);
+    expect(message.text).toMatch(/Total reembolsado neste orçamento: 384\s€/);
+
+    // The echo carries the same total and finds it written.
+    const echo = await syncQuotePaymentRefundFromStripe({
+      charge: depositCharge(38_400),
+      refundId: "re_admin_19200",
+    });
+    expect(echo).toMatchObject({ status: "already-synced" });
+    expect(sendLoggedEmail).toHaveBeenCalledTimes(1);
+    expect(auditActions()).toEqual(["quote.payment_refunded"]);
+  });
+
+  it("falls back to the row's sum when the charge can't be read back", async () => {
+    stripeRefundsAsAsked({ refundedBefore: 19_200 });
+    chargesRetrieve.mockRejectedValue(new Error("Stripe is having a moment."));
+
+    const outcome = await refundQuotePayment({
+      paymentId: DEPOSIT_ID,
+      refundCents: 19_200,
+      cancelEvent: false,
+      actorUserId: ADMIN_ID,
+    });
+
+    // The money went back, so this is a refund, not a refusal.
+    expect(outcome).toMatchObject({ status: "refunded", refundedCents: 19_200 });
+    expect(payments.get(DEPOSIT_ID)).toMatchObject({ status: "paid", refundedAmountCents: 19_200 });
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining("settling the deposit from the row plus this refund"),
+    );
+    // Refused once, never re-sent to another account.
+    expect(refundsCreate).toHaveBeenCalledTimes(1);
   });
 
   it("refuses amounts outside the ceiling, and instalments that were never paid", async () => {

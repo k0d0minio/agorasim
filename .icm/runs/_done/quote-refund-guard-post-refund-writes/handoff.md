@@ -16,4 +16,4 @@ stops, so nothing is carried in anyone's head.
 ## Do not
 
 - Do not re-open this run; follow-ups go through intake (`quote-refund-hardening` stubs 1, 3–5,
-  `triage/dependency-audit-next-undici.md`).
+  `triage/dependency-advisories-next-undici.md`).

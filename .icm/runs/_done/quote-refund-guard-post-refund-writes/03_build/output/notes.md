@@ -45,7 +45,7 @@
   card already has — no change here.
 - **`security-check.sh --branch` is BLOCKED on a pre-existing dependency finding, not on this
   diff**: a critical `next` advisory (16.3.4 pinned; next/og RCE, patched 16.3.6) and three high
-  `undici` ones, all on `main`. Parked as `.icm/intake/triage/dependency-audit-next-undici.md`
+  `undici` ones, all on `main`. Parked as `.icm/intake/triage/dependency-advisories-next-undici.md`
   per security-audit → Dependency findings (`error.log` has the trace). Release stop class 2
   reads the same audit — the operator decides whether that chore lands on `main` first.
 
@@ -54,7 +54,7 @@
 - gate: Ready to merge ticked — merge authorised
 - ci: GREEN on 6791200 (ci-status.sh full gate, the last code head; the record and close-out pushes after it carry no code)
 - reviews: code low (1 finding — a stray `warning` field on `CancelBookingState`, fixed on the branch) · security audit waived — `next` 16.3.4 (<16.3.6, next/og RCE, critical) and `undici` (3 high), pre-existing on `main` and not bumpable within this spec's `touches:`; the operator chose to waive for this release with the chore parked (`security-check.sh --branch --no-audit`: OK; gitleaks absent — built-in patterns only) + /security-review — no findings · readiness env.sh audit --changed: OK · /production-readiness n/a — the skill is not installed in this repo or session; the diff touches payments, so /security-review and the code review covered it
-- parked: dependency-audit-next-undici.md (at Build)
+- parked: none — the dependency finding Build parked duplicated `triage/dependency-advisories-next-undici.md` from quote-refund-admin-reads-charge; dropped at the merge of main
 - migrations: skip — none of this run's own
-- learned: 1 rule appended to _shared/project-rules.md
+- learned: 1 rule appended to _shared/project-rules.md — collapsed at the merge of main into the equivalent dependency-audit rule quote-refund-admin-reads-charge had already appended (one rule per signature)
 - docs: no docs impact · announce: deferred to promotion
