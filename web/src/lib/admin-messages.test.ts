@@ -53,10 +53,10 @@ describe("messageKindLabel", () => {
 });
 
 describe("MESSAGE_CARDS", () => {
-  it("has one card for each of the twelve kinds with a sender, the balance kinds included", () => {
+  it("has one card for each of the thirteen kinds with a sender, the balance kinds included", () => {
     const kinds = MESSAGE_CARDS.map((card) => card.kind);
-    expect(kinds).toHaveLength(12);
-    expect(new Set(kinds).size).toBe(12);
+    expect(kinds).toHaveLength(13);
+    expect(new Set(kinds).size).toBe(13);
     expect(kinds).toContain("balance-request");
     expect(kinds).toContain("balance-reminder");
   });

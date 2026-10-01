@@ -833,7 +833,29 @@ describe("cancelHeldQuote — Cancelar evento", () => {
     expect(outcome).toMatchObject({ status: "cancelled" });
     expect(payments.get(BALANCE_ID)?.status).toBe("cancelled");
     expect(auditActions()).toEqual(["quote.cancelled"]);
-    expect(sendLoggedEmail).not.toHaveBeenCalled();
+    // The couple's last word was the refund notice's "still booked".
+    expect(sendLoggedEmail).toHaveBeenCalledTimes(1);
+    expect(sendLoggedEmail).toHaveBeenCalledWith(
+      {
+        kind: "quote-event-cancelled",
+        recipient: "guest",
+        quoteId: QUOTE_ID,
+        tourRequestId: LEAD_ID,
+      },
+      expect.objectContaining({ to: ["ana@example.com"] }),
+    );
+    expect(sendLoggedEmail.mock.calls[0][1].subject).toContain("Evento cancelado");
+    expect(sendLoggedEmail.mock.calls[0][1].text).toMatch(/O reembolso de 576\s€ já foi feito/);
+  });
+
+  it("tells the couple once — a second Cancelar evento sends nothing", async () => {
+    payments.set(DEPOSIT_ID, instalment("deposit", "refunded", { refundedAmountCents: 57_600 }));
+
+    await cancelHeldQuote({ quoteId: QUOTE_ID, actorUserId: ADMIN_ID });
+    const again = await cancelHeldQuote({ quoteId: QUOTE_ID, actorUserId: ADMIN_ID });
+
+    expect(again).toMatchObject({ status: "not-held" });
+    expect(sendLoggedEmail).toHaveBeenCalledTimes(1);
   });
 
   it("expires the written-off balance's open Checkout session, so its page can no longer pay it", async () => {
@@ -872,5 +894,206 @@ describe("cancelHeldQuote — Cancelar evento", () => {
       status: "not-held",
     });
     expect(cancelQuoteAndOpenInstalments).not.toHaveBeenCalled();
+  });
+});
+
+describe("the admin refund and its webhook echo — whichever lands first", () => {
+  /**
+   * Stripe answers the quote card's refund, but its `charge.refunded` reaches
+   * the dashboard door before `refunds.create` has even returned — the race at
+   * its tightest. Returns what each echo came back with.
+   */
+  function echoBeforeTheCardSettles(refundCreatedAt: number) {
+    const echoes: unknown[] = [];
+    intentsRetrieve.mockResolvedValue({ id: "pi_deposit", latest_charge: depositCharge(0) });
+    feesRetrieve.mockResolvedValue({ id: "fee_deposit", amount_refunded: DEPOSIT_FEE });
+    refundsCreate.mockImplementation(
+      async (params: { amount: number; metadata: Record<string, string> }) => {
+        const refund = {
+          id: `re_admin_${params.amount}`,
+          object: "refund",
+          amount: params.amount,
+          status: "succeeded",
+          created: refundCreatedAt,
+          metadata: params.metadata,
+        };
+        refundsList.mockResolvedValue({ data: [refund] });
+        echoes.push(
+          await syncQuotePaymentRefundFromStripe({
+            charge: depositCharge(params.amount, {
+              refunds: { data: [refund] } as unknown as Stripe.Charge["refunds"],
+            }),
+          }),
+        );
+        return refund;
+      },
+    );
+    return echoes;
+  }
+
+  const justNow = () => Math.floor(Date.now() / 1000);
+
+  it("defers the echo, so the card records the refund under the admin and the couple hear it is off", async () => {
+    const echoes = echoBeforeTheCardSettles(justNow());
+
+    const outcome = await refundQuotePayment({
+      paymentId: DEPOSIT_ID,
+      refundCents: 57_600,
+      cancelEvent: true,
+      actorUserId: ADMIN_ID,
+    });
+
+    // The echo wrote nothing and told nobody.
+    expect(echoes).toEqual([expect.objectContaining({ status: "deferred" })]);
+
+    // The card claimed it: the admin is the actor, and the notice matches the end state.
+    expect(outcome).toMatchObject({ status: "refunded", refundedCents: 57_600, eventCancelled: true });
+    const refunded = recordAuditOrWarn.mock.calls
+      .map(([entry]) => entry as { action: string; actorUserId: string | null; after: { via?: string } })
+      .filter((entry) => entry.action === "quote.payment_refunded");
+    expect(refunded).toHaveLength(1);
+    expect(refunded[0]).toMatchObject({ actorUserId: ADMIN_ID, after: { via: "admin" } });
+
+    expect(sendLoggedEmail).toHaveBeenCalledTimes(1);
+    expect(sendLoggedEmail.mock.calls[0][0]).toMatchObject({ kind: "quote-refunded" });
+    expect(sendLoggedEmail.mock.calls[0][1].subject).toContain("Evento cancelado");
+    expect(quoteStatus).toBe("cancelled");
+  });
+
+  it("finds the refund written when Stripe redelivers the deferred echo", async () => {
+    echoBeforeTheCardSettles(justNow());
+    await refundQuotePayment({
+      paymentId: DEPOSIT_ID,
+      refundCents: 57_600,
+      cancelEvent: false,
+      actorUserId: ADMIN_ID,
+    });
+    vi.clearAllMocks();
+
+    const redelivery = await syncQuotePaymentRefundFromStripe({ charge: depositCharge(57_600) });
+
+    expect(redelivery).toMatchObject({ status: "already-synced" });
+    expect(recordPaymentRefund).not.toHaveBeenCalled();
+    expect(recordAuditOrWarn).not.toHaveBeenCalled();
+    expect(sendLoggedEmail).not.toHaveBeenCalled();
+  });
+
+  it("settles a card refund as Stripe's once the window has passed", async () => {
+    refundsList.mockResolvedValue({
+      data: [
+        {
+          id: "re_admin_57600",
+          object: "refund",
+          amount: 57_600,
+          status: "succeeded",
+          created: justNow() - 11 * 60,
+          metadata: { quotePaymentId: DEPOSIT_ID, via: "admin" },
+        },
+      ],
+    });
+    feesRetrieve.mockResolvedValue({ id: "fee_deposit", amount_refunded: DEPOSIT_FEE });
+
+    const outcome = await syncQuotePaymentRefundFromStripe({ charge: depositCharge(57_600) });
+
+    expect(outcome).toMatchObject({ status: "synced", refundedAmountCents: 57_600 });
+    expect(recordAuditOrWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: null,
+        action: "quote.payment_refunded",
+        after: expect.objectContaining({ via: "stripe" }),
+      }),
+    );
+  });
+
+  it("does not defer a card refund the row already carries — something else is behind", async () => {
+    // The card wrote re_admin_28800; Stripe also holds an older dashboard refund the row missed.
+    payments.set(
+      DEPOSIT_ID,
+      instalment("deposit", "paid", {
+        refundedAmountCents: 28_800,
+        refundedFeeCents: 1_728,
+        stripeRefundId: "re_admin_28800",
+      }),
+    );
+    refundsList.mockResolvedValue({
+      data: [
+        {
+          id: "re_admin_28800",
+          object: "refund",
+          amount: 28_800,
+          status: "succeeded",
+          created: justNow(),
+          metadata: { quotePaymentId: DEPOSIT_ID, via: "admin" },
+        },
+      ],
+    });
+    feesRetrieve.mockResolvedValue({ id: "fee_deposit", amount_refunded: DEPOSIT_FEE });
+
+    const outcome = await syncQuotePaymentRefundFromStripe({ charge: depositCharge(57_600) });
+
+    expect(outcome).toMatchObject({ status: "synced", refundedAmountCents: 57_600 });
+  });
+
+  it("never defers a dashboard refund, however fresh", async () => {
+    refundsList.mockResolvedValue({
+      data: [
+        {
+          id: "re_dashboard",
+          object: "refund",
+          amount: 57_600,
+          status: "succeeded",
+          created: justNow(),
+          metadata: {},
+        },
+      ],
+    });
+    feesRetrieve.mockResolvedValue({ id: "fee_deposit", amount_refunded: DEPOSIT_FEE });
+
+    const outcome = await syncQuotePaymentRefundFromStripe({ charge: depositCharge(57_600) });
+
+    expect(outcome).toMatchObject({ status: "synced" });
+    expect(sendLoggedEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "quote-refunded" }),
+      expect.anything(),
+    );
+  });
+
+  it("tells the couple it is off when the echo won anyway, and returns the refunded row", async () => {
+    // Past the window: the echo settles it as Stripe's and says "still booked".
+    echoBeforeTheCardSettles(justNow() - 11 * 60);
+
+    const outcome = await refundQuotePayment({
+      paymentId: DEPOSIT_ID,
+      refundCents: 57_600,
+      cancelEvent: true,
+      actorUserId: ADMIN_ID,
+    });
+
+    expect(outcome).toMatchObject({
+      status: "refunded",
+      refundedCents: 57_600,
+      eventCancelled: true,
+      payment: { refundedAmountCents: 57_600, status: "refunded" },
+    });
+
+    const kinds = sendLoggedEmail.mock.calls.map(([subject]) => (subject as { kind: string }).kind);
+    expect(kinds).toEqual(["quote-refunded", "quote-event-cancelled"]);
+    expect(sendLoggedEmail.mock.calls[0][1].text).toContain("O seu evento continua marcado");
+    expect(sendLoggedEmail.mock.calls[1][1].subject).toContain("Evento cancelado");
+  });
+
+  it("sends only the refund notice when the card settles and cancels in the ordinary way", async () => {
+    stripeRefundsAsAsked();
+
+    await refundQuotePayment({
+      paymentId: DEPOSIT_ID,
+      refundCents: 57_600,
+      cancelEvent: true,
+      actorUserId: ADMIN_ID,
+    });
+
+    const kinds = sendLoggedEmail.mock.calls.map(([subject]) => (subject as { kind: string }).kind);
+    expect(kinds).toEqual(["quote-refunded"]);
+    expect(sendLoggedEmail.mock.calls[0][1].subject).toContain("Evento cancelado");
   });
 });

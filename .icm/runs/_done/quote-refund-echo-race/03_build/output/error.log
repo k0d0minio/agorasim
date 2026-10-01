@@ -1,0 +1,21 @@
+## 2026-10-01T11:10:00Z session — db-branch.sh could not create the run's Neon branch
+error: POST /projects/lingering-frog-97017403/branches (run/quote-refund-echo-race) answered HTTP 422: branches limit exceeded
+- resolved: The non-production Neon project has hit its branch limit, so this run has no database of its own; no migration ran locally, and the preview build applies `0034_quote_event_cancelled_kind` to its own `preview/<branch>` database instead. Stale `run/*` and `preview/*` branches in `uat-agorasim` need pruning (`db-env.sh prune`) by the operator.
+## 2026-10-01T11:02:05Z security-check.sh — dependency-audit
+scope=branch head=62dd7d6 branch=claude/friendly-lamport-wvw8qq — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+(unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+- resolved: Not a secret and not this branch's: the 4 high/critical advisories (next `next/og` RCE, three undici) are in `main`'s lockfile, which this branch does not touch. Per the security-audit skill they are parked as `.icm/intake/triage/deps-next-undici-advisories.md` (chore, P0) and named in Notes for Release; the secrets half of the gate passed.
+
+## 2026-10-01T11:02:09Z security-check.sh — dependency-audit
+scope=branch head=62dd7d6 branch=claude/friendly-lamport-wvw8qq — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+(unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+- resolved: Not a secret and not this branch's: the 4 high/critical advisories (next `next/og` RCE, three undici) are in `main`'s lockfile, which this branch does not touch. Per the security-audit skill they are parked as `.icm/intake/triage/deps-next-undici-advisories.md` (chore, P0) and named in Notes for Release; the secrets half of the gate passed.
+
+## 2026-10-01T11:06:24Z security-check.sh — dependency-audit
+scope=branch head=1c3ec19 branch=claude/friendly-lamport-wvw8qq — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+(unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+- resolved: Same pre-existing advisories as above (main's lockfile, not this branch); the operator waived the audit for this merge at Release, and the chore `deps-next-undici-advisories` carries the bump.
+

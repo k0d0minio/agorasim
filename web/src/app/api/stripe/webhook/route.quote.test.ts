@@ -279,8 +279,24 @@ describe("POST /api/stripe/webhook — a refund on a quote instalment", () => {
     expect(syncQuotePaymentRefundFromStripe).toHaveBeenCalledWith({
       charge: expect.objectContaining({ id: "ch_test_quote" }),
       refundId: null,
+      refund: null,
     });
     expect(captureAlert).not.toHaveBeenCalled();
+  });
+
+  it("asks Stripe to redeliver an echo of the quote card's refund that is still settling", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    syncRefundFromStripe.mockResolvedValue({ status: "unknown-charge" });
+    syncQuotePaymentRefundFromStripe.mockResolvedValue({ status: "deferred", payment: {} });
+
+    const response = await post(sessionEvent("charge.refunded", charge));
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ received: false, deferred: true, quote: true });
+    // Expected behaviour, not a fault: no alarm and no error report.
+    const { captureError } = await import("@/lib/observability");
+    expect(captureAlert).not.toHaveBeenCalled();
+    expect(captureError).not.toHaveBeenCalled();
   });
 
   it("passes the refund id a refund.updated event carries", async () => {
@@ -299,7 +315,10 @@ describe("POST /api/stripe/webhook — a refund on a quote instalment", () => {
       quote: true,
     });
     expect(syncQuotePaymentRefundFromStripe).toHaveBeenCalledWith(
-      expect.objectContaining({ refundId: "re_test_quote" }),
+      expect.objectContaining({
+        refundId: "re_test_quote",
+        refund: expect.objectContaining({ id: "re_test_quote" }),
+      }),
     );
   });
 

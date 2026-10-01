@@ -262,7 +262,19 @@ export async function POST(request: Request): Promise<Response> {
 
       // Not a tour: a wedding or event instalment, refunded from the
       // dashboard or echoed back from the quote card's own refund.
-      const quoteOutcome = await syncQuotePaymentRefundFromStripe({ charge, refundId });
+      const quoteOutcome = await syncQuotePaymentRefundFromStripe({
+        charge,
+        refundId,
+        refund: event.type === "refund.updated" ? (event.data.object as Stripe.Refund) : null,
+      });
+      if (quoteOutcome.status === "deferred") {
+        // The quote card's own refund, echoed back before the card has written
+        // it. Not a fault: 503 has Stripe redeliver it, by which time the card
+        // has settled it (`already-synced`) or the window has passed and the
+        // redelivery settles it as Stripe's (`lib/quote-refund.ts`).
+        console.warn(`[stripe] ${charge.id}: the quote card's refund is still settling — deferred`);
+        return Response.json({ received: false, deferred: true, quote: true }, { status: 503 });
+      }
       if (quoteOutcome.status !== "unknown-charge") {
         return Response.json({ received: true, outcome: quoteOutcome.status, quote: true });
       }

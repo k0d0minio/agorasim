@@ -1955,3 +1955,103 @@ export function guestQuoteRefundEmail(facts: QuoteRefundEmailFacts): EmailMessag
     replyTo: site.email,
   };
 }
+
+/**
+ * Everything the couple's cancellation notice needs, already formatted in
+ * their language by the caller (`lib/quote-refund.ts`).
+ */
+export type QuoteEventCancelledEmailFacts = {
+  /** `QT-1A2B3C`. */
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  /** The quote's own language, which is the enquiry's. */
+  locale: Locale;
+  /** The event day, formatted. */
+  date: string;
+  venue: string | null;
+  /** What has gone back on the whole quote, formatted. */
+  totalRefunded: string;
+};
+
+/**
+ * The couple's notice that their event is off, when the last word they had
+ * was that it was still booked. It carries no refund row: the money went back
+ * earlier and was told in its own email — this one only corrects the state.
+ */
+export function guestQuoteEventCancelledEmail(facts: QuoteEventCancelledEmailFacts): EmailMessage {
+  const c = bookingEmails.quoteEventCancelled;
+  const r = bookingEmails.quoteRefund;
+  const l = facts.locale;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    ref: facts.ref,
+    date: facts.date,
+    totalRefunded: facts.totalRefunded,
+    site: siteUrl(),
+  };
+
+  const subject = fill(t(c.subject, l), values);
+  const greeting = fill(t(c.greeting, l), values);
+  const lead = fill(t(c.lead, l), values);
+
+  const rows: DetailRow[] = [
+    { label: t(r.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(r.labels.date, l), value: facts.date },
+    ...(facts.venue ? [{ label: t(r.labels.venue, l), value: facts.venue }] : []),
+    { label: t(r.labels.status, l), value: t(r.status.cancelled, l), emphasis: true },
+    { label: t(r.labels.totalRefunded, l), value: facts.totalRefunded },
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    lead,
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    t(r.questions, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(r.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fill(t(c.preheader, l), values),
+    // The refund notice's muted strip: news about an event that is off.
+    banner: { text: t(c.banner, l), background: emailPalette.textMuted },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(lead, { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      emailSpacer(24),
+      emailParagraph(t(r.questions, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(r.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(r.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+  };
+}

@@ -239,6 +239,13 @@
       "when": 1790355532770,
       "tag": "0033_rate_limit_windows",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790852162622,
+      "tag": "0034_quote_event_cancelled_kind",
+      "breakpoints": true
     }
   ]
 }

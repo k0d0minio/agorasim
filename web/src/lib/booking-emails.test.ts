@@ -7,6 +7,7 @@ import {
   guestEnquiryAckEmail,
   guestMoveEmail,
   guestQuoteReceiptEmail,
+  guestQuoteEventCancelledEmail,
   guestQuoteRefundEmail,
   guestQuoteSentEmail,
   guestReminderEmail,
@@ -22,6 +23,7 @@ import {
   type BookingMoveFacts,
   type EnquiryEmailFacts,
   type QuoteReceiptEmailFacts,
+  type QuoteEventCancelledEmailFacts,
   type QuoteRefundEmailFacts,
   type QuoteSentEmailFacts,
   type ReminderEmailFacts,
@@ -1358,6 +1360,67 @@ describe("guestQuoteRefundEmail — quote-refunded", () => {
     expect(mail.html).not.toContain("/orcamento/");
     // The couple's names are escaped in the HTML part, as every name is.
     expect(mail.html).toContain("Inês &amp; Tomás");
+  });
+});
+
+describe("guestQuoteEventCancelledEmail — quote-event-cancelled", () => {
+  function cancelledFacts(
+    overrides: Partial<QuoteEventCancelledEmailFacts> = {},
+  ): QuoteEventCancelledEmailFacts {
+    return {
+      ref: "QT-A1B2C3",
+      guestName: "Inês & Tomás",
+      guestEmail: "ines@example.com",
+      locale: "pt",
+      date: "sábado, 15 de agosto de 2026",
+      venue: "Quinta do Hespanhol, Mafra",
+      totalRefunded: "486 €",
+      ...overrides,
+    };
+  }
+
+  it("says the event is off and points at the earlier refund email, in Portuguese", () => {
+    const pt = guestQuoteEventCancelledEmail(cancelledFacts());
+
+    expect(pt.subject).toBe("Evento cancelado — sábado, 15 de agosto de 2026");
+    expect(pt.text).toContain(
+      "O seu evento de sábado, 15 de agosto de 2026 foi cancelado. O reembolso de 486 € já foi feito — enviámos-lhe os detalhes num email anterior.",
+    );
+    expect(pt.text).toContain("Referência: QT-A1B2C3");
+    expect(pt.text).toContain("Local: Quinta do Hespanhol, Mafra");
+    expect(pt.text).toContain("O evento: Cancelado");
+    expect(pt.text).toContain("Total reembolsado neste orçamento: 486 €");
+    expect(pt.to).toEqual(["ines@example.com"]);
+    expect(pt.replyTo).toBe(site.email);
+  });
+
+  it("says the same in English", () => {
+    const en = guestQuoteEventCancelledEmail(
+      cancelledFacts({ locale: "en", date: "Saturday, 15 August 2026", totalRefunded: "€486" }),
+    );
+
+    expect(en.subject).toBe("Event cancelled — Saturday, 15 August 2026");
+    expect(en.text).toContain(
+      "Your event on Saturday, 15 August 2026 has been cancelled. The refund of €486 has already been made — we sent you its details in an earlier email.",
+    );
+    expect(en.text).toContain("The event: Cancelled");
+    expect(en.text).toContain("Total refunded on this quote: €486");
+    expect(en.html).toContain('lang="en"');
+  });
+
+  it("has no refunded-now row, no payment row and no quote link — no money moves with it", () => {
+    for (const locale of ["pt", "en"] as const) {
+      const mail = guestQuoteEventCancelledEmail(cancelledFacts({ locale }));
+      expect(mail.text).not.toMatch(/Reembolso agora|Refunded now/);
+      expect(mail.text).not.toMatch(/Valor pago|Amount paid/);
+      expect(mail.text).not.toContain("/orcamento/");
+      expect(mail.html).not.toMatch(/Reembolso agora|Refunded now/);
+    }
+  });
+
+  it("leaves the venue row out when the quote has none", () => {
+    const pt = guestQuoteEventCancelledEmail(cancelledFacts({ venue: null }));
+    expect(pt.text).not.toContain("Local:");
   });
 });
 

@@ -575,8 +575,9 @@ export async function refundLeadQuotePayment(
 
 /**
  * "Cancelar evento" — call off a quote whose deposit has already gone back in
- * full, so its balance is never asked for. No money moves and no email goes:
- * the couple were told about the refund when it happened.
+ * full, so its balance is never asked for. No money moves; the couple were
+ * told about the refund when it happened, and are told now that the event is
+ * off (`quote-event-cancelled`, sent by {@link cancelHeldQuote}).
  */
 export async function cancelLeadHeldQuote(
   _prevState: QuoteActionState,
@@ -602,7 +603,10 @@ export async function cancelLeadHeldQuote(
     case "cancelled":
       // The day it held is back on sale — bust the cached public calendar.
       revalidatePath("/", "layout");
-      return { ok: true, message: "Evento cancelado. O saldo já não será pedido." };
+      return {
+        ok: true,
+        message: "Evento cancelado. O saldo já não será pedido e o cliente foi avisado por email.",
+      };
     case "not-found":
       return { error: "Este orçamento já não existe. Recarregue a página." };
     case "not-held":

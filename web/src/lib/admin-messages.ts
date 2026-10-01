@@ -43,6 +43,7 @@ export const messageKindLabel: Record<MessageKind, string> = {
   "deposit-received": "Sinal recebido",
   "balance-paid": "Saldo pago",
   "quote-refunded": "Reembolso",
+  "quote-event-cancelled": "Evento cancelado",
   "balance-request": "Pedido do saldo",
   "balance-reminder": "Lembrete do saldo",
 };
@@ -104,6 +105,10 @@ export const MESSAGE_CARDS: readonly MessageCard[] = [
   {
     kind: "quote-refunded",
     when: "Quando devolve dinheiro de um orçamento — ao cliente.",
+  },
+  {
+    kind: "quote-event-cancelled",
+    when: "Quando cancela um evento depois de o cliente ter sido avisado de que continuava marcado — ao cliente.",
   },
 ];
 
