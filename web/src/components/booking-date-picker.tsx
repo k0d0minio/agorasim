@@ -132,6 +132,7 @@ export function BookingDatePicker({
   value,
   slotValue,
   dropped = false,
+  droppedUnavailable = false,
   onSlotChange,
   onDateChange,
 }: {
@@ -203,6 +204,14 @@ export function BookingDatePicker({
    * between a day taken away and a day nobody has picked yet.
    */
   dropped?: boolean;
+  /**
+   * Say so when the chosen day was dropped because it went off sale — the
+   * browser's notice check ruled it out (a page left open over midnight, a
+   * day restored from a cancelled checkout), or it filled up. Not the party's
+   * doing, so not {@link dropped}'s sentence: a guest told their group is the
+   * problem goes and changes their group.
+   */
+  droppedUnavailable?: boolean;
   /** Tells the form which slot is chosen, for its live summary. */
   onSlotChange?: (slot: "morning" | "afternoon" | null) => void;
   /** Tells the form which day is chosen — the add-on rules read the weekday. */
@@ -234,6 +243,10 @@ export function BookingDatePicker({
       months.some((m) => m.days.some((d) => d.date === ownDay && d.slots.some(slotUsable))),
   );
   const selected = value !== undefined ? value : ownDayUsable ? ownDay : null;
+  // Said out loud, like a party change: an enquiry would otherwise post no day
+  // at all with nothing on the page to say the guest's choice was cleared.
+  // Not when the server's own error is already saying why.
+  const ownDayDropped = value === undefined && Boolean(ownDay) && !ownDayUsable && !error;
   const selectedSlot = slotValue !== undefined ? slotValue : ownSlot;
 
   /*
@@ -554,6 +567,10 @@ export function BookingDatePicker({
       {dropped ? (
         <p className="text-sm text-muted-foreground" role="status">
           {t(c.partyChanged, l)}
+        </p>
+      ) : droppedUnavailable || ownDayDropped ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          {t(c.dayUnavailable, l)}
         </p>
       ) : null}
 

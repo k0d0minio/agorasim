@@ -90,6 +90,15 @@ export const tourRequestContent = {
       pt: "O dia que tinha escolhido já não tem carro livre para este grupo — escolha outro, por favor.",
       en: "The day you had chosen no longer has a car free for this group — please pick another.",
     } as Localized,
+    /**
+     * The chosen day went off sale while the guest was here — the two days'
+     * notice caught up with a page left open over midnight, or it filled up.
+     * Never why beyond that: the guest is not told why a day is unavailable.
+     */
+    dayUnavailable: {
+      pt: "O dia que tinha escolhido já não está disponível — escolha outro, por favor.",
+      en: "The day you had chosen is no longer available — please pick another.",
+    } as Localized,
     previousMonth: { pt: "Mês anterior", en: "Previous month" } as Localized,
     nextMonth: { pt: "Mês seguinte", en: "Next month" } as Localized,
     weekdays: {

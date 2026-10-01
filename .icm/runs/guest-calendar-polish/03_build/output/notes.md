@@ -53,15 +53,12 @@
 
 ## Notes for Release
 
-- **Enquiry form, uncontrolled day:** the picker now drops a day it holds itself when that day
-  is not usable in the calendar (the notice check, or a payload that has it off sale). After a
-  rejected enquiry the echoed off-sale day is therefore no longer shown as chosen; the error
-  under the calendar still says why. The "flexible" text box is still decided against the day
-  as posted, so an echoed date key never turns into free text.
-- **Checkout, a restored draft day ruled out by the notice** (a guest back from Stripe after
-  midnight): it is dropped, and the existing `partyChanged` line shows ("no longer has a car
-  free for this group") — the wording names the party, not the date. Rare (only across
-  midnight on a stale page); left as is rather than adding a second message.
+- **A day dropped by the clock is said out loud (fixed in Release after /code-review):** the
+  checkout tells a day the notice took (usable on the payload as built, not by the browser's
+  today) from one the party lost, and shows "O dia que tinha escolhido já não está disponível"
+  instead of the party sentence; the enquiry picker shows the same line when it drops a day it
+  holds itself (not when the server's own error is already showing). The "flexible" text box is
+  still decided against the day as posted, so an echoed date key never turns into free text.
 - Width to check on the preview: the checkout's left column at exactly 1024 px holds two months
   of ~35 px-wide cells (44 px tall). Check at 1024 and 1280.
 - Define committed `status.md` empty (a script truncated it before reading it); Build restored
