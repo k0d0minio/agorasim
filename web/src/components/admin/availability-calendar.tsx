@@ -66,10 +66,12 @@ import {
  *
  * - Every day cell is a ≥44px target (T1) laid out in a 7-column grid that
  *   still fits the 320px reflow floor (D2).
- * - A departure reads in its cell as a chip whose colour *is* the state —
- *   light green on sale with drivers free, solid green spent, red blocked,
- *   dark held by an event — and a day's live bookings are a count beside its
- *   number. There is no legend to consult (see {@link slotChip}).
+ * - A day reads the way it does in Google Calendar or on Airbnb
+ *   (`admin-calendar-plain-tiles`): a plain tile is free, a gray tile is
+ *   blocked, a small slash in the corner means only one departure is
+ *   blocked, and each live booking is a dot under the number — an event
+ *   holding the day is a dark square among them. No driver counts on the
+ *   tile; those are in "Ver dia" (see {@link tileState}).
  * - The bar is sticky and in flow, like {@link FormActionBar}, so the grid
  *   above it stays tappable for the second tap and iOS's keyboard never
  *   covers it.
@@ -78,9 +80,8 @@ import {
  * - Month paging is `<Link>`s, not client state (V3): the back-swipe an
  *   installed PWA cannot disable stays meaningful, and a reload lands where
  *   the operator was.
- * - Nothing requires a drag or a long-press (T6). Day-cell captions are 12px,
- *   the floor the spec sets (F2), which is why the two departures in a cell
- *   stack instead of sitting side by side.
+ * - Nothing requires a drag or a long-press (T6). The only text on a tile
+ *   besides its number is the "+n" past four dots, at the 12px floor (F2).
  */
 
 /**
@@ -224,58 +225,29 @@ function bookingWords(n: number): string {
 }
 
 /**
- * How one departure reads inside a day cell, at arm's length.
+ * How a day reads at arm's length — three looks, no legend needed.
  *
- * A departure is one of three states, and the cell is drawn so each one is a
- * colour plus a small mark rather than a code that needs a legend:
+ * - **blocked** — every departure still to come is blocked: the tile grays
+ *   out, as a host's blocked night does on Airbnb.
+ * - **partial** — one departure is blocked ("Só manhã" / "Só tarde"): the
+ *   tile stays open, with a small slash in its corner; which one is in the
+ *   spoken label and in "Ver dia".
+ * - **open** — nothing blocked. With no bookings on it, this is the empty
+ *   state: the number and nothing else.
  *
- * - **à venda, com vagas** — a light green chip, `10h·2`, where the number is
- *   drivers still free. A departure nobody has touched is this: the calendar
- *   is open by default (D-1). Today and tomorrow read the same way — a guest
- *   cannot book them online, but the team can, and this is the team's view.
- * - **à venda, esgotada** — solid green with the time struck through: spent,
- *   not closed.
- * - **bloqueada** — solid red with the time struck through and a cross.
- *
- * And one that outranks all three: **evento** — a dark chip, struck through,
- * when a deposit-paid wedding or event holds the whole day. Whatever the row
- * says, nothing leaves that day, and the operator needs to see *why* rather
- * than a green that reads "sold out".
+ * A full day and a day held by a wedding or event have no look of their own:
+ * their dots say why (a dot per booking, a dark square for the event). Gray
+ * only ever means "the team blocked this".
  */
-function slotChip(slot: SlotAvailability): { className: string; text: React.ReactNode } {
-  const short = SLOT_SHORT[slot.slot] ?? slot.slot;
-  if (slot.heldByEvent) {
-    return {
-      className: "bg-foreground text-background",
-      text: <s>{short}</s>,
-    };
-  }
-  if (slot.blocked) {
-    return {
-      className: "bg-destructive text-destructive-foreground",
-      text: (
-        <>
-          <s>{short}</s>
-          <span aria-hidden>×</span>
-        </>
-      ),
-    };
-  }
-  // Capacity, not `bookable`: an open departure is spent when the drivers or
-  // the cars are, whatever a guest's notice would say about it.
-  if (!slot.hasRoom) {
-    return {
-      className: "bg-primary text-primary-foreground",
-      text: <s>{short}</s>,
-    };
-  }
-  // The number is drivers still free — how many more tours can leave at all.
-  return {
-    className:
-      "border border-primary/40 bg-primary/15 font-semibold text-primary",
-    text: `${short}·${slot.driversLeft}`,
-  };
+function tileState(day: CalendarDay): "blocked" | "partial" | "open" {
+  const upcoming = day.slots.filter((slot) => !slot.past);
+  const blocked = upcoming.filter((slot) => slot.blocked).length;
+  if (blocked === 0) return "open";
+  return blocked === upcoming.length ? "blocked" : "partial";
 }
+
+/** Dots drawn on a tile before the rest collapse into "+n". */
+const MAX_DOTS = 4;
 
 /** One departure, spoken for a screen reader and for the day sheet's summary. */
 function slotSentence(slot: SlotAvailability): string {
@@ -290,7 +262,7 @@ function slotSentence(slot: SlotAvailability): string {
   return `${short} ${slot.driversLeft} de ${slot.drivers} condutores livres, ${carsLeft(slot)}`;
 }
 
-/** The whole cell: a neutral tile the departure chips and the range draw on. */
+/** The whole cell: gray when blocked, plain otherwise (see {@link tileState}). */
 function cellAppearance(day: CalendarDay): {
   className: string;
   disabled: boolean;
@@ -306,9 +278,10 @@ function cellAppearance(day: CalendarDay): {
     };
   }
   return {
-    // The tile itself carries no state any more — the two chips do, so the
-    // small states of a day read without a legend (see {@link slotChip}).
-    className: "border-border bg-card hover:bg-muted/50",
+    className:
+      tileState(day) === "blocked"
+        ? "border-transparent bg-muted text-muted-foreground hover:bg-muted/80"
+        : "border-border bg-card hover:bg-muted/50",
     disabled: false,
     label: `${dayNumber} — ${day.slots.map(slotSentence).join(", ")}`,
   };
@@ -1121,12 +1094,9 @@ export function AvailabilityCalendar({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* `p-2` on a phone rather than `p-3`, and a half-step grid gap: the day
-          cells carry 12px captions (F2) and seven of them have to fit at the
-          320px reflow floor (D2). Measured, because the margin is small enough
-          that estimating it is guessing — "10h·2" is 31px in Geist and 32px in
-          the metric-matched Arial fallback that paints while Geist is still on
-          the wire, against 32px of cell at `p-3 gap-1` and 35px here. */}
+      {/* `p-2` on a phone rather than `p-3`, and a half-step grid gap: seven
+          ≥44px-tall cells have to fit across the 320px reflow floor (D2), and
+          the "+n" beside four booking dots is the widest thing one carries. */}
       <Card className="gap-3 p-2 sm:p-4">
         <div className="flex items-center justify-between gap-2">
           <Button
@@ -1180,6 +1150,8 @@ export function AvailabilityCalendar({
 
             const { className, disabled, label } = cellAppearance(day);
             const dateBookings = bookingsOf(date).length;
+            const dateEvents = eventsOf(date).length;
+            const state = tileState(day);
             const selected = inStretch(date);
             return (
               <button
@@ -1187,7 +1159,7 @@ export function AvailabilityCalendar({
                 type="button"
                 disabled={disabled}
                 onClick={() => onDayTap(date)}
-                aria-label={`${label}${dateBookings > 0 ? `, ${bookingWords(dateBookings)}` : ""}`}
+                aria-label={`${label}${dateBookings > 0 ? `, ${bookingWords(dateBookings)}` : ""}${dateEvents > 0 ? ", evento com sinal pago" : ""}`}
                 aria-pressed={selected}
                 className={cn(
                   // 44px floor from the primitive scale, and square so the grid
@@ -1202,41 +1174,34 @@ export function AvailabilityCalendar({
                   selection?.anchor === date && selection.end === null && "ring-foreground/70",
                 )}
               >
-                <span className="flex items-center gap-0.5">
-                  <span>{Number(date.slice(8))}</span>
-                  {dateBookings > 0 ? (
-                    // The live bookings, counted on the tile — names and tours
-                    // in the day panel. `aria-hidden`: the label above says it.
-                    <span
-                      aria-hidden
-                      className="min-w-3.5 rounded-full bg-foreground/80 px-0.5 text-xs leading-tight font-medium text-background"
-                    >
-                      {dateBookings}
+                {state === "partial" ? (
+                  // One departure blocked: a small slash in the corner, the
+                  // tile otherwise open. `aria-hidden`: the label says which.
+                  <span
+                    aria-hidden
+                    className="absolute top-1 right-1.5 h-2.5 w-0.5 rotate-45 rounded-full bg-muted-foreground/70"
+                  />
+                ) : null}
+                <span className={cn(state === "blocked" && "line-through")}>
+                  {Number(date.slice(8))}
+                </span>
+                {/* A dot per live booking, a dark square per event holding
+                    the day — names and tours in "Ver dia". The row keeps its
+                    height when empty so every tile's number sits level, and
+                    an open day with nothing on it is just its number. */}
+                <span aria-hidden className="flex h-2 items-center gap-0.5">
+                  {dateEvents > 0 ? (
+                    <span className="size-1.5 rounded-[1px] bg-foreground" />
+                  ) : null}
+                  {Array.from({ length: Math.min(dateBookings, MAX_DOTS) }, (_, n) => (
+                    <span key={n} className="size-1.5 rounded-full bg-primary" />
+                  ))}
+                  {dateBookings > MAX_DOTS ? (
+                    <span className="text-xs leading-none text-muted-foreground">
+                      +{dateBookings - MAX_DOTS}
                     </span>
                   ) : null}
                 </span>
-                {!disabled ? (
-                  // The two departures stack rather than sit side by side: at
-                  // 12px two "10h·2" captions do not fit across a cell on any
-                  // phone, so the cell grows downwards instead, where there is
-                  // room.
-                  <span className="flex w-full flex-col gap-0.5 px-0.5 text-xs leading-tight font-normal">
-                    {day.slots.map((slot) => {
-                      const chip = slotChip(slot);
-                      return (
-                        <span
-                          key={slot.slot}
-                          className={cn(
-                            "rounded-sm px-0.5 py-px whitespace-nowrap",
-                            chip.className,
-                          )}
-                        >
-                          {chip.text}
-                        </span>
-                      );
-                    })}
-                  </span>
-                ) : null}
               </button>
             );
           })}
@@ -1276,11 +1241,10 @@ export function AvailabilityCalendar({
       </p>
 
       <p className="text-xs text-muted-foreground">
-        Verde claro: à venda, e o número é o de condutores ainda livres. Vermelho:
-        bloqueada. Verde cheio e riscado: esgotada. Escuro: o dia inteiro está
-        ocupado por um evento com sinal pago. Uma partida pode esgotar com um
-        condutor livre: o grupo precisa de um veículo que outro grupo já tem. A
-        frota: {fleet.map((vehicle) => `${vehicle.name} (${vehicle.seats})`).join(" · ")}.
+        Um dia em branco está livre. Cinzento: bloqueado. Um traço no canto: só
+        uma das partidas está bloqueada. Cada ponto é uma reserva; o quadrado
+        escuro é um evento com sinal pago. Toque em «Ver dia» para ver os
+        condutores livres. A frota: {fleet.map((vehicle) => `${vehicle.name} (${vehicle.seats})`).join(" · ")}.
       </p>
 
       {panelOpen && panelDay ? (
