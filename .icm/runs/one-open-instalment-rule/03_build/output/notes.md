@@ -1,7 +1,7 @@
 # Build notes: one-open-instalment-rule
 
 - commits: feat: one-open-instalment-rule — one shared open-instalment rule in quote-math
-- ci: <settled after the ready flip>
+- ci: GREEN on 923891f (full gate — Vercel preview pass, Quality (advisory) pass)
 - ready: 2026-10-01T12:58:00Z — flipped on 46c09d5
 
 ## What changed

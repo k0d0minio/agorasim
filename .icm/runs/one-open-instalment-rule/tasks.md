@@ -17,4 +17,4 @@ step, so a resuming session can pick up the first unticked line.
 ## Queue
 
 - [x] quote-math.ts: `OPEN_INSTALMENT_STATUSES` + `isOpenInstalment`; quotes.ts, balance-schedule.ts, cron/balance-scheduler.ts read them; `isBalanceOpen` test moved to quote-math.test.ts — one commit
-- [ ] ready flip + full-gate verdict
+- [x] ready flip + full-gate verdict
