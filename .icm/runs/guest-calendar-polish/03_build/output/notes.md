@@ -1,7 +1,8 @@
 # Build notes: guest-calendar-polish
 
-- commits: feat: guest-calendar-polish — Airbnb-style guest picker on /reservar
-- ci: pending (draft head — lint.sh OK, security-check.sh OK)
+- commits: feat: guest-calendar-polish — Airbnb-style guest picker on /reservar · merge origin/main · chore: guest-calendar-polish — ready
+- ci: GREEN on the draft head (cheap tier); full gate settled after the ready push
+- ready: 2026-10-01T14:10:22Z — flipped on 04ce092
 
 ## What changed
 
