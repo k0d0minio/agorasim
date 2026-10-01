@@ -28,8 +28,6 @@ reality disagrees with it — never left describing a plan that was abandoned.
 
 ## Risks
 
-- `inArray` wants a mutable array type: a `readonly` tuple may fail typecheck — spread it
-  (`[...OPEN_INSTALMENT_STATUSES]`) or type the export as `QuotePayment["status"][]`; signal: CI
-  typecheck red on `quotes.ts`.
+- `inArray` on a column takes a `ReadonlyArray` (drizzle-orm's own signature), so the `as const` tuple passes as is — checked in Build, no spread needed.
 - A quote-math runtime import would break the browser quote builder that imports it; signal:
   anything but `import type` at the top of `quote-math.ts`.

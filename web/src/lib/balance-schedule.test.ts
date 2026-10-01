@@ -16,7 +16,6 @@ const {
   eventWhenLabel,
   holdsBalanceClaim,
   isBalanceFlagged,
-  isBalanceOpen,
   isReminderDue,
   isRequestInWindow,
 } = await import("./balance-schedule");
@@ -156,15 +155,6 @@ describe("isBalanceFlagged", () => {
     expect(isBalanceFlagged(quote({ balance: { status: "pending", amountCents: 0 } }), EVENT)).toBe(
       false,
     );
-  });
-});
-
-describe("isBalanceOpen", () => {
-  it("is open while pending or issued, and for more than nothing", () => {
-    expect(isBalanceOpen({ status: "pending", amountCents: 1 })).toBe(true);
-    expect(isBalanceOpen({ status: "issued", amountCents: 1 })).toBe(true);
-    expect(isBalanceOpen({ status: "paid", amountCents: 1 })).toBe(false);
-    expect(isBalanceOpen({ status: "pending", amountCents: 0 })).toBe(false);
   });
 });
 

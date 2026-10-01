@@ -5,10 +5,12 @@
  * builder on the Sales detail has to show Rita the total, the deposit, the
  * balance and its due date *as she types*, before anything is saved. Those
  * numbers must be the very ones the server will write, so the functions that
- * produce them live here once, with no imports, and `lib/quotes.ts` re-exports
- * them. A second copy in the browser would be a preview that disagrees with the
- * quote the couple receives the first time either is touched.
+ * produce them live here once, with no runtime imports, and `lib/quotes.ts`
+ * re-exports them. A second copy in the browser would be a preview that
+ * disagrees with the quote the couple receives the first time either is touched.
  */
+
+import type { QuotePayment } from "@/db";
 
 /** The share taken up front to hold the date (proposal §5). */
 export const DEFAULT_DEPOSIT_PERCENT = 30;
@@ -28,6 +30,25 @@ export const BALANCE_DUE_DAYS_BEFORE = 14;
 export const BALANCE_REMINDER_DAYS_BEFORE = 7;
 export const BALANCE_REMINDER_GAP_DAYS = 3;
 export const BALANCE_FLAG_DAYS_BEFORE = 3;
+
+/**
+ * The payment statuses that still have money to collect. The one list the
+ * quote page, the balance scheduler, the Sales board's "Saldo por pagar" and
+ * the payment-row guards in `lib/quotes.ts` all read, in code and in SQL — a
+ * status added here is open everywhere at once.
+ */
+export const OPEN_INSTALMENT_STATUSES = [
+  "pending",
+  "issued",
+] as const satisfies readonly QuotePayment["status"][];
+
+/** Whether an instalment still has money to collect: open, and for more than nothing. */
+export function isOpenInstalment(payment: Pick<QuotePayment, "status" | "amountCents">): boolean {
+  return (
+    (OPEN_INSTALMENT_STATUSES as readonly QuotePayment["status"][]).includes(payment.status) &&
+    payment.amountCents > 0
+  );
+}
 
 /** What the two instalments come to. Always sums to the total, exactly. */
 export type QuoteSplit = { depositCents: number; balanceCents: number };

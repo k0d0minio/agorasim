@@ -49,7 +49,6 @@ import { formatDay, todayKey, type DateKey } from "@/lib/availability";
 import {
   balanceMessageSentAt,
   holdsBalanceClaim,
-  isBalanceOpen,
   isReminderDue,
   isRequestInWindow,
 } from "@/lib/balance-schedule";
@@ -64,6 +63,7 @@ import {
 } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import { captureAlert, captureError } from "@/lib/observability";
+import { isOpenInstalment } from "@/lib/quote-math";
 import {
   balanceDueDate,
   listBalanceRecipients,
@@ -209,7 +209,7 @@ async function sendPass(
 /** T−14: the quotes due a request today, the event at least a day away. */
 async function requestPass(now: Date, today: DateKey): Promise<BalanceTally> {
   const due = (await listQuotesDueForBalance({ now })).filter(
-    ({ quote, payment }) => isBalanceOpen(payment) && isRequestInWindow(quote.eventDate, today),
+    ({ quote, payment }) => isOpenInstalment(payment) && isRequestInWindow(quote.eventDate, today),
   );
   const messages = await listQuoteBalanceMessages(due.map(({ quote }) => quote.id));
   return sendPass("request", due, messages, today, now);
@@ -218,7 +218,7 @@ async function requestPass(now: Date, today: DateKey): Promise<BalanceTally> {
 /** T−7: the quotes still unpaid a week out whose request reached them in time. */
 async function reminderPass(now: Date, today: DateKey): Promise<BalanceTally> {
   const inView = (await listQuotesForBalanceReminder({ now })).filter(({ payment }) =>
-    isBalanceOpen(payment),
+    isOpenInstalment(payment),
   );
   const messages = await listQuoteBalanceMessages(inView.map(({ quote }) => quote.id));
   const due = inView.filter(({ quote }) =>
