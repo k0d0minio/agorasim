@@ -2,6 +2,7 @@
 
 - commits: feat: one-open-instalment-rule — one shared open-instalment rule in quote-math
 - ci: <settled after the ready flip>
+- ready: 2026-10-01T12:58:00Z — flipped on 46c09d5
 
 ## What changed
 
@@ -24,3 +25,4 @@
 
 - The stub said the "Saldo por pagar" panel read `isBalanceOpen`; it never did — it reads SQL. The spec (settled with the operator) widened the run to the SQL status lists for that reason.
 - `quote-refund.ts` status lists (refundable / terminal) deliberately untouched.
+- `security-check.sh --branch` → BLOCKED 1 on `dependency-audit` (4 high advisories). Not this run's: no dependency changed; main's Next/undici advisories, already parked in triage (`deps-next-undici-advisories.md`, `dependency-advisories-next-undici.md`). Release's `--audit` read will need the operator's waiver or that chore merged first.
