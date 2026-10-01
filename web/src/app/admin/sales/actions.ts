@@ -61,6 +61,11 @@ export type CancelBookingState = {
   error?: string;
   /** What happened, read back to the operator in their own words. */
   message?: string;
+  /**
+   * Done, but something the operator must act on — shown in red beside an
+   * `ok` that still closes the dialog.
+   */
+  warning?: string;
 };
 
 /**
@@ -302,6 +307,11 @@ export type QuoteActionState = {
   error?: string;
   /** What happened, read back to the operator in their own words. */
   message?: string;
+  /**
+   * Done, but something the operator must act on — shown in red beside an
+   * `ok` that still closes the dialog.
+   */
+  warning?: string;
 };
 
 /** A draft write's outcome, as a sentence. */
@@ -540,6 +550,22 @@ export async function refundLeadQuotePayment(
           "Este pagamento não foi feito pelo Stripe, por isso não há nada para reembolsar aqui. " +
           "Devolva o dinheiro pela mesma via em que o recebeu.",
       };
+
+    case "refunded-unrecorded": {
+      // The money went back but the books did not move. `ok` closes the dialog
+      // on purpose: its typed confirmation is one click from a second, real
+      // refund once the webhook has moved the row and the idempotency key.
+      const money = formatPrice(outcome.refundedCents, "pt", outcome.payment.currency);
+      return {
+        ok: true,
+        warning:
+          `Reembolso de ${money} enviado ao Stripe, mas o registo não foi atualizado — ` +
+          "vai ser acertado automaticamente. Não volte a reembolsar." +
+          (outcome.cancelEventRequested
+            ? " O cancelamento do evento não ficou confirmado: verifique o cartão depois de recarregar."
+            : ""),
+      };
+    }
 
     case "refund-failed":
       // Nothing was written: the row, the quote and the couple's inbox are as

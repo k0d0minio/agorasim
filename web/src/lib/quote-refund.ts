@@ -91,7 +91,21 @@ export type QuoteRefundOutcome =
   /** Nothing to refund against: no payment intent, or Stripe is switched off. */
   | { status: "refund-unavailable"; payment: QuotePayment }
   /** Stripe refused. Nothing was written and nothing was cancelled. */
-  | { status: "refund-failed"; payment: QuotePayment; message: string };
+  | { status: "refund-failed"; payment: QuotePayment; message: string }
+  /**
+   * Stripe refunded, then a write after it threw. The money moved; the row,
+   * the commission, the audit trail or the cancellation may not have. The
+   * webhook reconciles the amounts from the charge — it never cancels.
+   */
+  | {
+      status: "refunded-unrecorded";
+      /** The instalment as it was read before the refund. */
+      payment: QuotePayment;
+      refundedCents: number;
+      refundId: string;
+      /** The operator ticked "Cancelar também o evento" — it is not confirmed. */
+      cancelEventRequested: boolean;
+    };
 
 /**
  * Refund `refundCents` of one instalment, from the Sales board.
@@ -103,7 +117,9 @@ export type QuoteRefundOutcome =
  * money, and before the notice, so the notice can say the event is off.
  *
  * Never throws for anything a caller can be told about; the outcome union is
- * the report.
+ * the report. That includes a database error after Stripe has said yes: the
+ * money has moved, so the caller is told so (`refunded-unrecorded`) rather than
+ * shown an error page that invites a second refund.
  */
 export async function refundQuotePayment(options: {
   paymentId: string;
@@ -153,19 +169,40 @@ export async function refundQuotePayment(options: {
     };
   }
 
-  const settled = await settleInstalmentRefund({
-    quote: found.quote,
-    payment,
-    // What has gone back on it now: what the row said, and this refund. The
-    // webhook echo reads the same total off the charge and finds it written.
-    refundedAmountCents: payment.refundedAmountCents + refund.amount,
-    charge,
-    refundId: refund.id,
-    via: "admin",
-    actorUserId,
-    cancelEvent,
-    now,
-  });
+  let settled: Awaited<ReturnType<typeof settleInstalmentRefund>>;
+  try {
+    settled = await settleInstalmentRefund({
+      quote: found.quote,
+      payment,
+      // What has gone back on it now: what the row said, and this refund. The
+      // webhook echo reads the same total off the charge and finds it written.
+      refundedAmountCents: payment.refundedAmountCents + refund.amount,
+      charge,
+      refundId: refund.id,
+      via: "admin",
+      actorUserId,
+      cancelEvent,
+      now,
+    });
+  } catch (err) {
+    // The money is back with the couple whatever the database says. Nothing
+    // is retried here: the `charge.refunded` echo sets the row, the fee, the
+    // audit row and the notice from Stripe's own figures — but it never calls
+    // an event off, so a requested cancellation is left for the operator.
+    console.error(
+      `[quote-refund] ${quoteRef(found.quote.id)}: refunded ${refund.amount} on the ` +
+        `${payment.kind} (${refund.id}) but couldn't record it — the webhook will reconcile ` +
+        `the books; event cancellation ${cancelEvent ? "requested, not confirmed" : "not requested"}`,
+      err,
+    );
+    return {
+      status: "refunded-unrecorded",
+      payment,
+      refundedCents: refund.amount,
+      refundId: refund.id,
+      cancelEventRequested: cancelEvent,
+    };
+  }
 
   return {
     status: "refunded",
