@@ -2,6 +2,7 @@
 
 - commits: 1da2f65 feat — report a refund whose books failed instead of throwing
 - ci: <filled at step 12>
+- ready: 2026-10-01T10:59:00Z — flipped on 9ac86d3
 
 ## What changed
 
@@ -42,3 +43,8 @@
 - Learned rule (quote-refunds): a dialog that closes on `state.ok` stays closed unless keyed. The
   new outcome closes the dialog exactly as `refunded` does, so it inherits whatever keying the
   card already has — no change here.
+- **`security-check.sh --branch` is BLOCKED on a pre-existing dependency finding, not on this
+  diff**: a critical `next` advisory (16.3.4 pinned; next/og RCE, patched 16.3.6) and three high
+  `undici` ones, all on `main`. Parked as `.icm/intake/triage/dependency-audit-next-undici.md`
+  per security-audit → Dependency findings (`error.log` has the trace). Release stop class 2
+  reads the same audit — the operator decides whether that chore lands on `main` first.
