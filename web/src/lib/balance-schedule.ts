@@ -6,8 +6,8 @@
  *
  * - **T−14, the request** — the proposal's "a second link 14 days before"
  *   (`BALANCE_DUE_DAYS_BEFORE`). Which quotes are due is
- *   `listQuotesDueForBalance`'s query; this module only says the event has not
- *   already happened.
+ *   `listQuotesDueForBalance`'s query; this module only says the event is
+ *   still at least a day away.
  * - **T−7, one reminder** — only if the request reached the couple at least
  *   {@link BALANCE_REMINDER_GAP_DAYS} days earlier, so a deposit paid late
  *   does not get the request and the chaser a day apart.
@@ -15,6 +15,11 @@
  *   the badge on the lead's quote card read {@link isBalanceFlagged}, the one
  *   predicate both show. It is computed, not stored: nothing has to run for a
  *   balance to be flagged, and paying or writing it off clears it by itself.
+ *
+ * Neither email goes out on the event's own day: T−1 is the last morning
+ * either can be sent. Each one rotates the quote link, and a wedding morning
+ * is no time to retire the link a couple already has; an event-day balance is
+ * the team's, on the board.
  *
  * What happens to an unpaid balance on the day itself is the client's open
  * question, so nothing here releases a date or cancels anything.
@@ -67,12 +72,13 @@ export function balanceOf<P extends Pick<QuotePayment, "kind">>(payments: readon
 
 /**
  * Whether the T−14 request may go out today for a quote the due query
- * returned. The query reaches back (`<=`) so a missed morning is caught up; it
- * does not stop at the event itself, and a balance asked for after the party
- * is not a request anybody wants — that one is the team's, on the board.
+ * returned. The query reaches back (`<=`) so a missed morning is caught up, but
+ * only as far as the day before the event: a request on the morning itself,
+ * or after the party, is not one anybody wants — that balance is the team's,
+ * on the board.
  */
 export function isRequestInWindow(eventDate: DateKey, today: DateKey): boolean {
-  return daysBetween(today, eventDate) >= 0;
+  return daysBetween(today, eventDate) >= 1;
 }
 
 /**
@@ -90,8 +96,9 @@ export function isReminderDue(options: {
   const { eventDate, today, requestSentAt } = options;
   if (!requestSentAt) return false;
 
+  // T−7 down to T−1 — never on the event's own day, like the request.
   const daysLeft = daysBetween(today, eventDate);
-  if (daysLeft < 0 || daysLeft > BALANCE_REMINDER_DAYS_BEFORE) return false;
+  if (daysLeft < 1 || daysLeft > BALANCE_REMINDER_DAYS_BEFORE) return false;
 
   // Lisbon's day for the send, like every other day in this module.
   return daysBetween(todayKey(requestSentAt), today) >= BALANCE_REMINDER_GAP_DAYS;

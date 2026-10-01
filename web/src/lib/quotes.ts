@@ -39,7 +39,7 @@
 import "server-only";
 
 import { NeonDbError } from "@neondatabase/serverless";
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, ne, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, or } from "drizzle-orm";
 
 import {
   db,
@@ -544,9 +544,10 @@ export async function listUpcomingQuotes(options: {
  *
  * `<=` rather than `=`, and that matters — a dispatcher that fails to run on a
  * Tuesday must still catch Tuesday's events on the Wednesday, rather than
- * leaving a couple's balance permanently unasked-for. It stops at today: a
- * balance still open after the party is the team's, on the Sales board, and
- * past events left in view would crowd new ones out of the limit.
+ * leaving a couple's balance permanently unasked-for. It stops the day before
+ * the event (`isRequestInWindow` states the same edge): a balance still open on
+ * the day, or after the party, is the team's, on the Sales board, and past
+ * events left in view would crowd new ones out of the limit.
  *
  * The date only brings a row into view; it does not make the send once-only.
  * That is the message log's claim (`balance-request`, keyed on the quote —
@@ -560,7 +561,7 @@ export async function listQuotesDueForBalance(options: {
 } = {}): Promise<{ quote: Quote; payment: QuotePayment }[]> {
   const { now = new Date(), limit = 100 } = options;
   const today = todayKey(now);
-  // Events at or inside T−14 — i.e. happening between today and today + 14 days.
+  // Events at or inside T−14 but not today — between tomorrow and today + 14 days.
   const horizon = shiftDays(today, BALANCE_DUE_DAYS_BEFORE);
 
   const rows = await db
@@ -573,7 +574,7 @@ export async function listQuotesDueForBalance(options: {
         eq(quotePayments.kind, "balance"),
         eq(quotePayments.status, "pending"),
         isNull(quotePayments.issuedAt),
-        gte(quotes.eventDate, today),
+        gte(quotes.eventDate, shiftDays(today, 1)),
         lte(quotes.eventDate, horizon),
       ),
     )
@@ -585,7 +586,8 @@ export async function listQuotesDueForBalance(options: {
 
 /**
  * The balances the T−7 reminder looks at today: deposit-paid quotes whose
- * event is between today and seven days out, with the balance still open —
+ * event is between tomorrow and seven days out — never on the day itself, the
+ * edge `isReminderDue` states — with the balance still open —
  * `issued` included, because a couple who tapped "Pagar saldo" and walked
  * away from Checkout has still not paid.
  *
@@ -609,7 +611,7 @@ export async function listQuotesForBalanceReminder(options: {
         eq(quotes.status, "deposit_paid"),
         eq(quotePayments.kind, "balance"),
         inArray(quotePayments.status, ["pending", "issued"]),
-        gte(quotes.eventDate, today),
+        gte(quotes.eventDate, shiftDays(today, 1)),
         lte(quotes.eventDate, shiftDays(today, BALANCE_REMINDER_DAYS_BEFORE)),
       ),
     )
@@ -625,37 +627,66 @@ export type UnpaidBalance = {
   leadName: string | null;
 };
 
+/** The Sales board's "Saldo por pagar" panel, read in two halves. */
+export type UnpaidBalancesDue = {
+  /** Events from today to T−3, soonest first — the ones the panel exists for. */
+  upcoming: UnpaidBalance[];
+  /** Events already past and still unresolved, most recent first, capped. */
+  past: UnpaidBalance[];
+  /** Every past row the rule matches, so the panel can say how many it left out. */
+  pastTotal: number;
+};
+
 /**
  * The balances the team should see as unpaid today — deposit-paid quotes whose
  * event is three days away or fewer (or already past), with the balance still
  * open. The same rule as `isBalanceFlagged`, which the lead's own quote card
- * applies to one quote; this is the query for all of them, soonest first.
+ * applies to one quote; this is the query for all of them.
+ *
+ * Split at today into two reads, each with its own cap. Past balances nobody
+ * recorded or wrote off stay on the list for good (nothing auto-releases), so
+ * under one shared cap enough of them would push the soon-due events — the
+ * ones the panel exists for — off the end. Apart, no number of past rows can.
  */
 export async function listUnpaidBalancesDue(options: {
   now?: Date;
   limit?: number;
-} = {}): Promise<UnpaidBalance[]> {
+} = {}): Promise<UnpaidBalancesDue> {
   const { now = new Date(), limit = 50 } = options;
-  const horizon = shiftDays(todayKey(now), BALANCE_FLAG_DAYS_BEFORE);
+  const today = todayKey(now);
+  const horizon = shiftDays(today, BALANCE_FLAG_DAYS_BEFORE);
 
-  const rows = await db
-    .select({ quote: quotes, payment: quotePayments, leadName: tourRequests.name })
-    .from(quotePayments)
-    .innerJoin(quotes, eq(quotePayments.quoteId, quotes.id))
-    .leftJoin(tourRequests, eq(quotes.tourRequestId, tourRequests.id))
-    .where(
-      and(
-        eq(quotes.status, "deposit_paid"),
-        eq(quotePayments.kind, "balance"),
-        inArray(quotePayments.status, ["pending", "issued"]),
-        gt(quotePayments.amountCents, 0),
-        lte(quotes.eventDate, horizon),
-      ),
-    )
-    .orderBy(asc(quotes.eventDate))
-    .limit(limit);
+  // The one eligibility rule all three reads share; only the date split differs.
+  const open = and(
+    eq(quotes.status, "deposit_paid"),
+    eq(quotePayments.kind, "balance"),
+    inArray(quotePayments.status, ["pending", "issued"]),
+    gt(quotePayments.amountCents, 0),
+  );
+  const rows = () =>
+    db
+      .select({ quote: quotes, payment: quotePayments, leadName: tourRequests.name })
+      .from(quotePayments)
+      .innerJoin(quotes, eq(quotePayments.quoteId, quotes.id))
+      .leftJoin(tourRequests, eq(quotes.tourRequestId, tourRequests.id));
 
-  return rows;
+  const [upcoming, past, [pastCount]] = await Promise.all([
+    rows()
+      .where(and(open, gte(quotes.eventDate, today), lte(quotes.eventDate, horizon)))
+      .orderBy(asc(quotes.eventDate))
+      .limit(limit),
+    rows()
+      .where(and(open, lt(quotes.eventDate, today)))
+      .orderBy(desc(quotes.eventDate))
+      .limit(limit),
+    db
+      .select({ n: count() })
+      .from(quotePayments)
+      .innerJoin(quotes, eq(quotePayments.quoteId, quotes.id))
+      .where(and(open, lt(quotes.eventDate, today))),
+  ]);
+
+  return { upcoming, past, pastTotal: Number(pastCount?.n ?? 0) };
 }
 
 /** Who a balance email goes to — the enquiry behind the quote. */

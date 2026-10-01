@@ -50,6 +50,13 @@ function Outcome({ state }: { state: QuoteActionState }) {
       </p>
     );
   }
+  if (state.ok && state.warning) {
+    return (
+      <p className="text-xs text-destructive" role="alert">
+        {state.warning}
+      </p>
+    );
+  }
   if (state.ok && state.message) {
     return (
       <p className="text-xs text-muted-foreground" role="status">
