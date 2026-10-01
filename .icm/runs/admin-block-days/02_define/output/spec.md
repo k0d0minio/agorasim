@@ -124,8 +124,10 @@ tarde**, **Ver dia** and **Mais opções** are the scope's settled words (D-5, D
 ## Out of scope
 
 - Recurring closures, e.g. every Monday (D-11).
-- The availability rule itself, the notice and the six-month window — `open-by-default`, merged.
-- The guest picker on `/reservar` — `guest-calendar-polish`.
+- The availability rule itself, the notice and the six-month window (D-1, D-2, D-3) —
+  `open-by-default`, merged.
+- The guest picker on `/reservar` (D-10) — `guest-calendar-polish`.
+- D-12 (where the scope landed) is about the front run, not this feature.
 - Selecting scattered, non-adjacent days in one go: they are blocked one day or one stretch at
   a time (settled in Define, 2026-10-01).
 - Telling a guest their booked day was blocked; moving or cancelling those bookings (D-8: a
@@ -136,6 +138,6 @@ tarde**, **Ver dia** and **Mais opções** are the scope's settled words (D-5, D
 
 ## Open questions
 
-- none. Settled in Define with Jamie (2026-10-01): the Airbnb phone gesture (first tap a day,
-  second tap the stretch, third tap starts over); a bottom bar with "Ver dia" for the single-day
-  panel; "Desbloquear" keeps the roster and the note; every block or unblock asks once.
+- none. Settled in Define (2026-10-01), recorded in `decisions.md`: D-13 the Airbnb phone
+  gesture; D-14 the bottom bar with "Ver dia"; D-15 "Desbloquear" keeps roster and note; D-16
+  every block or unblock asks once; D-17 the bar actions set a day's state.

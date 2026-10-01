@@ -23,5 +23,8 @@ decision made mid-run has one home.
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-13 — The gesture is the Airbnb phone one: first tap selects a day, a second tap on another day selects the stretch between them (across months too), a third tap starts over; scattered days are blocked one day or one stretch at a time. Jamie, Define, 2026-10-01.
+- D-14 — Any selection shows a bottom bar with the four actions; with one day selected it also offers "Ver dia", which opens the day panel. Jamie, Define, 2026-10-01.
+- D-15 — "Desbloquear" keeps the day's driver count and note. Jamie, Define, 2026-10-01.
+- D-16 — Every block or unblock asks once, in a confirmation that carries the booking warning. Jamie, Define, 2026-10-01.
+- D-17 — The four bar actions set the day's state (Só manhã = 10:00 blocked, 14:00 open), never add to it. Define, 2026-10-01.
