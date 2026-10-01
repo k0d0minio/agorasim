@@ -1,0 +1,6 @@
+## 2026-10-01T13:37:42Z security-check.sh — dependency-audit
+scope=branch head=dc793f9 branch=claude/clever-fermi-vo5ul4 — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 3 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+(unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+
+- resolved: lockfile held undici 6.28.0/7.29.0 and next 16.3.4 (the advisories this chore removes); bumped next/eslint-config-next to 16.3.8 and undici to 6.29.0/7.30.0, gate re-run → OK. Not a secret — the 'rotate' wording is the script's generic text.
