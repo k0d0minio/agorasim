@@ -460,6 +460,69 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
     expect(quoteStatus).toBe("deposit_paid");
   });
 
+  describe("when the books fail after Stripe has refunded", () => {
+    const dbDown = new Error("Connection terminated unexpectedly");
+
+    it.each([false, true])(
+      "reports the refund instead of throwing, and attempts nothing more (cancelEvent: %s)",
+      async (cancelEvent) => {
+        stripeRefundsAsAsked();
+        recordPaymentRefund.mockRejectedValue(dbDown);
+
+        const outcome = await refundQuotePayment({
+          paymentId: DEPOSIT_ID,
+          refundCents: 57_600,
+          cancelEvent,
+          actorUserId: ADMIN_ID,
+        });
+
+        expect(outcome).toEqual({
+          status: "refunded-unrecorded",
+          payment: expect.objectContaining({ id: DEPOSIT_ID, refundedAmountCents: 0 }),
+          refundedCents: 57_600,
+          refundId: "re_admin_57600",
+          cancelEventRequested: cancelEvent,
+        });
+        expect(refundsCreate).toHaveBeenCalledTimes(1);
+        expect(recordPaymentRefund).toHaveBeenCalledTimes(1);
+        expect(console.error).toHaveBeenCalledWith(
+          expect.stringMatching(
+            new RegExp(
+              `refunded 57600 on the deposit \\(re_admin_57600\\).*webhook will reconcile.*` +
+                `event cancellation ${cancelEvent ? "requested, not confirmed" : "not requested"}`,
+            ),
+          ),
+          dbDown,
+        );
+        // Nothing after the failure: no cancellation, no audit row, no notice.
+        expect(cancelQuoteAndOpenInstalments).not.toHaveBeenCalled();
+        expect(recordAuditOrWarn).not.toHaveBeenCalled();
+        expect(sendLoggedEmail).not.toHaveBeenCalled();
+        expect(quoteStatus).toBe("deposit_paid");
+      },
+    );
+
+    it("reports the refund when the cancellation is the write that fails", async () => {
+      stripeRefundsAsAsked();
+      cancelQuoteAndOpenInstalments.mockRejectedValue(dbDown);
+
+      const outcome = await refundQuotePayment({
+        paymentId: DEPOSIT_ID,
+        refundCents: 57_600,
+        cancelEvent: true,
+        actorUserId: ADMIN_ID,
+      });
+
+      expect(outcome).toMatchObject({
+        status: "refunded-unrecorded",
+        refundedCents: 57_600,
+        cancelEventRequested: true,
+      });
+      expect(cancelQuoteAndOpenInstalments).toHaveBeenCalledTimes(1);
+      expect(refundsCreate).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("settles a stale row from Stripe's total, and tells the couple once", async () => {
     // €192 went back from the dashboard and its webhook never arrived: the row
     // still says nothing is refunded.
