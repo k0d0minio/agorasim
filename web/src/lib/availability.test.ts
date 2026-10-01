@@ -584,10 +584,14 @@ describe("toPublicDay", () => {
   });
 
   it("advertises nothing on a departure that cannot be booked", () => {
-    // A closed departure with a full fleet must not advertise it.
+    // A blocked departure with a full fleet must not advertise it. Both are
+    // blocked here: an untouched departure is open, and would.
     const [day] = describeMonth({
       month: "2026-08",
-      rows: [row({ date: "2026-08-01", status: "closed" })],
+      rows: [
+        row({ date: "2026-08-01", status: "closed" }),
+        row({ date: "2026-08-01", slot: "afternoon", status: "closed" }),
+      ],
       today: "2026-07-01",
     });
     expect(toPublicDay(day).bookable).toBe(false);
