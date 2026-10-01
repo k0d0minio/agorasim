@@ -140,10 +140,16 @@ export async function refundQuotePayment(options: {
   refundCents: number;
   /** "Cancelar também o evento" — call the quote off once the money is back. */
   cancelEvent: boolean;
+  /**
+   * The dialog's id for this press of "Reembolsar" — the same for a double
+   * submit, new for every deliberate retry. The refund's idempotency key.
+   */
+  attemptId: string;
   actorUserId: string | null;
   now?: Date;
 }): Promise<QuoteRefundOutcome> {
-  const { paymentId, refundCents, cancelEvent, actorUserId, now = new Date() } = options;
+  const { paymentId, refundCents, cancelEvent, attemptId, actorUserId, now = new Date() } =
+    options;
 
   const found = await getPayment(paymentId);
   if (!found) return { status: "not-found" };
@@ -161,7 +167,7 @@ export async function refundQuotePayment(options: {
 
   let issued: IssuedInstalmentRefund;
   try {
-    issued = await issueInstalmentRefund(found.quote, payment, refundCents);
+    issued = await issueInstalmentRefund(found.quote, payment, refundCents, attemptId);
   } catch (err) {
     console.error(`[quote-refund] ${quoteRef(found.quote.id)}: Stripe refused the refund`, err);
     return {
@@ -250,10 +256,15 @@ type IssuedInstalmentRefund = {
  * took the money, returning the application fee with it where there was one.
  *
  * The charge is read first, as for a tour, because whether a fee was taken is
- * Stripe's to say — and the same object later names the fee to top up. Keyed on
- * what has already gone back as well as what is going back now, so a
- * double-submitted form collapses into one refund while a second, deliberate
- * partial refund of the same amount is a new request.
+ * Stripe's to say — and the same object later names the fee to top up.
+ *
+ * Keyed on the attempt, never on the row. Stripe keeps a request's answer
+ * against its key for a day, a decline included: a key built from the row —
+ * which a refused refund leaves untouched — would hand "try again" the same
+ * decline, and a re-issue after a refund that later failed the old refund. The
+ * dialog's `attemptId` is the same for a double submit, which Stripe collapses
+ * into the one refund (and the settle below finds already written), and new
+ * for every retry, which therefore reaches Stripe.
  *
  * Then the charge is read again, for the total Stripe now counts as refunded
  * on it — which is what the instalment is set to.
@@ -262,6 +273,7 @@ async function issueInstalmentRefund(
   quote: Quote,
   payment: QuotePayment,
   amountCents: number,
+  attemptId: string,
 ): Promise<IssuedInstalmentRefund> {
   const client = stripe();
   const paymentIntentId = payment.stripePaymentIntentId!;
@@ -295,7 +307,7 @@ async function issueInstalmentRefund(
       },
       {
         ...account,
-        idempotencyKey: `quote-refund:${payment.id}:${payment.refundedAmountCents}:${amountCents}`,
+        idempotencyKey: `quote-refund:${payment.id}:${attemptId}`,
       },
     );
 
