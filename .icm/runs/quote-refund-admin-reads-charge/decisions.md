@@ -8,9 +8,10 @@ decision made mid-run has one home.
 
 ## From the scope
 
-- <D-n — the decision, one line, as the scope worded it>
+- none — the epic was cut from triage (`triage batch quote-refunds`); no `scope.md`, no `D-n` rows
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-1 — On a stale row the couple's one notice reports everything newly recorded ("refunded now" = Stripe's total − the row's prior figure), not just this refund. Operator's call in Define, 2026-10-01: the couple hear about every euro once, with the dashboard door's arithmetic.
+- D-2 — A failed post-refund read falls back to row + this refund (logged); the refund is never reported as failed once Stripe accepted it. From the stub's Proposed change; Define.
+- D-3 — The late/out-of-order `charge.refunded` snapshot finding is parked, not folded in (`intake/triage/refund-webhook-stale-charge-snapshot.md`). Operator's call in Define, 2026-10-01.

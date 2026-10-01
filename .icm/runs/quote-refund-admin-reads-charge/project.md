@@ -13,9 +13,10 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- Only the admin door's settled total changes; `settleInstalmentRefund`, the webhook door and `booking-refund.ts` stay as they are.
+- The idempotency key and the dialog's ceiling stay row-based (stubs 4 and later); the echo race and post-refund write guard are stubs 3 and 2.
+- Once Stripe has accepted the refund, nothing on this path may report `refund-failed`.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read `web/src/lib/quote-refund.ts`, the webhook's refund branch and `recordPaymentRefund` to settle the edge cases (stale ceiling, echo convergence, notice arithmetic) — targeted reads, within budget.

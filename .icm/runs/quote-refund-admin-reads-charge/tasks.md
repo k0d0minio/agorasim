@@ -7,14 +7,16 @@ step, so a resuming session can pick up the first unticked line.
 
 ## Definition of done
 
-- [ ] A refund issued while the row is stale (an earlier refund on the same charge never
-- [ ] The instalment's status follows that settled total (`refunded` when Stripe's total
-- [ ] The couple receive exactly one notice: its refunded total is Stripe's total and its
+- [ ] A stale-row admin refund sets the instalment's refunded amount to Stripe's cumulative `amount_refunded` after the refund, not row + this refund
+- [ ] The instalment's status and the commission top-up follow that settled total
+- [ ] Exactly one notice: total = Stripe's total, "refunded now" = Stripe's total − the row's prior figure; the echo sends nothing
 - [ ] The admin outcome's `refundedCents` is still the amount of this refund
-- [ ] When the post-refund read of Stripe's total fails, the refund still reports `refunded`,
-- [ ] With a row already in step with Stripe (the normal case), behaviour is unchanged — the
-- [ ] New tests in `web/src/lib/quote-refund.test.ts` cover the stale-row case (settled total,
+- [ ] A failed post-refund read still reports `refunded`, settles from row + this refund, and logs the fallback
+- [ ] In-step rows behave as today — existing assertions unedited
+- [ ] New tests cover the stale-row case and the failed-read fallback; CI green
 
 ## Queue
 
-- [ ] <task — small enough for one commit; name the file or area>
+- [ ] Pass 1 — read the charge back after `refunds.create` in `issueInstalmentRefund` (web/src/lib/quote-refund.ts)
+- [ ] Pass 2 — settle `refundQuotePayment` from it, with the logged fallback
+- [ ] Pass 3 — stale-row and failed-read tests (web/src/lib/quote-refund.test.ts)
