@@ -10,3 +10,9 @@ dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audi
 (unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
 - resolved: Pre-existing advisories on main (next 16.3.4 critical in next/og, unused by web/src; undici high via shadcn and @vercel/blob), not introduced by this branch, whose touches: exclude the manifest — parked as intake/triage/dependency-advisories-next-undici.md per the security-audit skill and noted for Release.
 
+## 2026-10-01T11:03:57Z security-check.sh — dependency-audit
+scope=branch head=dcb4eba branch=claude/happy-johnson-fz1ikr — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+(unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+- resolved: The same pre-existing next/undici advisories, read by Release's --audit pass; the operator waived them for this merge (chore stub parked P1) and the branch re-read OK with --no-audit.
+

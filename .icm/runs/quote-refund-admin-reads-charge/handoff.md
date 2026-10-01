@@ -6,22 +6,14 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Once **Ready to merge** is ticked on https://github.com/k0d0minio/agorasim/pull/164, run
-   `/pipeline release quote-refund-admin-reads-charge`.
+1. Merged and archived; nothing to pick up. The epic's next stub is
+   `quote-refund-hardening/quote-refund-guard-post-refund-writes` (`new`).
 
 ## Blockers
 
-- blocked on operator: smoke the preview
-  (https://agorasim-git-claude-happy-johnson-fz1ikr-kodominio.vercel.app) and tick
-  **Ready to merge** in the body of https://github.com/k0d0minio/agorasim/pull/164
-- `security-check.sh --branch` reports `BLOCKED 1` on `dependency-audit` — pre-existing on main
-  (next 16.3.4, undici), not this branch's; parked as
-  `intake/triage/dependency-advisories-next-undici.md`. Release should read it as such, not as
-  a finding of this diff.
+- none
 
 ## Do not
 
-- Do not touch the idempotency key, the dialog ceiling, the echo-race ordering or the
-  post-refund write guard — stubs 2–4 of `quote-refund-hardening` own them.
-- Do not bump dependencies in this run (the chore stub owns it).
-- Do not tick either gate box.
+- Do not reopen this run; follow-ups are the parked triage stubs
+  (`dependency-advisories-next-undici`, `refund-webhook-stale-charge-snapshot`).

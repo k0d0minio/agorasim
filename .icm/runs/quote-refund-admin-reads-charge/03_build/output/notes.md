@@ -43,3 +43,13 @@
   `undici` via `shadcn` / `@vercel/blob`. Not this branch's (no manifest change, outside
   `touches:`); parked as `intake/triage/dependency-advisories-next-undici.md` (chore, P1).
   The branch gate will keep reporting it until that chore merges.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN on dcb4eba (ci-status.sh, full gate) — re-read after the last push
+- reviews: code medium (no findings) · security security-check.sh --branch --audit: BLOCKED 1 → audit waived — next 16.3.4 GHSA-vcvr-r3jv-pc5j (critical, `next/og`, not imported) and undici GHSA-rfgv-xxqx-mfg5 / GHSA-w293-vg96-wgc3 (high, via shadcn and @vercel/blob), pre-existing on main and outside this branch's touches: — "Waive and merge" (Jamie, in session, 2026-10-01); re-read --branch --no-audit: OK · + /security-review — no findings (payments path; authz, owning-account read, no re-issue via the platform retry) · production-readiness n/a — skill not shipped in this repo · readiness env.sh audit --changed: OK
+- parked: dependency-advisories-next-undici.md (Build) · refund-webhook-stale-charge-snapshot.md (Define)
+- migrations: skip — none of this run's own
+- learned: 1 rule appended to _shared/project-rules.md (dependency-audit on a run that did not touch the manifest)
+- docs: no docs impact · announce: deferred to promotion
