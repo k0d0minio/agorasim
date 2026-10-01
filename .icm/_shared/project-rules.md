@@ -316,3 +316,5 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 - A test that fakes `cancelAndRefundBooking`'s claim — `web/src/app/admin/actions.test.ts` included — must return a row with `cancelledAt` set: the tour refund's idempotency key is read from it (`claimedAt` in `web/src/lib/booking-refund.ts`). (`FAILURE.md` — refund-idempotency-cached-declines)
 <!-- Retrospective Learned Rule [2026-10-01] -->
 - Before a spec changes what a Stripe call is keyed on, grep the repo's tests for every caller of that function (action suites, webhook route tests) and list them in `touches:` — not only the module's own test file. (`FAILURE.md` — refund-idempotency-cached-declines)
+<!-- Retrospective Learned Rule [2026-10-01] -->
+- When a new rule can take away something the guest already chose (a day, a slot, an add-on), give that drop its own sentence naming its own cause — never reuse an existing drop message written for another cause, and never drop silently. (`FAILURE.md` — guest-calendar-polish)

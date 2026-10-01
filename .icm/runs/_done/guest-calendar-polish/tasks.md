@@ -1,0 +1,25 @@
+# Tasks: guest-calendar-polish
+
+The queue, with a definition of done per item. Ticked by the stage that finishes the item —
+a human checkbox, never a script's. The definition of done is seeded from the spec's
+acceptance criteria when the run is opened; the queue is Build's own, one line per commit-sized
+step, so a resuming session can pick up the first unticked line.
+
+## Definition of done
+
+- [x] An unavailable day shows its number struck through, is not focusable as a choice and does
+- [x] At 1024 px wide and above the picker shows two consecutive months side by side; below
+- [x] In the checkout, after a day is picked its departures appear as chips; a departure the
+- [x] The summary line reads "Quarta, 14 de outubro · 10h00" (PT) / "Wednesday, 14 October ·
+- [x] With the browser clock set to 00:30 Lisbon time on day D and a payload built on day D−1,
+- [x] "None of these days work?" still swaps to the text box in the enquiry form and links to
+- [x] The picker offers exactly what the server accepts: every day/departure it lets the guest
+- [x] Every new or changed guest-facing string exists in PT and EN.
+
+## Queue
+
+- [x] `web/src/lib/date-keys.ts` — the date-key primitives moved out of `availability.ts` (re-exported there) so the browser can count the notice the same way
+- [x] `web/src/lib/public-calendar.ts` + test — `applyOnlineNotice`, `monthPair`, `summaryDay`/`summaryLine`
+- [x] `web/src/content/logistics.ts` + test — `departureClockTimes`, `departureShortTime`
+- [x] `web/src/components/booking-date-picker.tsx` — `useOnlineNotice`, crossed-out days, phone/laptop month views, summary line; hint copy in `content/tour-request.ts`
+- [x] `web/src/components/booking-checkout-form.tsx` — judges the chosen day against `useOnlineNotice(availability)` and hands the picker the same calendar
