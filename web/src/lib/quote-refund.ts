@@ -129,7 +129,7 @@ export async function refundQuotePayment(options: {
     return { status: "refund-unavailable", payment };
   }
 
-  let issued: { refund: Stripe.Refund; charge: Stripe.Charge | null };
+  let issued: IssuedInstalmentRefund;
   try {
     issued = await issueInstalmentRefund(found.quote, payment, refundCents);
   } catch (err) {
@@ -141,7 +141,7 @@ export async function refundQuotePayment(options: {
     };
   }
 
-  const { refund, charge } = issued;
+  const { refund, charge, totalRefundedCents } = issued;
   if (refund.status === "failed" || refund.status === "canceled") {
     console.error(
       `[quote-refund] ${quoteRef(found.quote.id)}: ${refund.id} came back ${refund.status}`,
@@ -153,12 +153,22 @@ export async function refundQuotePayment(options: {
     };
   }
 
+  if (totalRefundedCents === null) {
+    console.error(
+      `[quote-refund] ${quoteRef(found.quote.id)}: ${refund.id} went through but the charge ` +
+        `couldn't be read back — settling the ${payment.kind} from the row plus this refund; ` +
+        `the webhook echo sets it to Stripe's figure`,
+    );
+  }
+
   const settled = await settleInstalmentRefund({
     quote: found.quote,
     payment,
-    // What has gone back on it now: what the row said, and this refund. The
-    // webhook echo reads the same total off the charge and finds it written.
-    refundedAmountCents: payment.refundedAmountCents + refund.amount,
+    // What has gone back on it now, as Stripe counts it — set to the charge,
+    // never added to, so a dashboard refund whose event never reached the row
+    // is counted here rather than announced again by the echo. The row's own
+    // sum is only the fallback for a charge that could not be read back.
+    refundedAmountCents: totalRefundedCents ?? payment.refundedAmountCents + refund.amount,
     charge,
     refundId: refund.id,
     via: "admin",
@@ -176,6 +186,14 @@ export async function refundQuotePayment(options: {
   };
 }
 
+type IssuedInstalmentRefund = {
+  refund: Stripe.Refund;
+  /** The charge as read back after the refund, else as read before it. */
+  charge: Stripe.Charge | null;
+  /** The charge's cumulative `amount_refunded` after the refund; `null` when it couldn't be read. */
+  totalRefundedCents: number | null;
+};
+
 /**
  * The Stripe half: refund the instalment's payment intent on the account that
  * took the money, returning the application fee with it where there was one.
@@ -185,12 +203,15 @@ export async function refundQuotePayment(options: {
  * what has already gone back as well as what is going back now, so a
  * double-submitted form collapses into one refund while a second, deliberate
  * partial refund of the same amount is a new request.
+ *
+ * Then the charge is read again, for the total Stripe now counts as refunded
+ * on it — which is what the instalment is set to.
  */
 async function issueInstalmentRefund(
   quote: Quote,
   payment: QuotePayment,
   amountCents: number,
-): Promise<{ refund: Stripe.Refund; charge: Stripe.Charge | null }> {
+): Promise<IssuedInstalmentRefund> {
   const client = stripe();
   const paymentIntentId = payment.stripePaymentIntentId!;
 
@@ -227,8 +248,39 @@ async function issueInstalmentRefund(
       },
     );
 
-    return { refund, charge };
+    const after = await readChargeAfterRefund(client, charge?.id ?? chargeIdOf(refund), account);
+    return {
+      refund,
+      charge: after ?? charge,
+      totalRefundedCents: after ? after.amount_refunded : null,
+    };
   });
+}
+
+/**
+ * The charge as Stripe has it once the refund has gone through, or `null`.
+ *
+ * Never throws: the money has already gone back by the time this runs, so a
+ * failed read must neither report the refund as refused nor escape into
+ * {@link onOwningAccount}, whose retry on the platform would re-issue it.
+ */
+async function readChargeAfterRefund(
+  client: Stripe,
+  chargeId: string | null,
+  account: Stripe.RequestOptions | undefined,
+): Promise<Stripe.Charge | null> {
+  if (!chargeId) return null;
+  try {
+    return await client.charges.retrieve(chargeId, {}, account);
+  } catch (err) {
+    console.error(`[quote-refund] couldn't read ${chargeId} back after the refund`, err);
+    return null;
+  }
+}
+
+function chargeIdOf(refund: Stripe.Refund): string | null {
+  if (!refund.charge) return null;
+  return typeof refund.charge === "string" ? refund.charge : refund.charge.id;
 }
 
 // ---------------------------------------------------------------------------
