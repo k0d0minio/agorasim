@@ -1,7 +1,8 @@
 # Build notes: quote-refund-admin-reads-charge
 
 - commits: ad3c8c0 feat — settle the admin refund from Stripe's cumulative total (code + tests)
-- ci: pending
+- ci: GREEN on 283a61a (draft tier)
+- ready: 2026-10-01T10:59:13Z — flipped on 283a61a
 
 ## What changed
 
@@ -37,3 +38,8 @@
   settled total alone.
 - The idempotency key still uses the row's figure (stub 4) and the dialog ceiling is still
   row-based (out of scope; Stripe refuses an over-ceiling refund).
+- `security-check.sh --branch` → `BLOCKED 1` on `dependency-audit` only (secrets clean): 1
+  critical + 3 high already on main — `next` 16.3.4 (`next/og`, not imported by `web/src`) and
+  `undici` via `shadcn` / `@vercel/blob`. Not this branch's (no manifest change, outside
+  `touches:`); parked as `intake/triage/dependency-advisories-next-undici.md` (chore, P1).
+  The branch gate will keep reporting it until that chore merges.
