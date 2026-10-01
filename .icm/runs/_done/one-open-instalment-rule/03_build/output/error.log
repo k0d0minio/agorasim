@@ -1,0 +1,10 @@
+## 2026-10-01T12:57:13Z security-check.sh — dependency-audit
+scope=branch head=46c09d5 branch=claude/zealous-fermi-v7oyuy — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+- resolved: not this run's — the branch changes no dependency (web/package.json and the lockfile untouched); the four high advisories are main's Next/undici ones, already parked as triage/deps-next-undici-advisories.md and triage/dependency-advisories-next-undici.md, so nothing new was parked. Release's --audit read needs the operator's waiver or that chore merged first.
+
+## 2026-10-01T13:12:42Z security-check.sh — dependency-audit
+scope=branch head=0cadb9d branch=claude/zealous-fermi-v7oyuy — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+- resolved: same as the Build entry above — main's Next/undici advisories (triage/deps-next-undici-advisories.md), no dependency changed on this branch; Release's re-read waits on the operator's waiver or that chore merging.
+
