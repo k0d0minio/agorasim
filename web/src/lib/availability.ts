@@ -35,8 +35,19 @@
  * conversion happens at the two edges — {@link dateKey} coming in, the SQL
  * `date` column going out — and nothing in between holds an instant.
  *
- * **Absence is a no.** A departure with no row is not bookable. See the note on
- * the table in `db/schema.ts` for why the default has to be that way round.
+ * **Absence is a yes.** A departure with no row is open, with the full roster:
+ * Diogo & Rita do not open days, they block the ones they are off (open
+ * calendar, D-1). A row says something only when they did — `closed` is the
+ * block, and an `open` row keeps a cut roster or a note on a day that is on
+ * sale. See the note on the table in `db/schema.ts`.
+ *
+ * **Two audiences, one rule.** A guest booking online and the team booking on
+ * the phone ask the same question and get different answers on purpose: the
+ * guest needs two calendar days' notice and may look six months ahead, and
+ * neither may sell a blocked departure; the team may sell today, tomorrow and a
+ * blocked day (D-3, D-4). Capacity — a driver, a car, no event on the day —
+ * binds both. {@link describeSlot} takes the {@link Audience} and every caller
+ * says which one it is, so the difference lives in one function.
  *
  * Server-only: it imports `@/db`. The pure functions are importable in tests
  * through the `server-only` stub, the same way `lib/sales.ts` is.
@@ -87,14 +98,38 @@ export function isTourSlot(value: unknown): value is (typeof TOUR_SLOTS)[number]
 export { DRIVERS_PER_SLOT as DEFAULT_DRIVERS, MAX_DRIVERS_PER_SLOT as MAX_DRIVERS };
 
 /**
- * How far ahead the calendar can be opened or browsed, in months.
+ * How far ahead the admin calendar can be browsed or blocked, in months.
  *
- * Not a policy about how far ahead guests may book — that is the team's, and
- * they express it by opening days. It is a bound on the month pager so a
- * mis-tap cannot walk to the year 3000, and on the range a public read will
- * scan.
+ * Not how far ahead guests may book — that is {@link ONLINE_BOOKING_MONTHS}.
+ * It is a bound on the month pager so a mis-tap cannot walk to the year 3000,
+ * and on the range one gesture will write.
  */
 export const CALENDAR_HORIZON_MONTHS = 18;
+
+/**
+ * Who is asking whether a departure can be sold.
+ *
+ * - `online` — a guest on `/reservar`: the checkout, the public calendar and
+ *   the enquiry form. Bound by the block, the notice and the horizon.
+ * - `team` — Diogo & Rita in the admin: the manual booking and the weather
+ *   move. Past days are still refused and capacity still binds; the notice,
+ *   the horizon and the block do not (D-4).
+ */
+export type Audience = "online" | "team";
+
+/**
+ * Calendar days of notice a guest booking online must give (D-3).
+ *
+ * Counted in days, not hours: on a Monday the first bookable day is
+ * Wednesday, both departures, whatever the time on Monday.
+ */
+export const ONLINE_NOTICE_DAYS = 2;
+
+/**
+ * How many calendar months a guest may book into, this one included (D-2) —
+ * this month and the next five, the months the public picker shows.
+ */
+export const ONLINE_BOOKING_MONTHS = 6;
 
 // ---------------------------------------------------------------------------
 // Date keys
@@ -176,6 +211,19 @@ export function weekdayIndex(key: DateKey): number {
 /** Whether a key falls on a Saturday or Sunday. */
 export function isWeekend(key: DateKey): boolean {
   return weekdayIndex(key) >= 5;
+}
+
+/**
+ * The key `days` calendar days after `key` (negative goes back).
+ *
+ * Arithmetic on UTC midnights, never on "now": a key is a day in Sintra, and
+ * adding 48 hours to an instant near midnight is how two days' notice turns
+ * into one.
+ */
+export function addDays(key: DateKey, days: number): DateKey {
+  const date = parseDateKey(key);
+  if (!date) return key;
+  return dateKey(new Date(date.getTime() + days * 86_400_000));
 }
 
 // ---------------------------------------------------------------------------
@@ -292,6 +340,35 @@ export function isMonthInWindow(month: MonthKey, today: DateKey = todayKey()): b
   return month >= first && month <= last;
 }
 
+/**
+ * The days a guest may book online, both ends included: two calendar days
+ * from today (D-3) to the last day of the sixth month, this one counted (D-2).
+ */
+export function onlineWindow(today: DateKey = todayKey()): {
+  first: DateKey;
+  last: DateKey;
+} {
+  return {
+    first: addDays(today, ONLINE_NOTICE_DAYS),
+    last: monthBounds(addMonths(monthOf(today), ONLINE_BOOKING_MONTHS - 1)).last,
+  };
+}
+
+/**
+ * The last day the team may sell: the end of the admin pager's last month
+ * ({@link CALENDAR_HORIZON_MONTHS}). The team skips the guest's window, not
+ * every bound — a mistyped year must not become a confirmed booking in 2099.
+ */
+export function teamHorizonEnd(today: DateKey = todayKey()): DateKey {
+  return monthBounds(monthWindow(today).last).last;
+}
+
+/** Whether a guest may book `date` online, by the calendar alone. */
+export function isInOnlineWindow(date: DateKey, today: DateKey = todayKey()): boolean {
+  const { first, last } = onlineWindow(today);
+  return date >= first && date <= last;
+}
+
 // ---------------------------------------------------------------------------
 // What a departure is, once supply and demand are put together
 // ---------------------------------------------------------------------------
@@ -317,12 +394,17 @@ function noOccupancy(): SlotOccupancy {
  */
 export type SlotAvailability = {
   date: DateKey;
-  /** The stored row's id, when the departure has been opened or closed. */
+  /** The stored row's id, when the team has written one for this departure. */
   id: string | null;
   slot: AvailabilitySlot;
-  /** `null` when no row exists — the departure has never been touched. */
+  /**
+   * `null` when no row exists — the departure has never been touched, which
+   * means it is open. Only `closed` takes it off sale.
+   */
   status: AvailabilityStatus | null;
-  /** Drivers rostered on this departure. 0 when there is no row. */
+  /** The team blocked this departure (`status = 'closed'`). */
+  blocked: boolean;
+  /** Drivers rostered on this departure — the full roster when there is no row. */
   drivers: number;
   /** Drivers already out on a tour — one per live booking, any route. */
   driversUsed: number;
@@ -338,7 +420,16 @@ export type SlotAvailability = {
   past: boolean;
   /** Saturday or Sunday — the admin's "open the weekends" sweep selects on it. */
   weekend: boolean;
-  /** The team has put this departure on sale and it has not happened yet. */
+  /**
+   * Inside the guest's online window — two days' notice, six months ahead.
+   * Reported for both audiences; only `online` is bound by it.
+   */
+  inOnlineWindow: boolean;
+  /**
+   * This audience may sell the departure, capacity aside: for `online`, not
+   * past, not blocked and inside the window; for `team`, not past and inside
+   * the admin calendar's horizon ({@link teamHorizonEnd}).
+   */
   onSale: boolean;
   /**
    * A deposit-paid wedding or event holds this whole day (`lib/event-holds.ts`).
@@ -346,7 +437,12 @@ export type SlotAvailability = {
    * is told the departure is unavailable, not why.
    */
   heldByEvent: boolean;
-  /** Whether *some* party could still be sold this departure. */
+  /**
+   * No event holds the day, a driver is free and some car is free — capacity
+   * alone, the same for both audiences. The admin's "esgotada" reads this.
+   */
+  hasRoom: boolean;
+  /** Whether *some* party could still be sold this departure, by this audience. */
   bookable: boolean;
   note: string | null;
 };
@@ -355,14 +451,19 @@ export type SlotAvailability = {
  * Turn one departure's supply and demand into the shape both calendars render.
  *
  * The whole bookability rule lives in this function: the day is not in the
- * past, a row exists and says `open`, no paid event holds the day, a driver is
- * still free, and some vehicle is still free. Which vehicle *this* party needs is a different question —
- * {@link fitsParty} — because a departure with only the T3 left is bookable
- * and is still a no to a couple who would take a 2CV somebody else already has.
+ * past; for a guest online, the team has not blocked it and it is inside the
+ * online window (two days' notice, six months ahead); no paid event holds the
+ * day, a driver is still free, and some vehicle is still free. The team skips
+ * the block and the window, never the capacity (D-4). Which vehicle *this*
+ * party needs is a different question — {@link fitsParty} — because a
+ * departure with only the T3 left is bookable and is still a no to a couple
+ * who would take a 2CV somebody else already has.
  *
  * Anything that wants to know whether a departure can be sold asks this: the
- * public page, the checkout action that re-checks it server-side, and the
- * admin, which is how the three cannot quietly disagree.
+ * public page, the checkout action that re-checks it server-side, the enquiry
+ * form, the manual booking and the move, which is how they cannot quietly
+ * disagree. `audience` defaults to `online`, the stricter answer, so a caller
+ * that forgets to say who it is never sells more than a guest could buy.
  */
 export function describeSlot(options: {
   date: DateKey;
@@ -370,11 +471,14 @@ export function describeSlot(options: {
   row?: Pick<AvailabilityRow, "id" | "slot" | "status" | "drivers" | "note"> | null;
   occupancy?: SlotOccupancy;
   today?: DateKey;
+  audience?: Audience;
 }): SlotAvailability {
-  const { date, slot, row, today = todayKey() } = options;
+  const { date, slot, row, today = todayKey(), audience = "online" } = options;
   const occupancy = options.occupancy ?? noOccupancy();
 
-  const drivers = row?.drivers ?? 0;
+  // No row is an untouched departure, and an untouched departure is open with
+  // everybody driving (D-1).
+  const drivers = row ? row.drivers : DRIVERS_PER_SLOT;
   // A held day has nothing left to sell, whatever the bookings on it say: the
   // drivers and the cars are at the event. Zeroed here rather than only in
   // `bookable`, so every sum over "what is left" agrees with the refusal.
@@ -386,13 +490,20 @@ export function describeSlot(options: {
     ? noVehicles()
     : remainingVehicles(FLEET_SIZE, occupancy.vehicles);
   const past = date < today;
-  const onSale = !past && row?.status === "open";
+  const blocked = row?.status === "closed";
+  const inOnlineWindow = isInOnlineWindow(date, today);
+  const onSale =
+    audience === "team"
+      ? !past && date <= teamHorizonEnd(today)
+      : !past && !blocked && inOnlineWindow;
+  const hasRoom = !heldByEvent && driversLeft > 0 && anyVehicleFree(vehiclesLeft);
 
   return {
     date,
     id: row?.id ?? null,
     slot,
     status: row?.status ?? null,
+    blocked,
     drivers,
     driversUsed: occupancy.drivers,
     driversLeft,
@@ -401,9 +512,11 @@ export function describeSlot(options: {
     vehiclesLeft,
     past,
     weekend: isWeekend(date),
+    inOnlineWindow,
     onSale,
     heldByEvent,
-    bookable: onSale && !heldByEvent && driversLeft > 0 && anyVehicleFree(vehiclesLeft),
+    hasRoom,
+    bookable: onSale && hasRoom,
     note: row?.note ?? null,
   };
 }
@@ -438,6 +551,8 @@ export function fitsParty(
     };
   }
   // A held day is closed to every party, not "full": there is no car to wait for.
+  // `onSale` already carries the audience — a blocked or too-soon departure is
+  // off sale to a guest and on sale to the team.
   if (!slot.onSale || slot.heldByEvent) return { ok: false, reason: "unavailable" };
   if (slot.driversLeft < 1) return { ok: false, reason: "no-driver" };
   if (slot.vehiclesLeft[assignment.vehicleClass] < 1) {
@@ -454,7 +569,7 @@ export type DaySlots = {
 
 /**
  * A month of {@link DaySlots} — every day of the month, whether or not it has
- * rows. The grid needs a cell for the 3rd even when nobody has ever opened
+ * rows. The grid needs a cell for the 3rd even when nobody has ever touched
  * the 3rd, and each cell carries both departures.
  */
 export function describeMonth(options: {
@@ -462,8 +577,9 @@ export function describeMonth(options: {
   rows: AvailabilityRow[];
   occupancy?: OccupancyMap;
   today?: DateKey;
+  audience?: Audience;
 }): DaySlots[] {
-  const { month, rows, occupancy, today = todayKey() } = options;
+  const { month, rows, occupancy, today = todayKey(), audience } = options;
   const byKey = new Map(rows.map((row) => [occupancySlotKey(row.date, row.slot), row]));
 
   return monthDays(month).map((date) => ({
@@ -475,6 +591,7 @@ export function describeMonth(options: {
         row: byKey.get(occupancySlotKey(date, slot)) ?? null,
         occupancy: occupancy?.get(occupancySlotKey(date, slot)),
         today,
+        audience,
       }),
     ),
   }));
@@ -496,16 +613,17 @@ export async function listAvailabilityRows(
     .orderBy(asc(availability.date), asc(availability.slot));
 }
 
-/** One month of the calendar, ready to render. */
+/** One month of the calendar, ready to render, as `audience` would sell it. */
 export async function readMonth(options: {
   month: MonthKey;
   occupancy?: OccupancyMap;
   today?: DateKey;
+  audience?: Audience;
 }): Promise<DaySlots[]> {
-  const { month, occupancy, today } = options;
+  const { month, occupancy, today, audience } = options;
   const { first, last } = monthBounds(month);
   const rows = await listAvailabilityRows(first, last);
-  return describeMonth({ month, rows, occupancy, today });
+  return describeMonth({ month, rows, occupancy, today, audience });
 }
 
 /**
@@ -532,14 +650,14 @@ export async function readDay(
 // ---------------------------------------------------------------------------
 
 /**
- * How many months the public picker offers.
+ * How many months the public picker offers — exactly the months a guest may
+ * book into ({@link ONLINE_BOOKING_MONTHS}), so the grid never shows a month
+ * the checkout would refuse.
  *
  * Not the same number as {@link CALENDAR_HORIZON_MONTHS}, which bounds what the
- * *team* can plan. The public page is statically rendered and ships every month
- * it offers in the payload, so this is a page-weight decision: six months is
- * two seasons of choice at a few kilobytes.
+ * *team* can plan.
  */
-export const PUBLIC_CALENDAR_MONTHS = 6;
+export const PUBLIC_CALENDAR_MONTHS = ONLINE_BOOKING_MONTHS;
 
 /**
  * One departure, as a guest is allowed to see it.
@@ -603,12 +721,13 @@ export function toPublicDay(day: DaySlots): PublicDay {
 /**
  * The months the public picker shows, from this one forward.
  *
+ * Always the `online` audience: this is what a guest is offered.
+ *
  * **Never throws.** `/reservar` is statically rendered, and CI builds it with
  * no `DATABASE_URL` at all — so an unreachable database returns no months and
  * the page falls back to asking for a date in words, exactly as it did before
- * the calendar existed. The same fallback covers the honest case where nobody
- * has opened a day yet: a booking page with no calendar still has to take
- * leads, or the first week of the season quietly captures nothing.
+ * the calendar existed: a booking page with no calendar still has to take
+ * leads.
  *
  * This mirrors the resolver in `lib/experience-catalogue.ts`, for the same
  * reason and with the same warn-once discipline.
@@ -657,6 +776,7 @@ export async function readPublicCalendar(options: {
       rows: byMonth.get(month) ?? [],
       occupancy,
       today,
+      audience: "online",
     }).map(toPublicDay);
 
     return {
@@ -675,7 +795,8 @@ export async function readPublicCalendar(options: {
  * The browser was shown a calendar; what it posts back is whatever the person
  * posting it wants, and by the time it arrives the driver may be out, the car
  * may be taken by a booking on the *other* tour, or the departure may have been
- * closed. Everything that accepts a date from a guest goes through here.
+ * blocked. Everything that accepts a departure goes through here — a guest's
+ * as `online` (the default), the team's manual booking and move as `team`.
  *
  * A database failure is a "no". A booking engine that cannot read availability
  * must not fall back to accepting the date; the guest is told to try again,
@@ -688,6 +809,7 @@ export async function checkSlotAvailable(options: {
   partySize: number;
   occupancy?: SlotOccupancy;
   today?: DateKey;
+  audience?: Audience;
 }): Promise<
   | { ok: true; slot: SlotAvailability; vehicleClass: VehicleClass }
   | {
@@ -701,7 +823,7 @@ export async function checkSlotAvailable(options: {
         | "unreadable";
     }
 > {
-  const { experienceSlug, date, slot, partySize, occupancy, today } = options;
+  const { experienceSlug, date, slot, partySize, occupancy, today, audience } = options;
 
   if (!isDateKey(date) || !isTourSlot(slot)) return { ok: false, reason: "invalid" };
 
@@ -713,7 +835,7 @@ export async function checkSlotAvailable(options: {
     return { ok: false, reason: "unreadable" };
   }
 
-  const described = describeSlot({ date, slot, row, occupancy, today });
+  const described = describeSlot({ date, slot, row, occupancy, today, audience });
   const fit = fitsParty(described, experienceSlug, partySize);
   if (!fit.ok) {
     // "No driver left" is the departure being full, which from the guest's
@@ -735,7 +857,9 @@ export async function checkSlotAvailable(options: {
  * not at all) and may be for fourteen people — which is exactly the lead the
  * team wants and precisely what the checkout refuses — so asking
  * {@link checkSlotAvailable} about it would throw away good business. All this
- * asks is whether the day is on the calendar and not fully committed.
+ * asks is whether a guest could book some departure of the day online: not
+ * blocked, inside the notice and the six months, and not fully committed — the
+ * same days the shared picker offers (D-14).
  *
  * A database failure is a "yes" here, the opposite of the checkout's rule and
  * for the opposite reason: nothing is being sold, and refusing to record an
@@ -766,6 +890,7 @@ export async function checkDayBookable(options: {
         row: byKey.get(occupancySlotKey(date, slot)) ?? null,
         occupancy: occupancy?.get(occupancySlotKey(date, slot)),
         today,
+        audience: "online",
       }).bookable,
   );
 }
@@ -878,10 +1003,9 @@ export async function upsertDays(options: {
 /**
  * Remove the rows for `dates` — "I never meant to touch these departures".
  *
- * Distinct from closing them: a closed departure is a decision the calendar
- * records (and can show a note for), an absent one is a decision nobody has
- * made. Deleting is safe for supply, but it is *not* safe for demand, so the
- * caller checks for bookings first — this function only does what it is told.
+ * Since the calendar is open by default, an absent row is an open departure
+ * with the full roster: clearing a closed day puts it back on sale. The caller
+ * checks for bookings first — this function only does what it is told.
  */
 export async function clearDays(options: {
   dates: DateKey[];

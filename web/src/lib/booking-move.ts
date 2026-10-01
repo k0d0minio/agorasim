@@ -8,11 +8,13 @@
  * the booking stays the same booking, and its departure changes.
  *
  * **A move is a sale, re-checked.** The target departure has to pass exactly
- * the test a new booking would pass: the day is open, a driver is free, and the
- * class of car this party needs is free (`lib/availability.ts` over
- * `lib/fleet.ts`). Nothing here re-implements that rule — it calls
- * {@link checkSlotAvailable}, the same function the checkout calls, because a
- * second copy of the capacity arithmetic is how a Saturday ends up sold twice.
+ * the test the team's own manual booking would pass: the day has not happened,
+ * a driver is free, and the class of car this party needs is free
+ * (`lib/availability.ts` over `lib/fleet.ts`). Like the manual booking, a move
+ * may land on today, tomorrow or a blocked day (D-13) — it is the team acting.
+ * Nothing here re-implements that rule — it calls {@link checkSlotAvailable},
+ * the same function the checkout calls, because a second copy of the capacity
+ * arithmetic is how a Saturday ends up sold twice.
  *
  * **In place, and audited.** There is no history table and no "moved" status:
  * the row is edited and the audit log carries the before and the after
@@ -82,7 +84,7 @@ import { siteUrl } from "@/lib/site-origin";
  * Saturday is filthy, when else can these people come?", which is answered in
  * weeks — and the picker ships every viable departure to the browser, so the
  * horizon is also the size of the payload. A move further out than this is a
- * conversation, and the team can still open the day and move it in two steps.
+ * conversation, and the team can move it in two steps.
  */
 export const MOVE_HORIZON_DAYS = 90;
 
@@ -112,7 +114,7 @@ export function isMovable(booking: Pick<Booking, "status">): boolean {
  * Pure, and the whole of the picker's rule: a target is viable when the same
  * {@link fitsParty} that decides a sale says yes to *this* route and *this*
  * party — so a departure with only the T3 left is not offered for a couple who
- * need a small classic, and a day nobody has opened is not offered at all. The
+ * need a small classic, and a full or event-held day is not offered at all. The
  * booking's own departure is excluded: it is not a move, and the action would
  * refuse it anyway.
  */
@@ -230,6 +232,8 @@ export async function moveBookingToDeparture(options: {
     partySize: existing.partySize,
     occupancy: await slotOccupancyOn(date, slot),
     today,
+    // The team moving a booking, like the team selling one (D-13).
+    audience: "team",
   });
 
   if (!check.ok) {

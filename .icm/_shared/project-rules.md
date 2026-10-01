@@ -311,6 +311,8 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 <!-- Retrospective Learned Rule [2026-10-01] -->
 - In Release, run `/code-review` with the run branch named as its target (after `git remote set-head origin main`) — with uncommitted run files in the tree it reviews those instead of the branch. (`FAILURE.md` — one-open-instalment-rule)
 <!-- Retrospective Learned Rule [2026-10-01] -->
+- When a default flips (absence of a row goes from "no" to "yes"), list every bound the stored rows used to enforce implicitly — a horizon, a roster, a past check — and restate each one explicitly in the spec, and grep the admin copy for sentences that describe the old absence. (`FAILURE.md` — open-by-default) (`FAILURE.md` — open-by-default)
+<!-- Retrospective Learned Rule [2026-10-01] -->
 - A test that fakes `cancelAndRefundBooking`'s claim — `web/src/app/admin/actions.test.ts` included — must return a row with `cancelledAt` set: the tour refund's idempotency key is read from it (`claimedAt` in `web/src/lib/booking-refund.ts`). (`FAILURE.md` — refund-idempotency-cached-declines)
 <!-- Retrospective Learned Rule [2026-10-01] -->
 - Before a spec changes what a Stripe call is keyed on, grep the repo's tests for every caller of that function (action suites, webhook route tests) and list them in `touches:` — not only the module's own test file. (`FAILURE.md` — refund-idempotency-cached-declines)

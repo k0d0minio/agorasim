@@ -108,39 +108,51 @@ describe("manualBookingPrefill", () => {
 // The picker's rule
 // ---------------------------------------------------------------------------
 
-function row(date: string, slot: AvailabilitySlot, drivers = 2): AvailabilityRow {
+function row(
+  date: string,
+  slot: AvailabilitySlot,
+  drivers = 2,
+  status: AvailabilityRow["status"] = "open",
+): AvailabilityRow {
   return {
     id: `${date}-${slot}`,
     date,
     slot,
     drivers,
-    status: "open",
+    status,
     note: null,
     createdAt: new Date("2026-08-01T10:00:00Z"),
     updatedAt: new Date("2026-08-01T10:00:00Z"),
   };
 }
 
-/** A day the calendar has been asked about, with whatever is already out on it. */
+/**
+ * A day the calendar has been asked about, with whatever is already out on it —
+ * described for the team, as `readDepartureWindow` describes it.
+ *
+ * `row` is what the team wrote: an `open` row (the default, carrying
+ * `drivers`), a `closed` one (blocked), or `none` — untouched, which is open.
+ */
 function day(
   date: string,
   options: {
-    open?: boolean;
+    row?: "open" | "closed" | "none";
     drivers?: number;
     used?: Partial<Record<AvailabilitySlot, SlotOccupancy>>;
     today?: string;
   } = {},
 ): DaySlots {
-  const { open = true, drivers = 2, used = {}, today = "2026-08-01" } = options;
+  const { row: written = "open", drivers = 2, used = {}, today = "2026-08-01" } = options;
   return {
     date,
     slots: TOUR_SLOTS.map((slot) =>
       describeSlot({
         date,
         slot,
-        row: open ? row(date, slot, drivers) : null,
+        row: written === "none" ? null : row(date, slot, drivers, written),
         occupancy: used[slot],
         today,
+        audience: "team",
       }),
     ),
   };
@@ -161,8 +173,37 @@ describe("openDepartures", () => {
     ]);
   });
 
-  it("skips days nobody has opened", () => {
-    expect(openDepartures([day("2026-08-10", { open: false })])).toEqual([]);
+  it("offers a day nobody has touched — the calendar is open by default", () => {
+    expect(openDepartures([day("2026-08-10", { row: "none" })])).toEqual([
+      { date: "2026-08-10", slot: "morning" },
+      { date: "2026-08-10", slot: "afternoon" },
+    ]);
+  });
+
+  it("offers a blocked day, because the phone booking may take it", () => {
+    // D-4: the block stops guests online, not Rita on the phone.
+    expect(openDepartures([day("2026-08-10", { row: "closed" })])).toEqual([
+      { date: "2026-08-10", slot: "morning" },
+      { date: "2026-08-10", slot: "afternoon" },
+    ]);
+  });
+
+  it("offers today and tomorrow, which a guest online cannot book", () => {
+    const departures = openDepartures([
+      day("2026-08-01", { row: "none" }),
+      day("2026-08-02", { row: "none" }),
+    ]);
+    expect(departures).toHaveLength(4);
+  });
+
+  it("skips a blocked departure with nobody free to drive it", () => {
+    const departures = openDepartures([
+      day("2026-08-10", {
+        row: "closed",
+        used: { morning: committed("classic-small", "classic-small") },
+      }),
+    ]);
+    expect(departures).toEqual([{ date: "2026-08-10", slot: "afternoon" }]);
   });
 
   it("skips a departure whose drivers are all out, whichever tour took them", () => {
