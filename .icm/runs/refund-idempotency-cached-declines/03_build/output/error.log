@@ -1,0 +1,4 @@
+## 2026-10-01T13:00:42Z security-check.sh — dependency-audit
+scope=branch head=8d1e4ee branch=claude/hopeful-einstein-5911ev — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+- resolved: not this run's — the branch changes neither `web/package.json` nor a lockfile; the advisories (next, undici) are on `main` and already parked as chores in `.icm/intake/triage/` (`dependency-advisories-next-undici`, `deps-next-undici-advisories`). The secrets half of the gate passed; no new stub parked. Release's `--audit` read needs the operator's waiver or that chore merged first.

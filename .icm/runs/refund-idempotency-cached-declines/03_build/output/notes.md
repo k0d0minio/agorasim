@@ -1,7 +1,8 @@
 # Build notes: refund-idempotency-cached-declines
 
 - commits: 3d8a0ff feat — key refunds on the attempt, not the row
-- ci: pending (draft head — lint.sh OK, security-check.sh OK)
+- ci: pending (draft GREEN on 8d1e4ee; lint.sh OK; security-check.sh --branch BLOCKED on main's dependency audit only — see error.log)
+- ready: 2026-10-01T13:02:30Z — flipped on 8d1e4ee
 
 ## What changed
 
@@ -25,6 +26,8 @@
 - [ ] CI green — settled after the ready flip
 
 ## Notes for Release
+
+-  → BLOCKED 1,  only (4 high/critical in next/undici on `main`); this branch touches no dependency file. Already parked: `triage/dependency-advisories-next-undici`, `triage/deps-next-undici-advisories`. The secrets scan passed.
 
 - `form-schemas.test.ts` was not in the spec's `touches:`; it carries the AC-2 refusal test, nothing else.
 - The replay case leaves `refundedAt` rewritten to the second submit's time (`recordPaymentRefund` sets it on every claimed write) — as the spec noted; nothing else on the row moves.
