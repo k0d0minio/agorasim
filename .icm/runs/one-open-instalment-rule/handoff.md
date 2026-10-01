@@ -6,16 +6,12 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Operator: decide the dependency audit — waive it for this run (main's Next/undici advisories, not this branch's) or merge the chore `triage/deps-next-undici-advisories.md` first.
-2. Then `/pipeline release one-open-instalment-rule` resumes at step 4: re-read with `security-check.sh one-open-instalment-rule --branch --no-audit` (waiver) or `--branch --audit` (after the chore), then docs, record, close-out, merge.
-
-Done so far in Release: gate ticked · CI GREEN on 0cadb9d · env.sh audit --changed OK · /code-review low: no findings · /security-review: no findings.
+1. Merged and archived; nothing to pick up. The change reaches production with the next UAT batch promotion.
 
 ## Blockers
 
-- blocked on operator: waive the dependency audit for this run, or merge the Next/undici dependency chore first
+- none
 
 ## Do not
 
-- Do not merge around the BLOCKED; the waiver is the operator's, never the agent's.
-- Do not park another dependency stub — it is already in triage.
+- Do not reopen this run — follow-ups go through triage.

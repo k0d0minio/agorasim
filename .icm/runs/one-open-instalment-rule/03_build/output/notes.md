@@ -26,3 +26,14 @@
 - The stub said the "Saldo por pagar" panel read `isBalanceOpen`; it never did — it reads SQL. The spec (settled with the operator) widened the run to the SQL status lists for that reason.
 - `quote-refund.ts` status lists (refundable / terminal) deliberately untouched.
 - `security-check.sh --branch` → BLOCKED 1 on `dependency-audit` (4 high advisories). Not this run's: no dependency changed; main's Next/undici advisories, already parked in triage (`deps-next-undici-advisories.md`, `dependency-advisories-next-undici.md`). Release's `--audit` read will need the operator's waiver or that chore merged first.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN on 0cadb9d (ci-status.sh; re-read after the last push below)
+- reviews: code low — no findings · security audit waived — main's Next/undici advisories (1 critical next/og RCE, 3 high undici), not this branch's — no dependency changed; tracked as triage/deps-next-undici-advisories.md (the operator, 2026-10-01); re-read `--branch --no-audit`: OK · /security-review — no findings (diff touches payment-row guards; semantics unchanged) · readiness env.sh audit --changed: OK · /production-readiness n/a — no such skill in this session; the diff changes no schema, env or route
+- parked: none
+- migrations: skip — none of this run's own
+- learned: 0 rules from error.log (dependency-audit already a rule) · 2 from FAILURE.md via close-out
+- docs: no docs impact · announce: deferred to promotion
+

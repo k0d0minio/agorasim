@@ -13,12 +13,19 @@ general; keep the retrospectives specific; never restate an `error.log` entry he
 
 ## Retrospectives
 
-### <YYYY-MM-DD> — <what failed, one line>
+### 2026-10-01 — the stub named the wrong reader of the predicate
 
-- what happened: <the observable — the check, the error, the wrong file>
-- why: <the cause, once it was known>
-- fixed by: <the commit, or the action>
+- what happened: the stub said the "Saldo por pagar" panel read `isBalanceOpen`; Define's grep showed `listUnpaidBalancesDue` (and five other queries and guards in `quotes.ts`) repeat the rule in SQL as `inArray(status, ["pending", "issued"])` and never call either JS copy.
+- why: the review finding behind the stub was written from the JS call sites only.
+- fixed by: the operator widened the spec in Define to a shared `OPEN_INSTALMENT_STATUSES` read by the SQL too.
+
+### 2026-10-01 — `/code-review` reviewed only the uncommitted run files
+
+- what happened: in Release, `/code-review low` with no target reviewed the working tree's `.icm/runs/**` edits and reported nothing about the code.
+- why: with uncommitted changes present it defaults to them, and its branch fallback failed silently in the cloud clone.
+- fixed by: re-running it with the branch named as the target after `git remote set-head origin main`.
 
 ## Learned rules
 
-- <one sentence, imperative, general enough to apply to the next run in this repo>
+- Before speccing a "one definition of X" refactor, grep for the rule's SQL form (`inArray`, `eq` on the same column values) as well as its JS functions — Drizzle queries in `web/src/lib/quotes.ts` restate predicates the code also has as helpers.
+- In Release, run `/code-review` with the run branch named as its target (after `git remote set-head origin main`) — with uncommitted run files in the tree it reviews those instead of the branch.
