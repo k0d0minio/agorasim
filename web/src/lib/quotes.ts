@@ -544,9 +544,10 @@ export async function listUpcomingQuotes(options: {
  *
  * `<=` rather than `=`, and that matters — a dispatcher that fails to run on a
  * Tuesday must still catch Tuesday's events on the Wednesday, rather than
- * leaving a couple's balance permanently unasked-for. It stops at today: a
- * balance still open after the party is the team's, on the Sales board, and
- * past events left in view would crowd new ones out of the limit.
+ * leaving a couple's balance permanently unasked-for. It stops the day before
+ * the event (`isRequestInWindow` states the same edge): a balance still open on
+ * the day, or after the party, is the team's, on the Sales board, and past
+ * events left in view would crowd new ones out of the limit.
  *
  * The date only brings a row into view; it does not make the send once-only.
  * That is the message log's claim (`balance-request`, keyed on the quote —
@@ -560,7 +561,7 @@ export async function listQuotesDueForBalance(options: {
 } = {}): Promise<{ quote: Quote; payment: QuotePayment }[]> {
   const { now = new Date(), limit = 100 } = options;
   const today = todayKey(now);
-  // Events at or inside T−14 — i.e. happening between today and today + 14 days.
+  // Events at or inside T−14 but not today — between tomorrow and today + 14 days.
   const horizon = shiftDays(today, BALANCE_DUE_DAYS_BEFORE);
 
   const rows = await db
@@ -573,7 +574,7 @@ export async function listQuotesDueForBalance(options: {
         eq(quotePayments.kind, "balance"),
         eq(quotePayments.status, "pending"),
         isNull(quotePayments.issuedAt),
-        gte(quotes.eventDate, today),
+        gte(quotes.eventDate, shiftDays(today, 1)),
         lte(quotes.eventDate, horizon),
       ),
     )
@@ -585,7 +586,8 @@ export async function listQuotesDueForBalance(options: {
 
 /**
  * The balances the T−7 reminder looks at today: deposit-paid quotes whose
- * event is between today and seven days out, with the balance still open —
+ * event is between tomorrow and seven days out — never on the day itself, the
+ * edge `isReminderDue` states — with the balance still open —
  * `issued` included, because a couple who tapped "Pagar saldo" and walked
  * away from Checkout has still not paid.
  *
@@ -609,7 +611,7 @@ export async function listQuotesForBalanceReminder(options: {
         eq(quotes.status, "deposit_paid"),
         eq(quotePayments.kind, "balance"),
         inArray(quotePayments.status, ["pending", "issued"]),
-        gte(quotes.eventDate, today),
+        gte(quotes.eventDate, shiftDays(today, 1)),
         lte(quotes.eventDate, shiftDays(today, BALANCE_REMINDER_DAYS_BEFORE)),
       ),
     )

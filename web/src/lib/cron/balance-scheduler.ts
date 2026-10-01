@@ -7,12 +7,16 @@
  *
  * 1. **The request** — every quote `listQuotesDueForBalance` returns: deposit
  *    paid (by Stripe, or by transfer and written off — `statusAfterPayment`),
- *    the balance still `pending`, the event fourteen days away or fewer but
- *    not past (the query's floor; `isRequestInWindow` says it again). `<=` rather than `=`, so a missed morning and a deposit paid
- *    inside T−14 are caught on the next run.
+ *    the balance still `pending`, the event fourteen days away or fewer and
+ *    at least one day off (the query's floor; `isRequestInWindow` says it
+ *    again). `<=` rather than `=`, so a missed morning and a deposit paid
+ *    inside T−14 are caught on the next run — up to the day before the event.
  * 2. **The reminder** — every deposit-paid quote with the event seven days
- *    away or fewer, the balance still open, and a request that reached the
- *    couple at least three days before (`lib/balance-schedule.ts`).
+ *    away or fewer but not today, the balance still open, and a request that
+ *    reached the couple at least three days before (`lib/balance-schedule.ts`).
+ *
+ * Neither goes out on the event's own day: each would rotate the quote link
+ * on the morning itself. An event-day balance is the team's, on the board.
  *
  * The team's T−3 flag is not a pass: it is computed where it is shown (the
  * Sales board and the lead's quote card), so nothing has to run for it. What
@@ -202,7 +206,7 @@ async function sendPass(
   return tally;
 }
 
-/** T−14: the quotes due a request today, the event not yet past. */
+/** T−14: the quotes due a request today, the event at least a day away. */
 async function requestPass(now: Date, today: DateKey): Promise<BalanceTally> {
   const due = (await listQuotesDueForBalance({ now })).filter(
     ({ quote, payment }) => isBalanceOpen(payment) && isRequestInWindow(quote.eventDate, today),

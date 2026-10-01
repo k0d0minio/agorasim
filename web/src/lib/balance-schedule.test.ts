@@ -4,7 +4,7 @@ import type { QuoteBalanceMessage } from "@/lib/message-log";
 
 /**
  * The balance's calendar, asserted from the spec's windows rather than from
- * the implementation: T−14 asks (never after the event), T−7 chases once if
+ * the implementation: T−14 asks (never on or after the event day), T−7 chases once if
  * the request reached the couple three days before, T−3 flags for the team.
  * Every day is a Lisbon calendar key, so the tests pin "today" and never read
  * the clock.
@@ -39,9 +39,13 @@ describe("daysBetween", () => {
 });
 
 describe("isRequestInWindow", () => {
-  it("asks up to and on the event day, never after it", () => {
+  it("asks up to the day before the event", () => {
     expect(isRequestInWindow(EVENT, "2026-08-01")).toBe(true);
-    expect(isRequestInWindow(EVENT, EVENT)).toBe(true);
+    expect(isRequestInWindow(EVENT, "2026-08-14")).toBe(true);
+  });
+
+  it("never asks on the event day, nor after it", () => {
+    expect(isRequestInWindow(EVENT, EVENT)).toBe(false);
     expect(isRequestInWindow(EVENT, "2026-08-16")).toBe(false);
   });
 });
@@ -70,6 +74,20 @@ describe("isReminderDue", () => {
     expect(isReminderDue({ eventDate: EVENT, today: "2026-08-10", requestSentAt: null })).toBe(
       false,
     );
+  });
+
+  it("chases as late as the day before the event", () => {
+    // Request on T−4 (a deposit paid at T−5); three days later is T−1.
+    expect(
+      isReminderDue({ eventDate: EVENT, today: "2026-08-14", requestSentAt: at("2026-08-11") }),
+    ).toBe(true);
+  });
+
+  it("never chases on the event day", () => {
+    // Request on T−3: three days later is the event morning itself.
+    expect(
+      isReminderDue({ eventDate: EVENT, today: EVENT, requestSentAt: at("2026-08-12") }),
+    ).toBe(false);
   });
 
   it("never chases after the event", () => {
