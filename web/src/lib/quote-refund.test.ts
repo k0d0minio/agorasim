@@ -745,6 +745,34 @@ describe("refundQuotePayment — the attempt is the idempotency key", () => {
     expect(sendLoggedEmail).toHaveBeenCalledTimes(1);
   });
 
+  it("records a replayed press once even when the charge can't be read back", async () => {
+    stripeRefundsAsAsked();
+    stripeKeepsAnswersByKey();
+    const press = {
+      paymentId: DEPOSIT_ID,
+      refundCents: 19_200,
+      cancelEvent: false,
+      attemptId: ATTEMPT_ID,
+      actorUserId: ADMIN_ID,
+    };
+
+    await refundQuotePayment(press);
+    // The replay finds no charge to read: the row's own sum would count the
+    // refund Stripe handed back a second time.
+    chargesRetrieve.mockRejectedValue(new Error("Stripe is having a moment."));
+    const replay = await refundQuotePayment(press);
+
+    expect(replay).toMatchObject({ status: "refunded", refundedCents: 19_200 });
+    expect(payments.get(DEPOSIT_ID)).toMatchObject({
+      status: "paid",
+      refundedAmountCents: 19_200,
+      refundedFeeCents: 1_152,
+    });
+    expect(recordPaymentRefund).toHaveBeenCalledTimes(1);
+    expect(auditActions()).toEqual(["quote.payment_refunded"]);
+    expect(sendLoggedEmail).toHaveBeenCalledTimes(1);
+  });
+
   it("asks Stripe again on a retry after a decline, instead of replaying the decline", async () => {
     stripeRefundsAsAsked();
     const accept = refundsCreate.getMockImplementation()!;

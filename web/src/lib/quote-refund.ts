@@ -189,6 +189,19 @@ export async function refundQuotePayment(options: {
     };
   }
 
+  if (refund.id === payment.stripeRefundId) {
+    // A replayed press: Stripe handed back the refund this attempt already
+    // made, and the row read above already records it. Settling it again
+    // would add it a second time wherever the charge could not be read back.
+    return {
+      status: "refunded",
+      quote: found.quote,
+      payment,
+      refundedCents: refund.amount,
+      eventCancelled: found.quote.status === "cancelled",
+    };
+  }
+
   if (totalRefundedCents === null) {
     console.error(
       `[quote-refund] ${quoteRef(found.quote.id)}: ${refund.id} went through but the charge ` +
