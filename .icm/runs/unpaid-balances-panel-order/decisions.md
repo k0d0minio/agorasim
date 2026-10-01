@@ -8,9 +8,13 @@ decision made mid-run has one home.
 
 ## From the scope
 
-- <D-n — the decision, one line, as the scope worded it>
+- none — the epic was cut from triage (`triage batch balance-scheduler`); no `scope.md`.
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-1 — split the panel's read into upcoming (T−3..today, soonest first) and past (most recent
+  first), each with its own cap, past under an "Eventos passados" subheading — rather than one
+  reordered list sharing a 50-row cap; a past pile-up then cannot crowd out a soon-due row by
+  construction. Operator, Define, 2026-10-01.
+- D-2 — show a "+ N eventos passados não mostrados" line when past rows exceed the cap, so
+  truncation is never silent. Operator, Define, 2026-10-01.

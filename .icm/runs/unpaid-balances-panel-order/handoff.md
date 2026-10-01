@@ -6,18 +6,18 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. Once **Spec approved** is ticked on https://github.com/k0d0minio/agorasim/pull/163, run
+   `/pipeline build unpaid-balances-panel-order` and execute `plan.md` pass by pass.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
-- blocked on operator: <the human-only act that unblocks the run — tick a gate, merge, a
-  dashboard or env change>
-
-A blocking operator act is written here **and** in the stop report's `Operator:` list; a
-non-blocking one lives only in that list, never here (`_shared/output.md` → Split by actor).
+- blocked on operator: tick **Spec approved** in the body of
+  https://github.com/k0d0minio/agorasim/pull/163.
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Tick either gate box; start Build before the tick.
+- Change the balance eligibility rule or `isBalanceFlagged` — that is
+  `balance-scheduler-hardening/one-open-instalment-rule`'s territory.
+- Touch `balance-request-not-on-event-day` files (`balance-schedule.ts` window logic) — another
+  stub in the same epic, not yet opened.

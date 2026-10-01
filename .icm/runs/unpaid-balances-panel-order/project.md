@@ -13,9 +13,16 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- The eligibility predicate does not change — deposit-paid quote, `balance` instalment
+  `pending`/`issued`, `amount_cents > 0`, event on or before today + 3 — the rule
+  `isBalanceFlagged` states; only the date split, ordering and caps change.
+- No T−0 auto-release; no change to the lead quote-card badge; the shared "instalment still
+  open" predicate is `one-open-instalment-rule`'s, not this run's.
+- Admin vocabulary from `.icm/docs/admin-pt-inventory.md` (Evento).
+- Never run build / lint / typecheck / test locally beyond `.icm/scripts/lint.sh`; CI is the
+  source of truth.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Within budget: the stub, `quotes.ts` (the one function), the panel component, the Sales
+  page's caller lines, and a grep of the test convention.
