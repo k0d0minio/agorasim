@@ -231,11 +231,17 @@ function stripeRefundsAsAsked(
     id: "pi_deposit",
     latest_charge: depositCharge(refunded),
   }));
+  // Every refund gets its own id, as Stripe's do: a second refund of the same
+  // amount is `re_admin_<amount>_2`, never the first one's id again.
+  const issued = new Set<string>();
   refundsCreate.mockImplementation(async (params: { amount: number }) => {
     const target = Math.round((DEPOSIT_FEE * params.amount) / 57_600);
     feeReturned += options.feeReturnedByStripe ? options.feeReturnedByStripe(target) : target;
     refunded += params.amount;
-    return { id: `re_admin_${params.amount}`, amount: params.amount, status: "succeeded" };
+    const first = `re_admin_${params.amount}`;
+    const id = issued.has(first) ? `${first}_${issued.size + 1}` : first;
+    issued.add(id);
+    return { id, amount: params.amount, status: "succeeded" };
   });
   chargesRetrieve.mockImplementation(async () => depositCharge(refunded));
   feesRetrieve.mockImplementation(async () => ({ id: "fee_deposit", amount_refunded: feeReturned }));

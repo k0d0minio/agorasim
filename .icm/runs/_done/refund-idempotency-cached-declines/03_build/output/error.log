@@ -14,3 +14,9 @@ scope=branch head=0effa11 branch=claude/hopeful-einstein-5911ev — BLOCKED 1 (r
 dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
 - resolved: Release's `--audit` read — the same pre-existing next/undici advisories on `main` as the Build entry above; this branch changes no dependency file. Held for the operator's waiver (Release stop class 2), never merged around.
 
+
+## 2026-10-01T13:19:57Z ci Quality (advisory) — src/lib/quote-refund.test.ts (2 failed) after b22a46c
+AssertionError: expected { …(21) } to match object { status: 'refunded', … } — src/lib/quote-refund.test.ts:400:38 (received refundedAmountCents 28800, status "paid")
+AssertionError: expected "vi.fn()" to be called 2 times, but got 1 times — src/lib/quote-refund.test.ts:981:29
+- resolved: the replay guard (`refund.id === payment.stripeRefundId`) is right for Stripe, whose refund ids are unique, but `stripeRefundsAsAsked()` minted `re_admin_<amount>` for every refund, so a second deliberate refund of the same amount looked like a replay of the first. The stand-in now gives each refund its own id (`re_admin_<amount>_<n>` from the second on).
+- rule: a Stripe stand-in in `web/src/lib/quote-refund.test.ts` must give every created refund a distinct id — the admin path treats a refund id the row already holds as a replay.
