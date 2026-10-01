@@ -94,8 +94,11 @@ learn who is asking — a **guest online** or **the team** — and answer from o
 ## Out of scope
 
 - The new admin blocking screen, the removal of "Abrir tudo", "Abrir fins de semana", the
-  season window, the range pick and "Limpar", and the D-8 warning (`admin-block-days`).
-- The guest picker's look and the hourly-stale-page question (`guest-calendar-polish`).
+  season window, the range pick and "Limpar", the day panel's "Mais opções", and the D-8
+  warning — D-5, D-6, D-7, D-8, D-9 are `admin-block-days`'s.
+- The guest picker's look (D-10) and the hourly-stale-page question (`guest-calendar-polish`).
+- D-12 (the scope landed straight on `main`) is a process decision already carried out at
+  Scope; it does not apply to this run's code.
 - Marking a blocked departure as such in the manual-booking or move pickers — they list it like
   any other; the Calendar day sheet already shows the day's state.
 - A distinct guest message for "too soon" or "too far ahead" — the existing "day gone" and
