@@ -13,9 +13,15 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- Only the writes after a successful Stripe refund are guarded; every pre-refund outcome and its
+  message is unchanged.
+- No retry and no second cancellation attempt in the catch (D-2); the webhook reconciles amounts,
+  commission, audit row and notice.
+- The admin sees the case as a closed dialog with a red warning, never an open dialog (D-1).
+- Stubs 1, 3, 4 and 5 of `quote-refund-hardening` own the claim order, the running total, the
+  idempotency key and the shared skeleton — out of bounds here.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read `web/src/lib/quote-refund.ts`, the `refundLeadQuotePayment` action and the refund
+  dialog's `Outcome` renderer to pin the exact behaviour and the dialog's close-on-ok rule.

@@ -8,9 +8,14 @@ decision made mid-run has one home.
 
 ## From the scope
 
-- <D-n — the decision, one line, as the scope worded it>
+- none — the stub was cut by `triage batch`; the epic has no `scope.md`.
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-1 — "refunded, records not updated" closes the refund dialog (ok state) and shows a red
+  warning under Reembolsar, saying not to refund again: an open dialog with the typed confirmation
+  is one click from a duplicate refund once the webhook has changed the idempotency key. Define,
+  operator's choice.
+- D-2 — nothing is retried in the catch, the requested cancellation included; the warning says
+  the cancellation is not confirmed and to check the card. The webhook never cancels an event, so
+  the operator finishes it. Define, operator's choice.
