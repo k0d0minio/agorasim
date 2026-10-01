@@ -7,12 +7,16 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   checkSlotAvailable,
-  clearDays,
   expandDateRange,
-  upsertDays,
+  isDateKey,
+  MAX_RANGE_DAYS,
+  setDayRoster,
+  setDepartureStates,
+  todayKey,
+  TOUR_SLOTS,
   type DateKey,
 } from "@/lib/availability";
-import { bookingRef, datesWithBookings, slotOccupancyOn } from "@/lib/bookings";
+import { bookingRef, bookingsBetween, slotOccupancyOn } from "@/lib/bookings";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { listCatalogue } from "@/lib/experience-catalogue";
 import { BOOKING_CURRENCY } from "@/lib/money";
@@ -20,10 +24,11 @@ import { priceBooking } from "@/lib/pricing";
 import { enquiryRef } from "@/lib/sales";
 import { db, bookings, tourRequests, type BookingLineItem } from "@/db";
 import {
-  clearAvailabilitySchema,
+  blockDaysSchema,
   createManualBookingSchema,
+  dayRosterSchema,
   formValues,
-  setAvailabilitySchema,
+  type DayBlock,
   type ManualBookingField,
 } from "@/lib/form-schemas";
 
@@ -37,19 +42,20 @@ import {
  * them.
  *
  * They also revalidate the public site, for the same reason the catalogue
- * actions do: `/reservar` renders this data and is cached, so a day opened here
- * and nowhere else would be a day Rita can see and a guest cannot buy.
+ * actions do: `/reservar` renders this data and is cached, so a day blocked
+ * here and nowhere else would be a day Rita has taken off and a guest can
+ * still buy.
  *
- * **One departure, one day and a whole season are the same action.** The
- * calendar's tap-a-day sheet, its "open the rest of the month" button and its
- * seasonal window all post the same form; what differs is how many `dates`
- * fields there are, or whether a `from`/`to` pair replaces them. Three actions
- * would mean three schemas, three audit shapes and three places for the upsert
- * to drift.
+ * **Every departure is open unless the team blocks it** (`open-by-default`),
+ * so the calendar has two writes and no "open" tool at all: the bar's
+ * block/unblock over a day or a stretch ({@link blockDays}), and the day
+ * panel's roster and note ({@link saveDayRoster}). Neither touches what the
+ * other one owns — blocking a day keeps its roster and its note, and saving
+ * the roster keeps the day blocked.
  *
- * **The calendar is not per tour any more.** A row is one departure of the
- * whole business — see `lib/availability.ts` — so these actions take no
- * experience slug and closing the 20th closes it for everything.
+ * **The calendar is not per tour.** A row is one departure of the whole
+ * business — see `lib/availability.ts` — so these actions take no experience
+ * slug and blocking the 20th blocks it for everything.
  */
 
 /** The public pages read availability; they are cached, so bust them. */
@@ -61,8 +67,6 @@ export type AvailabilityActionState = {
   ok?: boolean;
   error?: string;
   message?: string;
-  /** How many departures the write actually touched, for the confirmation line. */
-  changed?: number;
 };
 
 /** "3 dias" / "1 dia" — the confirmation reads back what was done. */
@@ -70,60 +74,69 @@ function days(n: number): string {
   return `${n} ${n === 1 ? "dia" : "dias"}`;
 }
 
-/**
- * The days one submission addresses: the ones it listed, plus the ones its
- * range covers.
- *
- * Both, not either. The day sheet posts `dates`, the season card posts
- * `from`/`to`, and nothing stops a future control from posting both — the
- * union is what every one of those means. `expandDateRange` caps the range, so
- * a crafted `to` in 2999 costs one bounded loop rather than a third of a
- * million rows.
- */
-function addressedDays(input: {
-  dates: DateKey[];
-  from?: DateKey;
-  to?: DateKey;
-}): DateKey[] {
-  const ranged =
-    input.from && input.to ? expandDateRange(input.from, input.to) : [];
-  return Array.from(new Set([...input.dates, ...ranged])).sort();
+/** Which departures each bar button leaves blocked, and which on sale (D-17). */
+const BLOCKS: Record<
+  DayBlock,
+  { closed: ("morning" | "afternoon")[]; open: ("morning" | "afternoon")[] }
+> = {
+  day: { closed: ["morning", "afternoon"], open: [] },
+  morning: { closed: ["morning"], open: ["afternoon"] },
+  afternoon: { closed: ["afternoon"], open: ["morning"] },
+  none: { closed: [], open: ["morning", "afternoon"] },
+};
+
+/** The confirmation line, in the words of the button that was pressed. */
+function blockMessage(block: DayBlock, n: number): string {
+  switch (block) {
+    case "day":
+      return n === 1 ? "1 dia bloqueado." : `${n} dias bloqueados.`;
+    case "morning":
+      return `Manhã bloqueada em ${days(n)}; a tarde fica à venda.`;
+    case "afternoon":
+      return `Tarde bloqueada em ${days(n)}; a manhã fica à venda.`;
+    case "none":
+      return n === 1 ? "1 dia desbloqueado." : `${n} dias desbloqueados.`;
+  }
 }
 
 /**
- * Open or close departures, and — when the form says so — set how many drivers
- * they have and why.
+ * Block or unblock a day or a stretch — the calendar's bar.
  *
- * `drivers` and `note` are written on a close as well as an open: closing the
- * 20th because there is a wedding, then reopening it, should not silently
- * reset the roster — and the note is *why*, which is the part the team will
- * want next month.
+ * The form posts the stretch's two ends (a single day posts `from` alone) and
+ * which of the four buttons was pressed; the server expands the stretch,
+ * capped at `MAX_RANGE_DAYS`, and drops any day already in the past, which
+ * the grid never offers but a stale tab could still post.
  *
- * **A form that does not post them does not change them.** The day sheet
- * renders both fields and always posts both, so it can set a roster and clear
- * a note; the month sweeps and the season window post neither, and so leave
- * every note and every adjusted roster in the range exactly as they were.
- * `upsertDays` is where that distinction is enforced — the schema's job is only
- * to turn "not posted" into `undefined` rather than into a default.
+ * **Bookings stay** (D-8). Blocking a departure stops new sales and nothing
+ * else: a guest who already paid for the 20th still has the 20th, and calling
+ * them is a conversation, not a database change. The confirmation the
+ * operator answered before this ran said so, with the count.
+ *
+ * The form never carries a roster or a note, and `setDepartureStates` writes
+ * only the status, so a day's "1 condutor" and its "Casamento" survive a block
+ * and an unblock.
  */
-export async function setAvailability(
+export async function blockDays(
   _prevState: AvailabilityActionState,
   formData: FormData,
 ): Promise<AvailabilityActionState> {
   const actor = await requireAdmin();
 
-  const parsed = setAvailabilitySchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: "Não foi possível perceber que dias mudar." };
+  const parsed = blockDaysSchema.safeParse(formValues(formData));
+  if (!parsed.success || !parsed.data.from) {
+    return { error: "Não foi possível perceber que dias mudar." };
+  }
 
-  const { slots, status, drivers, note } = parsed.data;
-  const dates = addressedDays(parsed.data);
+  const { from, block } = parsed.data;
+  const to = parsed.data.to ?? from;
+  const today = todayKey();
+  const dates = expandDateRange(from, to).filter((date) => date >= today);
   if (dates.length === 0) return { error: "Não foi selecionado nenhum dia." };
-  if (slots.length === 0) return { error: "Escolha pelo menos uma partida." };
 
-  let written: DateKey[];
+  const { closed, open } = BLOCKS[block];
+  let changed: { closed: number; opened: number };
   try {
-    const rows = await upsertDays({ dates, slots, status, drivers, note });
-    written = Array.from(new Set(rows.map((row) => row.date)));
+    changed = await setDepartureStates({ dates, closed, open });
   } catch (err) {
     console.error("[admin] failed to write availability", err);
     return { error: "Não foi possível guardar — o calendário não mudou." };
@@ -131,126 +144,104 @@ export async function setAvailability(
 
   await recordAuditOrWarn({
     actorUserId: actor.id,
-    action: status === "open" ? "availability.opened" : "availability.closed",
+    action: closed.length > 0 ? "availability.closed" : "availability.opened",
     entityType: "availability",
-    // A day, not a row id: bulk writes touch many rows, and "which days" is the
-    // question anyone reading this log back is actually asking.
-    entityId: written.length === 1 ? written[0] : null,
+    // A day, not a row id: a stretch touches many rows, and "which days" is
+    // the question anyone reading this log back is actually asking.
+    entityId: dates.length === 1 ? dates[0] : null,
     after: {
-      dates: written,
-      slots,
-      status,
-      // Only recorded when the write actually set them. A sweep leaves both
-      // alone, and an audit line reading `drivers: 2` would be asserting a
-      // change that never happened — which is the sort of entry somebody
-      // reconstructs a bug from six months later.
-      ...(drivers === undefined ? {} : { drivers }),
-      ...(note === undefined ? {} : { hasNote: note !== null }),
-      // A season closed in one gesture reads back as one, rather than as three
-      // hundred loose days somebody has to reconstruct.
-      ...(parsed.data.from && parsed.data.to
-        ? { range: { from: parsed.data.from, to: parsed.data.to } }
-        : {}),
+      range: { from: dates[0], to: dates[dates.length - 1] },
+      days: dates.length,
+      blocked: closed,
+      unblocked: open,
+      changed,
     },
   });
 
   revalidatePublicSite();
 
-  const departures = written.length * slots.length;
-  // The roster clause only when the write set one — a sweep that left the
-  // rosters alone must not report a number it did not write.
-  const roster =
-    drivers === undefined
-      ? ""
-      : `, ${drivers} ${drivers === 1 ? "condutor" : "condutores"} cada`;
-  return {
-    ok: true,
-    changed: departures,
-    message:
-      status === "open"
-        ? `${days(written.length)} à venda (${departures} partidas)${roster}.`
-        : `${days(written.length)} fechados.`,
-  };
+  return { ok: true, message: blockMessage(block, dates.length) };
 }
 
 /**
- * Forget days entirely.
+ * Set a day's roster and note — the panel's "Mais opções".
  *
- * Different from closing them, and the difference is worth the second action:
- * a closed day is a decision the calendar records and can show a reason for, an
- * absent day is one nobody has made. Absence is also the default, so this is
- * the undo for "I opened the wrong month".
- *
- * **A day that has been sold cannot be forgotten.** Clearing it would leave a
- * guest holding a booking for a day the calendar has no opinion about — the
- * tour still happens, but nothing on the admin's screens says so. Closing it is
- * still allowed, and is the right move for "we have to cancel the 20th": the
- * day stops taking new bookings, the existing ones stay visible, and calling
- * those guests is a conversation, not a database change.
+ * Both departures alike: the panel is about a day, and "Diogo is off on the
+ * 14th" is true of the 10:00 and the 14:00. The status is never touched, so a
+ * blocked day stays blocked and an untouched one stays on sale.
  */
-export async function clearAvailability(
+export async function saveDayRoster(
   _prevState: AvailabilityActionState,
   formData: FormData,
 ): Promise<AvailabilityActionState> {
   const actor = await requireAdmin();
 
-  const parsed = clearAvailabilitySchema.safeParse(formValues(formData));
-  if (!parsed.success) return { error: "Não foi possível perceber que dias limpar." };
-
-  const { slots } = parsed.data;
-  const dates = addressedDays(parsed.data);
-  if (dates.length === 0) return { error: "Não foi selecionado nenhum dia." };
-  if (slots.length === 0) return { error: "Escolha pelo menos uma partida." };
-
-  let sold: Set<string>;
-  try {
-    sold = await datesWithBookings({ dates, slots });
-  } catch (err) {
-    // Refuse rather than proceed: the check exists to protect a sold day, and
-    // a check that fails open is not a check.
-    console.error("[admin] couldn't check for bookings before clearing days", err);
-    return {
-      error:
-        "Não foi possível verificar se havia reservas, por isso nada foi limpo. " +
-        "Tente novamente.",
-    };
+  const parsed = dayRosterSchema.safeParse(formValues(formData));
+  if (!parsed.success || !parsed.data.date) {
+    return { error: "Não foi possível perceber que dia mudar." };
   }
 
-  if (sold.size > 0) {
-    const listed = [...sold].sort().join(", ");
-    return {
-      error:
-        `${listed} ${sold.size === 1 ? "tem reservas" : "têm reservas"}, por isso nada ` +
-        "foi limpo. Feche o dia em vez disso — as reservas continuam visíveis.",
-    };
-  }
+  const { date, drivers } = parsed.data;
+  if (date < todayKey()) return { error: "Este dia já passou." };
+  // The panel always posts the field, so absent is as good as emptied.
+  const note = parsed.data.note ?? null;
 
-  let removed: number;
   try {
-    removed = await clearDays({ dates, slots });
+    await setDayRoster({ date, drivers, note });
   } catch (err) {
-    console.error("[admin] failed to clear availability", err);
+    console.error("[admin] failed to write a day's roster", err);
     return { error: "Não foi possível guardar — o calendário não mudou." };
   }
 
   await recordAuditOrWarn({
     actorUserId: actor.id,
-    action: "availability.cleared",
+    action: "availability.roster_changed",
     entityType: "availability",
-    entityId: dates.length === 1 ? dates[0] : null,
-    before: { dates, slots },
+    entityId: date,
+    after: { date, slots: [...TOUR_SLOTS], drivers, hasNote: note !== null },
   });
 
   revalidatePublicSite();
 
   return {
     ok: true,
-    changed: removed,
-    message:
-      removed === 1
-        ? "1 partida limpa — volta a estar à venda."
-        : `${removed} partidas limpas — voltam a estar à venda.`,
+    message: `${drivers} ${drivers === 1 ? "condutor" : "condutores"} em cada partida.`,
   };
+}
+
+/** Live bookings per departure, for the bar and the block confirmation. */
+export type BookingCounts = { morning: number; afternoon: number };
+
+/**
+ * How many live bookings sit on each departure of a stretch.
+ *
+ * The bar's summary and the block confirmation's warning (D-8) read it. The
+ * page already sends the bookings of the month on screen, so the calendar
+ * calls this only for a stretch that runs into another month — where the
+ * client has nothing to count. Capped like the write, so a crafted range costs
+ * one bounded query.
+ */
+export async function countLiveBookings(
+  from: DateKey,
+  to: DateKey,
+): Promise<BookingCounts | null> {
+  await requireAdmin();
+  if (!isDateKey(from) || !isDateKey(to) || to < from) return null;
+
+  const span = expandDateRange(from, to);
+  if (span.length === 0) return null;
+  const last = span.length === MAX_RANGE_DAYS ? span[span.length - 1] : to;
+
+  try {
+    const rows = await bookingsBetween({ from, to: last });
+    return {
+      morning: rows.filter((row) => row.slot === "morning").length,
+      afternoon: rows.filter((row) => row.slot === "afternoon").length,
+    };
+  } catch (err) {
+    console.error("[admin] couldn't count the bookings in a stretch", err);
+    return null;
+  }
 }
 
 export type ManualBookingActionState = {
