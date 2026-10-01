@@ -65,3 +65,17 @@
 Context budget: read `lib/bookings.ts` (bookingsBetween), `lib/audit.ts`, `admin-format.ts` and
 `manual-booking-dialog.tsx` props beyond `touches:` to wire the count, the audit action and the
 panel's booking hand-off.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised (criteria 1, 2 and 11 were still unticked in the PR body; the operator's Ready tick is taken as the smoke of them)
+- ci: GREEN on 5152e38 (ci-status.sh, full gate) — re-read on the post-close-out head before the merge
+- reviews: code medium — no findings · security security-check.sh --branch --audit: OK · /security-review n/a — no auth, payments, PII or route policy touched · /production-readiness n/a — no schema, migration or env change (availability writes only), and the skill is not shipped in this session · readiness env.sh audit --changed: OK
+- parked: none
+- migrations: skip — none of this run's own (check-migrations.sh after merging main: SKIP)
+- learned: skip — no error.log
+- docs: `.icm/docs/launch-runbook.md` (the two calendar lines now say Bloquear / Ver dia instead of Fechar) · announce: deferred to promotion
+- note: `validate-knowledge-map.sh` reads INVALID on `main` too — the proposal PDFs moved to icm-board (D47); not this run's.
+- note: main brought in guest-calendar-polish (#172) mid-release, including a `lib/availability.ts` refactor to `lib/date-keys.ts`; merged clean, the helpers this run imports are re-exported.
+
+Context budget: grepped `launch-runbook.md`, `data-protection.md` and business-facts for calendar wording to decide the docs sync.
