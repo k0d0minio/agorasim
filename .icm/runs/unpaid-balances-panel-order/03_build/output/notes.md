@@ -45,3 +45,13 @@
   All pre-exist on `main`; this branch changes no manifest or lockfile. Parked as
   `.icm/intake/triage/dependency-advisories-next-undici.md` (chore, P1). Secrets scan: clean
   (built-in patterns; gitleaks is not installed in this session).
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN on 0e4b28f (ci-status.sh, full gate — Vercel preview pass, Quality (advisory) pass); re-read after the last push
+- reviews: code medium (/code-review — no findings) · security audit waived — next 16.3.4 (next/og RCE, critical) and undici ×3 (high, via shadcn and @vercel/blob), pre-existing on main with no lockfile change on this branch; parked as dependency-advisories-next-undici (the operator, 2026-10-01); `security-check.sh --branch --no-audit` → OK (gitleaks not installed — built-in patterns only) · /production-readiness n/a — a read-only query change, no schema, auth, payments or env · /security-review n/a — no auth, payments, route policy or new PII · readiness env.sh audit --changed: OK
+- parked: dependency-advisories-next-undici.md (Build)
+- migrations: skip — none of this run's own
+- learned: none — 1 candidate (security-check/dependency-audit) dropped: it records this run's waiver, not a repo constraint, and the security-audit skill already covers it
+- docs: no docs impact · announce: deferred to promotion
