@@ -757,9 +757,15 @@ export const quoteIdSchema = z.object({ quoteId: z.uuid() });
  * action. The ceiling is the action's to check, against the row, for the
  * reason {@link cancelBookingSchema} gives. The box arrives as `"on"` or not at
  * all, the way a checkbox posts.
+ *
+ * `attemptId` is the dialog's id for this press — the refund's idempotency key
+ * (`refundQuotePayment`). Required: a form that predates it (a tab left open
+ * across a deploy) is sent back to reload rather than given a key of the
+ * server's, which would let its double submit become two refunds.
  */
 export const refundQuotePaymentSchema = z.object({
   paymentId: z.uuid(),
+  attemptId: z.uuid("Recarregue a página e tente de novo."),
   refundAmount: z
     .string()
     .transform((value) => parseAmountInput(value))
