@@ -36,6 +36,7 @@ import {
   BALANCE_FLAG_DAYS_BEFORE,
   BALANCE_REMINDER_DAYS_BEFORE,
   BALANCE_REMINDER_GAP_DAYS,
+  isOpenInstalment,
 } from "@/lib/quote-math";
 import type { Quote, QuotePayment } from "@/db";
 
@@ -58,11 +59,6 @@ export function daysBetween(from: DateKey, to: DateKey): number {
   const b = parseDateKey(to);
   if (!a || !b) throw new Error(`daysBetween: ${from} → ${to} is not a pair of YYYY-MM-DD dates`);
   return Math.round((b.getTime() - a.getTime()) / DAY_MS);
-}
-
-/** Whether a balance still has money to collect: open, and for more than nothing. */
-export function isBalanceOpen(payment: Pick<QuotePayment, "status" | "amountCents">): boolean {
-  return (payment.status === "pending" || payment.status === "issued") && payment.amountCents > 0;
 }
 
 /** The quote's balance row, if it has one (a 100% deposit writes none). */
@@ -118,7 +114,7 @@ export function isBalanceFlagged(
 ): boolean {
   if (quote.status !== "deposit_paid") return false;
   const balance = balanceOf(quote.payments);
-  if (!balance || !isBalanceOpen(balance)) return false;
+  if (!balance || !isOpenInstalment(balance)) return false;
   return daysBetween(today, quote.eventDate) <= BALANCE_FLAG_DAYS_BEFORE;
 }
 
