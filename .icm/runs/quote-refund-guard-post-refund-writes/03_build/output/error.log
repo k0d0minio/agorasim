@@ -3,3 +3,8 @@ scope=branch head=9ac86d3 branch=claude/youthful-johnson-7imnj3 — BLOCKED 1 (r
 dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
 - resolved: Not a secret and not this branch's — `pnpm audit` on `main` already reports a critical `next` (<16.3.6, next/og RCE) and three high `undici` advisories, and this branch changes no manifest or lockfile, so per security-audit → Dependency findings it is parked as `.icm/intake/triage/dependency-audit-next-undici.md` (lane: chore) and named in Notes for Release; the `--branch` gate stays BLOCKED until that chore lands on `main`.
 - rule: `security-check.sh --branch` always audits dependencies, so an advisory on `main` blocks every run's Build and Release gate — land a dependency chore on `main` before the next run reaches its flip, rather than carrying the block run to run.
+## 2026-10-01T11:03:35Z security-check.sh — dependency-audit
+scope=branch head=0f1d376 branch=claude/youthful-johnson-7imnj3 — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+- resolved: The same pre-existing `next`/`undici` advisories Build parked (`triage/dependency-audit-next-undici.md`); the operator waived the audit for this release, and `security-check.sh --branch --no-audit` reads OK on 0f1d376.
+
