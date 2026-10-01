@@ -19,4 +19,5 @@ step, so a resuming session can pick up the first unticked line.
 - [x] `web/src/lib/unpaid-balances.test.ts` — the `@/db`-boundary test (sibling file: `quotes.test.ts` is pure and statically imports `@/lib/quotes`)
 - [x] `web/src/components/admin/unpaid-balances-panel.tsx` — upcoming first, "Eventos passados" section, hidden-past line
 - [x] `web/src/app/admin/sales/page.tsx` — caller on the new shape, empty shape for search and read failure
-- [ ] pre-flip check, merge `origin/main`, flip ready, settle the full gate
+- [x] pre-flip check, merge `origin/main`, flip ready
+- [ ] settle the full gate on the post-flip head

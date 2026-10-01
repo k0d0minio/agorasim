@@ -1,0 +1,10 @@
+## 2026-10-01T10:58:59Z security-check.sh — dependency-audit
+scope=branch head=a17d621 branch=claude/lucid-clarke-wmw5qx — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+- resolved: not this branch's — the 4 high/critical advisories (next 16.3.4 next/og RCE; undici ×3 via shadcn and @vercel/blob) are already on `main` and this branch moves no lockfile; parked as `.icm/intake/triage/dependency-advisories-next-undici.md` (chore, P1) per the security-audit skill's Dependency findings rule, and named in Notes for Release.
+
+## 2026-10-01T10:59:03Z security-check.sh — dependency-audit
+scope=branch head=a17d621 branch=claude/lucid-clarke-wmw5qx — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+- resolved: not this branch's — the 4 high/critical advisories (next 16.3.4 next/og RCE; undici ×3 via shadcn and @vercel/blob) are already on `main` and this branch moves no lockfile; parked as `.icm/intake/triage/dependency-advisories-next-undici.md` (chore, P1) per the security-audit skill's Dependency findings rule, and named in Notes for Release.
+

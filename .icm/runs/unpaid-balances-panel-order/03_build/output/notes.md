@@ -1,7 +1,8 @@
 # Build notes: unpaid-balances-panel-order
 
 - commits: feat: unpaid-balances-panel-order — split "Saldo por pagar" into upcoming and past
-- ci: pending
+- ci: GREEN on a17d621 (draft tier; advisory quality job passed)
+- ready: 2026-10-01T11:00:05Z — flipped on a17d621
 
 ## What changed
 
@@ -39,3 +40,8 @@
   (one `select`, one `limit`, no `<` split).
 - The three reads run in `Promise.all`; the harness resolves queued results in `then` order,
   which follows array order.
+- `security-check.sh --branch` reports `BLOCKED 1` on a dependency audit: 1 critical (next
+  16.3.4, `next/og` RCE, patched `>=16.3.6`) and 3 high (undici via shadcn and @vercel/blob).
+  All pre-exist on `main`; this branch changes no manifest or lockfile. Parked as
+  `.icm/intake/triage/dependency-advisories-next-undici.md` (chore, P1). Secrets scan: clean
+  (built-in patterns; gitleaks is not installed in this session).
