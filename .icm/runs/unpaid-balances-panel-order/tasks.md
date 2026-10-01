@@ -15,4 +15,8 @@ step, so a resuming session can pick up the first unticked line.
 
 ## Queue
 
-- [ ] <task — small enough for one commit; name the file or area>
+- [x] `web/src/lib/quotes.ts` — `listUnpaidBalancesDue` split into upcoming / past / past count over one shared predicate
+- [x] `web/src/lib/unpaid-balances.test.ts` — the `@/db`-boundary test (sibling file: `quotes.test.ts` is pure and statically imports `@/lib/quotes`)
+- [x] `web/src/components/admin/unpaid-balances-panel.tsx` — upcoming first, "Eventos passados" section, hidden-past line
+- [x] `web/src/app/admin/sales/page.tsx` — caller on the new shape, empty shape for search and read failure
+- [ ] pre-flip check, merge `origin/main`, flip ready, settle the full gate
