@@ -1,7 +1,8 @@
 # Build notes: admin-block-days
 
-- commits: f010f9c feat: admin-block-days — block days the Airbnb way in the admin calendar
-- ci: (settled below, after the flip)
+- commits: f010f9c feat (the change) · 1d81c04 build notes · 48e7092 merge origin/main (conflict in form-schemas.test.ts imports, resolved)
+- ci: (settled after the ready push)
+- ready: 2026-10-01T14:13:42Z — flipped on 1d81c04
 
 ## What changed
 
