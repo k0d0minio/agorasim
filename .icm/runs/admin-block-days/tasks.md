@@ -22,4 +22,8 @@ step, so a resuming session can pick up the first unticked line.
 
 ## Queue
 
+- [x] Server: `setDepartureStates` / `setDayRoster`, `blockDays` / `saveDayRoster` / `countLiveBookings`, schemas + tests, dead code out — f010f9c
+- [x] UI: selection + URL, `BlockBar` + confirmation, `DayPanel`, tiles, intro, footnote — f010f9c
+- [ ] Flip ready, settle the full gate, smoke on the preview
+
 - [ ] <task — small enough for one commit; name the file or area>

@@ -28,3 +28,4 @@ decision made mid-run has one home.
 - D-15 — "Desbloquear" keeps the day's driver count and note. Jamie, Define, 2026-10-01.
 - D-16 — Every block or unblock asks once, in a confirmation that carries the booking warning. Jamie, Define, 2026-10-01.
 - D-17 — The four bar actions set the day's state (Só manhã = 10:00 blocked, 14:00 open), never add to it. Define, 2026-10-01.
+- D-18 — The selection is kept in the URL (`?from=&to=`) via `history.replaceState`, so a stretch can be tapped across a month page; "Ver dia" shows only for a day in the month on screen. Build, 2026-10-01 (plan.md risk 2, taken up front).
