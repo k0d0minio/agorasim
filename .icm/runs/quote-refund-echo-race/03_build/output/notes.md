@@ -31,6 +31,7 @@
 
 ## Notes for Release
 
+- `security-check.sh --branch` → `BLOCKED 1` on **dependency-audit only** (secrets passed): 1 critical (`next` 16.3.4 — `next/og` RCE, patched 16.3.6) and 3 high (undici under `shadcn` and `@vercel/blob`), all on `main`'s lockfile, which this branch does not touch. Parked per the security-audit skill as `.icm/intake/triage/deps-next-undici-advisories.md` (chore, P0). Release stop class 2 will see the same finding until that chore merges.
 - The run had no Neon branch of its own (`error.log`: HTTP 422, branch limit on `uat-agorasim`), so the migration is proven only by the preview build's migrate step — check the preview's build log shows `0034` applied.
 - A deferred delivery answers 503 by design. Stripe's dashboard will show the attempt as failed until the redelivery succeeds; nothing pages anyone.
 - `content/privacy.ts` lists the emails the couple can receive ("…and the refund notice"); it is not updated here — the spec names no privacy copy change and no processor changes. Worth a look at Release if the list should name the cancellation notice.
