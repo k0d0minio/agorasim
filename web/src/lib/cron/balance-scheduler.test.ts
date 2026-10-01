@@ -76,7 +76,7 @@ vi.mock("@/lib/quotes", async () => {
         ({ quote, payment }) =>
           quote.status === "deposit_paid" &&
           (payment.status === "pending" || payment.status === "issued") &&
-          quote.eventDate >= today &&
+          quote.eventDate >= shift(today, 1) &&
           quote.eventDate <= shift(today, 7),
       );
     },
@@ -304,6 +304,27 @@ describe("the T−14 request", () => {
     expect(sentKinds()).toEqual([`balance-request:${id}`]);
   });
 
+  it("asks as late as the morning before the event", async () => {
+    const id = seedQuote();
+
+    await runAt(morning(1));
+
+    expect(sentKinds()).toEqual([`balance-request:${id}`]);
+  });
+
+  it("never asks on the event morning — a deposit paid the evening before — and keeps the link", async () => {
+    // The fake due query has no floor, so this is the job's own
+    // `isRequestInWindow` standing the request down.
+    const id = seedQuote();
+
+    await runAt(morning(0));
+
+    expect(delivered).toEqual([]);
+    expect(log).toEqual([]);
+    expect(minted).toBe(0);
+    expect(digestOf(id)).toBe("original-digest-1");
+  });
+
   it("never asks once the event has passed", async () => {
     seedQuote();
 
@@ -371,6 +392,28 @@ describe("the T−7 reminder", () => {
 
     await runAt(morning(6));
     expect(sentKinds()).toEqual([`balance-request:${id}`, `balance-reminder:${id}`]);
+  });
+
+  it("chases as late as the morning before the event", async () => {
+    // Request at T−4 (a deposit paid at T−5): three days later is T−1.
+    const id = seedQuote();
+    await runAt(morning(4));
+
+    await runAt(morning(1));
+
+    expect(sentKinds()).toEqual([`balance-request:${id}`, `balance-reminder:${id}`]);
+  });
+
+  it("never chases on the event morning, and keeps the request's link", async () => {
+    // Request at T−3: three days later is the event morning itself.
+    const id = seedQuote();
+    await runAt(morning(3));
+
+    await runAt(morning(0));
+
+    expect(sentKinds()).toEqual([`balance-request:${id}`]);
+    expect(minted).toBe(1);
+    expect(digestOf(id)).toBe("digest-1");
   });
 
   it("does not chase a balance paid before T−7", async () => {
