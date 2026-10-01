@@ -57,6 +57,8 @@ const LEAD_ID = "bbbbbbbb-2222-4222-8222-222222222222";
 const DEPOSIT_ID = "cccccccc-3333-4333-8333-333333333333";
 const BALANCE_ID = "dddddddd-4444-4444-8444-444444444444";
 const ADMIN_ID = "eeeeeeee-5555-4555-8555-555555555555";
+/** The dialog's id for one press of "Reembolsar" — the refund's idempotency key. */
+const ATTEMPT_ID = "abababab-6666-4666-8666-666666666666";
 
 let payments = new Map<string, QuotePayment>();
 let quoteStatus = "deposit_paid";
@@ -229,11 +231,17 @@ function stripeRefundsAsAsked(
     id: "pi_deposit",
     latest_charge: depositCharge(refunded),
   }));
+  // Every refund gets its own id, as Stripe's do: a second refund of the same
+  // amount is `re_admin_<amount>_2`, never the first one's id again.
+  const issued = new Set<string>();
   refundsCreate.mockImplementation(async (params: { amount: number }) => {
     const target = Math.round((DEPOSIT_FEE * params.amount) / 57_600);
     feeReturned += options.feeReturnedByStripe ? options.feeReturnedByStripe(target) : target;
     refunded += params.amount;
-    return { id: `re_admin_${params.amount}`, amount: params.amount, status: "succeeded" };
+    const first = `re_admin_${params.amount}`;
+    const id = issued.has(first) ? `${first}_${issued.size + 1}` : first;
+    issued.add(id);
+    return { id, amount: params.amount, status: "succeeded" };
   });
   chargesRetrieve.mockImplementation(async () => depositCharge(refunded));
   feesRetrieve.mockImplementation(async () => ({ id: "fee_deposit", amount_refunded: feeReturned }));
@@ -312,6 +320,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
       paymentId: DEPOSIT_ID,
       refundCents: 57_600,
       cancelEvent: false,
+      attemptId: ATTEMPT_ID,
       actorUserId: ADMIN_ID,
     });
 
@@ -325,7 +334,8 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
       }),
       {
         stripeAccount: "acct_test_agorasim",
-        idempotencyKey: `quote-refund:${DEPOSIT_ID}:0:57600`,
+        // The attempt, and nothing about the row or the amount.
+        idempotencyKey: `quote-refund:${DEPOSIT_ID}:${ATTEMPT_ID}`,
       },
     );
 
@@ -369,6 +379,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
       paymentId: DEPOSIT_ID,
       refundCents: 28_800,
       cancelEvent: false,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
 
@@ -383,14 +394,15 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
       paymentId: DEPOSIT_ID,
       refundCents: 28_800,
       cancelEvent: false,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
 
-    // A second, deliberate refund of the same amount is a new Stripe request.
-    expect(refundsCreate).toHaveBeenLastCalledWith(
-      expect.objectContaining({ amount: 28_800 }),
-      expect.objectContaining({ idempotencyKey: `quote-refund:${DEPOSIT_ID}:28800:28800` }),
-    );
+    // A second, deliberate refund of the same amount is a new Stripe request:
+    // a new press of the button, a new key.
+    expect(refundsCreate).toHaveBeenCalledTimes(2);
+    const [first, second] = refundsCreate.mock.calls.map(([, options]) => options.idempotencyKey);
+    expect(second).not.toBe(first);
     expect(payments.get(DEPOSIT_ID)).toMatchObject({
       status: "refunded",
       refundedAmountCents: 57_600,
@@ -405,6 +417,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
       paymentId: DEPOSIT_ID,
       refundCents: 19_200,
       cancelEvent: false,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
 
@@ -424,6 +437,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
       paymentId: DEPOSIT_ID,
       refundCents: 57_600,
       cancelEvent: true,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
 
@@ -449,6 +463,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
       paymentId: DEPOSIT_ID,
       refundCents: 57_600,
       cancelEvent: true,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
 
@@ -473,6 +488,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
           paymentId: DEPOSIT_ID,
           refundCents: 57_600,
           cancelEvent,
+          attemptId: crypto.randomUUID(),
           actorUserId: ADMIN_ID,
         });
 
@@ -510,6 +526,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
         paymentId: DEPOSIT_ID,
         refundCents: 57_600,
         cancelEvent: true,
+        attemptId: crypto.randomUUID(),
         actorUserId: ADMIN_ID,
       });
 
@@ -532,6 +549,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
       paymentId: DEPOSIT_ID,
       refundCents: 19_200,
       cancelEvent: false,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
 
@@ -583,6 +601,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
       paymentId: DEPOSIT_ID,
       refundCents: 19_200,
       cancelEvent: false,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
 
@@ -605,6 +624,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
           paymentId: DEPOSIT_ID,
           refundCents,
           cancelEvent: false,
+          attemptId: crypto.randomUUID(),
           actorUserId: ADMIN_ID,
         }),
       ).toMatchObject({ status: "amount-invalid", maxCents: 28_800 });
@@ -617,6 +637,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
           paymentId: BALANCE_ID,
           refundCents: 100,
           cancelEvent: false,
+          attemptId: crypto.randomUUID(),
           actorUserId: ADMIN_ID,
         }),
       ).toMatchObject({ status: "not-refundable" });
@@ -627,6 +648,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
         paymentId: "ffffffff-0000-4000-8000-000000000000",
         refundCents: 100,
         cancelEvent: false,
+        attemptId: crypto.randomUUID(),
         actorUserId: ADMIN_ID,
       }),
     ).toEqual({ status: "not-found" });
@@ -642,6 +664,7 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
         paymentId: DEPOSIT_ID,
         refundCents: 100,
         cancelEvent: false,
+        attemptId: crypto.randomUUID(),
         actorUserId: ADMIN_ID,
       }),
     ).toMatchObject({ status: "refund-unavailable" });
@@ -653,11 +676,178 @@ describe("refundQuotePayment — the quote card's Reembolsar", () => {
         paymentId: DEPOSIT_ID,
         refundCents: 100,
         cancelEvent: false,
+        attemptId: crypto.randomUUID(),
         actorUserId: ADMIN_ID,
       }),
     ).toMatchObject({ status: "refund-unavailable" });
     expect(refundsCreate).not.toHaveBeenCalled();
   });
+});
+
+/**
+ * Stripe's idempotency layer over whatever `refundsCreate` was shaped to do:
+ * the first request on a key is answered and the answer kept — a decline
+ * included — and every later request on that key is handed the kept answer
+ * without Stripe doing anything again.
+ */
+function stripeKeepsAnswersByKey(): () => number {
+  const answer = refundsCreate.getMockImplementation()!;
+  const kept = new Map<string, Promise<unknown>>();
+  let answered = 0;
+  refundsCreate.mockImplementation((params: unknown, options: { idempotencyKey: string }) => {
+    if (!kept.has(options.idempotencyKey)) {
+      kept.set(
+        options.idempotencyKey,
+        Promise.resolve().then(() => {
+          answered += 1;
+          return answer(params, options);
+        }),
+      );
+    }
+    return kept.get(options.idempotencyKey)!;
+  });
+  return () => answered;
+}
+
+function refundKeys(): string[] {
+  return refundsCreate.mock.calls.map(
+    ([, options]) => (options as { idempotencyKey: string }).idempotencyKey,
+  );
+}
+
+describe("refundQuotePayment — the attempt is the idempotency key", () => {
+  it("collapses a double submit of one partial refund into one refund, told once", async () => {
+    stripeRefundsAsAsked();
+    const stripeAnswered = stripeKeepsAnswersByKey();
+    const press = {
+      paymentId: DEPOSIT_ID,
+      refundCents: 19_200,
+      cancelEvent: false,
+      attemptId: ATTEMPT_ID,
+      actorUserId: ADMIN_ID,
+    };
+
+    // The second lands after the first is written — the row's total has moved,
+    // and the amount is still under the ceiling, so it reaches Stripe.
+    const first = await refundQuotePayment(press);
+    const second = await refundQuotePayment(press);
+
+    expect(first).toMatchObject({ status: "refunded", refundedCents: 19_200 });
+    expect(second).toMatchObject({ status: "refunded", refundedCents: 19_200 });
+    // Both asked on the one key, and Stripe made one refund of them.
+    expect(refundKeys()).toEqual([
+      `quote-refund:${DEPOSIT_ID}:${ATTEMPT_ID}`,
+      `quote-refund:${DEPOSIT_ID}:${ATTEMPT_ID}`,
+    ]);
+    expect(stripeAnswered()).toBe(1);
+    expect(payments.get(DEPOSIT_ID)).toMatchObject({
+      status: "paid",
+      refundedAmountCents: 19_200,
+      refundedFeeCents: 1_152,
+      stripeRefundId: "re_admin_19200",
+    });
+    // One refund in the books: one audit row, one notice to the couple.
+    expect(auditActions()).toEqual(["quote.payment_refunded"]);
+    expect(sendLoggedEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("records a replayed press once even when the charge can't be read back", async () => {
+    stripeRefundsAsAsked();
+    stripeKeepsAnswersByKey();
+    const press = {
+      paymentId: DEPOSIT_ID,
+      refundCents: 19_200,
+      cancelEvent: false,
+      attemptId: ATTEMPT_ID,
+      actorUserId: ADMIN_ID,
+    };
+
+    await refundQuotePayment(press);
+    // The replay finds no charge to read: the row's own sum would count the
+    // refund Stripe handed back a second time.
+    chargesRetrieve.mockRejectedValue(new Error("Stripe is having a moment."));
+    const replay = await refundQuotePayment(press);
+
+    expect(replay).toMatchObject({ status: "refunded", refundedCents: 19_200 });
+    expect(payments.get(DEPOSIT_ID)).toMatchObject({
+      status: "paid",
+      refundedAmountCents: 19_200,
+      refundedFeeCents: 1_152,
+    });
+    expect(recordPaymentRefund).toHaveBeenCalledTimes(1);
+    expect(auditActions()).toEqual(["quote.payment_refunded"]);
+    expect(sendLoggedEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks Stripe again on a retry after a decline, instead of replaying the decline", async () => {
+    stripeRefundsAsAsked();
+    const accept = refundsCreate.getMockImplementation()!;
+    let declined = false;
+    refundsCreate.mockImplementation(async (params: unknown, options: unknown) => {
+      if (!declined) {
+        declined = true;
+        throw new Error("Insufficient funds in your Stripe balance to refund this amount.");
+      }
+      return accept(params, options);
+    });
+    stripeKeepsAnswersByKey();
+    const RETRY_ID = "cdcdcdcd-7777-4777-8777-777777777777";
+    const press = (attemptId: string) =>
+      refundQuotePayment({
+        paymentId: DEPOSIT_ID,
+        refundCents: 57_600,
+        cancelEvent: false,
+        attemptId,
+        actorUserId: ADMIN_ID,
+      });
+
+    expect(await press(ATTEMPT_ID)).toMatchObject({ status: "refund-failed" });
+    // The same press again is handed the decline Stripe kept against its key.
+    expect(await press(ATTEMPT_ID)).toMatchObject({ status: "refund-failed" });
+    expect(recordPaymentRefund).not.toHaveBeenCalled();
+
+    // "Tente de novo" is a new press: a new key, and Stripe is asked again.
+    const retry = await press(RETRY_ID);
+
+    expect(retry).toMatchObject({ status: "refunded", refundedCents: 57_600 });
+    expect(refundKeys()).toEqual([
+      `quote-refund:${DEPOSIT_ID}:${ATTEMPT_ID}`,
+      `quote-refund:${DEPOSIT_ID}:${ATTEMPT_ID}`,
+      `quote-refund:${DEPOSIT_ID}:${RETRY_ID}`,
+    ]);
+    expect(payments.get(DEPOSIT_ID)).toMatchObject({
+      status: "refunded",
+      refundedAmountCents: 57_600,
+      stripeRefundId: "re_admin_57600",
+    });
+    expect(auditActions()).toEqual(["quote.payment_refunded"]);
+    expect(sendLoggedEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["failed", "canceled"] as const)(
+    "reports a refund Stripe returned %s as refused, and writes nothing",
+    async (status) => {
+      intentsRetrieve.mockResolvedValue({ id: "pi_deposit", latest_charge: depositCharge(0) });
+      refundsCreate.mockResolvedValue({ id: "re_admin_57600", amount: 57_600, status });
+      chargesRetrieve.mockResolvedValue(depositCharge(0));
+
+      const outcome = await refundQuotePayment({
+        paymentId: DEPOSIT_ID,
+        refundCents: 57_600,
+        cancelEvent: true,
+        attemptId: ATTEMPT_ID,
+        actorUserId: ADMIN_ID,
+      });
+
+      expect(outcome).toMatchObject({ status: "refund-failed" });
+      expect(recordPaymentRefund).not.toHaveBeenCalled();
+      expect(cancelQuoteAndOpenInstalments).not.toHaveBeenCalled();
+      expect(recordAuditOrWarn).not.toHaveBeenCalled();
+      expect(sendLoggedEmail).not.toHaveBeenCalled();
+      expect(quoteStatus).toBe("deposit_paid");
+      expect(payments.get(DEPOSIT_ID)).toMatchObject({ status: "paid", refundedAmountCents: 0 });
+    },
+  );
 });
 
 describe("syncQuotePaymentRefundFromStripe — a refund made in the dashboard", () => {
@@ -729,6 +919,7 @@ describe("syncQuotePaymentRefundFromStripe — a refund made in the dashboard", 
       paymentId: DEPOSIT_ID,
       refundCents: 57_600,
       cancelEvent: false,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
 
@@ -782,12 +973,14 @@ describe("the couple's refund notice", () => {
       paymentId: DEPOSIT_ID,
       refundCents: 28_800,
       cancelEvent: false,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
     await refundQuotePayment({
       paymentId: DEPOSIT_ID,
       refundCents: 28_800,
       cancelEvent: true,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
 
@@ -940,6 +1133,7 @@ describe("the admin refund and its webhook echo — whichever lands first", () =
       paymentId: DEPOSIT_ID,
       refundCents: 57_600,
       cancelEvent: true,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
 
@@ -966,6 +1160,7 @@ describe("the admin refund and its webhook echo — whichever lands first", () =
       paymentId: DEPOSIT_ID,
       refundCents: 57_600,
       cancelEvent: false,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
     vi.clearAllMocks();
@@ -1066,6 +1261,7 @@ describe("the admin refund and its webhook echo — whichever lands first", () =
       paymentId: DEPOSIT_ID,
       refundCents: 57_600,
       cancelEvent: true,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
 
@@ -1089,6 +1285,7 @@ describe("the admin refund and its webhook echo — whichever lands first", () =
       paymentId: DEPOSIT_ID,
       refundCents: 57_600,
       cancelEvent: true,
+      attemptId: crypto.randomUUID(),
       actorUserId: ADMIN_ID,
     });
 

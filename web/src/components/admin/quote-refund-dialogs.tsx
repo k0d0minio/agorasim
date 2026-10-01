@@ -109,8 +109,18 @@ export function RefundQuotePaymentDialog({
   const [amount, setAmount] = useState(() => priceInputValue(refundable));
   // `null` until the operator touches the box — until then it follows the amount.
   const [cancelChoice, setCancelChoice] = useState<boolean | null>(null);
+  // This press of "Reembolsar", as the refund's idempotency key: minted when
+  // the dialog opens and again once the action answers, whatever it said. A
+  // double submit posts the same id and Stripe makes one refund of it; a retry
+  // after a decline posts a new one, so Stripe is asked again instead of
+  // answering with the decline it keeps against the old key.
+  const [attemptId, setAttemptId] = useState("");
   const [state, formAction] = useActionState<QuoteActionState, FormData>(
-    refundLeadQuotePayment,
+    async (previous, formData) => {
+      const next = await refundLeadQuotePayment(previous, formData);
+      setAttemptId(crypto.randomUUID());
+      return next;
+    },
     {},
   );
 
@@ -133,7 +143,10 @@ export function RefundQuotePaymentDialog({
       <Button
         type="button"
         variant="ghost"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setAttemptId(crypto.randomUUID());
+          setOpen(true);
+        }}
         aria-label={`Reembolsar o ${payment.label.toLowerCase()} do orçamento ${quote.ref}`}
       >
         <Undo2 className="size-4" />
@@ -145,6 +158,7 @@ export function RefundQuotePaymentDialog({
         <DialogContent>
           <form action={formAction} className="flex flex-col gap-4">
             <input type="hidden" name="paymentId" value={payment.id} />
+            <input type="hidden" name="attemptId" value={attemptId} />
             <DialogHeader>
               <DialogTitle>
                 Reembolsar o {payment.label.toLowerCase()} do orçamento {quote.ref}?
