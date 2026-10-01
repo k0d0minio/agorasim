@@ -1,7 +1,7 @@
 # Build notes: unpaid-balances-panel-order
 
 - commits: feat: unpaid-balances-panel-order — split "Saldo por pagar" into upcoming and past
-- ci: GREEN on a17d621 (draft tier; advisory quality job passed)
+- ci: GREEN on ec71e34 (full gate — Vercel preview pass, Quality (advisory) pass)
 - ready: 2026-10-01T11:00:05Z — flipped on a17d621
 
 ## What changed
@@ -29,7 +29,7 @@
 - [x] Past balances stay visible under "Eventos passados", most recent first; the eligibility rule is unchanged — `desc` order on read 1; predicate asserted on all three reads.
 - [x] Hidden-past line, singular for 1, absent when none hidden — panel `hiddenPast` branch.
 - [x] No past rows → no subheading; no rows → no panel; search hides it; read failure leaves the board up — panel early return, `NO_UNPAID_BALANCES` on both paths.
-- [ ] `@/db`-boundary test seeding >50 past rows + upcoming rows; CI green — test written; CI verdict pending.
+- [x] `@/db`-boundary test seeding >50 past rows + upcoming rows; CI green — `unpaid-balances.test.ts`; advisory quality job passed on the ready head.
 
 ## Notes for Release
 
