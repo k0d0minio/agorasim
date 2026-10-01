@@ -10,11 +10,12 @@
  * because no day has been picked yet.
  *
  * **Nothing here decides whether a sale is possible.** {@link openDepartures}
- * offers the departures the calendar says are on sale with a driver and a car
- * still free — the same `bookable` rule the admin grid and the public picker
- * read. Whether *this* party fits *this* route is `checkSlotAvailable`, run by
- * the action at the moment of sale, because the party and the tour are still
- * being chosen while this list is on screen. A picker that pre-filtered on a
+ * offers the departures the calendar says the team can sell — from today, a
+ * driver and a car still free, blocked or not (D-4) — the same `bookable` rule
+ * the admin grid reads, for the `team` audience. Whether *this* party fits
+ * *this* route is `checkSlotAvailable`, run by the action at the moment of
+ * sale, because the party and the tour are still being chosen while this list
+ * is on screen. A picker that pre-filtered on a
  * party size the operator then changed would be confidently wrong; one that
  * offers open departures and lets the action refuse is merely honest.
  */
@@ -118,9 +119,10 @@ function clampParty(partySize: number | null): number {
 /**
  * The departures that could still take a booking, out of the days described.
  *
- * Pure, and the whole of the picker's rule: `bookable` — the day is open, it
- * has not happened, a driver is free and some car is free. Deliberately not
- * {@link fitsParty}, which needs a party and a route that are still being
+ * Pure, and the whole of the picker's rule: `bookable` — for the team, the day
+ * has not happened, no event holds it, a driver is free and some car is free;
+ * a blocked day is still offered, because Rita may sell it (D-4). Deliberately
+ * not {@link fitsParty}, which needs a party and a route that are still being
  * typed; see the module note.
  */
 export function openDepartures(days: DaySlots[]): Departure[] {

@@ -310,3 +310,5 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 - Before speccing a "one definition of X" refactor, grep for the rule's SQL form (`inArray`, `eq` on the same column values) as well as its JS functions — Drizzle queries in `web/src/lib/quotes.ts` restate predicates the code also has as helpers. (`FAILURE.md` — one-open-instalment-rule)
 <!-- Retrospective Learned Rule [2026-10-01] -->
 - In Release, run `/code-review` with the run branch named as its target (after `git remote set-head origin main`) — with uncommitted run files in the tree it reviews those instead of the branch. (`FAILURE.md` — one-open-instalment-rule)
+<!-- Retrospective Learned Rule [2026-10-01] -->
+- When a default flips (absence of a row goes from "no" to "yes"), list every bound the stored rows used to enforce implicitly — a horizon, a roster, a past check — and restate each one explicitly in the spec, and grep the admin copy for sentences that describe the old absence. (`FAILURE.md` — open-by-default) (`FAILURE.md` — open-by-default)

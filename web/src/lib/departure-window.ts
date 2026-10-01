@@ -8,6 +8,10 @@
  * arithmetic — {@link describeSlot} over the stored rows and what is already
  * committed against them — read across a window rather than a month.
  *
+ * Both are the team's screens, so the window is described for the `team`
+ * audience: today, tomorrow and a blocked departure are offered while a driver
+ * and a car are free (D-4, D-13). Nothing here is shown to a guest.
+ *
  * It lives here rather than in `lib/availability.ts` because the demand half
  * comes from `lib/bookings.ts`, which imports `lib/availability.ts`; the join
  * has to sit above both. Before this module the scan lived inside
@@ -41,9 +45,9 @@ export function sameDeparture(a: Departure, b: Departure): boolean {
 }
 
 /**
- * Describe every departure from `today` out to the horizon.
+ * Describe every departure from `today` out to the horizon, as the team sells.
  *
- * Two reads for the whole window — the opened days and what is committed
+ * Two reads for the whole window — the stored rows and what is committed
  * against them — rather than one per candidate departure: a picker needs all of
  * them at once, and the alternative is a hundred and eighty round trips to
  * render one dialog.
@@ -80,6 +84,7 @@ export async function readDepartureWindow(options: {
         row: byKey.get(occupancySlotKey(date, slot)) ?? null,
         occupancy: occupancy.get(occupancySlotKey(date, slot)),
         today,
+        audience: "team",
       }),
     ),
   }));

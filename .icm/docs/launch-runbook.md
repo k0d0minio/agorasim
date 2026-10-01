@@ -124,6 +124,7 @@ Mirror table (name · type · value):
 - [ ] 👥 Install the admin PWA from `https://agorasim.jamienisbet.com/admin` tonight (Safari → Share → *Adicionar ao ecrã principal*; Chrome → *Instalar aplicação*). Reinstall from `agorasim.pt/admin` after the switch — the guide in the repo covers both OSes.
 - [ ] 👥 Walkthrough on the phone: Sales board (detail, `BK-…` reference, tap-to-call), Calendar (close a day, close a slot, reopen, *Registar e confirmar* a manual booking), a cancel-and-refund on a sandbox booking, the catalogue (texts and visibility; **prices are read-only in the admin** — a price change goes through Jamie), Notifications, Users.
 - [ ] 🧑 First-week rule agreed: every real booking is checked on the Sales board within the hour; Sentry alerts go to Jamie.
+- [ ] 👥 **Before the open-calendar promotion** (`open-calendar/open-by-default`): the calendar is open by default — every departure nobody has closed is on sale online, two days ahead to six months out, the moment the batch is promoted. Diogo & Rita close the days they already know they are off **on production** (Calendar → day → *Fechar*), after trying it on UAT. Phone and cash bookings ignore the notice, the window and the closed days; capacity still applies.
 
 ### Track G — go-live: when the domain sits at the new registrar ⛔
 

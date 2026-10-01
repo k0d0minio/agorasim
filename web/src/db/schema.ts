@@ -732,7 +732,8 @@ export type NewExperienceRow = typeof experienceCatalogue.$inferInsert;
 
 /**
  * The bookable calendar: one row per **departure** — a day and one of the two
- * daily slots — that Diogo & Rita have opened for sale.
+ * daily slots — that Diogo & Rita have said something about: blocked it, cut
+ * its roster, or left a note on it.
  *
  * **Not per tour.** It used to be, and that was the bug AGORA-012 fixes: two
  * tours had two calendars and could sell the same morning twice over. The
@@ -742,13 +743,15 @@ export type NewExperienceRow = typeof experienceCatalogue.$inferInsert;
  * driver — is `lib/fleet.ts`; what has already been drawn is the `bookings`
  * table; what is left is `lib/availability.ts`.
  *
- * **No row means not bookable.** This is the load-bearing decision in the table
- * and it is deliberate: a calendar that defaults to "open" sells every day of
- * every year the moment the table exists, including the ones the car is at the
- * garage and the ones nobody has thought about yet. Availability is something a
- * human asserts, so the absence of an assertion is a no. The admin calendar
- * exists to make asserting it cheap — a day, a month or a whole season at a
- * time, from a phone.
+ * **No row means open.** The load-bearing decision in the table, turned round
+ * by the open calendar (D-1): a departure nobody has touched is on sale with
+ * the full roster (`DRIVERS_PER_SLOT`), and `status = 'closed'` is how Diogo &
+ * Rita block the days they are off. A business with no fixed days off should
+ * not lose a busy week's sales because nobody had time to open it. What stops
+ * the calendar selling the year 3000 is not the table but the guest's online
+ * window in `lib/availability.ts` — two days' notice, six months ahead — and
+ * capacity binds every booking either way. Existing rows keep their meaning: a
+ * closed row stays blocked with its note, an open row stays open.
  *
  * `date` is a plain SQL `date`, not a timestamp. A tour on the 15th of August is
  * on the 15th of August in Sintra whatever timezone the browser asking about it

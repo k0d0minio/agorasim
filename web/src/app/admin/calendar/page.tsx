@@ -80,7 +80,9 @@ export default async function AdminCalendarPage({
     countSlotOccupancy({ from: monthStart, to: monthEnd }),
     listCatalogue(),
   ]);
-  const days = await readMonth({ month, today, occupancy });
+  // The team's view: today, tomorrow and blocked departures are theirs to sell
+  // on the phone (D-4), so the grid and the day sheet are described as they sell.
+  const days = await readMonth({ month, today, occupancy, audience: "team" });
   const [bookings, events] = await Promise.all([
     bookingsBetween({ from: monthStart, to: monthEnd }),
     // The deposit-paid weddings and events that hold their whole day — the
@@ -133,8 +135,9 @@ export default async function AdminCalendarPage({
         Duas partidas por dia — 10:00 e 14:00 — partilhadas por todos os passeios.
         Toque num dia para pôr as partidas à venda, fechá-las ou dizer quantos
         condutores estão ao serviço; ou marque um período e toque no primeiro e
-        no último dia para o abrir ou fechar de uma vez. As partidas que não
-        estão no calendário não podem ser reservadas.
+        no último dia para o abrir ou fechar de uma vez. Todas as partidas estão
+        à venda até serem fechadas; online, um cliente reserva com dois dias de
+        antecedência e até seis meses.
       </p>
 
       <AvailabilityCalendar

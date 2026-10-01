@@ -47,9 +47,9 @@ export const tourRequestContent = {
 
   /**
    * The live availability picker. Shown instead of the free-text date field
-   * whenever the calendar has a day to offer; when it has none — a fresh
-   * environment, or a season nobody has opened yet — the form falls back to
-   * asking in words, and none of this renders.
+   * whenever the calendar has a day to offer; when it has none — a build with
+   * no database, or one it cannot read — the form falls back to asking in
+   * words, and none of this renders.
    *
    * Nothing here explains *why* a day is unavailable. The reason lives on the
    * row (`note`) and is the team's business, not the guest's.

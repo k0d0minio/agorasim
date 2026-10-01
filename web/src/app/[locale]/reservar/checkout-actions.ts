@@ -238,6 +238,8 @@ export async function startCheckout(
     slot: booking.slot,
     partySize: priced.seats,
     occupancy: await slotOccupancyOn(booking.date, booking.slot),
+    // A guest: the block, two days' notice and the six-month window all bind.
+    audience: "online",
   });
 
   if (!check.ok) {
