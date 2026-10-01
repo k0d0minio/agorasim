@@ -45,7 +45,6 @@ import {
   DEFAULT_DRIVERS,
   isDateKey,
   MAX_DRIVERS,
-  MAX_RANGE_DAYS,
   todayKey,
   TOUR_SLOTS,
 } from "@/lib/availability";
@@ -457,46 +456,10 @@ export const setBlogPostPublishedSchema = z.object({
 // ---------------------------------------------------------------------------
 
 /**
- * The days a calendar write applies to.
+ * A calendar day, as a form posts it — `undefined` when it is not one.
  *
- * One field for both shapes the admin submits: a single tapped day, and the
- * whole month behind a bulk button. `formValues` collapses one occurrence to a
- * string, so `repeated` widens it back, and anything that is not a real
- * calendar day is dropped rather than rejected — a form carrying one malformed
- * date should still open the other thirty.
- *
- * The list is capped: a month is 31 days and a year is 366, so a request
- * naming more days than that is not the admin calendar talking.
- */
-const dateKeys = repeated.transform((values) =>
-  Array.from(new Set(values.filter(isDateKey))).sort().slice(0, MAX_RANGE_DAYS),
-);
-
-/**
- * Open or close days. One schema for one day and for a bulk sweep, because the
- * action is the same action — see the note on `saveExperience` for the same
- * reasoning about create-vs-update.
- */
-/**
- * The departures a calendar write applies to — the two the business runs.
- * `full_day` is enum history (see `db/schema.ts`), never a valid submission.
- */
-const tourSlots = repeated.transform((values) =>
-  Array.from(
-    new Set(values.filter((value): value is "morning" | "afternoon" =>
-      value === "morning" || value === "afternoon",
-    )),
-  ),
-);
-
-/**
- * A seasonal window, as two day keys.
- *
- * "We are closed until April" is one gesture and must not arrive as three
- * hundred hidden inputs. Both ends are optional — a form that posts `dates`
- * instead simply leaves them out — and a value that is not a real day becomes
- * `undefined` rather than rejecting the whole submission, which keeps a
- * half-filled range from losing the day the operator also tapped.
+ * A value that is not a real day becomes `undefined` rather than throwing, so
+ * the action can answer in Portuguese instead of with a parse error.
  */
 const optionalDateKey = z
   .string()
@@ -504,13 +467,39 @@ const optionalDateKey = z
   .catch("")
   .transform((value) => (isDateKey(value) ? value : undefined));
 
-export const setAvailabilitySchema = z.object({
-  dates: dateKeys,
-  /** Inclusive range, expanded server-side. Combined with `dates`, not instead. */
+/**
+ * What the calendar's bar does to every selected day — the four buttons.
+ *
+ * Each one *sets* the day rather than adding to it: "Só manhã" leaves 10:00
+ * blocked and 14:00 on sale whatever the day was before (D-17 in the run
+ * `admin-block-days`), so the same tap means the same thing on every day of a
+ * stretch.
+ */
+export const DAY_BLOCKS = ["day", "morning", "afternoon", "none"] as const;
+export type DayBlock = (typeof DAY_BLOCKS)[number];
+
+/**
+ * Block or unblock a stretch of days: its two ends, and which button.
+ *
+ * A stretch is posted as its two ends rather than as a list of days — a
+ * holiday across three months is one gesture, and the server expands it with
+ * a cap. A single day posts `from` alone. The form never carries a roster or a
+ * note, and that absence is the guarantee that blocking a day keeps both.
+ */
+export const blockDaysSchema = z.object({
   from: optionalDateKey,
   to: optionalDateKey,
-  slots: tourSlots,
-  status: availabilityStatusSchema,
+  block: z.enum(DAY_BLOCKS),
+});
+
+/**
+ * The "Mais opções" half of a day's panel: how many drivers are on, and why.
+ *
+ * It never posts a status — saving the roster of a blocked day leaves it
+ * blocked.
+ */
+export const dayRosterSchema = z.object({
+  date: optionalDateKey,
   /**
    * Drivers rostered on each departure. Clamped rather than refused: this
    * arrives from a stepper whose buttons already stop at the bounds, so an
@@ -523,24 +512,12 @@ export const setAvailabilitySchema = z.object({
     .trim()
     .catch("")
     .transform((value) => {
-      // Not posted at all: the write is not about the roster. A month sweep
-      // knows nothing about who is driving on the 14th and must leave Rita's
-      // answer where it is — see `upsertDays`.
-      if (value === "") return undefined;
       const n = Number.parseInt(value, 10);
       if (!Number.isFinite(n)) return DEFAULT_DRIVERS;
       return Math.min(MAX_DRIVERS, Math.max(1, n));
     }),
-  /** Absent leaves the note alone; posted-and-empty clears it. */
+  /** The panel always renders the field: empty clears the note. */
   note: preservedText,
-});
-
-/** Remove rows outright — "nobody has decided about these departures". */
-export const clearAvailabilitySchema = z.object({
-  dates: dateKeys,
-  from: optionalDateKey,
-  to: optionalDateKey,
-  slots: tourSlots,
 });
 
 // ---------------------------------------------------------------------------

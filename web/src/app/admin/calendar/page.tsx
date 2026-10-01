@@ -5,9 +5,9 @@ import {
   formatDay,
   formatMonth,
   isMonthInWindow,
+  isDateKey,
   isMonthKey,
   MAX_DRIVERS,
-  MAX_RANGE_DAYS,
   monthBounds,
   monthGrid,
   monthOf,
@@ -28,31 +28,34 @@ import {
   AvailabilityCalendar,
   type CalendarDay,
   type CalendarEvent,
+  type Selection,
 } from "@/components/admin/availability-calendar";
 
 // Reads live data — never prerender at build time.
 export const dynamic = "force-dynamic";
 
 /**
- * The availability calendar: which departures are on sale.
+ * The availability calendar: which days the team is off.
  *
  * This is the supply side of the booking engine and the screen the team opens
- * most often. A departure with no row on it cannot be booked by anybody — see
- * the note on the `availability` table for why that is the safe default and
- * this page is the answer to the work it creates.
+ * most often. Every departure is on sale unless the team blocks it
+ * (`open-by-default`), so all this page asks of Diogo & Rita is the days they
+ * cannot run — see the component for the gesture (`admin-block-days`).
  *
  * **One calendar, not one per tour.** It used to have a tab per tour, which
  * quietly promised that opening a Saturday for Rural Saloia left Óbidos alone.
  * It never did: the constraint is two drivers across four cars for the whole
  * business (AGORA-012), so there is one calendar and every tour draws on it.
- * The tab strip is gone and so is `?experience=` — only the month is in the URL
- * now, so paging is still real navigation: the installed PWA's back-swipe
- * works, and a reload comes back to the month the operator was planning.
+ * The tab strip is gone and so is `?experience=` — the URL carries the month,
+ * so paging is still real navigation: the installed PWA's back-swipe works,
+ * and a reload comes back to the month the operator was planning. It also
+ * carries the selection (`?from=&to=`), which is how a stretch tapped across
+ * two months survives the page in between.
  */
 export default async function AdminCalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; from?: string; to?: string }>;
 }) {
   await requireAdmin();
 
@@ -66,6 +69,16 @@ export default async function AdminCalendarPage({
     isMonthKey(params.month) && isMonthInWindow(params.month, today)
       ? params.month
       : monthOf(today);
+
+  // The selection the calendar left in the address. Past days cannot be
+  // selected, so a stale link to one is simply no selection.
+  const selectedFrom =
+    isDateKey(params.from) && params.from >= today ? params.from : null;
+  const selectedTo =
+    selectedFrom && isDateKey(params.to) && params.to >= selectedFrom ? params.to : null;
+  const initialSelection: Selection | null = selectedFrom
+    ? { anchor: selectedFrom, end: selectedTo }
+    : null;
 
   const { first, last } = monthWindow(today);
   const previousMonth = month > first ? addMonths(month, -1) : null;
@@ -132,15 +145,12 @@ export default async function AdminCalendarPage({
   return (
     <AdminShell>
       <p className="mb-4 text-sm text-muted-foreground">
-        Duas partidas por dia — 10:00 e 14:00 — partilhadas por todos os passeios.
-        Toque num dia para pôr as partidas à venda, fechá-las ou dizer quantos
-        condutores estão ao serviço; ou marque um período e toque no primeiro e
-        no último dia para o abrir ou fechar de uma vez. Todas as partidas estão
-        à venda até serem fechadas; online, um cliente reserva com dois dias de
-        antecedência e até seis meses.
+        Todos os dias estão abertos a reservas. Para bloquear, toque num dia — ou
+        no primeiro e no último de um período — e escolha Bloquear em baixo.
       </p>
 
       <AvailabilityCalendar
+        month={month}
         monthLabel={formatMonth(month, "pt")}
         weekdays={WEEKDAY_INITIALS.pt}
         grid={monthGrid(month)}
@@ -149,13 +159,12 @@ export default async function AdminCalendarPage({
         nextMonth={nextMonth}
         defaultDrivers={DEFAULT_DRIVERS}
         maxDrivers={MAX_DRIVERS}
-        maxRangeDays={MAX_RANGE_DAYS}
         fleet={FLEET.map((vehicle) => ({ name: vehicle.name, seats: vehicle.seats }))}
         bookingsByDate={bookingsByDate}
         eventsByDate={eventsByDate}
         experienceNames={experienceNames}
         tours={tours}
-        today={today}
+        initialSelection={initialSelection}
       />
     </AdminShell>
   );

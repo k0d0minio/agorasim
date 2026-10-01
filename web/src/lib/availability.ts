@@ -902,19 +902,19 @@ export async function checkDayBookable(options: {
 /**
  * The longest stretch one gesture may write — a leap year, to the day.
  *
- * Exported because the season card has to be able to *say* it: a confirmation
- * that promises four hundred days when the write stops at three hundred and
- * sixty-six is worse than no confirmation at all. The page reads it and hands
- * it to the client component, the way it already hands down the roster
- * numbers, because this module is `server-only`.
+ * Exported because the calendar's bar has to be able to *say* it: a
+ * confirmation that promises four hundred days when the write stops at three
+ * hundred and sixty-six is worse than no confirmation at all. The page reads
+ * it and hands it to the client component, the way it already hands down the
+ * roster numbers, because this module is `server-only`.
  */
 export const MAX_RANGE_DAYS = 366;
 
 /**
- * Every day from `from` to `to`, inclusive — the seasonal window as a list.
+ * Every day from `from` to `to`, inclusive — a blocked stretch as a list.
  *
- * Rita's "we are closed until April" is one gesture, and it has to reach the
- * database as the rows it means. The range is expressed as two dates rather
+ * Rita's "we are off from Christmas to Epiphany" is two taps, and it has to
+ * reach the database as the rows it means. The range is expressed as two dates rather
  * than posted as three hundred hidden inputs, and expanded here where the
  * cap can be enforced: `limit` days at most, so a crafted `to` of 2999 cannot
  * ask Postgres to write a third of a million rows. Backwards ranges give
@@ -942,80 +942,101 @@ export function expandDateRange(
 }
 
 /**
- * Open, close or adjust a set of departures, in one statement.
+ * Block and unblock departures across a set of days, in one round trip.
  *
- * An upsert rather than a read-then-write: the admin's "close the whole
- * winter" button touches hundreds of departures at once, most of which have no
- * row, and doing that as hundreds of round trips from a phone on rural 4G is
- * the difference between a tap and a wait. `onConflictDoUpdate` resolves onto
- * `availability_date_slot_key`, which is the index that makes
- * one-row-per-day-per-departure true.
+ * The calendar's bar sets each selected day to one of four states — both
+ * departures blocked, only the morning, only the afternoon, or neither — so a
+ * write names which departures end `closed` and which end `open`:
  *
- * **`status` is the only field a write always sets.** `drivers` and `note`
- * change only when the caller passes them, and are otherwise left exactly as
- * the row already had them. This is the difference between "close August" and
- * "close August and forget everything anybody wrote about it": the note is
- * *why* a day is shut — "Casamento", "carro na revisão" — and the roster is
- * Rita's answer to who is actually driving. A sweep across a hundred days
- * knows neither of those things, so it must not have an opinion about them,
- * and passing the defaults would be exactly such an opinion. Rows that do not
- * exist yet still get the column defaults (`DRIVERS_PER_SLOT`, no note),
- * because there is nothing there to preserve.
+ * - **Blocking is an upsert.** Most days have no row (an untouched departure
+ *   is open), so a holiday blocked in one gesture is mostly inserts, and
+ *   `onConflictDoUpdate` on `availability_date_slot_key` turns the rest into
+ *   updates — one statement, not hundreds of round trips from a phone on
+ *   rural 4G.
+ * - **Unblocking only touches rows that are blocked.** A departure with no row
+ *   is already open with the full roster; writing a row for it would change
+ *   nothing a guest can see and leave behind a decision nobody made.
  *
- * Passing `note: null` *is* explicit, and clears it — that is the day sheet
- * emptying the field. Only leaving the key out preserves.
+ * **`status` is the only column either half writes.** The roster and the note
+ * are left exactly as the row had them — the note is *why* a day is off, the
+ * roster is who is driving, and a block across a fortnight knows neither.
+ * Rows that do not exist yet get the column defaults (`DRIVERS_PER_SLOT`, no
+ * note), because there is nothing there to keep.
  *
- * Returns the rows as they now stand, so the caller can audit what actually
- * changed rather than what it asked for.
+ * Both halves go in one `db.batch`, which Neon's HTTP driver runs as one
+ * transaction: "Só manhã" over a week is never left half applied.
+ *
+ * Returns the departures each half actually changed, so the caller can audit
+ * what happened rather than what it asked for.
  */
-export async function upsertDays(options: {
+export async function setDepartureStates(options: {
   dates: DateKey[];
-  slots: AvailabilitySlot[];
-  status: AvailabilityStatus;
-  /** Left alone when absent. A number replaces the roster on every row named. */
-  drivers?: number;
-  /** Left alone when absent; `null` clears it. */
-  note?: string | null;
-}): Promise<AvailabilityRow[]> {
-  const { dates, slots, status } = options;
-  if (dates.length === 0 || slots.length === 0) return [];
-
-  // Built once and used for both halves of the upsert, so the insert and the
-  // update cannot disagree about which fields this write is addressed to.
-  const edits: { drivers?: number; note?: string | null } = {};
-  if (options.drivers !== undefined) edits.drivers = options.drivers;
-  if (options.note !== undefined) edits.note = options.note;
+  closed: AvailabilitySlot[];
+  open: AvailabilitySlot[];
+}): Promise<{ closed: number; opened: number }> {
+  const { dates } = options;
+  if (dates.length === 0) return { closed: 0, opened: 0 };
 
   const now = new Date();
+  const block =
+    options.closed.length > 0
+      ? db
+          .insert(availability)
+          .values(
+            dates.flatMap((date) =>
+              options.closed.map((slot) => ({ date, slot, status: "closed" as const })),
+            ),
+          )
+          .onConflictDoUpdate({
+            target: [availability.date, availability.slot],
+            set: { status: "closed", updatedAt: now },
+          })
+          .returning({ id: availability.id })
+      : null;
+  const unblock =
+    options.open.length > 0
+      ? db
+          .update(availability)
+          .set({ status: "open", updatedAt: now })
+          .where(
+            and(
+              inArray(availability.date, dates),
+              inArray(availability.slot, options.open),
+              eq(availability.status, "closed"),
+            ),
+          )
+          .returning({ id: availability.id })
+      : null;
 
-  return db
-    .insert(availability)
-    .values(
-      dates.flatMap((date) => slots.map((slot) => ({ date, slot, status, ...edits }))),
-    )
-    .onConflictDoUpdate({
-      target: [availability.date, availability.slot],
-      set: { status, ...edits, updatedAt: now },
-    })
-    .returning();
+  if (block && unblock) {
+    const [closed, opened] = await db.batch([block, unblock]);
+    return { closed: closed.length, opened: opened.length };
+  }
+  if (block) return { closed: (await block).length, opened: 0 };
+  if (unblock) return { closed: 0, opened: (await unblock).length };
+  return { closed: 0, opened: 0 };
 }
 
 /**
- * Remove the rows for `dates` — "I never meant to touch these departures".
+ * Set how many drivers are on a day, and the team's note on it — both
+ * departures alike.
  *
- * Since the calendar is open by default, an absent row is an open departure
- * with the full roster: clearing a closed day puts it back on sale. The caller
- * checks for bookings first — this function only does what it is told.
+ * The day panel's "Mais opções". It never changes whether a departure is
+ * blocked: a new row is born `open` (which is what no row already meant), and
+ * an existing row keeps its status. `note: null` clears the note.
  */
-export async function clearDays(options: {
-  dates: DateKey[];
-  slots: AvailabilitySlot[];
-}): Promise<number> {
-  const { dates, slots } = options;
-  if (dates.length === 0 || slots.length === 0) return 0;
-  const removed = await db
-    .delete(availability)
-    .where(and(inArray(availability.date, dates), inArray(availability.slot, slots)))
-    .returning({ id: availability.id });
-  return removed.length;
+export async function setDayRoster(options: {
+  date: DateKey;
+  drivers: number;
+  note: string | null;
+}): Promise<AvailabilityRow[]> {
+  const { date, drivers, note } = options;
+  return db
+    .insert(availability)
+    .values(TOUR_SLOTS.map((slot) => ({ date, slot, status: "open" as const, drivers, note })))
+    .onConflictDoUpdate({
+      target: [availability.date, availability.slot],
+      set: { drivers, note, updatedAt: new Date() },
+    })
+    .returning();
 }

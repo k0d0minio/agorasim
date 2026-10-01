@@ -137,7 +137,7 @@ function Stepper({
   );
 }
 
-/** A one-or-the-other choice, styled like the day sheet's departure toggles. */
+/** A one-or-the-other choice: two toggles, one pressed. */
 function Choice({
   active,
   onClick,
@@ -195,13 +195,13 @@ function FieldError({ message }: { message?: string }) {
  * **The sheet owns its dialog.** Whatever opened it stays open underneath (it
  * is what the operator was doing), this dialog rises over it as its own sheet
  * and closes itself once the reservation lands — the refresh `onDone` triggers
- * is that landing, showing the new booking dot or the moved card.
+ * is that landing, showing the new booking count or the moved card.
  *
  * `open`/`onOpenChange` are optional: left out, the sheet tracks its own
  * open state (the Sales board's mount). The Calendar's day sheet passes them
  * so it can hide itself for the one modal admin spec S7 asks for, and hands
  * `showTrigger={false}` because it renders its own "Nova reserva" button in
- * the day sheet's own layout flow — see `DayEditor`.
+ * the day panel's own layout flow — see `DayPanel`.
  */
 export function ManualBookingDialog({
   departure,

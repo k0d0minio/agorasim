@@ -20,7 +20,7 @@
  */
 import "server-only";
 
-import { and, count, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
 import {
   bookings,
@@ -393,36 +393,6 @@ export async function slotOccupancyOn(
 ): Promise<SlotOccupancy> {
   const map = await countSlotOccupancy({ from: date, to: date, now });
   return map.get(`${date}#${slot}`) ?? emptyOccupancy();
-}
-
-/**
- * Whether any live booking exists on these departures — any tour.
- *
- * The guard the admin calendar needs before clearing days: a day nobody has
- * decided about and a day somebody has paid for look identical in the
- * `availability` table, and only one of them is safe to forget.
- */
-export async function datesWithBookings(options: {
-  dates: DateKey[];
-  slots: AvailabilitySlot[];
-  now?: Date;
-}): Promise<Set<DateKey>> {
-  const { dates, slots, now = new Date() } = options;
-  if (dates.length === 0 || slots.length === 0) return new Set();
-
-  const rows = await db
-    .select({ date: bookings.date, n: count() })
-    .from(bookings)
-    .where(
-      and(
-        inArray(bookings.date, dates),
-        inArray(bookings.slot, slots),
-        holdsCapacitySql(now),
-      ),
-    )
-    .groupBy(bookings.date);
-
-  return new Set(rows.filter((row) => row.n > 0).map((row) => row.date));
 }
 
 /**
