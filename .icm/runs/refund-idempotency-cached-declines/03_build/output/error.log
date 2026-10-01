@@ -2,3 +2,10 @@
 scope=branch head=8d1e4ee branch=claude/hopeful-einstein-5911ev — BLOCKED 1 (redacted trace; the secret itself is never written)
 dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
 - resolved: not this run's — the branch changes neither `web/package.json` nor a lockfile; the advisories (next, undici) are on `main` and already parked as chores in `.icm/intake/triage/` (`dependency-advisories-next-undici`, `deps-next-undici-advisories`). The secrets half of the gate passed; no new stub parked. Release's `--audit` read needs the operator's waiver or that chore merged first.
+
+## 2026-10-01T13:03:00Z ci Quality (advisory) — src/app/admin/actions.test.ts › cancelling and refunding a booking (3 failed)
+FAIL src/app/admin/actions.test.ts > cancelling and refunding a booking > refunds through Stripe, frees the car and records who did it
+AssertionError: expected undefined to be true // Object.is equality — src/app/admin/actions.test.ts:789:23
+TypeError: Cannot read properties of undefined (reading '0') — src/app/admin/actions.test.ts:837:39, :858:39
+- resolved: the suite's fake claim row was `bookingRow({ status: "cancelled" })` with `cancelledAt: null`, which the real claim never returns; the new `claimedAt()` guard refused it (→ `refund-failed`, no Stripe call). The claim fixtures now carry a `cancelledAt` (`claimedRow()`), as the real UPDATE … RETURNING does.
+- rule: a test that fakes `cancelAndRefundBooking`'s claim must return a row with `cancelledAt` set — the tour refund's idempotency key is read from it (`web/src/lib/booking-refund.ts` → `claimedAt`).
