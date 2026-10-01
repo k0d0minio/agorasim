@@ -9,3 +9,8 @@ AssertionError: expected undefined to be true // Object.is equality — src/app/
 TypeError: Cannot read properties of undefined (reading '0') — src/app/admin/actions.test.ts:837:39, :858:39
 - resolved: the suite's fake claim row was `bookingRow({ status: "cancelled" })` with `cancelledAt: null`, which the real claim never returns; the new `claimedAt()` guard refused it (→ `refund-failed`, no Stripe call). The claim fixtures now carry a `cancelledAt` (`claimedRow()`), as the real UPDATE … RETURNING does.
 - rule: a test that fakes `cancelAndRefundBooking`'s claim must return a row with `cancelledAt` set — the tour refund's idempotency key is read from it (`web/src/lib/booking-refund.ts` → `claimedAt`).
+## 2026-10-01T13:15:39Z security-check.sh — dependency-audit
+scope=branch head=0effa11 branch=claude/hopeful-einstein-5911ev — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+- resolved: Release's `--audit` read — the same pre-existing next/undici advisories on `main` as the Build entry above; this branch changes no dependency file. Held for the operator's waiver (Release stop class 2), never merged around.
+
