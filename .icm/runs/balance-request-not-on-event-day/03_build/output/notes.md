@@ -1,7 +1,7 @@
 # Build notes: balance-request-not-on-event-day
 
-- commits: feat: balance-request-not-on-event-day — no balance email on the event day
-- ci: GREEN on 616f23e (draft, cheap tier)
+- commits: 616f23e feat: balance-request-not-on-event-day — no balance email on the event day · 4f3fd1a chore: … — ready
+- ci: GREEN on 4f3fd1a (full gate — Vercel pass; Quality (advisory) pass)
 - ready: 2026-10-01T10:57:13Z — flipped on 616f23e
 
 ## What changed
@@ -31,7 +31,7 @@
       and T−1 (sent)
 - [x] "Saldo por pagar" panel and quote-card badge unchanged — `isBalanceFlagged` and
       `listUnpaidBalancesDue` not touched
-- [ ] CI green — read after the flip
+- [x] CI green — full gate on 4f3fd1a: Vercel pass, Quality (advisory) pass
 
 ## Notes for Release
 

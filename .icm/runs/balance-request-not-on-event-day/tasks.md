@@ -13,11 +13,11 @@ step, so a resuming session can pick up the first unticked line.
 - [x] `balance-schedule.test.ts` covers event day → false, T−1 → true for both predicates
 - [x] `cron/balance-scheduler.test.ts` covers the event morning (nothing sent, link unchanged) and T−1 (sent)
 - [x] "Saldo por pagar" panel and quote-card badge unchanged
-- [ ] CI green
+- [x] CI green
 
 ## Queue
 
 - [x] Pass 1 — predicates + `balance-schedule.test.ts`
 - [x] Pass 2 — query floors in `quotes.ts`
 - [x] Pass 3 — job comment + `cron/balance-scheduler.test.ts` edge cases
-- [ ] Pass 4 — push, CI GREEN, flip ready
+- [x] Pass 4 — push, CI GREEN, flip ready
