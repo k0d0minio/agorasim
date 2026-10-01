@@ -13,12 +13,21 @@ general; keep the retrospectives specific; never restate an `error.log` entry he
 
 ## Retrospectives
 
-### <YYYY-MM-DD> — <what failed, one line>
+### 2026-10-01 — `status.md` committed empty at Define
 
-- what happened: <the observable — the check, the error, the wrong file>
-- why: <the cause, once it was known>
-- fixed by: <the commit, or the action>
+- what happened: the Define commit carried a zero-byte `status.md`; Build found it on resume.
+- why: an inline script opened the file for writing before reading it, truncating it.
+- fixed by: Build restored it from the pack seed (`a3cd974`) and rewrote the five lines.
+
+### 2026-10-01 — the clock's drop borrowed the party's sentence
+
+- what happened: `/code-review` at Release found that a day removed by the new browser notice
+  check showed the checkout's "no longer has a car free for this group" line, and in the
+  enquiry form vanished with no message.
+- why: Build reused the picker's one existing "dropped" path (`dropped` → `partyChanged`) for a
+  new cause, and gave the uncontrolled picker a drop without a sentence.
+- fixed by: `dda81e9` — `droppedUnavailable` and `calendar.dayUnavailable`, chosen by cause.
 
 ## Learned rules
 
-- <one sentence, imperative, general enough to apply to the next run in this repo>
+- When a new rule can take away something the guest already chose (a day, a slot, an add-on), give that drop its own sentence naming its own cause — never reuse an existing drop message written for another cause, and never drop silently.

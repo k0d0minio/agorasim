@@ -63,3 +63,13 @@
   of ~35 px-wide cells (44 px tall). Check at 1024 and 1280.
 - Define committed `status.md` empty (a script truncated it before reading it); Build restored
   it from the pack seed.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN on 4badb7e at the start; re-read after the fix and the close-out pushes, before the merge
+- reviews: code medium (2 findings, both in-ticket — fixed in dda81e9: a day dropped by the notice check now has its own sentence in the checkout and the enquiry form) · security security-check.sh --branch --audit: OK · /security-review n/a — no auth, payments, PII or route policy touched (the checkout form's change is the calendar it hands the picker) · /production-readiness n/a — no DB, auth, payments or env vars · readiness env.sh audit --changed: OK
+- parked: none
+- migrations: skip — none of this run's own
+- learned: skip — no error.log (FAILURE.md carries 1 rule, synced by close-out)
+- docs: no docs impact (business-facts already states the 10:00 / 14:00 departures) · announce: deferred to promotion
