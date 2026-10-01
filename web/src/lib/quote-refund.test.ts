@@ -94,7 +94,6 @@ vi.mock("@/lib/quotes", async () => {
 const intentsRetrieve = vi.fn();
 const refundsCreate = vi.fn();
 const refundsList = vi.fn();
-const refundsRetrieve = vi.fn();
 const feesRetrieve = vi.fn();
 const feesCreateRefund = vi.fn();
 const sessionsExpire = vi.fn();
@@ -110,7 +109,6 @@ vi.mock("@/lib/stripe", () => ({
     refunds: {
       create: (...args: unknown[]) => refundsCreate(...args),
       list: (...args: unknown[]) => refundsList(...args),
-      retrieve: (...args: unknown[]) => refundsRetrieve(...args),
     },
     applicationFees: {
       retrieve: (...args: unknown[]) => feesRetrieve(...args),
@@ -857,6 +855,35 @@ describe("the admin refund and its webhook echo — whichever lands first", () =
         after: expect.objectContaining({ via: "stripe" }),
       }),
     );
+  });
+
+  it("does not defer a card refund the row already carries — something else is behind", async () => {
+    // The card wrote re_admin_28800; Stripe also holds an older dashboard refund the row missed.
+    payments.set(
+      DEPOSIT_ID,
+      instalment("deposit", "paid", {
+        refundedAmountCents: 28_800,
+        refundedFeeCents: 1_728,
+        stripeRefundId: "re_admin_28800",
+      }),
+    );
+    refundsList.mockResolvedValue({
+      data: [
+        {
+          id: "re_admin_28800",
+          object: "refund",
+          amount: 28_800,
+          status: "succeeded",
+          created: justNow(),
+          metadata: { quotePaymentId: DEPOSIT_ID, via: "admin" },
+        },
+      ],
+    });
+    feesRetrieve.mockResolvedValue({ id: "fee_deposit", amount_refunded: DEPOSIT_FEE });
+
+    const outcome = await syncQuotePaymentRefundFromStripe({ charge: depositCharge(57_600) });
+
+    expect(outcome).toMatchObject({ status: "synced", refundedAmountCents: 57_600 });
   });
 
   it("never defers a dashboard refund, however fresh", async () => {

@@ -321,21 +321,23 @@ export async function syncQuotePaymentRefundFromStripe(options: {
     );
   }
 
-  // Money newly went back: if the quote card sent it, the quote card claims it.
-  if (refundedAmountCents > payment.refundedAmountCents) {
-    const refund = await refundBehind(charge, options.refund ?? null, options.refundId ?? null);
-    if (issuedByQuoteCard(refund, payment)) {
-      if (now.getTime() - refund.created * 1000 < ADMIN_REFUND_SETTLE_WINDOW_MS) {
-        return { status: "deferred", payment };
-      }
-      console.warn(
-        `[quote-refund] ${quoteRef(found.quote.id)}: ${refund.id} came from the quote card but ` +
-          `was never settled there — recording it from Stripe, without the actor`,
-      );
+  // Money newly went back: if the quote card sent it and has not written it
+  // yet, the quote card claims it.
+  const refund =
+    refundedAmountCents > payment.refundedAmountCents
+      ? await refundBehind(charge, options.refund ?? null)
+      : null;
+  if (issuedByQuoteCard(refund, payment) && payment.stripeRefundId !== refund.id) {
+    if (now.getTime() - refund.created * 1000 < ADMIN_REFUND_SETTLE_WINDOW_MS) {
+      return { status: "deferred", payment };
     }
+    console.warn(
+      `[quote-refund] ${quoteRef(found.quote.id)}: ${refund.id} came from the quote card but ` +
+        `was never settled there — recording it from Stripe, without the actor`,
+    );
   }
 
-  const refundId = options.refundId ?? (await latestRefundId(charge));
+  const refundId = options.refundId ?? refund?.id ?? (await latestRefundId(charge));
 
   const settled = await settleInstalmentRefund({
     quote: found.quote,
@@ -370,21 +372,19 @@ export async function syncQuotePaymentRefundFromStripe(options: {
 export const ADMIN_REFUND_SETTLE_WINDOW_MS = 10 * 60 * 1000;
 
 /**
- * The refund an event is about: the one it carried, else the one it names,
- * else the charge's latest. `null` when Stripe cannot say — and then nothing
- * is deferred, because a refund we cannot read is not one we can attribute.
+ * The refund an event is about: the one it carried (`refund.updated`), else
+ * the charge's latest. `null` when Stripe cannot say — and then nothing is
+ * deferred, because a refund we cannot read is not one we can attribute.
  */
 async function refundBehind(
   charge: Stripe.Charge,
   carried: Stripe.Refund | null,
-  refundId: string | null,
 ): Promise<Stripe.Refund | null> {
   if (carried) return carried;
   if (!isStripeConfigured()) return null;
 
   try {
     return await onOwningAccount(async (account) => {
-      if (refundId) return stripe().refunds.retrieve(refundId, undefined, account);
       const latest = await stripe().refunds.list({ charge: charge.id, limit: 1 }, account);
       return latest.data[0] ?? null;
     });

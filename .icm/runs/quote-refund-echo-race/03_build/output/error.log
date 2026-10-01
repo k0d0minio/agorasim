@@ -13,3 +13,8 @@ dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audi
 (unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
 - resolved: Not a secret and not this branch's: the 4 high/critical advisories (next `next/og` RCE, three undici) are in `main`'s lockfile, which this branch does not touch. Per the security-audit skill they are parked as `.icm/intake/triage/deps-next-undici-advisories.md` (chore, P0) and named in Notes for Release; the secrets half of the gate passed.
 
+## 2026-10-01T11:06:24Z security-check.sh — dependency-audit
+scope=branch head=1c3ec19 branch=claude/friendly-lamport-wvw8qq — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+(unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+

@@ -266,8 +266,9 @@ export function CancelHeldQuoteDialog({
               <DialogTitle>Cancelar o evento do orçamento {quote.ref}?</DialogTitle>
               <DialogDescription>
                 O evento de {quote.eventDateLabel} deixa de estar marcado e o saldo já não é
-                pedido. O link do cliente deixa de funcionar. Não é devolvido nenhum valor e o
-                cliente não recebe email. Não há como voltar atrás.
+                pedido. O link do cliente deixa de funcionar. Não é devolvido nenhum valor; o
+                cliente recebe um email a dizer que o evento foi cancelado. Não há como voltar
+                atrás.
               </DialogDescription>
             </DialogHeader>
 
