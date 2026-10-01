@@ -225,6 +225,9 @@ export const commissionBoundEnum = pgEnum("commission_bound", ["rate", "floor", 
  * received" (`lib/admin-preview.ts`). `quote-refunded` is the couple's notice
  * that money went back on an instalment — one per refund, keyed on
  * {@link messageLog.quotePaymentId} and {@link messageLog.refundedTotalCents}.
+ * `quote-event-cancelled` tells the couple their event was called off when the
+ * last thing they heard was that it was still on — once per quote, on
+ * `message_log_quote_receipt_key`.
  *
  * New values go on the **end** of this list, because that is where
  * `ALTER TYPE … ADD VALUE` puts them in Postgres and the two orderings have to
@@ -243,6 +246,7 @@ export const messageKindEnum = pgEnum("message_kind", [
   "deposit-received",
   "balance-paid",
   "quote-refunded",
+  "quote-event-cancelled",
 ]);
 
 /**

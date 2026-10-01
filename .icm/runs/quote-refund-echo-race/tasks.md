@@ -20,4 +20,9 @@ step, so a resuming session can pick up the first unticked line.
 
 ## Queue
 
-- [ ] <task — small enough for one commit; name the file or area>
+- [x] The `quote-event-cancelled` kind: `schema.ts` + `drizzle/0034_quote_event_cancelled_kind.sql` + journal/snapshot
+- [x] The kind in `message-log.ts` (receipt-shaped subject) and `admin-messages.ts` ("Evento cancelado", its card)
+- [x] Copy in `content/emails.ts` and `guestQuoteEventCancelledEmail` in `booking-emails.ts`, with builder tests
+- [x] `quote-refund.ts`: the webhook defers a fresh quote-card refund; the lost-claim branch re-reads and notifies; `cancelHeldQuote` notifies
+- [x] `webhook/route.ts`: `deferred` → 503, the carried refund passed through; route + lib tests
+- [ ] Ready flip, full gate GREEN

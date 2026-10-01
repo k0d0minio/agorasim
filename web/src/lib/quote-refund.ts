@@ -32,6 +32,20 @@
  * so the admin refund and its echo share one claim and a second, deliberate
  * partial refund earns a second notice.
  *
+ * **The admin door claims first.** Its refund's webhook echo can reach the
+ * dashboard door before the admin door has written anything; left to the
+ * compare-and-set, the echo would win, record the refund as Stripe's with
+ * nobody behind it, and tell the couple their event is still on moments before
+ * the admin door calls it off. So the dashboard door defers a refund the quote
+ * card issued ({@link ADMIN_REFUND_SETTLE_WINDOW_MS}) and Stripe redelivers it
+ * once the admin door has settled — or has died, in which case the
+ * redelivery settles it as Stripe's.
+ *
+ * **A cancellation the couple were not told of is told on its own.** Where an
+ * event is called off after the couple's last word was "still booked" — the
+ * deferral's fallback, or "Cancelar evento" after an earlier refund — they get
+ * a `quote-event-cancelled` notice, once per quote.
+ *
  * Nothing here decides what the terms allow (D9's 30 days, the `[LAWYER]`
  * items). The amount is the team's judgement, as on the tour dialog.
  */
@@ -43,7 +57,7 @@ import { eq } from "drizzle-orm";
 import { db, tourRequests, type Quote, type QuotePayment } from "@/db";
 import { formatDay } from "@/lib/availability";
 import { recordAuditOrWarn } from "@/lib/audit";
-import { guestQuoteRefundEmail } from "@/lib/booking-emails";
+import { guestQuoteEventCancelledEmail, guestQuoteRefundEmail } from "@/lib/booking-emails";
 import {
   latestRefundId,
   proportionalFeeRefundCents,
@@ -244,6 +258,11 @@ export type QuoteRefundSyncOutcome =
     }
   /** Stripe is telling us something the row already says. A retry, or our own refund. */
   | { status: "already-synced"; payment: QuotePayment }
+  /**
+   * The quote card's own refund, still within {@link ADMIN_REFUND_SETTLE_WINDOW_MS}:
+   * nothing written, nothing sent. The webhook answers so Stripe asks again.
+   */
+  | { status: "deferred"; payment: QuotePayment }
   /** No instalment was paid with this charge either. Needs a human. */
   | { status: "unknown-charge" };
 
@@ -260,6 +279,8 @@ export async function syncQuotePaymentRefundFromStripe(options: {
   charge: Stripe.Charge;
   /** The refund the event was about, when it carried one. */
   refundId?: string | null;
+  /** The refund itself, when the event was about one (`refund.updated`). */
+  refund?: Stripe.Refund | null;
   now?: Date;
 }): Promise<QuoteRefundSyncOutcome> {
   const { charge, now = new Date() } = options;
@@ -300,6 +321,20 @@ export async function syncQuotePaymentRefundFromStripe(options: {
     );
   }
 
+  // Money newly went back: if the quote card sent it, the quote card claims it.
+  if (refundedAmountCents > payment.refundedAmountCents) {
+    const refund = await refundBehind(charge, options.refund ?? null, options.refundId ?? null);
+    if (issuedByQuoteCard(refund, payment)) {
+      if (now.getTime() - refund.created * 1000 < ADMIN_REFUND_SETTLE_WINDOW_MS) {
+        return { status: "deferred", payment };
+      }
+      console.warn(
+        `[quote-refund] ${quoteRef(found.quote.id)}: ${refund.id} came from the quote card but ` +
+          `was never settled there — recording it from Stripe, without the actor`,
+      );
+    }
+  }
+
   const refundId = options.refundId ?? (await latestRefundId(charge));
 
   const settled = await settleInstalmentRefund({
@@ -324,6 +359,53 @@ export async function syncQuotePaymentRefundFromStripe(options: {
   };
 }
 
+/**
+ * How long the dashboard door leaves a quote-card refund to the quote card.
+ *
+ * Longer than any request can live — the admin action runs under Vercel's
+ * 300-second function limit — so by the time a deferred event comes back the
+ * admin door has either written the refund or is gone. Measured from Stripe's
+ * `created`, which is after the admin door started.
+ */
+export const ADMIN_REFUND_SETTLE_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * The refund an event is about: the one it carried, else the one it names,
+ * else the charge's latest. `null` when Stripe cannot say — and then nothing
+ * is deferred, because a refund we cannot read is not one we can attribute.
+ */
+async function refundBehind(
+  charge: Stripe.Charge,
+  carried: Stripe.Refund | null,
+  refundId: string | null,
+): Promise<Stripe.Refund | null> {
+  if (carried) return carried;
+  if (!isStripeConfigured()) return null;
+
+  try {
+    return await onOwningAccount(async (account) => {
+      if (refundId) return stripe().refunds.retrieve(refundId, undefined, account);
+      const latest = await stripe().refunds.list({ charge: charge.id, limit: 1 }, account);
+      return latest.data[0] ?? null;
+    });
+  } catch (err) {
+    console.warn(`[quote-refund] couldn't read the refund behind ${charge.id}`, err);
+    return null;
+  }
+}
+
+/** Whether `refund` is one {@link issueInstalmentRefund} made for this instalment. */
+function issuedByQuoteCard(
+  refund: Stripe.Refund | null,
+  payment: QuotePayment,
+): refund is Stripe.Refund {
+  const metadata = refund?.metadata;
+  if (!refund || !metadata || metadata.via !== "admin") return false;
+  if (metadata.quotePaymentId && metadata.quotePaymentId !== payment.id) return false;
+  // A refund that did not go through is the admin door's refusal, not its claim.
+  return refund.status !== "failed" && refund.status !== "canceled";
+}
+
 // ---------------------------------------------------------------------------
 // The one write both doors end in
 // ---------------------------------------------------------------------------
@@ -336,7 +418,9 @@ export async function syncQuotePaymentRefundFromStripe(options: {
  * other door got there first (the admin refund and its webhook echo), and it
  * has written the amounts, the fee, its audit row and the notice. What is left
  * for this caller is only what the other door could not do — the cancellation
- * the operator asked for.
+ * the operator asked for — and, since the other door's notice said the event
+ * was still on, telling the couple it is not. The row handed back is read
+ * fresh, so the caller reports what is now true rather than what it read.
  */
 async function settleInstalmentRefund(options: {
   quote: Quote;
@@ -363,7 +447,14 @@ async function settleInstalmentRefund(options: {
     const cancelled = options.cancelEvent
       ? await cancelEvent(quote, actorUserId, "refund", now)
       : null;
-    return { claimed: false, quote: cancelled ?? quote, payment };
+    if (cancelled) await sendEventCancelledNotice(quote.id);
+
+    const fresh = await getPayment(payment.id);
+    return {
+      claimed: false,
+      quote: cancelled ?? fresh?.quote ?? quote,
+      payment: fresh?.payment ?? payment,
+    };
   }
 
   // The commission, second and separately: the couple's money is already
@@ -471,6 +562,9 @@ export type CancelHeldQuoteOutcome =
  *
  * Only in that state, on purpose: cancelling a paid event with its money still
  * held is a refund decision, and belongs in the refund dialog.
+ *
+ * The couple's last word on a held quote was its refund notice, which said
+ * the event was still on; the cancellation is told in its own notice.
  */
 export async function cancelHeldQuote(options: {
   quoteId: string;
@@ -486,7 +580,10 @@ export async function cancelHeldQuote(options: {
   }
 
   const cancelled = await cancelEvent(quote, actorUserId, "held-quote", now);
-  return cancelled ? { status: "cancelled", quote: cancelled } : { status: "not-held", quote };
+  if (!cancelled) return { status: "not-held", quote };
+
+  await sendEventCancelledNotice(quote.id);
+  return { status: "cancelled", quote: cancelled };
 }
 
 /**
@@ -623,5 +720,63 @@ async function sendRefundNotice(options: {
     }
   } catch (err) {
     console.error(`[quote-refund] couldn't send the refund notice for ${options.paymentId}`, err);
+  }
+}
+
+/**
+ * One `quote-event-cancelled` email to the couple, claimed in the message log
+ * under the quote — a quote is cancelled once, so a retry or a second
+ * "Cancelar evento" finds the claim. Read fresh, so the total refunded is
+ * what is now true. Never throws: the cancellation stands whatever the mail
+ * does.
+ */
+async function sendEventCancelledNotice(quoteId: string): Promise<void> {
+  if (!isEmailConfigured()) return;
+
+  try {
+    const quote = await getQuote(quoteId);
+    if (!quote || quote.status !== "cancelled") return;
+    if (!quote.tourRequestId) {
+      console.warn(`[quote-refund] ${quoteRef(quote.id)} has no lead — no cancellation notice sent`);
+      return;
+    }
+    const [lead] = await db
+      .select()
+      .from(tourRequests)
+      .where(eq(tourRequests.id, quote.tourRequestId))
+      .limit(1);
+    if (!lead) return;
+
+    const locale = quote.locale;
+    const totalRefunded = quote.payments.reduce(
+      (sum, payment) => sum + payment.refundedAmountCents,
+      0,
+    );
+
+    const result = await sendLoggedEmail(
+      {
+        kind: "quote-event-cancelled",
+        recipient: "guest",
+        quoteId: quote.id,
+        tourRequestId: lead.id,
+      },
+      guestQuoteEventCancelledEmail({
+        ref: quoteRef(quote.id),
+        guestName: lead.name,
+        guestEmail: lead.email,
+        locale,
+        date: formatDay(quote.eventDate, locale),
+        venue: quote.venue,
+        totalRefunded: formatPrice(totalRefunded, locale, quote.currency),
+      }),
+    );
+
+    if (result.status === "failed" || result.status === "skipped") {
+      console.error(
+        `[quote-refund] ${quoteRef(quote.id)} cancellation notice was not sent (${result.reason})`,
+      );
+    }
+  } catch (err) {
+    console.error(`[quote-refund] couldn't send the cancellation notice for ${quoteId}`, err);
   }
 }

@@ -1001,6 +1001,32 @@ export const bookingEmails = {
     } as Localized,
   },
 
+  /**
+   * To the couple, when their event is called off after the last thing they
+   * heard was that it was still booked — a refund whose notice went out
+   * before the cancellation, or "Cancelar evento" on a quote whose deposit
+   * went back earlier. No money moves with it, so there is no "refunded now":
+   * the refund was told in its own email. The questions line, the sign-off
+   * and the footer are the refund notice's (`quoteRefund`), reused.
+   */
+  quoteEventCancelled: {
+    subject: {
+      pt: "Evento cancelado — {date}",
+      en: "Event cancelled — {date}",
+    } as Localized,
+    preheader: {
+      pt: "Referência {ref} · o seu evento foi cancelado",
+      en: "Reference {ref} · your event has been cancelled",
+    } as Localized,
+    banner: { pt: "Evento cancelado", en: "Event cancelled" } as Localized,
+    greeting: { pt: "Olá {name},", en: "Hello {name}," } as Localized,
+    lead: {
+      pt: "O seu evento de {date} foi cancelado. O reembolso de {totalRefunded} já foi feito — enviámos-lhe os detalhes num email anterior.",
+      en: "Your event on {date} has been cancelled. The refund of {totalRefunded} has already been made — we sent you its details in an earlier email.",
+    } as Localized,
+    detailsHeading: { pt: "O seu evento", en: "Your event" } as Localized,
+  },
+
   /** To Diogo & Rita. Portuguese — a new enquiry has arrived. */
   teamEnquiry: {
     subject: "Novo pedido — {name}",

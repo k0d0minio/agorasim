@@ -125,6 +125,18 @@ export const QUOTE_BALANCE_KINDS = ["balance-request", "balance-reminder"] as co
 export type QuoteBalanceKind = (typeof QUOTE_BALANCE_KINDS)[number];
 
 /**
+ * The kinds that tell a couple their event was called off after the last word
+ * they had was that it was still on — a refund whose webhook echo told them
+ * first, or "Cancelar evento" on a quote whose deposit went back earlier
+ * (`lib/quote-refund.ts`). A quote is cancelled once, so the quote alone is
+ * the key, on the receipt's index (`message_log_quote_receipt_key`).
+ */
+export const QUOTE_CANCELLATION_KINDS = ["quote-event-cancelled"] as const;
+
+/** A kind from {@link QUOTE_CANCELLATION_KINDS}. */
+export type QuoteCancellationKind = (typeof QUOTE_CANCELLATION_KINDS)[number];
+
+/**
  * The kinds whose subject is money going back on one instalment: one notice
  * per refunded total on it, so each refund is told once and a second partial
  * refund is told again (`message_log_quote_refund_key`).
@@ -185,8 +197,8 @@ export type MessageSubject =
       refundedTotalCents?: never;
     })
   | (SubjectRows & {
-      kind: QuoteReceiptKind | QuoteBalanceKind;
-      /** The quote whose instalment was paid, or whose balance is being asked for. */
+      kind: QuoteReceiptKind | QuoteBalanceKind | QuoteCancellationKind;
+      /** The quote whose instalment was paid, whose balance is being asked for, or that was called off. */
       quoteId: string;
       bookingId?: never;
       subjectDate?: never;
@@ -211,7 +223,12 @@ export type MessageSubject =
   | (SubjectRows & {
       kind: Exclude<
         MessageKind,
-        DateBoundKind | QuoteSendKind | QuoteReceiptKind | QuoteBalanceKind | QuoteRefundKind
+        | DateBoundKind
+        | QuoteSendKind
+        | QuoteReceiptKind
+        | QuoteBalanceKind
+        | QuoteRefundKind
+        | QuoteCancellationKind
       >;
       /**
        * The booking this message is about, for the booking-shaped kinds

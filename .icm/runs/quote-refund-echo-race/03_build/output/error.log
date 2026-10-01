@@ -1,0 +1,3 @@
+## 2026-10-01T11:10:00Z session — db-branch.sh could not create the run's Neon branch
+error: POST /projects/lingering-frog-97017403/branches (run/quote-refund-echo-race) answered HTTP 422: branches limit exceeded
+- resolved: The non-production Neon project has hit its branch limit, so this run has no database of its own; no migration ran locally, and the preview build applies `0034_quote_event_cancelled_kind` to its own `preview/<branch>` database instead. Stale `run/*` and `preview/*` branches in `uat-agorasim` need pruning (`db-env.sh prune`) by the operator.
