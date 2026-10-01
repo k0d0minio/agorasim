@@ -15,7 +15,7 @@ step, so a resuming session can pick up the first unticked line.
 - [x] A quote refund Stripe returns `failed` or `canceled` is still reported as `refund-failed` with nothing written (test)
 - [x] The tour refund's Stripe call carries the key `booking-refund:<bookingId>:<cancelledAt in ms>` from the claimed row (test)
 - [x] A second `cancelAndRefundBooking` on the same booking returns `not-cancellable` and makes no Stripe call (test)
-- [ ] CI green
+- [x] CI green
 
 ## Queue
 
@@ -23,4 +23,5 @@ step, so a resuming session can pick up the first unticked line.
 - [x] Quote refund keyed on it — `actions.ts`, `quote-refund.ts` (3d8a0ff)
 - [x] Tour refund keyed on the claim — `booking-refund.ts` (3d8a0ff)
 - [x] Tests — `quote-refund.test.ts`, new `booking-refund.test.ts`, `form-schemas.test.ts` (3d8a0ff)
-- [ ] CI GREEN on the ready head
+- [x] Admin actions suite's claim fixtures carry `cancelledAt` (30aa426)
+- [x] CI GREEN on the ready head (30aa426)

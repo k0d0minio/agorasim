@@ -1,7 +1,7 @@
 # Build notes: refund-idempotency-cached-declines
 
-- commits: 3d8a0ff feat — key refunds on the attempt, not the row · 8d1e4ee build notes · 2945497 ready
-- ci: GREEN (full gate) on 2945497 — Vercel preview pass; Quality (advisory) see below
+- commits: 3d8a0ff feat — key refunds on the attempt, not the row · 8d1e4ee build notes · 2945497 ready · 00d394c build stop · 30aa426 fix — claim fixtures carry cancelledAt
+- ci: GREEN (full gate) on 30aa426 — Vercel preview pass, Quality (advisory) pass
 - ready: 2026-10-01T13:02:30Z — flipped on 8d1e4ee
 
 ## What changed
@@ -23,11 +23,12 @@
 - [x] `failed` / `canceled` → `refund-failed`, nothing written (test)
 - [x] Tour key `booking-refund:<bookingId>:<cancelledAt ms>` from the claimed row (test)
 - [x] Second `cancelAndRefundBooking` → `not-cancellable`, no Stripe call (test)
-- [x] CI green — full gate GREEN on 2945497
+- [x] CI green — full gate GREEN on 30aa426, Quality (advisory) pass
 
 ## Notes for Release
 
+- Quality (advisory) went red once on 2945497: `src/app/admin/actions.test.ts` faked the booking claim with `cancelledAt: null`; the fixtures now carry one (error.log). No production code changed for it.
 - `security-check.sh --branch` → BLOCKED 1, `dependency-audit` only (4 high/critical in next/undici on `main`); this branch touches no dependency file. Already parked: `triage/dependency-advisories-next-undici`, `triage/deps-next-undici-advisories`. The secrets scan passed. Release's `--audit` read needs the operator's waiver or that chore merged first.
-- `form-schemas.test.ts` was not in the spec's `touches:`; it carries the AC-2 refusal test, nothing else.
+- `form-schemas.test.ts` and `src/app/admin/actions.test.ts` were not in the spec's `touches:` — the AC-2 refusal test, and the claim fixtures above; nothing else.
 - The replay case leaves `refundedAt` rewritten to the second submit's time (`recordPaymentRefund` sets it on every claimed write) — as the spec noted; nothing else on the row moves.
 - Smoke: on the preview with Stripe test keys, open "Reembolsar" on a paid deposit, refund part of it, and check the card; the decline path is proven by the unit tests (a Stripe-side decline is not reproducible on demand in test mode).
