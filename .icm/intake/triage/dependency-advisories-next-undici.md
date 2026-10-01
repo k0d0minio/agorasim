@@ -1,33 +1,28 @@
-# Stub: Upgrade next and undici past four high/critical advisories
+# Stub: Bump next and undici past the high/critical advisories pnpm audit reports
 
 - lane: chore
-- found-by: balance-request-not-on-event-day (Build — `security-check.sh --branch`, pre-existing, not added by the branch) · 2026-10-01
+- found-by: security-check · quote-refund-admin-reads-charge Build · 2026-10-01
 - complexity: low
 - priority: P1
 
 ## Problem
 
-`pnpm audit --audit-level=high` in `web/` reports 1 critical and 3 high advisories on `main`
-(the branch touches no manifest or lockfile), and `security-check.sh --branch` is `BLOCKED 1`
-on every run branch until they clear:
-
-- critical — Next.js: Remote Code Execution in `next/og` — `next` `16.3.4` (`web/package.json`),
-  vulnerable `>=16.2.0 <16.3.6`, patched `>=16.3.6`. `web/src` imports no `next/og` today.
-- high ×2 — undici DoS via unrequested responses, and TLS certificate validation bypass — via
-  `shadcn` → `undici` (vulnerable `<7.29.1`, patched `>=7.29.1`).
-- high — undici DoS — via `@vercel/blob` → `undici` (vulnerable `>=6.7.0 <6.28.1`, patched
-  `>=6.28.1`).
+`security-check.sh --branch` → `BLOCKED 1` on `dependency-audit`: `pnpm audit --audit-level=high`
+in `web/` reports 1 critical and 3 high, none introduced by a run's own change —
+`next` 16.3.4 (critical, GHSA-vcvr-r3jv-pc5j, RCE in `next/og` `ImageResponse`; patched
+>=16.3.6 — `web/src` does not import `next/og` today, so not reachable by app code), and
+`undici` via `shadcn` (<7.29.1: GHSA-rfgv-xxqx-mfg5 DoS, GHSA-w293-vg96-wgc3 TLS bypass) and via
+`@vercel/blob` (<6.28.1: GHSA-rfgv-xxqx-mfg5). Every branch's gate reports it until main moves.
 
 ## Proposed change
 
-Bump `next` to `>=16.3.6` (and `eslint-config-next` with it if pinned alongside), and lift the
-transitive `undici` copies — upgrade `shadcn` / `@vercel/blob`, or a `pnpm.overrides` entry —
-then `pnpm audit --audit-level=high` → nothing, and `security-check.sh --branch` → `OK`.
+Bump `next` to >=16.3.6 in `web/package.json`; bring `undici` to the patched lines (dependency
+bumps of `shadcn` / `@vercel/blob`, or a `pnpm.overrides` entry); regenerate the lockfile with
+pnpm, never by hand.
 
 ## Prompt
 
-In the agorasim repo, read `.icm/intake/triage/dependency-advisories-next-undici.md`. Upgrade
-`next` to a patched 16.3.x and lift both `undici` copies past their patched versions in `web/`,
-regenerating `pnpm-lock.yaml` with pnpm (never by hand); prove it with
-`.icm/scripts/security-check.sh <slug> --branch` → `RESULT: OK`. `git mv` the stub to `_done/`
-in the PR, on a `claude/` branch; CI is the source of truth.
+In the agorasim repo (`web/`), read `.icm/intake/triage/dependency-advisories-next-undici.md`.
+Bump `next` to the patched release and lift `undici` past the advisories with pnpm, then
+confirm `.icm/scripts/security-check.sh --branch` passes the dependency audit. `git mv` the
+stub to `_done/` in the PR, on a `claude/` branch; CI is the source of truth.

@@ -39,7 +39,7 @@
 import "server-only";
 
 import { NeonDbError } from "@neondatabase/serverless";
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, ne, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, or } from "drizzle-orm";
 
 import {
   db,
@@ -627,37 +627,66 @@ export type UnpaidBalance = {
   leadName: string | null;
 };
 
+/** The Sales board's "Saldo por pagar" panel, read in two halves. */
+export type UnpaidBalancesDue = {
+  /** Events from today to T−3, soonest first — the ones the panel exists for. */
+  upcoming: UnpaidBalance[];
+  /** Events already past and still unresolved, most recent first, capped. */
+  past: UnpaidBalance[];
+  /** Every past row the rule matches, so the panel can say how many it left out. */
+  pastTotal: number;
+};
+
 /**
  * The balances the team should see as unpaid today — deposit-paid quotes whose
  * event is three days away or fewer (or already past), with the balance still
  * open. The same rule as `isBalanceFlagged`, which the lead's own quote card
- * applies to one quote; this is the query for all of them, soonest first.
+ * applies to one quote; this is the query for all of them.
+ *
+ * Split at today into two reads, each with its own cap. Past balances nobody
+ * recorded or wrote off stay on the list for good (nothing auto-releases), so
+ * under one shared cap enough of them would push the soon-due events — the
+ * ones the panel exists for — off the end. Apart, no number of past rows can.
  */
 export async function listUnpaidBalancesDue(options: {
   now?: Date;
   limit?: number;
-} = {}): Promise<UnpaidBalance[]> {
+} = {}): Promise<UnpaidBalancesDue> {
   const { now = new Date(), limit = 50 } = options;
-  const horizon = shiftDays(todayKey(now), BALANCE_FLAG_DAYS_BEFORE);
+  const today = todayKey(now);
+  const horizon = shiftDays(today, BALANCE_FLAG_DAYS_BEFORE);
 
-  const rows = await db
-    .select({ quote: quotes, payment: quotePayments, leadName: tourRequests.name })
-    .from(quotePayments)
-    .innerJoin(quotes, eq(quotePayments.quoteId, quotes.id))
-    .leftJoin(tourRequests, eq(quotes.tourRequestId, tourRequests.id))
-    .where(
-      and(
-        eq(quotes.status, "deposit_paid"),
-        eq(quotePayments.kind, "balance"),
-        inArray(quotePayments.status, ["pending", "issued"]),
-        gt(quotePayments.amountCents, 0),
-        lte(quotes.eventDate, horizon),
-      ),
-    )
-    .orderBy(asc(quotes.eventDate))
-    .limit(limit);
+  // The one eligibility rule all three reads share; only the date split differs.
+  const open = and(
+    eq(quotes.status, "deposit_paid"),
+    eq(quotePayments.kind, "balance"),
+    inArray(quotePayments.status, ["pending", "issued"]),
+    gt(quotePayments.amountCents, 0),
+  );
+  const rows = () =>
+    db
+      .select({ quote: quotes, payment: quotePayments, leadName: tourRequests.name })
+      .from(quotePayments)
+      .innerJoin(quotes, eq(quotePayments.quoteId, quotes.id))
+      .leftJoin(tourRequests, eq(quotes.tourRequestId, tourRequests.id));
 
-  return rows;
+  const [upcoming, past, [pastCount]] = await Promise.all([
+    rows()
+      .where(and(open, gte(quotes.eventDate, today), lte(quotes.eventDate, horizon)))
+      .orderBy(asc(quotes.eventDate))
+      .limit(limit),
+    rows()
+      .where(and(open, lt(quotes.eventDate, today)))
+      .orderBy(desc(quotes.eventDate))
+      .limit(limit),
+    db
+      .select({ n: count() })
+      .from(quotePayments)
+      .innerJoin(quotes, eq(quotePayments.quoteId, quotes.id))
+      .where(and(open, lt(quotes.eventDate, today))),
+  ]);
+
+  return { upcoming, past, pastTotal: Number(pastCount?.n ?? 0) };
 }
 
 /** Who a balance email goes to — the enquiry behind the quote. */

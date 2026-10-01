@@ -8,7 +8,12 @@ import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
 import { listOpenDepartures } from "@/lib/manual-booking";
 import { listQuoteBalanceMessages, type QuoteBalanceMessage } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
-import { listUnpaidBalancesDue, quoteRef, type UnpaidBalance } from "@/lib/quotes";
+import {
+  listUnpaidBalancesDue,
+  quoteRef,
+  type UnpaidBalance,
+  type UnpaidBalancesDue,
+} from "@/lib/quotes";
 import { countPendingRetention, retentionDays } from "@/lib/retention";
 import { listSalesBoard } from "@/lib/sales";
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -24,6 +29,9 @@ import {
 
 // Reads live data — never prerender at build time.
 export const dynamic = "force-dynamic";
+
+/** "Saldo por pagar" when it is not read — a search, or a read that failed. */
+const NO_UNPAID_BALANCES: UnpaidBalancesDue = { upcoming: [], past: [], pastTotal: 0 };
 
 /**
  * Sales — every enquiry and every booking, on one board.
@@ -66,10 +74,10 @@ export default async function AdminSalesPage({
       // board (a search hides it). A panel that cannot be read is left out
       // rather than taking the board down with it.
       query
-        ? Promise.resolve<UnpaidBalance[]>([])
-        : listUnpaidBalancesDue({ now }).catch((err): UnpaidBalance[] => {
+        ? Promise.resolve<UnpaidBalancesDue>(NO_UNPAID_BALANCES)
+        : listUnpaidBalancesDue({ now }).catch((err): UnpaidBalancesDue => {
             console.error("[sales] unpaid balances could not be read", err);
-            return [];
+            return NO_UNPAID_BALANCES;
           }),
     ]);
 
@@ -80,14 +88,16 @@ export default async function AdminSalesPage({
       records.map((record) => record.id),
     ),
     countPendingRetention(),
-    listQuoteBalanceMessages(unpaid.map(({ quote }) => quote.id)).catch((err) => {
+    listQuoteBalanceMessages(
+      [...unpaid.upcoming, ...unpaid.past].map(({ quote }) => quote.id),
+    ).catch((err) => {
       console.error("[sales] balance messages could not be read", err);
       return new Map<string, QuoteBalanceMessage[]>();
     }),
   ]);
 
   const today = todayKey(now);
-  const unpaidItems: UnpaidBalanceItem[] = unpaid.map(({ quote, payment, leadName }) => ({
+  const toUnpaidItem = ({ quote, payment, leadName }: UnpaidBalance): UnpaidBalanceItem => ({
     quoteId: quote.id,
     href: quote.tourRequestId ? `/admin/sales/${quote.tourRequestId}` : null,
     ref: quoteRef(quote.id),
@@ -97,7 +107,7 @@ export default async function AdminSalesPage({
     venue: quote.venue,
     amountLabel: formatPrice(payment.amountCents, "pt", payment.currency),
     messagesLabel: balanceMessagesLabel(balanceMessages.get(quote.id)),
-  }));
+  });
   const index = catalogueIndex(catalogue);
   // The tours a phone booking can be recorded against — active signature
   // routes, the same set the Calendar's "Nova reserva" sheet sells.
@@ -132,7 +142,13 @@ export default async function AdminSalesPage({
         </div>
       </form>
 
-      {query ? null : <UnpaidBalancesPanel items={unpaidItems} />}
+      {query ? null : (
+        <UnpaidBalancesPanel
+          upcoming={unpaid.upcoming.map(toUnpaidItem)}
+          past={unpaid.past.map(toUnpaidItem)}
+          hiddenPast={Math.max(0, unpaid.pastTotal - unpaid.past.length)}
+        />
+      )}
 
       {query ? (
         <SalesSearchResults

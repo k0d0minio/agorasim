@@ -51,6 +51,6 @@
 - reviews: code low (one finding — the T−1 paragraph split the docblock's bullet list; fixed on the branch) · security audit waived — 4 pre-existing advisories on `main` (critical RCE in `next/og`, next 16.3.4 → 16.3.6; 3 high in `undici` via `shadcn` and `@vercel/blob`), not added by this branch, fix parked as a chore (the operator, 2026-10-01); `security-check.sh --branch --no-audit`: OK · /security-review n/a — no auth, route policy or new PII flow; the diff moves a date bound on existing queries · /production-readiness n/a — no schema, env or migration; the query change is a `gte` bound on an existing indexed `(status, event_date)` read, and the skill is not shipped in this repo · readiness `env.sh audit --changed`: OK
 - parked: dependency-advisories-next-undici.md (by Build)
 - migrations: skip — none of this run's own
-- learned: 1 rule appended to _shared/project-rules.md (dependency audit on `main` blocks every branch) · 1 from FAILURE.md at close-out
+- learned: 1 from FAILURE.md at close-out (balance-job passes share date edges) · the retrospective's dependency-audit rule was dropped at the merge of `main` — #164 had already appended the same lesson
 - docs: no docs impact · announce: deferred to promotion
 
