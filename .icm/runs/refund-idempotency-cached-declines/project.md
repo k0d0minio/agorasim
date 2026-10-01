@@ -13,9 +13,12 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- Only the couple's refund keys change; the fee top-up keys (`booking-fee-refund:`,
+  `quote-fee-refund:`) stay as they are.
+- No shared refund helper — that is stub 5 (`refund-paths-dedupe`).
+- No change to the Sales board's "Cancelar" form or the guest's cancel link (D-1).
+- Every admin string comes from `.icm/docs/admin-pt-inventory.md`'s register.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read `booking-refund.ts`, `quote-refund.ts`, `quotes.ts` (`recordPaymentRefund`), the Sales actions and the refund dialog to establish that the tour path is one-shot and that a same-key replay settles idempotently.

@@ -8,9 +8,13 @@ decision made mid-run has one home.
 
 ## From the scope
 
-- <D-n — the decision, one line, as the scope worded it>
+- none — the epic was cut from triage (`triage batch quote-refunds`) and carries no `scope.md`.
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-1 — The tour refund is keyed on the claim (`booking-refund:<id>:<cancelledAt ms>`), not on a
+  form-carried id: the claim already makes it one attempt per booking, so no form changes. Define,
+  operator's choice, 2026-10-01.
+- D-2 — A quote refund post without a valid `attemptId` is refused ("Recarregue a página e tente
+  de novo."), never given a server-generated key: losing double-submit collapse silently is worse
+  than one reload. Define, operator's choice, 2026-10-01.

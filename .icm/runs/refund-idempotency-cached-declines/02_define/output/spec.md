@@ -38,7 +38,7 @@ deliberate retry after any answer posts a new one.
 
 - `refundQuotePaymentSchema` (`form-schemas.ts`) requires `attemptId` as a UUID. A post without
   a valid one — a tab left open across the deploy — fails validation with
-  **"Recarregue a página e tente de novo."** and nothing reaches Stripe.
+  **"Recarregue a página e tente de novo."** and nothing reaches Stripe (D-2).
 - `refundLeadQuotePayment` (`actions.ts`) passes it to `refundQuotePayment`, which passes it to
   the Stripe call. The key becomes `quote-refund:<paymentId>:<attemptId>`; the amount and the
   "refunded so far" leave the key (Stripe already rejects a reused key with different
@@ -53,7 +53,7 @@ deliberate retry after any answer posts a new one.
 - The `refund-failed` message the operator reads is unchanged — "Tente de novo daqui a pouco"
   is now correct advice.
 
-**2. Tour path — keyed on the claim.** `issueRefund` (`booking-refund.ts`) keys the refund on
+**2. Tour path — keyed on the claim (D-1).** `issueRefund` (`booking-refund.ts`) keys the refund on
 `booking-refund:<bookingId>:<claim timestamp>` — the claimed row's `cancelledAt` in epoch
 milliseconds, written by the same claim that lets exactly one caller through. No form change on
 the Sales board's "Cancelar" or the guest's cancel link: the claim is the attempt. A double
