@@ -61,11 +61,6 @@ export type CancelBookingState = {
   error?: string;
   /** What happened, read back to the operator in their own words. */
   message?: string;
-  /**
-   * Done, but something the operator must act on — shown in red beside an
-   * `ok` that still closes the dialog.
-   */
-  warning?: string;
 };
 
 /**
