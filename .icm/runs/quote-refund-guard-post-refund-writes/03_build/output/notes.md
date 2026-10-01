@@ -1,7 +1,7 @@
 # Build notes: quote-refund-guard-post-refund-writes
 
 - commits: 1da2f65 feat — report a refund whose books failed instead of throwing
-- ci: <filled at step 12>
+- ci: GREEN on 22abfb4 (full gate: Vercel preview pass; Quality (advisory) success)
 - ready: 2026-10-01T10:59:00Z — flipped on 9ac86d3
 
 ## What changed
