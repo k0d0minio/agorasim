@@ -4,7 +4,7 @@ Where the run is, in five lines. Updated at every stage start and stop, and when
 flips. A resuming session reads this first, then `handoff.md` (`_shared/stage-preamble.md`).
 
 - phase: build
-- step: 9 — code committed; reading the draft verdict before the flip
-- ci: not read (draft)
-- blocked: no
+- step: done — PR ready, full gate GREEN; waiting on the operator smoke + Ready to merge
+- ci: GREEN (31d5390, full gate)
+- blocked: yes — on the operator ticking Ready to merge
 - updated: 2026-10-01

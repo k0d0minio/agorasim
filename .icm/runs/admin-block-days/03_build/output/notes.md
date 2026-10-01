@@ -1,7 +1,7 @@
 # Build notes: admin-block-days
 
 - commits: f010f9c feat (the change) · 1d81c04 build notes · 48e7092 merge origin/main (conflict in form-schemas.test.ts imports, resolved)
-- ci: (settled after the ready push)
+- ci: GREEN on 31d5390 — full gate: Vercel preview pass; Quality (advisory) success
 - ready: 2026-10-01T14:13:42Z — flipped on 1d81c04
 
 ## What changed
@@ -31,9 +31,10 @@
 
 ## Acceptance criteria status
 
-- [x] Three taps and one confirm block a week — tap, tap, "Bloquear dia inteiro", confirm.
-- [x] A stretch crosses a month — the selection rides in the URL (`?from=`), the month arrows
-  carry it, and the server expands `from`..`to`; the bar counts bookings via `countLiveBookings`.
+- [ ] Three taps and one confirm block a week — tap, tap, "Bloquear dia inteiro", confirm.
+  Built; unticked on the PR until seen on a 320px phone.
+- [ ] A stretch crosses a month — the selection rides in the URL (`?from=`), the month arrows
+  carry it, and the server expands `from`..`to`; the bar counts bookings via `countLiveBookings`. Unticked on the PR until seen on the preview.
 - [x] Third tap starts over; tapping the lone selected day clears; past tiles stay disabled and
   the server drops past dates.
 - [x] The four actions set the day's state (`BLOCKS` in `actions.ts`, D-17).
@@ -46,9 +47,9 @@
 - [x] Tiles keep their chips and show a booking count beside the day number.
 - [x] Sweeps, season window, range button and "Limpar" gone; `clearAvailability` gone.
 - [x] Intro text is two plain sentences.
-- [x] Bar: 2×2 grid of wrapping buttons, sticky in flow above the toolbar — to be confirmed at
-  320px on the preview.
-- [ ] CI green — see `ci:` above.
+- [ ] Bar: 2×2 grid of wrapping buttons, sticky in flow above the toolbar — built, not yet seen
+  at 320px; left unticked on the PR for the operator's smoke (with criteria 1 and 2).
+- [x] CI green — see `ci:` above.
 
 ## Notes for Release
 
