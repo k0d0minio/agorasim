@@ -52,7 +52,7 @@
 ## Release
 
 - gate: Ready to merge ticked — merge authorised
-- ci: GREEN on d677ed0 (ci-status.sh full gate + Quality (advisory) success) — the merge of main that brought in quote-refund-admin-reads-charge (#164); the conflicts in quote-refund.ts and its tests resolved by keeping both: the guard now wraps the settle call that reads Stripe's cumulative total
+- ci: GREEN on fc6c7af (ci-status.sh full gate + Quality (advisory) success) — after merging main twice: quote-refund-admin-reads-charge (#164), then unpaid-balances-panel-order (#163, clean); the conflicts in quote-refund.ts and its tests resolved by keeping both: the guard now wraps the settle call that reads Stripe's cumulative total
 - reviews: code low (1 finding — a stray `warning` field on `CancelBookingState`, fixed on the branch) · security audit waived — `next` 16.3.4 (<16.3.6, next/og RCE, critical) and `undici` (3 high), pre-existing on `main` and not bumpable within this spec's `touches:`; the operator chose to waive for this release with the chore parked (`security-check.sh --branch --no-audit`: OK; gitleaks absent — built-in patterns only) + /security-review — no findings · readiness env.sh audit --changed: OK · /production-readiness n/a — the skill is not installed in this repo or session; the diff touches payments, so /security-review and the code review covered it
 - parked: none — the dependency finding Build parked duplicated `triage/dependency-advisories-next-undici.md` from quote-refund-admin-reads-charge; dropped at the merge of main
 - migrations: skip — none of this run's own
