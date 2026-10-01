@@ -1,7 +1,7 @@
 # Build notes: quote-refund-admin-reads-charge
 
 - commits: ad3c8c0 feat — settle the admin refund from Stripe's cumulative total (code + tests)
-- ci: GREEN on 283a61a (draft tier)
+- ci: GREEN on 283a61a (draft tier, quality job pass) · GREEN on db1ab90 (full gate, Vercel preview pass)
 - ready: 2026-10-01T10:59:13Z — flipped on 283a61a
 
 ## What changed

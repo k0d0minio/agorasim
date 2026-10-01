@@ -4,7 +4,7 @@ Where the run is, in five lines. Updated at every stage start and stop, and when
 flips. A resuming session reads this first, then `handoff.md` (`_shared/stage-preamble.md`).
 
 - phase: build
-- step: 12 (full verdict)
-- ci: draft GREEN; full gate pending
-- blocked: no
+- step: done
+- ci: GREEN (full gate, db1ab90)
+- blocked: yes — on the Ready to merge tick
 - updated: 2026-10-01
