@@ -354,6 +354,15 @@ export function onlineWindow(today: DateKey = todayKey()): {
   };
 }
 
+/**
+ * The last day the team may sell: the end of the admin pager's last month
+ * ({@link CALENDAR_HORIZON_MONTHS}). The team skips the guest's window, not
+ * every bound — a mistyped year must not become a confirmed booking in 2099.
+ */
+export function teamHorizonEnd(today: DateKey = todayKey()): DateKey {
+  return monthBounds(monthWindow(today).last).last;
+}
+
 /** Whether a guest may book `date` online, by the calendar alone. */
 export function isInOnlineWindow(date: DateKey, today: DateKey = todayKey()): boolean {
   const { first, last } = onlineWindow(today);
@@ -418,7 +427,8 @@ export type SlotAvailability = {
   inOnlineWindow: boolean;
   /**
    * This audience may sell the departure, capacity aside: for `online`, not
-   * past, not blocked and inside the window; for `team`, not past.
+   * past, not blocked and inside the window; for `team`, not past and inside
+   * the admin calendar's horizon ({@link teamHorizonEnd}).
    */
   onSale: boolean;
   /**
@@ -482,7 +492,10 @@ export function describeSlot(options: {
   const past = date < today;
   const blocked = row?.status === "closed";
   const inOnlineWindow = isInOnlineWindow(date, today);
-  const onSale = audience === "team" ? !past : !past && !blocked && inOnlineWindow;
+  const onSale =
+    audience === "team"
+      ? !past && date <= teamHorizonEnd(today)
+      : !past && !blocked && inOnlineWindow;
   const hasRoom = !heldByEvent && driversLeft > 0 && anyVehicleFree(vehiclesLeft);
 
   return {

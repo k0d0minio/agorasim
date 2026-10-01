@@ -29,6 +29,11 @@ A wedding or event whose deposit is paid **takes the whole day**: both departure
 come off sale for every tour until the event is cancelled (Diogo & Rita's answer, 2026-09-25).
 Guests are only ever told the day is unavailable, never why.
 
+Every departure is on sale unless Diogo & Rita have closed it. **Online**, a guest books at
+least two calendar days ahead (on a Monday, Wednesday is the first day) and up to six months out
+(this month and the next five). A nearer or later date is a phone call: the team can still take
+it while a driver and a car are free.
+
 ## Experiences
 - **Rural Saloia** (signature, **~4h30**): natural monuments between Sintra and Mafra,
   National Palace of Mafra, vineyards, villages, Ericeira (UNESCO World Surfing Reserve), Atlantic

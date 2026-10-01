@@ -369,8 +369,12 @@ describe("describeSlot", () => {
       });
     });
 
-    it("sells past the guest's six months", () => {
+    it("sells past the guest's six months, up to the admin calendar's horizon", () => {
       expect(team({ date: "2027-03-01", row: null }).bookable).toBe(true);
+      // From August 2026 the admin pager reaches February 2028, and no further.
+      expect(team({ date: "2028-02-29", row: null }).bookable).toBe(true);
+      expect(team({ date: "2028-03-01", row: null }).bookable).toBe(false);
+      expect(team({ date: "2099-01-01", row: null }).bookable).toBe(false);
     });
 
     it("never sells the past", () => {

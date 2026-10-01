@@ -9,3 +9,9 @@ dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audi
 FAIL src/lib/availability.test.ts > toPublicDay > advertises nothing on a departure that cannot be booked
 AssertionError: expected true to be false // Object.is equality — src/lib/availability.test.ts:593:39
 - resolved: The fixture closed only the morning row and expected the whole day off sale; under open-by-default the untouched afternoon is open, so the fixture now blocks both departures. 1212 other tests passed on the same head.
+## 2026-10-01T13:15:35Z security-check.sh — dependency-audit
+scope=branch head=e7b0cc7 branch=claude/friendly-goodall-vk8b5z — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+(unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+
+- resolved: Release's `--audit` read hit the same pre-existing advisories (next 16.2.x critical RCE in next/og, fixed 16.3.6; three high undici via shadcn and @vercel/blob) — on `main`, not introduced here. The operator waived them for this merge in session (2026-10-01); tracked in `triage/dependency-advisories-next-undici.md`. Re-read with `--branch --no-audit` → OK.

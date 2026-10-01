@@ -741,7 +741,8 @@ function DayEditor({
                 Limpar estas partidas
               </SubmitButton>
               <p className="mt-1 text-xs text-muted-foreground">
-                Apaga a decisão por completo — voltam a não existir no calendário.
+                Apaga a decisão por completo — voltam a estar à venda, com todos os
+                condutores e sem nota.
               </p>
             </form>
           ) : null}
@@ -935,9 +936,9 @@ function RangeActions({
         clear: {
           title: `Limpar ${dayCount(days)}?`,
           description:
-            `Apaga a decisão dos dias de ${span} por completo — voltam a não existir no ` +
-            "calendário. Dias com reservas não são limpos: o arranque recusa-os e " +
-            "fica a dizer porquê.",
+            `Apaga a decisão dos dias de ${span} por completo — voltam a estar à ` +
+            "venda, com todos os condutores e sem nota. Dias com reservas não são " +
+            "limpos: o arranque recusa-os e fica a dizer porquê.",
           confirmLabel: "Limpar",
           pendingLabel: "A limpar…",
           destructive: true,

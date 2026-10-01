@@ -248,8 +248,8 @@ export async function clearAvailability(
     changed: removed,
     message:
       removed === 1
-        ? "1 partida limpa — volta a não estar decidida."
-        : `${removed} partidas limpas — voltam a não estar decididas.`,
+        ? "1 partida limpa — volta a estar à venda."
+        : `${removed} partidas limpas — voltam a estar à venda.`,
   };
 }
 
