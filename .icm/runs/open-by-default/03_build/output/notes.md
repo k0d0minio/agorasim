@@ -1,7 +1,8 @@
 # Build notes: open-by-default
 
 - commits: feat: open-by-default — open calendar, online window, team audience
-- ci: (set at the ready flip)
+- ci: draft GREEN on 6977f11; full verdict on the ready head below
+- ready: 2026-10-01T13:01:24Z — flipped on 6977f11
 
 ## What changed
 
@@ -61,3 +62,7 @@
 - Runbook line owed before promotion: Diogo & Rita block their known days off on production
   (`.icm/docs/launch-runbook.md`), since every untouched day in the next six months goes on
   sale the moment this is promoted.
+- `security-check.sh --branch` → `BLOCKED 1` on `dependency-audit` (4 high advisories, next and
+  undici). Not this run's: no manifest or lockfile in the diff. Already parked twice in triage
+  (`dependency-advisories-next-undici`, `deps-next-undici-advisories`). Release's audit read
+  needs the operator's waiver, or that chore merged first.

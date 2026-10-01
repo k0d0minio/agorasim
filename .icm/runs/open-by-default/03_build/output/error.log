@@ -1,0 +1,6 @@
+## 2026-10-01T13:01:05Z security-check.sh — dependency-audit
+scope=branch head=6977f11 branch=claude/friendly-goodall-vk8b5z — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+(unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+
+- resolved: Not this run's — the branch touches neither `web/package.json` nor the lockfile; the 4 high advisories (next, undici) are on `main` and already parked as `triage/dependency-advisories-next-undici.md` and `triage/deps-next-undici-advisories.md`. No new stub; Release's `--audit` read needs the operator's waiver or that chore merged first.
