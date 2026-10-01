@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { experiences } from "@/content/experiences";
 import {
+  departureClockTimes,
   departureLabel,
+  departureShortTime,
   departureTimeFollowsByEmail,
   departureLabels,
   meetingPoints,
@@ -47,8 +49,45 @@ describe("departure labels", () => {
 
   it("only describes tours that exist", () => {
     const slugs = experiences.map((entry) => entry.slug);
-    for (const slug of [...Object.keys(departureLabels), ...Object.keys(meetingPoints)]) {
+    for (const slug of [
+      ...Object.keys(departureLabels),
+      ...Object.keys(departureClockTimes),
+      ...Object.keys(meetingPoints),
+    ]) {
       expect(slugs).toContain(slug);
+    }
+  });
+});
+
+/**
+ * The short form the /reservar picker's summary line ends with. Same rule as
+ * the labels: an hour only where the business has given one.
+ */
+describe("departure short times", () => {
+  it("gives the countryside tour's hours, written per language", () => {
+    expect(departureShortTime("rural-saloia", "morning")).toEqual({ pt: "10h00", en: "10:00" });
+    expect(departureShortTime("rural-saloia", "afternoon")).toEqual({ pt: "14h00", en: "14:00" });
+  });
+
+  it("says the part of the day for Óbidos, never an hour", () => {
+    expect(departureShortTime("obidos-medieval-villages", "morning")).toEqual({
+      pt: "manhã",
+      en: "morning",
+    });
+    expect(departureShortTime("obidos-medieval-villages", "afternoon")).toEqual({
+      pt: "tarde",
+      en: "afternoon",
+    });
+  });
+
+  it("agrees with the full label wherever a clock time is given", () => {
+    for (const [slug, times] of Object.entries(departureClockTimes)) {
+      expect(departureTimeFollowsByEmail(slug)).toBe(false);
+      for (const slot of ["morning", "afternoon"] as const) {
+        for (const locale of locales) {
+          expect(departureLabel(slug, slot)[locale]).toContain(times[slot][locale]);
+        }
+      }
     }
   });
 });

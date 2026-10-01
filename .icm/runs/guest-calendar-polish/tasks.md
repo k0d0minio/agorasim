@@ -18,4 +18,8 @@ step, so a resuming session can pick up the first unticked line.
 
 ## Queue
 
-- [ ] <task — small enough for one commit; name the file or area>
+- [x] `web/src/lib/date-keys.ts` — the date-key primitives moved out of `availability.ts` (re-exported there) so the browser can count the notice the same way
+- [x] `web/src/lib/public-calendar.ts` + test — `applyOnlineNotice`, `monthPair`, `summaryDay`/`summaryLine`
+- [x] `web/src/content/logistics.ts` + test — `departureClockTimes`, `departureShortTime`
+- [x] `web/src/components/booking-date-picker.tsx` — `useOnlineNotice`, crossed-out days, phone/laptop month views, summary line; hint copy in `content/tour-request.ts`
+- [x] `web/src/components/booking-checkout-form.tsx` — judges the chosen day against `useOnlineNotice(availability)` and hands the picker the same calendar

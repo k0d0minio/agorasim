@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { t, type Locale } from "@/i18n/config";
+import { departureShortTime } from "@/content/logistics";
 import { tourRequestContent } from "@/content/tour-request";
 import type { PublicMonth, PublicSlot } from "@/lib/availability";
+import { todayKey } from "@/lib/date-keys";
 import { slotFitsParty, type VehicleCounts } from "@/lib/fleet";
+import { applyOnlineNotice, monthPair, summaryLine } from "@/lib/public-calendar";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -46,29 +49,14 @@ import { Label } from "@/components/ui/label";
  * party is named (the enquiry form), a day is offered if it could take anyone
  * at all.
  *
+ * **It re-reads the calendar's date in the browser.** The page is cached for
+ * up to an hour, so just after midnight its payload can still offer tomorrow;
+ * {@link useOnlineNotice} crosses out anything inside the two days' notice by
+ * the browser's own clock (D-3), on top of what the payload says.
+ *
  * The server checks the day again on submit (`checkSlotAvailable`) — this is a
  * convenience, never the guard.
  */
-/**
- * "15 de agosto de 2026" from a `YYYY-MM-DD` key.
- *
- * A local copy of what `formatDay` does server-side, because that module is
- * `server-only` — it holds the queries too — and the alternative is shipping a
- * formatted label for all ~180 days in the payload to render one of them. The
- * key is parsed as UTC midnight so the day never shifts under a browser
- * timezone; `new Date("2026-08-15")` is already UTC, and this says so.
- */
-function formatChosenDay(key: string, locale: Locale): string {
-  const [year, month, day] = key.split("-").map(Number);
-  return new Intl.DateTimeFormat(locale === "pt" ? "pt-PT" : "en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(year, month - 1, day)));
-}
-
 /**
  * Whether one departure could take this party.
  *
@@ -94,9 +82,42 @@ export function departureUsable(
   return slotFitsParty(slot, experienceSlug, partySize);
 }
 
+/** Re-reads the clock once a minute — how a tab left open over midnight catches up. */
+function subscribeToClock(onChange: () => void) {
+  const timer = window.setInterval(onChange, 60_000);
+  return () => window.clearInterval(timer);
+}
+
+/** Today in Lisbon, by the browser's clock. */
+const browserToday = () => todayKey();
+
+/** The prerender has no "now" of its own: the payload stands as built. */
+const noBrowserToday = () => null;
+
+/**
+ * The public calendar as it stands today, by the browser's clock.
+ *
+ * `/reservar` is rebuilt at most hourly, so the payload can be yesterday's:
+ * this takes the days inside the two days' notice off sale (D-3) with
+ * `applyOnlineNotice`. Subscribed rather than computed in render so the
+ * prerendered HTML and the first client render agree — the server snapshot is
+ * "no opinion", and the browser's answer arrives straight after hydration.
+ *
+ * Exported because the checkout form owns the chosen day and has to judge it
+ * against the same calendar the grid draws — see {@link departureUsable}.
+ */
+export function useOnlineNotice(months: PublicMonth[]): PublicMonth[] {
+  const today = useSyncExternalStore<string | null>(
+    subscribeToClock,
+    browserToday,
+    noBrowserToday,
+  );
+  return useMemo(() => (today ? applyOnlineNotice(months, today) : months), [months, today]);
+}
+
 export function BookingDatePicker({
   locale,
-  months,
+  months: payload,
   name,
   allowFlexible = true,
   contactHref,
@@ -189,6 +210,7 @@ export function BookingDatePicker({
 }) {
   const c = tourRequestContent.calendar;
   const l = locale;
+  const months = useOnlineNotice(payload);
 
   const slotUsable = (slot: { driversLeft: number; vehiclesLeft: VehicleCounts }) =>
     departureUsable(slot, experienceSlug, partySize);
@@ -203,7 +225,15 @@ export function BookingDatePicker({
   // Controlled when the caller passed a value, its own otherwise — see the prop
   // notes. Both are written on every choice so a caller can stop controlling
   // one without the picker forgetting what is chosen.
-  const selected = value !== undefined ? value : ownDay;
+  //
+  // A day the picker holds itself is dropped once the browser's notice check
+  // rules it out; a controlled day is its owner's to judge, against the same
+  // calendar (`useOnlineNotice`).
+  const ownDayUsable = Boolean(
+    ownDay &&
+      months.some((m) => m.days.some((d) => d.date === ownDay && d.slots.some(slotUsable))),
+  );
+  const selected = value !== undefined ? value : ownDayUsable ? ownDay : null;
   const selectedSlot = slotValue !== undefined ? slotValue : ownSlot;
 
   /*
@@ -252,8 +282,14 @@ export function BookingDatePicker({
   // A guest whose day is not on the calendar types it instead — and one who
   // arrives back here with free text already entered keeps it. Never in a
   // checkout, which has no way to charge for "late August".
+  //
+  // Judged against the day as posted, not the one the notice check leaves: an
+  // echoed key that has since gone off sale is a day that is gone, not free
+  // text, and belongs on the calendar with the error under it.
   const [flexible, setFlexible] = useState(
-    allowFlexible && Boolean(defaultValue) && defaultValue !== selected,
+    allowFlexible &&
+      Boolean(defaultValue) &&
+      defaultValue !== (value !== undefined ? value : ownDay),
   );
 
   const month = months[monthIndex];
@@ -297,7 +333,118 @@ export function BookingDatePicker({
     );
   }
 
-  const byDate = new Map(month.days.map((day) => [day.date, day]));
+  // Every day of the window, not just the month on screen: on a laptop the
+  // chosen day may sit in the second of the two months shown.
+  const byDate = new Map(months.flatMap((m) => m.days).map((day) => [day.date, day]));
+
+  /** The month's heading, with the arrows the caller says belong beside it. */
+  const monthHeader = (
+    label: string,
+    previous: { disabled: boolean; onClick: () => void } | null,
+    next: { disabled: boolean; onClick: () => void } | null,
+  ) => (
+    <div className="flex items-center justify-between gap-2">
+      {previous ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={t(c.previousMonth, l)}
+          disabled={previous.disabled}
+          onClick={previous.onClick}
+        >
+          <ChevronLeft className="size-5" />
+        </Button>
+      ) : (
+        <span aria-hidden className="size-11" />
+      )}
+      <p aria-live="polite" className="font-heading text-base font-semibold">
+        {label}
+      </p>
+      {next ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={t(c.nextMonth, l)}
+          disabled={next.disabled}
+          onClick={next.onClick}
+        >
+          <ChevronRight className="size-5" />
+        </Button>
+      ) : (
+        <span aria-hidden className="size-11" />
+      )}
+    </div>
+  );
+
+  /** One month's weekday row and day grid. */
+  const monthGrid = (shown: PublicMonth) => (
+    <>
+      <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground">
+        {t(c.weekdays, l).map((initial, i) => (
+          <span key={i} className="py-1">
+            {initial}
+          </span>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {shown.grid.map((date, i) => {
+          if (date === null) return <span key={`blank-${i}`} />;
+          const day = byDate.get(date);
+          const usable = Boolean(day && day.slots.some(slotUsable));
+          const number = Number(date.slice(8));
+          const chosen = selected === date;
+
+          return (
+            <button
+              key={date}
+              type="button"
+              disabled={!usable}
+              aria-pressed={chosen}
+              onClick={() => chooseDay(chosen ? null : date)}
+              className={cn(
+                /*
+                 * 44px floor, square-ish, still a grid at 320px.
+                 *
+                 * The focus ring is full-strength `ring-ring`, not the `/50`
+                 * the shared `Button` softens it to: `Button` pairs that halo
+                 * with an opaque `border-ring`, and these cells cannot — a
+                 * chosen day already wears `border-primary`, so the border
+                 * carries no focus signal and the halo is the whole
+                 * indicator. At 50% over the card it measures 2.2:1, under
+                 * the WCAG 1.4.11 3:1 floor; opaque it is 6.5:1. `z-10` on
+                 * focus keeps the ring from being overpainted by the next
+                 * cell, which sits only `gap-1` away.
+                 */
+                "relative flex min-h-11 touch-manipulation flex-col items-center justify-center rounded-lg border text-sm transition-colors focus-visible:z-10 focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
+                chosen
+                  ? "border-primary bg-primary font-semibold text-primary-foreground"
+                  : usable
+                    ? "border-primary/40 text-foreground hover:bg-primary/10"
+                    : // Crossed out, Airbnb-style (D-10): with most days open,
+                      // a faint number alone was too easy to miss.
+                      "cursor-not-allowed border-transparent text-muted-foreground/70 line-through decoration-muted-foreground/70",
+              )}
+            >
+              <span>{number}</span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+
+  /*
+   * Which months the laptop view shows: the month in focus and the next, or
+   * the last two at the end of the window. One press moves one month.
+   */
+  const pair = monthPair(monthIndex, months.length);
+  const shownPair = [pair.first, pair.second].filter(
+    (index): index is number => index !== null,
+  );
+  const lastIndex = months.length - 1;
 
   return (
     <div className="flex flex-col gap-2">
@@ -309,81 +456,47 @@ export function BookingDatePicker({
       {slotName ? <input type="hidden" name={slotName} value={selectedSlot ?? ""} /> : null}
 
       <Card className="gap-3 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={t(c.previousMonth, l)}
-            disabled={monthIndex === 0}
-            onClick={() => setPagedTo(Math.max(0, monthIndex - 1))}
-          >
-            <ChevronLeft className="size-5" />
-          </Button>
-          <p aria-live="polite" className="font-heading text-base font-semibold">
-            {month.label}
-          </p>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={t(c.nextMonth, l)}
-            disabled={monthIndex === months.length - 1}
-            onClick={() => setPagedTo(Math.min(months.length - 1, monthIndex + 1))}
-          >
-            <ChevronRight className="size-5" />
-          </Button>
+        {/*
+          A phone shows one month and a laptop two side by side (D-10). Both
+          are rendered and CSS shows one, so the prerendered page is already
+          right at either width — no layout jump while a media query is read.
+        */}
+        <div className="flex flex-col gap-3 lg:hidden">
+          {monthHeader(
+            month.label,
+            {
+              disabled: monthIndex === 0,
+              onClick: () => setPagedTo(Math.max(0, monthIndex - 1)),
+            },
+            {
+              disabled: monthIndex === lastIndex,
+              onClick: () => setPagedTo(Math.min(lastIndex, monthIndex + 1)),
+            },
+          )}
+          {monthGrid(month)}
         </div>
 
-        <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground">
-          {t(c.weekdays, l).map((initial, i) => (
-            <span key={i} className="py-1">
-              {initial}
-            </span>
+        <div className="hidden gap-6 lg:grid lg:grid-cols-2">
+          {shownPair.map((index, position) => (
+            <div key={months[index].month} className="flex flex-col gap-3">
+              {monthHeader(
+                months[index].label,
+                position === 0
+                  ? {
+                      disabled: pair.first === 0,
+                      onClick: () => setPagedTo(Math.max(0, pair.first - 1)),
+                    }
+                  : null,
+                position === shownPair.length - 1
+                  ? {
+                      disabled: index === lastIndex,
+                      onClick: () => setPagedTo(Math.min(lastIndex, pair.first + 1)),
+                    }
+                  : null,
+              )}
+              {monthGrid(months[index])}
+            </div>
           ))}
-        </div>
-
-        <div className="grid grid-cols-7 gap-1">
-          {month.grid.map((date, i) => {
-            if (date === null) return <span key={`blank-${i}`} />;
-            const day = byDate.get(date);
-            const usable = Boolean(day && day.slots.some(slotUsable));
-            const number = Number(date.slice(8));
-            const chosen = selected === date;
-
-            return (
-              <button
-                key={date}
-                type="button"
-                disabled={!usable}
-                aria-pressed={chosen}
-                onClick={() => chooseDay(chosen ? null : date)}
-                className={cn(
-                  /*
-                   * 44px floor, square-ish, still a grid at 320px.
-                   *
-                   * The focus ring is full-strength `ring-ring`, not the `/50`
-                   * the shared `Button` softens it to: `Button` pairs that halo
-                   * with an opaque `border-ring`, and these cells cannot — a
-                   * chosen day already wears `border-primary`, so the border
-                   * carries no focus signal and the halo is the whole
-                   * indicator. At 50% over the card it measures 2.2:1, under
-                   * the WCAG 1.4.11 3:1 floor; opaque it is 6.5:1. `z-10` on
-                   * focus keeps the ring from being overpainted by the next
-                   * cell, which sits only `gap-1` away.
-                   */
-                  "relative flex min-h-11 touch-manipulation flex-col items-center justify-center rounded-lg border text-sm transition-colors focus-visible:z-10 focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
-                  chosen
-                    ? "border-primary bg-primary font-semibold text-primary-foreground"
-                    : usable
-                      ? "border-primary/40 text-foreground hover:bg-primary/10"
-                      : "cursor-not-allowed border-transparent text-muted-foreground/40",
-                )}
-              >
-                <span>{number}</span>
-              </button>
-            );
-          })}
         </div>
       </Card>
 
@@ -450,10 +563,22 @@ export function BookingDatePicker({
         </p>
       ) : null}
 
+      {/*
+        The choice, said back in one line — "Quarta, 14 de outubro · 10h00".
+        The time only once a departure is picked, and only in a picker that
+        sells one; the enquiry form's line is the day alone.
+      */}
       {selected ? (
-        <p className="text-sm">
-          <span className="text-muted-foreground">{t(c.chosen, l)}: </span>
-          <span className="font-medium">{formatChosenDay(selected, l)}</span>{" "}
+        <p className="flex flex-wrap items-center gap-x-2 text-sm">
+          <span className="font-medium" aria-live="polite">
+            {summaryLine(
+              selected,
+              l,
+              slotName && selectedSlot
+                ? t(departureShortTime(experienceSlug ?? "", selectedSlot), l)
+                : null,
+            )}
+          </span>
           <Button
             type="button"
             variant="ghost"
