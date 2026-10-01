@@ -32,3 +32,13 @@
 - `form-schemas.test.ts` and `src/app/admin/actions.test.ts` were not in the spec's `touches:` — the AC-2 refusal test, and the claim fixtures above; nothing else.
 - The replay case leaves `refundedAt` rewritten to the second submit's time (`recordPaymentRefund` sets it on every claimed write) — as the spec noted; nothing else on the row moves.
 - Smoke: on the preview with Stripe test keys, open "Reembolsar" on a paid deposit, refund part of it, and check the card; the decline path is proven by the unit tests (a Stripe-side decline is not reproducible on demand in test mode).
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN on the head that merges (ci-status.sh, after the last push — see the PR)
+- reviews: code medium — 2 findings: a replayed `attemptId` with an unreadable charge settled twice → fixed on the branch (b22a46c, with a test); the amount edited while a press is pending → does not reproduce (`ArmedSubmit` is disabled while the action is pending, and a disabled default button blocks implicit submission) · security: `security-check.sh --branch --audit` BLOCKED 1 (dependency-audit) → audit waived — next/undici high/critical advisories, pre-existing on `main` and untouched by this branch, chore parked in `triage/deps-next-undici-advisories` (the operator, 2026-10-01); re-read `--branch --no-audit` OK · `/security-review` — no findings · `/production-readiness` n/a — the skill is not installed in this session; the payments surface was covered by `/code-review` and `/security-review` · readiness `env.sh audit --changed`: OK
+- parked: none
+- migrations: skip — none of this run's own (check-migrations.sh after the merge of `main`)
+- learned: retrospective NONE (both classes already rules); 2 rules from `FAILURE.md` synced by close-out
+- docs: no docs impact · announce: deferred to promotion
