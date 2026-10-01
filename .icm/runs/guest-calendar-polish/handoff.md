@@ -6,18 +6,17 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. Operator: read `02_define/output/spec.md`; to change it, `revise guest-calendar-polish "<what>"`.
+2. Operator: tick **Spec approved** in the body of https://github.com/k0d0minio/agorasim/pull/172.
+3. Then `build guest-calendar-polish` — execute `plan.md` pass by pass.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
-- blocked on operator: <the human-only act that unblocks the run — tick a gate, merge, a
-  dashboard or env change>
-
-A blocking operator act is written here **and** in the stop report's `Operator:` list; a
-non-blocking one lives only in that list, never here (`_shared/output.md` → Split by actor).
+- blocked on operator: tick **Spec approved** on https://github.com/k0d0minio/agorasim/pull/172
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Do not start Build before the Spec approved box is ticked; never tick it.
+- Do not touch the admin calendar (`web/src/components/admin/availability-calendar.tsx`) —
+  that is `admin-block-days`.
+- Do not change `departureUsable`'s rule or the server's availability checks.
