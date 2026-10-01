@@ -13,9 +13,18 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- One rule in `lib/availability.ts`; every path asks it with its audience — no second copy of
+  the bookability or capacity arithmetic anywhere (D-1, D-4).
+- No migration, no row written or deleted: existing closed rows stay blocked with their notes.
+- Days are `YYYY-MM-DD` keys in Europe/Lisbon terms (`todayKey`); never an instant in between.
+- The guest payload (`toPublicDay`) still carries no `status`, `note` or event-hold reason.
+- No new controls on the admin Calendar and no guest-picker restyle — those are
+  `admin-block-days` and `guest-calendar-polish`.
+- Admin strings come from `.icm/docs/admin-pt-inventory.md`; no new guest copy this run.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Read beyond Define's Inputs: `lib/availability.ts` in full and targeted excerpts of
+  `departure-window.ts`, `manual-booking.ts`, `booking-move.ts`, the two `/reservar` actions,
+  `admin/calendar/actions.ts` and `availability-calendar.tsx`, to settle the three open points
+  and fill `touches:` with the real callers.

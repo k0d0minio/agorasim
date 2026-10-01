@@ -23,5 +23,6 @@ decision made mid-run has one home.
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-13 — The weather move follows the team rule, like the manual booking: today, tomorrow and blocked departures are valid targets; room still applies. Operator, in Define (closes scope Open for Define #1).
+- D-14 — The enquiry form follows the checkout's online rule: a picked date that is blocked, full, event-held, today, tomorrow or past six months is refused; free text is still accepted. Operator, in Define (closes scope Open for Define #2).
+- D-15 — Until admin-block-days, the admin Calendar chip follows the team view: an untouched departure, and today/tomorrow with room, show as on sale. Operator, in Define.
