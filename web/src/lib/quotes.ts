@@ -64,7 +64,9 @@ import {
   BALANCE_FLAG_DAYS_BEFORE,
   BALANCE_REMINDER_DAYS_BEFORE,
   DEFAULT_DEPOSIT_PERCENT,
+  OPEN_INSTALMENT_STATUSES,
   balanceDueKey,
+  isOpenInstalment,
   lineItemsTotal,
   splitTotal,
 } from "@/lib/quote-math";
@@ -171,11 +173,6 @@ export type DueInstalment =
   | { kind: "not-yet"; payment: QuotePayment; dueDate: DateKey }
   | { kind: "settled" }
   | { kind: "not-live" };
-
-/** Whether an instalment still has money to collect. */
-function isOpenInstalment(payment: Pick<QuotePayment, "status" | "amountCents">): boolean {
-  return (payment.status === "pending" || payment.status === "issued") && payment.amountCents > 0;
-}
 
 export function dueInstalment(
   quote: Pick<Quote, "status"> & { payments: QuotePayment[] },
@@ -610,7 +607,7 @@ export async function listQuotesForBalanceReminder(options: {
       and(
         eq(quotes.status, "deposit_paid"),
         eq(quotePayments.kind, "balance"),
-        inArray(quotePayments.status, ["pending", "issued"]),
+        inArray(quotePayments.status, OPEN_INSTALMENT_STATUSES),
         gte(quotes.eventDate, shiftDays(today, 1)),
         lte(quotes.eventDate, shiftDays(today, BALANCE_REMINDER_DAYS_BEFORE)),
       ),
@@ -660,7 +657,7 @@ export async function listUnpaidBalancesDue(options: {
   const open = and(
     eq(quotes.status, "deposit_paid"),
     eq(quotePayments.kind, "balance"),
-    inArray(quotePayments.status, ["pending", "issued"]),
+    inArray(quotePayments.status, OPEN_INSTALMENT_STATUSES),
     gt(quotePayments.amountCents, 0),
   );
   const rows = () =>
@@ -1378,7 +1375,7 @@ export async function cancelQuoteAndOpenInstalments(
     .where(
       and(
         eq(quotePayments.quoteId, id),
-        inArray(quotePayments.status, ["pending", "issued"]),
+        inArray(quotePayments.status, OPEN_INSTALMENT_STATUSES),
       ),
     )
     .returning();
@@ -1465,7 +1462,7 @@ export async function reissuePayment(
     .where(
       and(
         eq(quotePayments.id, paymentId),
-        inArray(quotePayments.status, ["pending", "issued"]),
+        inArray(quotePayments.status, OPEN_INSTALMENT_STATUSES),
         ...(replacing !== undefined ? [eq(quotePayments.stripeSessionId, replacing)] : []),
       ),
     )
@@ -1542,7 +1539,7 @@ export async function markPaymentPaid(
     .where(
       and(
         eq(quotePayments.id, paymentId),
-        inArray(quotePayments.status, ["pending", "issued"]),
+        inArray(quotePayments.status, OPEN_INSTALMENT_STATUSES),
       ),
     )
     .returning();
@@ -1725,7 +1722,7 @@ export async function cancelPayment(
     .where(
       and(
         eq(quotePayments.id, paymentId),
-        inArray(quotePayments.status, ["pending", "issued"]),
+        inArray(quotePayments.status, OPEN_INSTALMENT_STATUSES),
       ),
     )
     .returning();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { balanceDueKey } from "./quote-math";
+import { balanceDueKey, isOpenInstalment } from "./quote-math";
 import { balanceDueDate } from "./quotes";
 
 /**
@@ -20,5 +20,14 @@ describe("balanceDueKey", () => {
     expect(balanceDueKey("")).toBeNull();
     expect(balanceDueKey("2026-02-31")).toBeNull();
     expect(balanceDueKey("15/08/2026")).toBeNull();
+  });
+});
+
+describe("isOpenInstalment", () => {
+  it("is open while pending or issued, and for more than nothing", () => {
+    expect(isOpenInstalment({ status: "pending", amountCents: 1 })).toBe(true);
+    expect(isOpenInstalment({ status: "issued", amountCents: 1 })).toBe(true);
+    expect(isOpenInstalment({ status: "paid", amountCents: 1 })).toBe(false);
+    expect(isOpenInstalment({ status: "pending", amountCents: 0 })).toBe(false);
   });
 });

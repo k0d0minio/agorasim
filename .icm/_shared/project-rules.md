@@ -306,3 +306,7 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 - A `dependency-audit` BLOCKED from `security-check.sh --branch` on a run that did not touch `web/package.json` or the lockfile is main's, not the run's: check `.icm/intake/triage/` for an open dependency chore before parking another, note it for Release, and expect Release's `--audit` read to need the operator's waiver (or that chore merged first). (`security-check/dependency-audit`, seen 6× — quote-refund-admin-reads-charge, go-live-session-stubs, vercel-build-migrates-previews; web/src)
 <!-- Retrospective Learned Rule [2026-10-01] -->
 - When a fix changes the date window of one email the balance job sends, check every other pass in `web/src/lib/cron/balance-scheduler.ts` for the same edge before the spec is written. (`FAILURE.md` — balance-request-not-on-event-day)
+<!-- Retrospective Learned Rule [2026-10-01] -->
+- Before speccing a "one definition of X" refactor, grep for the rule's SQL form (`inArray`, `eq` on the same column values) as well as its JS functions — Drizzle queries in `web/src/lib/quotes.ts` restate predicates the code also has as helpers. (`FAILURE.md` — one-open-instalment-rule)
+<!-- Retrospective Learned Rule [2026-10-01] -->
+- In Release, run `/code-review` with the run branch named as its target (after `git remote set-head origin main`) — with uncommitted run files in the tree it reviews those instead of the branch. (`FAILURE.md` — one-open-instalment-rule)
