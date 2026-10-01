@@ -78,3 +78,14 @@
   undici). Not this run's: no manifest or lockfile in the diff. Already parked twice in triage
   (`dependency-advisories-next-undici`, `deps-next-undici-advisories`). Release's audit read
   needs the operator's waiver, or that chore merged first.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN — read by ci-status.sh on the close-out head, the head that merges (stop report names the SHA)
+- reviews: code high (/code-review: 9 findings — 2 fixed here: team horizon cap `teamHorizonEnd`, Limpar and calendar-intro copy; error.log entry resolved; 2 parked; ISR staleness already `guest-calendar-polish`'s open question; `addDays` duplicate already `booking-logistics-facts-shared`; clear-guard on a blocked day with bookings left for `admin-block-days`, which replaces Limpar with Desbloquear) · security security-check.sh --branch --audit: BLOCKED 1 → audit waived — next 16.2.x (critical, RCE in next/og, fixed 16.3.6) and undici ×3 high (via shadcn, @vercel/blob), pre-existing on main and not touched by this branch; "Waive and merge" (the operator, in session, 2026-10-01); tracked in triage/dependency-advisories-next-undici.md; re-read --branch --no-audit → OK; gitleaks absent (built-in patterns only) · /production-readiness n/a — no auth, payments logic, env or schema change (schema.ts is a comment; checkout gained one explicit default argument) · /security-review n/a — no auth, PII or route policy touched · readiness env.sh audit --changed: OK
+- parked: team-sale-departed-departure.md, availability-online-window-tidy.md
+- migrations: skip — none of this run's own
+- learned: 0 rule(s) appended by retrospective.sh (3 error classes already rules); 1 FAILURE.md rule synced at close-out
+- docs: .icm/docs/launch-runbook.md (Track E — close known days off before the open-calendar promotion), workspaces/_config/business-facts.md (online booking window) · announce: deferred to promotion
+- note: validate-knowledge-map.sh reads INVALID on main already (icm-board deal PDF paths), not this run's
