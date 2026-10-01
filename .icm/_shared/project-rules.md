@@ -304,3 +304,5 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 
 <!-- Retrospective Learned Rule [2026-10-01] -->
 - `security-check.sh --branch` audits the whole `web/` lockfile, so an advisory already on `main` blocks every run branch, not only the one that bumps a dependency: park it once as a chore stub (check `triage/` for one first), say so in Notes for Release, and land that chore early — until it merges, every Release needs the operator's waiver or a chore first. (`security-check/dependency-audit`, seen 5× — balance-request-not-on-event-day, go-live-session-stubs, vercel-build-migrates-previews; web/src)
+<!-- Retrospective Learned Rule [2026-10-01] -->
+- When a fix changes the date window of one email the balance job sends, check every other pass in `web/src/lib/cron/balance-scheduler.ts` for the same edge before the spec is written. (`FAILURE.md` — balance-request-not-on-event-day)
