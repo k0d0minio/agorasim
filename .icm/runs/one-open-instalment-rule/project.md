@@ -13,9 +13,12 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- No behaviour change: same statuses (`pending`, `issued`), same `amountCents > 0`, same rows read and written.
+- `quote-math.ts` stays free of runtime imports — the browser quote builder imports it.
+- One name for the rule (`isOpenInstalment`); no `isBalanceOpen` alias.
+- Status lists that mean something else (refundable / terminal statuses in `quote-refund.ts`) are not touched.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Targeted greps of `quotes.ts` beyond the stub turned up the SQL copies of the status list; the
+  operator settled in session that the shared constant covers them and the four write guards.

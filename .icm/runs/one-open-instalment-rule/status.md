@@ -4,7 +4,7 @@ Where the run is, in five lines. Updated at every stage start and stop, and when
 flips. A resuming session reads this first, then `handoff.md` (`_shared/stage-preamble.md`).
 
 - phase: define
-- step: 1
-- ci: none yet
+- step: stopped — awaiting Spec approved
+- ci: not read (draft)
 - blocked: no
 - updated: 2026-10-01
