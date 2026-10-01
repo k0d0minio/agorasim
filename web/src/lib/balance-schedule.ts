@@ -11,15 +11,15 @@
  * - **T−7, one reminder** — only if the request reached the couple at least
  *   {@link BALANCE_REMINDER_GAP_DAYS} days earlier, so a deposit paid late
  *   does not get the request and the chaser a day apart.
+ * - **T−3, the team's flag** — the Sales board's "Saldo por pagar" panel and
+ *   the badge on the lead's quote card read {@link isBalanceFlagged}, the one
+ *   predicate both show. It is computed, not stored: nothing has to run for a
+ *   balance to be flagged, and paying or writing it off clears it by itself.
  *
  * Neither email goes out on the event's own day: T−1 is the last morning
  * either can be sent. Each one rotates the quote link, and a wedding morning
  * is no time to retire the link a couple already has; an event-day balance is
  * the team's, on the board.
- * - **T−3, the team's flag** — the Sales board's "Saldo por pagar" panel and
- *   the badge on the lead's quote card read {@link isBalanceFlagged}, the one
- *   predicate both show. It is computed, not stored: nothing has to run for a
- *   balance to be flagged, and paying or writing it off clears it by itself.
  *
  * What happens to an unpaid balance on the day itself is the client's open
  * question, so nothing here releases a date or cancels anything.

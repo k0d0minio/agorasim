@@ -6,21 +6,14 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Once **Ready to merge** is ticked on https://github.com/k0d0minio/agorasim/pull/162, run
-   `/pipeline release balance-request-not-on-event-day`.
+1. Merged and archived; nothing to pick up. The change reaches production with the next
+   promotion of the UAT batch.
 
 ## Blockers
 
-- blocked on operator: smoke the preview, then tick **Ready to merge** in the body of
-  https://github.com/k0d0minio/agorasim/pull/162
-- `security-check.sh --branch` reads `BLOCKED 1` on pre-existing dependency advisories (next
-  16.3.4, undici) that are on `main`, not this branch — parked as
-  `.icm/intake/triage/dependency-advisories-next-undici.md`; Release should treat it as
-  not-this-branch's (notes.md → Notes for Release).
+- none
 
 ## Do not
 
-- Do not touch `isBalanceFlagged` or `listUnpaidBalancesDue`; stubs 2 and 3 of this epic own the
-  panel order and the shared predicate.
-- Do not bump dependencies in this PR — the advisory stub is its own chore.
-- Do not run build, lint, typecheck or test locally — CI is the source of truth.
+- Do not reopen this run; follow-ups are new stubs (`unpaid-balances-panel-order`,
+  `one-open-instalment-rule`, `dependency-advisories-next-undici`).

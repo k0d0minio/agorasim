@@ -301,3 +301,6 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 
 <!-- Retrospective Learned Rule [2026-09-25] -->
 - A new `pgTable` in `web/src/db/schema.ts` must be registered in `BACKUP_TABLES` (`web/src/lib/backup.ts`) — or explicitly excluded — in the same PR; `backup.test.ts` fails otherwise, and the advisory job that runs it never runs on `main`. (`AssertionError`, seen 2× — event-holds-capacity, balance-scheduler; web/src, workspaces/_config)
+
+<!-- Retrospective Learned Rule [2026-10-01] -->
+- `security-check.sh --branch` audits the whole `web/` lockfile, so an advisory already on `main` blocks every run branch, not only the one that bumps a dependency: park it once as a chore stub (check `triage/` for one first), say so in Notes for Release, and land that chore early — until it merges, every Release needs the operator's waiver or a chore first. (`security-check/dependency-audit`, seen 5× — balance-request-not-on-event-day, go-live-session-stubs, vercel-build-migrates-previews; web/src)

@@ -3,3 +3,9 @@ scope=branch head=616f23e branch=claude/charming-galileo-4y5pnv — BLOCKED 1 (r
 dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
 (unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
 - resolved: The branch gate's dependency audit found 4 high/critical advisories (next 16.3.4, undici via shadcn and @vercel/blob) that are already on main — this branch changes no manifest or lockfile — so the fix is not this run's; parked as `.icm/intake/triage/dependency-advisories-next-undici.md` (chore, P1) and handed to Release in notes.md.
+## 2026-10-01T11:03:53Z security-check.sh — dependency-audit
+scope=branch head=91ceb38 branch=claude/charming-galileo-4y5pnv — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+(unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+
+- resolved: Same pre-existing advisories as Build's entry above, read again by Release's `--branch --audit`; the operator waived the audit for this merge (2026-10-01) and the gate re-read `--branch --no-audit` → OK; the fix is the parked chore `dependency-advisories-next-undici`.

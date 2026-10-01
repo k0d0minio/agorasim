@@ -13,12 +13,15 @@ general; keep the retrospectives specific; never restate an `error.log` entry he
 
 ## Retrospectives
 
-### <YYYY-MM-DD> — <what failed, one line>
+### 2026-10-01 — the stub named one of two emails with the same event-day hole
 
-- what happened: <the observable — the check, the error, the wrong file>
-- why: <the cause, once it was known>
-- fixed by: <the commit, or the action>
+- what happened: the stub (cut from a review finding) asked to stop only the T−14 request at
+  T−1; Define found the T−7 reminder (`isReminderDue`, `listQuotesForBalanceReminder`) could
+  also fire on the event morning and rotate the link.
+- why: the review finding was written against `isRequestInWindow` alone; the reminder shares the
+  job and the same `>= today` floor.
+- fixed by: an operator decision at Define (D-1) widening the spec to both emails.
 
 ## Learned rules
 
-- <one sentence, imperative, general enough to apply to the next run in this repo>
+- When a fix changes the date window of one email the balance job sends, check every other pass in `web/src/lib/cron/balance-scheduler.ts` for the same edge before the spec is written.
