@@ -773,13 +773,17 @@ describe("the experience catalogue", () => {
  * asserted below, through the real action and the real audit writer.
  */
 describe("cancelling and refunding a booking", () => {
+  // The claim writes `cancelledAt` with the status, and the refund is keyed on
+  // it (`lib/booking-refund.ts`) — a claimed row without one is refused.
+  const claimedRow = () =>
+    bookingRow({ status: "cancelled", cancelledAt: new Date("2026-09-30T14:03:27.512Z") });
   const fullRefund = () =>
     form({ bookingId: BOOKING_ID, refundAmount: "340", confirm: "REEMBOLSAR" });
 
   it("refunds through Stripe, frees the car and records who did it", async () => {
     await signInAs("collaborator");
     queueResult([bookingRow()]); // the lookup
-    queueResult([bookingRow({ status: "cancelled" })]); // the claim
+    queueResult([claimedRow()]); // the claim
     refundsCreate.mockResolvedValue({ id: "re_test_1" });
     queueResult([bookingRow({ status: "refunded", refundedAmountCents: 34000 })]);
     queueResult(undefined); // the audit insert
@@ -824,7 +828,7 @@ describe("cancelling and refunding a booking", () => {
   it("does not return an application fee that was never taken", async () => {
     await signInAs("owner");
     queueResult([bookingRow()]);
-    queueResult([bookingRow({ status: "cancelled" })]);
+    queueResult([claimedRow()]);
     refundsCreate.mockResolvedValue({ id: "re_test_1" });
     queueResult([bookingRow({ status: "refunded", refundedAmountCents: 34000 })]);
     queueResult(undefined);
@@ -843,7 +847,7 @@ describe("cancelling and refunding a booking", () => {
       latest_charge: { application_fee_amount: 1360 },
     });
     queueResult([bookingRow()]);
-    queueResult([bookingRow({ status: "cancelled" })]);
+    queueResult([claimedRow()]);
     refundsCreate.mockResolvedValue({ id: "re_test_1" });
     queueResult([bookingRow({ status: "refunded", refundedAmountCents: 17000 })]);
     queueResult(undefined);
@@ -864,7 +868,7 @@ describe("cancelling and refunding a booking", () => {
   it("cancels without touching Stripe when nothing is being returned", async () => {
     await signInAs("collaborator");
     queueResult([bookingRow()]);
-    queueResult([bookingRow({ status: "cancelled" })]);
+    queueResult([claimedRow()]);
     queueResult([bookingRow({ status: "cancelled" })]);
     queueResult(undefined);
 
@@ -905,7 +909,7 @@ describe("cancelling and refunding a booking", () => {
   it("leaves the booking cancelled and says so when Stripe refuses", async () => {
     await signInAs("owner");
     queueResult([bookingRow()]);
-    queueResult([bookingRow({ status: "cancelled" })]);
+    queueResult([claimedRow()]);
     refundsCreate.mockRejectedValue(new Error("card_declined"));
     queueResult(undefined); // the audit insert for the failed refund
 

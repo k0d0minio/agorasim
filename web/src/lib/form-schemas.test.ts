@@ -6,8 +6,10 @@ import {
   formValues,
   quoteDraftSchema,
   quoteRequestSchema,
+  refundQuotePaymentSchema,
   setAvailabilitySchema,
 } from "@/lib/form-schemas";
+import { REFUND_CONFIRMATION } from "@/lib/admin-format";
 import { DEFAULT_DRIVERS, MAX_DRIVERS, todayKey } from "@/lib/availability";
 import { shiftDays } from "@/lib/quotes";
 
@@ -430,4 +432,38 @@ describe("quoteDraftSchema", () => {
       ).success,
     ).toBe(true);
   });
+});
+
+/**
+ * "Reembolsar" on a quote instalment. `attemptId` is the refund's idempotency
+ * key: a post without one — a tab opened before it existed — goes back to be
+ * reloaded, and never reaches Stripe.
+ */
+describe("refundQuotePaymentSchema", () => {
+  const refund = (overrides: Record<string, unknown> = {}) => ({
+    paymentId: "cccccccc-3333-4333-8333-333333333333",
+    attemptId: "abababab-6666-4666-8666-666666666666",
+    refundAmount: "192,00",
+    confirm: REFUND_CONFIRMATION,
+    ...overrides,
+  });
+
+  it("passes the attempt through with the rest of the press", () => {
+    const parsed = refundQuotePaymentSchema.safeParse(refund());
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toMatchObject({
+      attemptId: "abababab-6666-4666-8666-666666666666",
+      refundAmount: 19_200,
+      cancelEvent: false,
+    });
+  });
+
+  it.each([undefined, "", "not-a-uuid"])(
+    "sends a post with attemptId %j back to be reloaded",
+    (attemptId) => {
+      const parsed = refundQuotePaymentSchema.safeParse(refund({ attemptId }));
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues[0]?.message).toBe("Recarregue a página e tente de novo.");
+    },
+  );
 });

@@ -22,9 +22,12 @@
  *   booking still reading "paid", still holding a car nobody can sell, and no
  *   email sent. Nothing on any screen would say so.
  *
- * A double-submitted form is caught twice over: the claim's guard means exactly
- * one caller proceeds, and the Stripe call carries an idempotency key so even a
- * true race cannot produce two refunds.
+ * A double-submitted form is caught by the claim's guard: exactly one caller
+ * proceeds, so exactly one refund request is ever made for a claim. The Stripe
+ * call is keyed on that claim — the booking and the moment it was claimed — so
+ * the key names the attempt rather than the row: Stripe keeps a declined
+ * request's answer against its key for a day, and a key a later attempt could
+ * share would hand it that decline instead of asking again.
  *
  * **Seats need no code here.** `lib/bookings.ts` counts `confirmed` rows and
  * `pending` rows whose hold is still live, and nothing else — so the status
@@ -302,13 +305,26 @@ async function issueRefund(
       },
       {
         ...account,
-        // Keyed on what has already gone back as well as what is going back now,
-        // so a retried submission collapses into one refund while a *second*,
-        // deliberate partial refund of the same amount is a new request.
-        idempotencyKey: `booking-refund:${booking.id}:${booking.refundedAmountCents}:${amountCents}`,
+        // Keyed on the claim that let this caller through (see the module
+        // note): one claim, one request — and a booking claimed again, by any
+        // path, asks Stripe afresh rather than replaying this answer.
+        idempotencyKey: `booking-refund:${booking.id}:${claimedAt(booking)}`,
       },
     );
   });
+}
+
+/**
+ * The claim's moment, in epoch milliseconds — the half of the refund key that
+ * makes it this attempt's. Read off the claimed row, never the clock: the key
+ * must come from the write that won. A row without one never passed the claim,
+ * so it is refused here (and reported as a failed refund) rather than keyed.
+ */
+function claimedAt(booking: Booking): number {
+  if (!booking.cancelledAt) {
+    throw new Error(`${bookingRef(booking.id)} has no claim to key its refund on`);
+  }
+  return booking.cancelledAt.getTime();
 }
 
 /**

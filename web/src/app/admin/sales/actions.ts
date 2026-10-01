@@ -499,11 +499,12 @@ export async function refundLeadQuotePayment(
     };
   }
 
-  const { paymentId, refundAmount, cancelEvent } = parsed.data;
+  const { paymentId, attemptId, refundAmount, cancelEvent } = parsed.data;
   const outcome = await refundQuotePayment({
     paymentId,
     refundCents: refundAmount,
     cancelEvent,
+    attemptId,
     actorUserId: actor.id,
   });
 
@@ -549,7 +550,8 @@ export async function refundLeadQuotePayment(
     case "refunded-unrecorded": {
       // The money went back but the books did not move. `ok` closes the dialog
       // on purpose: its typed confirmation is one click from a second, real
-      // refund once the webhook has moved the row and the idempotency key.
+      // refund — the next press carries a new attempt id, so Stripe would take
+      // it as a new request.
       const money = formatPrice(outcome.refundedCents, "pt", outcome.payment.currency);
       return {
         ok: true,
@@ -564,7 +566,9 @@ export async function refundLeadQuotePayment(
 
     case "refund-failed":
       // Nothing was written: the row, the quote and the couple's inbox are as
-      // they were, which is what makes "try again" the right advice.
+      // they were, which is what makes "try again" the right advice — and the
+      // retry carries a new attempt id, so Stripe is asked again rather than
+      // answering with the decline it keeps against this one's key.
       return {
         error:
           "O Stripe recusou o reembolso — nada foi alterado e o evento não foi cancelado. " +
