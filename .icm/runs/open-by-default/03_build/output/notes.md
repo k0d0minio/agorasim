@@ -1,7 +1,7 @@
 # Build notes: open-by-default
 
-- commits: feat: open-by-default — open calendar, online window, team audience
-- ci: draft GREEN on 6977f11; full verdict on the ready head below
+- commits: 6977f11 feat: open-by-default — every departure is open unless the team blocks it · 4881c6c chore: ready · 08eb2a1 fix: toPublicDay fixture
+- ci: GREEN on 08eb2a1 (full gate: Vercel preview pass, Quality (advisory) pass)
 - ready: 2026-10-01T13:01:24Z — flipped on 6977f11
 
 ## What changed
@@ -36,6 +36,18 @@
   blocked, today/tomorrow offered; a blocked-and-full departure skipped; the move re-checks with
   `audience: "team"`).
 
+## Decisions carried
+
+- Built here: D-1 (no row = open, full roster), D-2 (six-month online window,
+  `ONLINE_BOOKING_MONTHS`), D-3 (two calendar days' notice online, `ONLINE_NOTICE_DAYS`, Lisbon
+  days), D-4 (team audience: manual booking skips notice, window and block; capacity binds),
+  D-13 (weather move as team), D-14 (enquiry form on the online rule), D-15 (interim admin chip
+  in the team view).
+- Not this run's: D-5, D-6, D-7, D-8, D-9 are `admin-block-days`'s (the blocking screen — this
+  run changed no admin controls); D-10 is `guest-calendar-polish`'s (the picker's look);
+  D-11 (no recurring blocks) holds — none built; D-12 (scope landed on `main`) was a Scope
+  process decision with no code.
+
 ## Acceptance criteria status
 
 - [x] Untouched date, 2+ days out, inside six months, bookable online, both departures — `describeSlot` online + test.
@@ -50,7 +62,7 @@
 - [x] Untouched departure has two drivers; a row's roster and note apply — tests.
 - [x] No migration, no row written or deleted — the diff touches no migration and no write path.
 - [x] Admin calendar chip, sentence, month count — component; smoke on the preview.
-- [ ] Unit tests listed in the spec, CI green — written; verdict pending CI.
+- [x] Unit tests listed in the spec, CI green — Quality (advisory) passed on 08eb2a1.
 
 ## Notes for Release
 
