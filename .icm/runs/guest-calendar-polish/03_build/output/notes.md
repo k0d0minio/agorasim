@@ -1,7 +1,7 @@
 # Build notes: guest-calendar-polish
 
 - commits: feat: guest-calendar-polish — Airbnb-style guest picker on /reservar · merge origin/main · chore: guest-calendar-polish — ready
-- ci: GREEN on the draft head (cheap tier); full gate settled after the ready push
+- ci: GREEN on 5122889 — full gate: Vercel pass, Quality (advisory) pass
 - ready: 2026-10-01T14:10:22Z — flipped on 04ce092
 
 ## What changed
