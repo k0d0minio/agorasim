@@ -17,4 +17,5 @@ dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audi
 scope=branch head=1c3ec19 branch=claude/friendly-lamport-wvw8qq — BLOCKED 1 (redacted trace; the secret itself is never written)
 dependency-audit  pnpm reports 4 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
 (unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+- resolved: Same pre-existing advisories as above (main's lockfile, not this branch); the operator waived the audit for this merge at Release, and the chore `deps-next-undici-advisories` carries the bump.
 

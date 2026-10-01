@@ -37,3 +37,13 @@
 - A deferred delivery answers 503 by design. Stripe's dashboard will show the attempt as failed until the redelivery succeeds; nothing pages anyone.
 - `content/privacy.ts` lists the emails the couple can receive ("…and the refund notice"); it is not updated here — the spec names no privacy copy change and no processor changes. Worth a look at Release if the list should name the cancellation notice.
 - Stubs 1 and 2 of this epic edit `quote-refund.ts` too; whichever merges second resolves against this.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN — read again after the last push (ci-status.sh); the merge rests on that read
+- reviews: code high — 9 findings: 4 fixed on the branch (stale "Cancelar evento" dialog copy and action message; no deferral of a refund the row already carries; one refund lookup instead of two; dead `refunds.retrieve` branch removed), 4 parked, 1 recorded only (altitude: claim through the database rather than a time window — the operator chose the webhook deferral at Define, D-1) · security `security-check.sh --branch --audit`: audit waived — next 16.3.4 `next/og` RCE + 3× undici (shadcn, @vercel/blob), pre-existing on main and fixed by the parked chore `deps-next-undici-advisories`; the operator's waiver for this merge, which goes to UAT only, with the chore to land before the next promotion; `--branch --no-audit` OK; gitleaks not installed (built-in patterns only) + /security-review — no findings (email values escaped by the email-layout helpers, webhook signature check unchanged, admin action still behind `requireAdmin`) · /production-readiness — n/a: the skill is not available in this session (the diff touches payments and the database; covered by the code review and the security review) · readiness `env.sh audit --changed`: OK
+- parked: quote-refund-double-submit-notice-order.md, quote-refund-echo-latest-refund-attribution.md, quote-notice-context-dedupe.md, quote-event-cancelled-no-earlier-email.md (and, from Build, deps-next-undici-advisories.md)
+- migrations: ok — `0034_quote_event_cancelled_kind` (forward-only `ADD VALUE IF NOT EXISTS`), last in the journal after main's 0033; check-migrations.sh SKIP (Drizzle names its own files); main merged in cleanly, including #164 and #165 on `quote-refund.ts`
+- learned: none (retrospective.sh NONE — the dependency-audit class is already a rule; the Neon 422 was seen once)
+- docs: no docs impact · announce: deferred to promotion
