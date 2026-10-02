@@ -54,6 +54,7 @@ import "server-only";
 import type Stripe from "stripe";
 import { eq } from "drizzle-orm";
 
+import type { Locale } from "@/i18n/config";
 import { db, tourRequests, type Quote, type QuotePayment } from "@/db";
 import { formatDay } from "@/lib/availability";
 import { recordAuditOrWarn } from "@/lib/audit";
@@ -64,7 +65,7 @@ import {
   topUpApplicationFee,
 } from "@/lib/booking-refund";
 import { isEmailConfigured } from "@/lib/email";
-import { sendLoggedEmail } from "@/lib/message-log";
+import { sendLoggedEmail, type LoggedSend } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import { expireSession } from "@/lib/quote-checkout";
 import {
@@ -767,6 +768,59 @@ async function expireWrittenOffSessions(writtenOff: readonly QuotePayment[]): Pr
 // The couple's notice
 // ---------------------------------------------------------------------------
 
+type QuoteNoticeContext = {
+  quote: NonNullable<Awaited<ReturnType<typeof getQuote>>>;
+  lead: typeof tourRequests.$inferSelect;
+  locale: Locale;
+  money: (cents: number) => string;
+  totalRefunded: number;
+};
+
+/**
+ * What both couple's notices read fresh: the quote, its lead, the quote's
+ * language and what has gone back on it so far. `null` when there is nobody to
+ * write to (the quote or lead is gone, or the quote has no lead — warned as
+ * `<what> was not sent`), so each notice just returns.
+ */
+async function loadQuoteNoticeContext(
+  quoteId: string,
+  what: string,
+  accept: (quote: QuoteNoticeContext["quote"]) => boolean = () => true,
+): Promise<QuoteNoticeContext | null> {
+  const quote = await getQuote(quoteId);
+  if (!quote || !accept(quote)) return null;
+  if (!quote.tourRequestId) {
+    console.warn(`[quote-refund] ${quoteRef(quote.id)} has no lead — no ${what} sent`);
+    return null;
+  }
+  const [lead] = await db
+    .select()
+    .from(tourRequests)
+    .where(eq(tourRequests.id, quote.tourRequestId))
+    .limit(1);
+  if (!lead) return null;
+
+  const locale = quote.locale;
+  return {
+    quote,
+    lead,
+    locale,
+    money: (cents) => formatPrice(cents, locale, quote.currency),
+    totalRefunded: quote.payments.reduce((sum, payment) => sum + payment.refundedAmountCents, 0),
+  };
+}
+
+/** Logs a notice that was not sent; sending itself never throws past the caller. */
+function warnIfUnsent(
+  quote: QuoteNoticeContext["quote"],
+  what: string,
+  result: LoggedSend,
+): void {
+  if (result.status === "failed" || result.status === "skipped") {
+    console.error(`[quote-refund] ${quoteRef(quote.id)} ${what} was not sent (${result.reason})`);
+  }
+}
+
 /**
  * One `quote-refunded` email to the couple, claimed in the message log under
  * the instalment and its refunded total. Read fresh, after the write and any
@@ -783,25 +837,9 @@ async function sendRefundNotice(options: {
   try {
     const found = await getPayment(options.paymentId);
     if (!found) return;
-    const quote = await getQuote(found.quote.id);
-    if (!quote) return;
-    if (!quote.tourRequestId) {
-      console.warn(`[quote-refund] ${quoteRef(quote.id)} has no lead — no refund notice sent`);
-      return;
-    }
-    const [lead] = await db
-      .select()
-      .from(tourRequests)
-      .where(eq(tourRequests.id, quote.tourRequestId))
-      .limit(1);
-    if (!lead) return;
-
-    const locale = quote.locale;
-    const money = (cents: number) => formatPrice(cents, locale, quote.currency);
-    const totalRefunded = quote.payments.reduce(
-      (sum, payment) => sum + payment.refundedAmountCents,
-      0,
-    );
+    const context = await loadQuoteNoticeContext(found.quote.id, "refund notice");
+    if (!context) return;
+    const { quote, lead, locale, money, totalRefunded } = context;
 
     const result = await sendLoggedEmail(
       {
@@ -827,11 +865,7 @@ async function sendRefundNotice(options: {
       }),
     );
 
-    if (result.status === "failed" || result.status === "skipped") {
-      console.error(
-        `[quote-refund] ${quoteRef(quote.id)} refund notice was not sent (${result.reason})`,
-      );
-    }
+    warnIfUnsent(quote, "refund notice", result);
   } catch (err) {
     console.error(`[quote-refund] couldn't send the refund notice for ${options.paymentId}`, err);
   }
@@ -848,24 +882,13 @@ async function sendEventCancelledNotice(quoteId: string): Promise<void> {
   if (!isEmailConfigured()) return;
 
   try {
-    const quote = await getQuote(quoteId);
-    if (!quote || quote.status !== "cancelled") return;
-    if (!quote.tourRequestId) {
-      console.warn(`[quote-refund] ${quoteRef(quote.id)} has no lead — no cancellation notice sent`);
-      return;
-    }
-    const [lead] = await db
-      .select()
-      .from(tourRequests)
-      .where(eq(tourRequests.id, quote.tourRequestId))
-      .limit(1);
-    if (!lead) return;
-
-    const locale = quote.locale;
-    const totalRefunded = quote.payments.reduce(
-      (sum, payment) => sum + payment.refundedAmountCents,
-      0,
+    const context = await loadQuoteNoticeContext(
+      quoteId,
+      "cancellation notice",
+      (quote) => quote.status === "cancelled",
     );
+    if (!context) return;
+    const { quote, lead, locale, money, totalRefunded } = context;
 
     const result = await sendLoggedEmail(
       {
@@ -881,15 +904,11 @@ async function sendEventCancelledNotice(quoteId: string): Promise<void> {
         locale,
         date: formatDay(quote.eventDate, locale),
         venue: quote.venue,
-        totalRefunded: formatPrice(totalRefunded, locale, quote.currency),
+        totalRefunded: money(totalRefunded),
       }),
     );
 
-    if (result.status === "failed" || result.status === "skipped") {
-      console.error(
-        `[quote-refund] ${quoteRef(quote.id)} cancellation notice was not sent (${result.reason})`,
-      );
-    }
+    warnIfUnsent(quote, "cancellation notice", result);
   } catch (err) {
     console.error(`[quote-refund] couldn't send the cancellation notice for ${quoteId}`, err);
   }
