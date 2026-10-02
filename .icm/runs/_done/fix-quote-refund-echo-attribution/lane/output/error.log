@@ -1,0 +1,4 @@
+
+## 2026-10-02 Vercel draft build — Resource provisioning failed
+- dpl_BMMD76MsnsQtbm48dirraXTmGwa9 BUILD_FAILED after ~1s; ~10 unrelated branches failed identically in the same minute (platform burst, not the diff)
+- resolved: re-read on the next push's head
