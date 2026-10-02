@@ -6,13 +6,11 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Operator reads `02_define/output/spec.md` and ticks **Spec approved** on https://github.com/k0d0minio/agorasim/pull/175.
-2. Then `/pipeline build reservar-embedded-checkout` — follow `plan.md` pass by pass.
+1. Build: pre-flip check (`ci-status.sh`), merge `origin/main`, `security-check.sh --branch`, flip ready, post-flip push, full verdict.
 
 ## Blockers
 
-- blocked on operator: tick **Spec approved** on PR #175.
-- blocked on operator (before the smoke, not before Build): set `STRIPE_PUBLISHABLE_KEY` (the `pk_test_…` matching the existing `sk_test_…`) in Vercel for Preview and the `uat` environment — without it the preview shows the enquiry form, by design.
+- none for Build. Before the smoke: `STRIPE_PUBLISHABLE_KEY` must exist in Vercel (Preview, `uat`, Production) — blocked on operator for the smoke, not for the code.
 
 ## Do not
 
@@ -20,4 +18,4 @@ stops, so nothing is carried in anyone's head.
 - Fix the UAT "There was an error processing your request." error here (D-4 — its own bug lane).
 - Touch the quote page or `lib/quote-checkout.ts` — stub 2 (`quote-embedded-checkout`).
 - Use a `NEXT_PUBLIC_` variable for the publishable key, or a per-request nonce on `/reservar` (ISR).
-- Change the CSP or Permissions-Policy of any route other than `/:locale/reservar` and below.
+- Bump `@stripe/stripe-js` to 10.x while the server SDK is on `dahlia` (D-11).
