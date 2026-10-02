@@ -1,0 +1,3 @@
+## 2026-10-02 Vercel draft deployment — BUILD_FAILED "Resource provisioning failed"
+- deployment dpl_7eJzeLz64eYaPtayxu6AxH7WYEKP (head 13147ee), no build logs; failed at provisioning before any build step
+- not this PR's: the same error on other claude/* draft heads at the same minute (refund-paths-dedupe, cron-job-and-crypto-helpers-dedupe)
