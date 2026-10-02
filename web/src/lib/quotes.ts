@@ -1259,14 +1259,17 @@ async function moveLeadStage(
  * and went to lunch. Only `sent` is touched — a quote with money on it is the
  * refunds path's, never replaced from here.
  *
+ * The old quotes' unpaid instalments are written off with them (returned, so
+ * the caller can close their Checkout sessions).
+ *
  * Each cancellation is written against the **lead**, naming both references,
  * so its Histórico says which quote replaced which.
  */
 export async function supersedeSentQuotes(
   replacement: Pick<Quote, "id" | "tourRequestId">,
   context: { actorUserId?: string | null; now?: Date } = {},
-): Promise<Quote[]> {
-  if (!replacement.tourRequestId) return [];
+): Promise<{ quotes: Quote[]; writtenOff: QuotePayment[] }> {
+  if (!replacement.tourRequestId) return { quotes: [], writtenOff: [] };
   const { actorUserId = null, now = new Date() } = context;
 
   const superseded = await db
@@ -1281,6 +1284,26 @@ export async function supersedeSentQuotes(
     )
     .returning();
 
+  // The old link is dead, so its instalments are too: left `pending`/`issued`
+  // they could still be paid from a tab opened before the new version went out.
+  // The caller expires the Checkout sessions behind the returned rows.
+  const writtenOff =
+    superseded.length === 0
+      ? []
+      : await db
+          .update(quotePayments)
+          .set({ status: "cancelled", updatedAt: now })
+          .where(
+            and(
+              inArray(
+                quotePayments.quoteId,
+                superseded.map((old) => old.id),
+              ),
+              inArray(quotePayments.status, OPEN_INSTALMENT_STATUSES),
+            ),
+          )
+          .returning();
+
   for (const old of superseded) {
     await recordAuditOrWarn({
       actorUserId,
@@ -1292,7 +1315,7 @@ export async function supersedeSentQuotes(
     });
   }
 
-  return superseded;
+  return { quotes: superseded, writtenOff };
 }
 
 /**
