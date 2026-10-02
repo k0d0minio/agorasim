@@ -70,10 +70,13 @@ import { cn } from "@/lib/utils";
  *
  * **Paying happens on this page.** A successful submit hands back a Stripe
  * session's client secret, and the form steps aside for Stripe's own payment
- * form with the summary kept in view and a way back (`PaymentStep`). Going
- * back shows this form exactly as it was left — the basket lives in this
- * component's state, which the payment step never unmounts — and releases the
- * car held for the abandoned attempt.
+ * form with the summary kept in view and a way back (`PaymentStep`). The
+ * `<form>` itself unmounts while the step shows, but the basket — tour, party,
+ * day, departure and every typed detail — lives in this component's state, so
+ * going back shows it as it was left, and releases the car held for the
+ * abandoned attempt. The one field that does not come back is the marketing
+ * opt-in, deliberately: it is not held in the basket, so it returns unticked
+ * and consent stays a fresh act at each submit (see `lib/checkout-draft.ts`).
  *
  * **The prices here are for reading, not for charging.** The same
  * `priceBooking` the server runs is imported here (it is pure), so the total
