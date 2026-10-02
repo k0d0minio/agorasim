@@ -6,11 +6,14 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Build: pre-flip check (`ci-status.sh`), merge `origin/main`, `security-check.sh --branch`, flip ready, post-flip push, full verdict.
+1. Operator sets `STRIPE_PUBLISHABLE_KEY` in Vercel (Preview and the `uat` environment: the `pk_test_…` paired with the current `sk_test_…`; Production: the `pk_live_…` when the live secret key goes in), then redeploys the preview.
+2. Operator smokes the preview (https://agorasim-git-claude-embedded-checkout-reservar-tikixx-kodominio.vercel.app/pt/reservar and /en/reservar) against the acceptance criteria — the five left unticked on PR #175 are the ones only a browser proves.
+3. Operator ticks **Ready to merge** on https://github.com/k0d0minio/agorasim/pull/175, then `/pipeline release reservar-embedded-checkout`.
 
 ## Blockers
 
-- none for Build. Before the smoke: `STRIPE_PUBLISHABLE_KEY` must exist in Vercel (Preview, `uat`, Production) — blocked on operator for the smoke, not for the code.
+- blocked on operator: set `STRIPE_PUBLISHABLE_KEY` in Vercel (Preview, `uat`) — without it the preview's `/reservar` shows the enquiry form by design.
+- blocked on operator: tick **Ready to merge** on PR #175 after the smoke.
 
 ## Do not
 
