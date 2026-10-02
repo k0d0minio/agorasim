@@ -6,18 +6,16 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. Operator reads `02_define/output/spec.md` and ticks **Spec approved** on
+   https://github.com/k0d0minio/agorasim/pull/188 (or `revise refund-paths-dedupe "<what>"`).
+2. Then `/pipeline build refund-paths-dedupe` — execute `plan.md` passes 1–5.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
-- blocked on operator: <the human-only act that unblocks the run — tick a gate, merge, a
-  dashboard or env change>
-
-A blocking operator act is written here **and** in the stop report's `Operator:` list; a
-non-blocking one lives only in that list, never here (`_shared/output.md` → Split by actor).
+- blocked on operator: tick **Spec approved** in the body of PR #188.
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Do not edit `booking-refund.test.ts`, `quote-refund.test.ts` or `quotes.test.ts` — their
+  passing unchanged is the acceptance criterion.
+- Do not start Build before the Spec approved tick.
