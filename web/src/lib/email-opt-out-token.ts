@@ -29,6 +29,8 @@
  */
 
 import { secretsMatch } from "@/lib/admin-session";
+import { base64UrlDecode, base64UrlEncode, fromHex, toHex } from "@/lib/crypto-encoding";
+import { normalizeEmail } from "@/lib/normalize-email";
 
 /** Domain separators: the same secret never signs two meanings of one input. */
 const ADDRESS_DOMAIN = "agorasim:email-opt-out:address:";
@@ -77,40 +79,9 @@ async function hmacBytes(value: string): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(value)));
 }
 
-function toHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function fromHex(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < bytes.length; i += 1) {
-    bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
-}
-
-function base64UrlEncode(bytes: Uint8Array): string {
-  const binary = String.fromCharCode(...bytes);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function base64UrlDecode(value: string): Uint8Array {
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
-  return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
-}
-
-/**
- * The one normalisation every address goes through before it is hashed —
- * the same as `normalizeEmail` in `lib/admin-users.ts`, restated here so this
- * module stays free of the database that one imports.
- */
-export function normaliseAddress(email: string): string {
-  return email.trim().toLowerCase();
-}
-
 /** `email_opt_outs.address_hash` for an address: 64 hex characters. */
 export async function optOutAddressHash(email: string): Promise<string> {
-  return toHex(await hmacBytes(ADDRESS_DOMAIN + normaliseAddress(email)));
+  return toHex(await hmacBytes(ADDRESS_DOMAIN + normalizeEmail(email)));
 }
 
 async function linkSignature(addressHash: string): Promise<string> {
