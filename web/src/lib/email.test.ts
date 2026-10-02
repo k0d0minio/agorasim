@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { site } from "@/content/site";
+import { captureError } from "@/lib/observability";
 import { sendEmail, type EmailMessage } from "@/lib/email";
 
 /**
@@ -12,6 +13,11 @@ import { sendEmail, type EmailMessage } from "@/lib/email";
  * A confirmation that replied to `reservas@` would be a guest writing "can we
  * make it four?" into an inbox nobody reads.
  */
+
+vi.mock("@/lib/observability", () => ({
+  captureAlert: vi.fn(),
+  captureError: vi.fn(),
+}));
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -98,5 +104,26 @@ describe("sendEmail — unconfigured", () => {
     expect(result).toEqual({ sent: false, reason: "unconfigured" });
     expect(fetchMock).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe("sendEmail — timeout", () => {
+  it("gives the Resend request an abort signal", async () => {
+    await sendEmail(message());
+
+    expect(fetchMock.mock.calls.at(-1)?.[1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("returns the failed result, rather than throwing, when the request times out", async () => {
+    // What `fetch` does when `AbortSignal.timeout` fires on a hung server.
+    fetchMock.mockRejectedValueOnce(
+      new DOMException("The operation was aborted due to timeout", "TimeoutError"),
+    );
+
+    await expect(sendEmail(message())).resolves.toEqual({ sent: false, reason: "failed" });
+    expect(captureError).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ tags: { reason: "timeout" } }),
+    );
   });
 });
