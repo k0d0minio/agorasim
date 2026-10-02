@@ -4,7 +4,7 @@ Where the run is, in five lines. Updated at every stage start and stop, and when
 flips. A resuming session reads this first, then `handoff.md` (`_shared/stage-preamble.md`).
 
 - phase: release
-- step: 4 (reviews)
-- ci: GREEN (full gate, 11d8162)
+- step: done
+- ci: GREEN
 - blocked: no
 - updated: 2026-10-02

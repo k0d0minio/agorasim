@@ -45,3 +45,14 @@
 - Review closely: `releaseBookingCheckout` (secret comparison, `pending` + `open` guards), the payment CSP origins, and `next.config.ts` ordering.
 - The confirmation page is under `/reservar/confirmacao`, so it also carries the payment policy — intended (the spec's "and below").
 - Context budget: read `site-header.tsx`, `mobile-nav.tsx`, `booking-button.tsx`, `content/privacy.ts`, `reservar/page.test.ts` beyond `touches:` — D-9 and the page test's checkout case needed them.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN on d1dad8d (full gate + advisory quality) before the record; re-read with ci-status.sh after the close-out push, before the merge
+- reviews: code medium — 1 finding: a comment claimed the payment step never unmounts the form (corrected, d1dad8d); the opt-in returning unticked is the spec's criterion 3, kept · security security-check.sh --branch --audit: OK (gitleaks not installed — built-in patterns only) + /security-review — no findings (client-secret release path, confirm-without-paying, secret exposure, CSP scope, XSS checked) · production-readiness n/a — the skill is not installed in this repo; env readiness measured by the next line · readiness env.sh audit --changed: OK (after the operator added STRIPE_PUBLISHABLE_KEY to Production — one stop, class 3, see error.log)
+- parked: knowledge-map-icm-board-paths.md (validate-knowledge-map.sh is INVALID on main, independent of this run)
+- migrations: skip — none of this run's own
+- learned: 1 rule appended to _shared/project-rules.md (retrospective) + 3 from FAILURE.md at close-out
+- docs: .icm/docs/launch-runbook.md (Track G env list gains STRIPE_PUBLISHABLE_KEY), .icm/docs/data-protection.md (Stripe row, Build) · announce: deferred to promotion
+- Context budget: read web/src/app/[locale]/reservar/page.test.ts and the triage stub shape beyond the Inputs — the env stop and the parked stub needed them.

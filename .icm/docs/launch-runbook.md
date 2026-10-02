@@ -131,7 +131,7 @@ Mirror table (name · type · value):
 Order matters. Env first, DNS second, test third, announce last.
 
 1. [ ] 🧑 Vercel → `agorasim` → Environment Variables, **Production scope only** (previews keep sandbox keys):
-   `STRIPE_SECRET_KEY` (live `sk_live_…`, platform) · `STRIPE_WEBHOOK_SECRET` (the live endpoint's `whsec_…`) · `STRIPE_CONNECTED_ACCOUNT_ID` (`acct_…`, only once verified) · `NEXT_PUBLIC_SITE_URL=https://agorasim.pt` · `BOOKING_EMAIL_FROM` · `BOOKING_NOTIFICATION_EMAILS` · `SENTRY_DSN` · `BACKUP_BLOB_READ_WRITE_TOKEN` (second, private, EU Blob store — PR #96).
+   `STRIPE_SECRET_KEY` (live `sk_live_…`, platform) · `STRIPE_PUBLISHABLE_KEY` (the matching live `pk_live_…` — the booking page mounts Stripe's form with it; a mode that disagrees with the secret key turns `/reservar` to the enquiry form) · `STRIPE_WEBHOOK_SECRET` (the live endpoint's `whsec_…`) · `STRIPE_CONNECTED_ACCOUNT_ID` (`acct_…`, only once verified) · `NEXT_PUBLIC_SITE_URL=https://agorasim.pt` · `BOOKING_EMAIL_FROM` · `BOOKING_NOTIFICATION_EMAILS` · `SENTRY_DSN` · `BACKUP_BLOB_READ_WRITE_TOKEN` (second, private, EU Blob store — PR #96).
 2. [ ] 🧑 Redeploy Production; confirm the deployment is the intended commit.
 3. [ ] 🧑 Neon manual snapshot.
 4. [ ] 🧑 At the new registrar: nameservers → the registrar's own (the zone verified in Track T). Nothing else changes. Note the time.
