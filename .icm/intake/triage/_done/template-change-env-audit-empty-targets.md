@@ -4,6 +4,7 @@
 - found-by: template-change · 2026-09-24
 - priority: P3
 
+- superseded-by: icm-board (implemented there by the operator; comes back via icm-sync)
 ## Problem
 
 `.icm/scripts/env.sh` (template-owned — `T scripts/env.sh` in `.icm/MANIFEST`) reads
