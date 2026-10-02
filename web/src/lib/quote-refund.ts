@@ -435,23 +435,26 @@ export async function syncQuotePaymentRefundFromStripe(options: {
     );
   }
 
-  // Money newly went back: if the quote card sent it and has not written it
-  // yet, the quote card claims it.
-  const refund =
+  // Money newly went back: if the quote card sent any of it and has not written
+  // it yet, the quote card claims it. Every refund the row has not recorded
+  // counts, not only the newest — the total this door would write includes
+  // them all.
+  const unrecorded =
     refundedAmountCents > payment.refundedAmountCents
-      ? await refundBehind(charge, options.refund ?? null)
-      : null;
-  if (issuedByQuoteCard(refund, payment) && payment.stripeRefundId !== refund.id) {
-    if (now.getTime() - refund.created * 1000 < ADMIN_REFUND_SETTLE_WINDOW_MS) {
+      ? await unrecordedRefunds(charge, options.refund ?? null, payment, refundedAmountCents)
+      : [];
+  const awaitingCard = unrecorded.find((refund) => issuedByQuoteCard(refund, payment));
+  if (awaitingCard) {
+    if (now.getTime() - awaitingCard.created * 1000 < ADMIN_REFUND_SETTLE_WINDOW_MS) {
       return { status: "deferred", payment };
     }
     console.warn(
-      `[quote-refund] ${quoteRef(found.quote.id)}: ${refund.id} came from the quote card but ` +
-        `was never settled there — recording it from Stripe, without the actor`,
+      `[quote-refund] ${quoteRef(found.quote.id)}: ${awaitingCard.id} came from the quote card ` +
+        `but was never settled there — recording it from Stripe, without the actor`,
     );
   }
 
-  const refundId = options.refundId ?? refund?.id ?? (await latestRefundId(charge));
+  const refundId = options.refundId ?? unrecorded[0]?.id ?? (await latestRefundId(charge));
 
   const settled = await settleInstalmentRefund({
     quote: found.quote,
@@ -486,35 +489,54 @@ export async function syncQuotePaymentRefundFromStripe(options: {
 export const ADMIN_REFUND_SETTLE_WINDOW_MS = 10 * 60 * 1000;
 
 /**
- * The refund an event is about: the one it carried (`refund.updated`), else
- * the charge's latest. `null` when Stripe cannot say — and then nothing is
- * deferred, because a refund we cannot read is not one we can attribute.
+ * The refunds behind the money this row has not recorded yet, newest first.
+ *
+ * A `charge.refunded` event carries no refund, and two refunds close together
+ * on one instalment can each be somebody else's — so the newest alone says
+ * nothing about the one that fired this event. Instead: Stripe added
+ * `charge.amount_refunded - payment.refundedAmountCents` since the row was
+ * written, so walk the charge's refunds from the newest back until that much
+ * is accounted for, stopping early at the refund the row already carries (it
+ * and everything older is written). The refund a `refund.updated` event
+ * carried is always one of them.
+ *
+ * Empty when Stripe cannot say — and then nothing is deferred, because a
+ * refund we cannot read is not one we can attribute.
  */
-async function refundBehind(
+async function unrecordedRefunds(
   charge: Stripe.Charge,
   carried: Stripe.Refund | null,
-): Promise<Stripe.Refund | null> {
-  if (carried) return carried;
-  if (!isStripeConfigured()) return null;
+  payment: QuotePayment,
+  chargeRefundedCents: number,
+): Promise<Stripe.Refund[]> {
+  const behind: Stripe.Refund[] = [];
+  if (carried && carried.id !== payment.stripeRefundId) behind.push(carried);
+  if (!isStripeConfigured()) return behind;
 
   try {
-    return await onOwningAccount(async (account) => {
-      const latest = await stripe().refunds.list({ charge: charge.id, limit: 1 }, account);
-      return latest.data[0] ?? null;
+    const listed = await onOwningAccount(async (account) => {
+      const recent = await stripe().refunds.list({ charge: charge.id, limit: 10 }, account);
+      return recent.data;
     });
+
+    let uncovered = chargeRefundedCents - payment.refundedAmountCents;
+    for (const refund of listed) {
+      if (uncovered <= 0 || refund.id === payment.stripeRefundId) break;
+      // A refund that did not go through added nothing to the charge.
+      if (refund.status === "failed" || refund.status === "canceled") continue;
+      uncovered -= refund.amount;
+      if (!behind.some((known) => known.id === refund.id)) behind.push(refund);
+    }
   } catch (err) {
-    console.warn(`[quote-refund] couldn't read the refund behind ${charge.id}`, err);
-    return null;
+    console.warn(`[quote-refund] couldn't read the refunds behind ${charge.id}`, err);
   }
+  return behind.sort((a, b) => b.created - a.created);
 }
 
 /** Whether `refund` is one {@link issueInstalmentRefund} made for this instalment. */
-function issuedByQuoteCard(
-  refund: Stripe.Refund | null,
-  payment: QuotePayment,
-): refund is Stripe.Refund {
-  const metadata = refund?.metadata;
-  if (!refund || !metadata || metadata.via !== "admin") return false;
+function issuedByQuoteCard(refund: Stripe.Refund, payment: QuotePayment): boolean {
+  const metadata = refund.metadata;
+  if (!metadata || metadata.via !== "admin") return false;
   if (metadata.quotePaymentId && metadata.quotePaymentId !== payment.id) return false;
   // A refund that did not go through is the admin door's refusal, not its claim.
   return refund.status !== "failed" && refund.status !== "canceled";

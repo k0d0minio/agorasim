@@ -5,3 +5,4 @@
 - fix: web/src/lib/quote-refund.ts: `refundBehind` → `unrecordedRefunds` walks the charge's refunds newest-first until `amount_refunded - row.refundedAmountCents` is covered (stops at the refund the row already carries, skips failed/canceled); defer if any is an unsettled quote-card refund inside the window. web/src/lib/quote-refund.test.ts: both interleavings plus the already-recorded case.
 - changelog: announce: none
 - learned: none
+- ready: 2026-10-02 — PR flipped ready, full gate and previews on this head
