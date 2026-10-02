@@ -24,6 +24,7 @@ import {
   cancelBookingFromLink,
   type GuestCancelState,
 } from "@/app/[locale]/reserva/cancelar/actions";
+import { fillTemplate } from "@/lib/fill-template";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -73,7 +74,7 @@ export function CancelBookingPanel({
         lead={t(c.doneLead, locale)}
       >
         <p className="mt-4 text-sm text-muted-foreground">
-          {fill(t(c.doneRefund, locale), { amount: state.refund })}
+          {fillTemplate(t(c.doneRefund, locale), { amount: state.refund })}
         </p>
         <HomeLinks locale={locale} />
       </Panel>
@@ -127,10 +128,10 @@ export function CancelBookingPanel({
         </dl>
 
         <p className="mt-4 text-sm text-muted-foreground">
-          {fill(t(c.deadlineNote, locale), { deadline: summary.deadline })}
+          {fillTemplate(t(c.deadlineNote, locale), { deadline: summary.deadline })}
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          {fill(t(c.refundNote, locale), { amount: summary.refund })}
+          {fillTemplate(t(c.refundNote, locale), { amount: summary.refund })}
         </p>
 
         {state.status === "error" ? (
@@ -251,7 +252,7 @@ export function TooLatePanel({
       tone="wait"
       icon={<AlertTriangle className="size-5" />}
       title={t(c.tooLateTitle, locale)}
-      lead={fill(t(c.tooLateBody, locale), { deadline })}
+      lead={fillTemplate(t(c.tooLateBody, locale), { deadline })}
     >
       <Contacts locale={locale} />
       <HomeLinks locale={locale} />
@@ -320,13 +321,6 @@ function Row({ label, value }: { label: string; value: string }) {
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="text-right font-medium">{value}</dd>
     </div>
-  );
-}
-
-/** Shape-for-shape the substitution the emails use — `{key}` and nothing else. */
-function fill(template: string, values: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (match, key: string) =>
-    key in values ? values[key] : match,
   );
 }
 
