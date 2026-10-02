@@ -79,6 +79,12 @@ import {
  * — the account only decides whether to act at all.
  */
 export const dynamic = "force-dynamic";
+/**
+ * Room for the confirmation mails the paid path sends after the booking is
+ * written: each send is capped at 8s (`lib/email.ts`), and the platform default
+ * would kill the function mid-send with no retry left to cover it.
+ */
+export const maxDuration = 30;
 
 /** Events that mean money arrived. */
 const PAID_EVENTS = new Set<Stripe.Event["type"]>([
