@@ -1,9 +1,16 @@
 "use client";
 
-import { useActionState, useState, useSyncExternalStore } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
-import { Check, Lock, MapPin, Minus, Plus, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Check, Lock, MapPin, Minus, Plus, ShieldCheck } from "lucide-react";
 
 import { t, type Locale, type Localized } from "@/i18n/config";
 import { bookingContent } from "@/content/booking";
@@ -33,9 +40,12 @@ import {
   type CheckoutDraft,
 } from "@/lib/checkout-draft";
 import {
+  releaseCheckout,
   startCheckout,
   type CheckoutState,
 } from "@/app/[locale]/reservar/checkout-actions";
+import { documentLoadedOnPaymentRoute } from "@/lib/payment-route";
+import { EmbeddedCheckout } from "@/components/embedded-checkout";
 import {
   BookingDatePicker,
   departureUsable,
@@ -57,6 +67,13 @@ import { cn } from "@/lib/utils";
  * the add-on stops that only exist on a private countryside tour. The form's
  * job is to make the combinations that cannot be bought impossible to submit —
  * greyed with the reason — rather than let the server say no afterwards.
+ *
+ * **Paying happens on this page.** A successful submit hands back a Stripe
+ * session's client secret, and the form steps aside for Stripe's own payment
+ * form with the summary kept in view and a way back (`PaymentStep`). Going
+ * back shows this form exactly as it was left — the basket lives in this
+ * component's state, which the payment step never unmounts — and releases the
+ * car held for the abandoned attempt.
  *
  * **The prices here are for reading, not for charging.** The same
  * `priceBooking` the server runs is imported here (it is pure), so the total
@@ -128,8 +145,8 @@ function startingBasket(options: {
   const sellable = (slug: string | null | undefined): string | undefined =>
     slug != null && tours.some((entry) => entry.slug === slug) ? slug : undefined;
 
-  // The draft is the more specific answer: a guest coming back from Stripe
-  // chose their tour long before they landed on whatever URL brought them here.
+  // The draft is the more specific answer: a guest coming back with one chose
+  // their tour long before they landed on whatever URL brought them here.
   const wanted = sellable(draft?.tour) ?? sellable(options.tour);
 
   // Clamped as a group, not one band at a time: each is already bounded on the
@@ -250,6 +267,43 @@ export function BookingCheckoutForm({
   const optional = t(c.labels.optional, l);
 
   const [state, formAction] = useActionState<CheckoutState, FormData>(startCheckout, {});
+
+  /*
+   * The payment step is showing while the last submit started a session the
+   * guest has not gone back from. Going back records that session as closed
+   * rather than clearing the action's state, so the next submit — a new
+   * session — shows the step again on its own.
+   */
+  const [closedSession, setClosedSession] = useState<string | null>(null);
+  const payment =
+    state.payment && state.payment.clientSecret !== closedSession ? state.payment : null;
+
+  function backFromPayment(clientSecret: string) {
+    setClosedSession(clientSecret);
+    // Fire and forget: the guest is back on their form at once, and the car
+    // this attempt held is released behind them (or lapses with the hold).
+    void releaseCheckout(clientSecret);
+  }
+
+  /*
+   * Stripe's form needs this document to have been *loaded* on `/reservar`,
+   * under the policy that admits it (`lib/payment-route.ts`). A guest who
+   * arrived through a client-side link is still in another page's document, so
+   * the page reloads itself once, before they have typed anything.
+   */
+  useEffect(() => {
+    if (!documentLoadedOnPaymentRoute()) window.location.reload();
+  }, []);
+
+  /* Each step starts at its top: the summary and the form's first section. */
+  const top = useRef<HTMLDivElement>(null);
+  const stepKey = payment?.clientSecret ?? null;
+  const lastStep = useRef(stepKey);
+  useEffect(() => {
+    if (lastStep.current === stepKey) return;
+    lastStep.current = stepKey;
+    top.current?.scrollIntoView({ block: "start" });
+  }, [stepKey]);
   /*
    * Money is formatted here rather than server-side because the total moves as
    * the guest adds a person or a tasting. `lib/money.ts` exists precisely so
@@ -444,546 +498,678 @@ export function BookingCheckoutForm({
     afternoon: t(departureLabel(tour.slug, "afternoon"), l),
   };
 
-  return (
-    <form
-      action={formAction}
-      /*
-       * The basket, saved at the last possible moment before the guest leaves
-       * for Stripe — and read from the `FormData` rather than from state, so
-       * what is stored is precisely what was submitted. React runs this before
-       * the action; a throw inside it would take the payment with it, which is
-       * why every call in `saveCheckoutDraft` swallows its own failure.
-       */
-      onSubmit={(event) => saveCheckoutDraft(draftFromFormData(new FormData(event.currentTarget)))}
-      className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-start"
-    >
-      <input type="hidden" name="locale" value={locale} />
-      <input type="hidden" name="experience" value={tour.slug} />
-      <input type="hidden" name="mode" value={mode} />
-      <input type="hidden" name="adults" value={adults} />
-      <input type="hidden" name="children" value={children} />
-      <input type="hidden" name="infants" value={infants} />
-      {chosenAddOns.map((entry) => (
-        <input key={entry.slug} type="hidden" name="addOns" value={entry.slug} />
-      ))}
+  const summary = (
+    <dl className="space-y-2 text-sm">
+      {quote?.ok
+        ? quote.lines.map((line, i) => (
+            <div key={`${line.slug}-${line.unit}-${i}`} className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">{lineLabel(line)}</dt>
+              <dd className="font-medium">
+                {line.unit === "group"
+                  ? price(line.unitCents)
+                  : `${price(line.unitCents)} × ${line.quantity}`}
+              </dd>
+            </div>
+          ))
+        : null}
+      {infants > 0 ? (
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted-foreground">{t(c.labels.infantsLine, l)}</dt>
+          <dd className="font-medium">× {infants}</dd>
+        </div>
+      ) : null}
+      <div className="flex justify-between gap-3 border-t pt-2 text-muted-foreground">
+        <dt>
+          {seats} {seats === 1 ? t(c.labels.person, l) : t(c.labels.people, l)}
+        </dt>
+        <dd />
+      </div>
+    </dl>
+  );
 
-      {/* Honeypot — same rig as the enquiry form: off-screen rather than
-          hidden, so naive bots fill it in and real people never reach it. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -left-[9999px] h-0 w-0 overflow-hidden"
-      >
-        <label htmlFor={HONEYPOT_FIELD}>Company website</label>
-        <input
-          id={HONEYPOT_FIELD}
-          name={HONEYPOT_FIELD}
-          type="text"
-          tabIndex={-1}
-          autoComplete="off"
-          defaultValue=""
+  const total = (
+    <div className="flex justify-between rounded-lg bg-muted/60 p-3 font-medium">
+      <span>{t(c.labels.total, l)}</span>
+      <span>{quote?.ok ? price(quote.totalCents) : "—"}</span>
+    </div>
+  );
+
+  if (payment) {
+    return (
+      <div ref={top} className="scroll-mt-24">
+        <PaymentStep
+          locale={l}
+          payment={payment}
+          tourTitle={t(tour.title, l)}
+          date={date}
+          slotLabel={slot ? slotLabels[slot] : null}
+          summary={summary}
+          total={total}
+          testMode={testMode}
+          onBack={() => backFromPayment(payment.clientSecret)}
         />
       </div>
+    );
+  }
 
-      <div className="flex flex-col gap-10">
-        {/*
-          Back from Stripe with everything still here. Said plainly, because a
-          guest who expects to start again and finds the form already filled in
-          should be told why rather than left wondering what the site knows.
-        */}
-        {arrival.draft ? (
-          <p
-            role="status"
-            className="rounded-xl border border-dashed border-input px-4 py-3 text-sm text-muted-foreground"
-          >
-            {t(c.labels.resumed, l)}
-          </p>
-        ) : null}
+  return (
+    <div ref={top} className="scroll-mt-24">
+      <form
+        action={formAction}
+        /*
+         * The basket, saved at the last possible moment before the guest leaves
+         * for Stripe — and read from the `FormData` rather than from state, so
+         * what is stored is precisely what was submitted. React runs this before
+         * the action; a throw inside it would take the payment with it, which is
+         * why every call in `saveCheckoutDraft` swallows its own failure.
+         */
+        onSubmit={(event) => saveCheckoutDraft(draftFromFormData(new FormData(event.currentTarget)))}
+        className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-start"
+      >
+        <input type="hidden" name="locale" value={locale} />
+        <input type="hidden" name="experience" value={tour.slug} />
+        <input type="hidden" name="mode" value={mode} />
+        <input type="hidden" name="adults" value={adults} />
+        <input type="hidden" name="children" value={children} />
+        <input type="hidden" name="infants" value={infants} />
+        {chosenAddOns.map((entry) => (
+          <input key={entry.slug} type="hidden" name="addOns" value={entry.slug} />
+        ))}
 
-        {/* Which tour. Two cards; the choice resets day and departure. */}
-        <section aria-labelledby="bk-tour">
-          <h2 id="bk-tour" className="text-xl font-semibold sm:text-2xl">
-            {t(c.labels.experience, l)}
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">{t(c.labels.experienceHint, l)}</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {tours.map((entry) => {
-              const active = entry.slug === tour.slug;
-              // Only for a route the logistics map names — a guest is never
-              // shown a starting point that was guessed for them.
-              const meetingPoint = meetingPoints[entry.slug];
-              return (
-                <button
-                  key={entry.slug}
-                  type="button"
-                  onClick={() => {
-                    update({
-                      tour: entry.slug,
-                      date: null,
-                      slot: null,
-                      addOns: [],
-                    });
-                  }}
-                  aria-pressed={active}
-                  className={cn(
-                    /*
-                     * These cards are `<button aria-pressed>`, so they are in
-                     * the tab order and need a focus indicator of their own.
-                     * Full-strength `ring-ring` rather than the `/50` the
-                     * shared `Button` softens it to: an active card already
-                     * wears `border-primary` and `ring-primary/30`, so a 50%
-                     * halo measures 2.2:1 against the page — under the WCAG
-                     * 1.4.11 3:1 floor — where opaque it is 6.3:1. The
-                     * `focus-visible:` ring wins over the resting `ring-1` on
-                     * specificity, so an active card gets the same indicator
-                     * as an idle one.
-                     */
-                    "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
-                    active
-                      ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                      : "border-border hover:border-primary/50",
-                  )}
-                >
-                  <span className="font-medium">{t(entry.title, l)}</span>
-                  <span className="text-sm text-muted-foreground">{t(entry.tagline, l)}</span>
-                  <span className="text-sm text-muted-foreground">{t(entry.duration, l)}</span>
-                  {/*
-                    Where the day starts. The two routes leave from different
-                    towns — Sintra and Lisbon — and a guest choosing between
-                    them was being asked to pay before being told which, when
-                    it is often the fact that decides it.
-                  */}
-                  {meetingPoint ? (
-                    <span className="flex items-start gap-1.5 text-sm text-muted-foreground">
-                      <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                      <span>
-                        <span className="sr-only">{t(c.labels.meetingPoint, l)}: </span>
-                        {meetingPoint.address}
-                      </span>
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Shared or private. */}
-        <section aria-labelledby="bk-mode">
-          <h2 id="bk-mode" className="text-xl font-semibold sm:text-2xl">
-            {t(c.labels.mode, l)}
-          </h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {(["public", "private"] as const).map((option) => {
-              const offered = Boolean(pricing?.[option]);
-              const active = mode === option;
-              const label = option === "public" ? c.labels.modePublic : c.labels.modePrivate;
-              const hint =
-                option === "public" ? c.labels.modePublicHint : c.labels.modePrivateHint;
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  disabled={!offered}
-                  aria-pressed={active}
-                  onClick={() => update({ mode: option })}
-                  className={cn(
-                    "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
-                    active
-                      ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                      : offered
-                        ? "border-border hover:border-primary/50"
-                        : "cursor-not-allowed border-border opacity-50",
-                  )}
-                >
-                  <span className="font-medium">{t(label, l)}</span>
-                  <span className="text-sm text-muted-foreground">{t(hint, l)}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Who's coming. */}
-        <section aria-labelledby="bk-party">
-          <h2 id="bk-party" className="text-xl font-semibold sm:text-2xl">
-            {t(c.labels.partySize, l)}
-          </h2>
-          <Card className="mt-4 divide-y p-4">
-            <Stepper
-              id="bk-adults"
-              label={t(c.labels.adults, l)}
-              hint={t(c.labels.adultsHint, l)}
-              value={adults}
-              min={1}
-              max={Math.min(maxAdults, MAX_SEATS - children - infants)}
-              onChange={(next) => update({ adults: next })}
-              locale={l}
-            />
-            <Stepper
-              id="bk-children"
-              label={t(c.labels.children, l)}
-              hint={t(c.labels.childrenHint, l)}
-              value={children}
-              min={0}
-              max={MAX_SEATS - adults - infants}
-              onChange={(next) => update({ children: next })}
-              locale={l}
-            />
-            <Stepper
-              id="bk-infants"
-              label={t(c.labels.infants, l)}
-              hint={t(c.labels.infantsHint, l)}
-              value={infants}
-              min={0}
-              max={MAX_SEATS - adults - children}
-              onChange={(next) => update({ infants: next })}
-              locale={l}
-            />
-            <p className="pt-3 text-center text-sm text-muted-foreground">
-              {t(c.labels.partyHint, l)}
-            </p>
-            {/*
-              The steppers stop at eight because that is the biggest car. A
-              control that simply refuses to move is a control that reads as
-              broken, so the reason and the way forward sit right under it —
-              a group of ten is real business, it is just a phone call until
-              AGORA-019 says who drives the third car.
-            */}
-            <p className="pt-2 text-center text-xs text-muted-foreground">
-              {t(c.labels.bigGroupNote, l).replace("{max}", String(MAX_SEATS))}{" "}
-              <Link href={href(l, "contactos")} className="underline hover:text-primary">
-                {t(c.labels.bigGroupLink, l)}
-              </Link>
-            </p>
-            {state.fieldErrors?.party ? (
-              <p className="pt-2 text-center text-sm text-destructive" role="alert">
-                {state.fieldErrors.party}
-              </p>
-            ) : null}
-          </Card>
-        </section>
-
-        {/*
-          The calendar. One calendar for the whole business (AGORA-012) — what
-          changes with the tour and the party is not *which* days exist but
-          which of them have the right car free, which is why both are passed
-          down rather than a pre-filtered month list.
-
-          It is a step like the others and now says so: every sibling section
-          has an `h2`, and a guest skipping through the form by heading used to
-          fall straight from "who's coming" into "your details" with the whole
-          calendar in between.
-
-          There is deliberately no `key` here. Restarting the picker on a party
-          change cleared the grid and left this form holding the day the guest
-          could no longer see; the picker re-asks the question instead, keeps a
-          day that still fits, and says so when one does not.
-        */}
-        <section aria-labelledby="bk-when" className="flex flex-col gap-4">
-          <h2 id="bk-when" className="text-xl font-semibold sm:text-2xl">
-            {t(c.labels.when, l)}
-          </h2>
-          <BookingDatePicker
-            locale={l}
-            // The checkout's field, not the enquiry's. A card cannot be charged
-            // for "late August", so the free-text escape becomes a link out.
-            name="date"
-            slotName="slot"
-            slotHeading={t(c.labels.slot, l)}
-            slotLabels={slotLabels}
-            experienceSlug={tour.slug}
-            partySize={seats}
-            allowFlexible={false}
-            contactHref={href(l, "contactos")}
-            months={calendar}
-            error={state.fieldErrors?.date}
-            // Controlled: this form owns the day and the departure, so a
-            // rejected submit and a cancelled payment both keep them, and the
-            // two copies can no longer drift apart.
-            value={date}
-            slotValue={slot}
-            dropped={dayDropped}
-            droppedUnavailable={dayDroppedByClock}
-            onDateChange={(next) => update({ date: next, slot: null })}
-            onSlotChange={(next) => update({ slot: next })}
+        {/* Honeypot — same rig as the enquiry form: off-screen rather than
+            hidden, so naive bots fill it in and real people never reach it. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -left-[9999px] h-0 w-0 overflow-hidden"
+        >
+          <label htmlFor={HONEYPOT_FIELD}>Company website</label>
+          <input
+            id={HONEYPOT_FIELD}
+            name={HONEYPOT_FIELD}
+            type="text"
+            tabIndex={-1}
+            autoComplete="off"
+            defaultValue=""
           />
-        </section>
+        </div>
 
-        {/* Add-ons — a private countryside privilege, and the form says so. */}
-        {addOnsOffered ? (
-          <section aria-labelledby="bk-extras">
-            <h2 id="bk-extras" className="text-xl font-semibold sm:text-2xl">
-              {t(c.labels.addOns, l)}
+        <div className="flex flex-col gap-10">
+          {/*
+            Back from Stripe with everything still here. Said plainly, because a
+            guest who expects to start again and finds the form already filled in
+            should be told why rather than left wondering what the site knows.
+          */}
+          {arrival.draft ? (
+            <p
+              role="status"
+              className="rounded-xl border border-dashed border-input px-4 py-3 text-sm text-muted-foreground"
+            >
+              {t(c.labels.resumed, l)}
+            </p>
+          ) : null}
+
+          {/* Which tour. Two cards; the choice resets day and departure. */}
+          <section aria-labelledby="bk-tour">
+            <h2 id="bk-tour" className="text-xl font-semibold sm:text-2xl">
+              {t(c.labels.experience, l)}
             </h2>
-            <p className="mt-2 text-sm text-muted-foreground">{t(c.labels.addOnsHint, l)}</p>
-            {mode === "public" ? (
-              <p className="mt-2 text-sm text-muted-foreground">
-                {t(c.labels.addOnsPublicNote, l)}
-              </p>
-            ) : null}
+            <p className="mt-2 text-sm text-muted-foreground">{t(c.labels.experienceHint, l)}</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {complements.map((entry) => {
-                const blocked = mode !== "private" ? "" : addOnBlocked(entry);
-                const usable = mode === "private" && !blocked;
-                const active = usable && addOns.includes(entry.slug);
-                const perAdult =
-                  entry.pricing?.type === "addon" ? entry.pricing.perAdultCents : 0;
+              {tours.map((entry) => {
+                const active = entry.slug === tour.slug;
+                // Only for a route the logistics map names — a guest is never
+                // shown a starting point that was guessed for them.
+                const meetingPoint = meetingPoints[entry.slug];
                 return (
                   <button
                     key={entry.slug}
                     type="button"
-                    disabled={!usable}
-                    onClick={() => toggleAddOn(entry.slug)}
+                    onClick={() => {
+                      update({
+                        tour: entry.slug,
+                        date: null,
+                        slot: null,
+                        addOns: [],
+                      });
+                    }}
                     aria-pressed={active}
                     className={cn(
-                      "flex items-start justify-between gap-3 rounded-xl border p-4 text-left transition-all focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
+                      /*
+                       * These cards are `<button aria-pressed>`, so they are in
+                       * the tab order and need a focus indicator of their own.
+                       * Full-strength `ring-ring` rather than the `/50` the
+                       * shared `Button` softens it to: an active card already
+                       * wears `border-primary` and `ring-primary/30`, so a 50%
+                       * halo measures 2.2:1 against the page — under the WCAG
+                       * 1.4.11 3:1 floor — where opaque it is 6.3:1. The
+                       * `focus-visible:` ring wins over the resting `ring-1` on
+                       * specificity, so an active card gets the same indicator
+                       * as an idle one.
+                       */
+                      "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
                       active
                         ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                        : usable
-                          ? "border-border hover:border-primary/50"
-                          : "cursor-not-allowed border-border opacity-60",
+                        : "border-border hover:border-primary/50",
                     )}
                   >
-                    <span>
-                      <span className="block font-medium">{t(entry.title, l)}</span>
-                      <span className="mt-0.5 block text-sm text-muted-foreground">
-                        {t(entry.tagline, l)}
-                      </span>
-                      <span className="mt-1 block text-sm font-medium">
-                        +{price(perAdult)}{" "}
-                        <span className="font-normal text-muted-foreground">
-                          {t(c.labels.perAdult, l)}
+                    <span className="font-medium">{t(entry.title, l)}</span>
+                    <span className="text-sm text-muted-foreground">{t(entry.tagline, l)}</span>
+                    <span className="text-sm text-muted-foreground">{t(entry.duration, l)}</span>
+                    {/*
+                      Where the day starts. The two routes leave from different
+                      towns — Sintra and Lisbon — and a guest choosing between
+                      them was being asked to pay before being told which, when
+                      it is often the fact that decides it.
+                    */}
+                    {meetingPoint ? (
+                      <span className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                        <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                        <span>
+                          <span className="sr-only">{t(c.labels.meetingPoint, l)}: </span>
+                          {meetingPoint.address}
                         </span>
                       </span>
-                      {blocked ? (
-                        <span className="mt-1 block text-xs text-muted-foreground">
-                          {blocked}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span
-                      className={cn(
-                        "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
-                        active
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border",
-                      )}
-                    >
-                      {active && <Check className="size-3" />}
-                    </span>
+                    ) : null}
                   </button>
                 );
               })}
             </div>
-            {state.fieldErrors?.addOns ? (
-              <p className="mt-2 text-sm text-destructive" role="alert">
-                {state.fieldErrors.addOns}
+          </section>
+
+          {/* Shared or private. */}
+          <section aria-labelledby="bk-mode">
+            <h2 id="bk-mode" className="text-xl font-semibold sm:text-2xl">
+              {t(c.labels.mode, l)}
+            </h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {(["public", "private"] as const).map((option) => {
+                const offered = Boolean(pricing?.[option]);
+                const active = mode === option;
+                const label = option === "public" ? c.labels.modePublic : c.labels.modePrivate;
+                const hint =
+                  option === "public" ? c.labels.modePublicHint : c.labels.modePrivateHint;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    disabled={!offered}
+                    aria-pressed={active}
+                    onClick={() => update({ mode: option })}
+                    className={cn(
+                      "flex flex-col gap-1 rounded-xl border p-4 text-left transition-all focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
+                      active
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                        : offered
+                          ? "border-border hover:border-primary/50"
+                          : "cursor-not-allowed border-border opacity-50",
+                    )}
+                  >
+                    <span className="font-medium">{t(label, l)}</span>
+                    <span className="text-sm text-muted-foreground">{t(hint, l)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Who's coming. */}
+          <section aria-labelledby="bk-party">
+            <h2 id="bk-party" className="text-xl font-semibold sm:text-2xl">
+              {t(c.labels.partySize, l)}
+            </h2>
+            <Card className="mt-4 divide-y p-4">
+              <Stepper
+                id="bk-adults"
+                label={t(c.labels.adults, l)}
+                hint={t(c.labels.adultsHint, l)}
+                value={adults}
+                min={1}
+                max={Math.min(maxAdults, MAX_SEATS - children - infants)}
+                onChange={(next) => update({ adults: next })}
+                locale={l}
+              />
+              <Stepper
+                id="bk-children"
+                label={t(c.labels.children, l)}
+                hint={t(c.labels.childrenHint, l)}
+                value={children}
+                min={0}
+                max={MAX_SEATS - adults - infants}
+                onChange={(next) => update({ children: next })}
+                locale={l}
+              />
+              <Stepper
+                id="bk-infants"
+                label={t(c.labels.infants, l)}
+                hint={t(c.labels.infantsHint, l)}
+                value={infants}
+                min={0}
+                max={MAX_SEATS - adults - children}
+                onChange={(next) => update({ infants: next })}
+                locale={l}
+              />
+              <p className="pt-3 text-center text-sm text-muted-foreground">
+                {t(c.labels.partyHint, l)}
+              </p>
+              {/*
+                The steppers stop at eight because that is the biggest car. A
+                control that simply refuses to move is a control that reads as
+                broken, so the reason and the way forward sit right under it —
+                a group of ten is real business, it is just a phone call until
+                AGORA-019 says who drives the third car.
+              */}
+              <p className="pt-2 text-center text-xs text-muted-foreground">
+                {t(c.labels.bigGroupNote, l).replace("{max}", String(MAX_SEATS))}{" "}
+                <Link href={href(l, "contactos")} className="underline hover:text-primary">
+                  {t(c.labels.bigGroupLink, l)}
+                </Link>
+              </p>
+              {state.fieldErrors?.party ? (
+                <p className="pt-2 text-center text-sm text-destructive" role="alert">
+                  {state.fieldErrors.party}
+                </p>
+              ) : null}
+            </Card>
+          </section>
+
+          {/*
+            The calendar. One calendar for the whole business (AGORA-012) — what
+            changes with the tour and the party is not *which* days exist but
+            which of them have the right car free, which is why both are passed
+            down rather than a pre-filtered month list.
+
+            It is a step like the others and now says so: every sibling section
+            has an `h2`, and a guest skipping through the form by heading used to
+            fall straight from "who's coming" into "your details" with the whole
+            calendar in between.
+
+            There is deliberately no `key` here. Restarting the picker on a party
+            change cleared the grid and left this form holding the day the guest
+            could no longer see; the picker re-asks the question instead, keeps a
+            day that still fits, and says so when one does not.
+          */}
+          <section aria-labelledby="bk-when" className="flex flex-col gap-4">
+            <h2 id="bk-when" className="text-xl font-semibold sm:text-2xl">
+              {t(c.labels.when, l)}
+            </h2>
+            <BookingDatePicker
+              locale={l}
+              // The checkout's field, not the enquiry's. A card cannot be charged
+              // for "late August", so the free-text escape becomes a link out.
+              name="date"
+              slotName="slot"
+              slotHeading={t(c.labels.slot, l)}
+              slotLabels={slotLabels}
+              experienceSlug={tour.slug}
+              partySize={seats}
+              allowFlexible={false}
+              contactHref={href(l, "contactos")}
+              months={calendar}
+              error={state.fieldErrors?.date}
+              // Controlled: this form owns the day and the departure, so a
+              // rejected submit and a cancelled payment both keep them, and the
+              // two copies can no longer drift apart.
+              value={date}
+              slotValue={slot}
+              dropped={dayDropped}
+              droppedUnavailable={dayDroppedByClock}
+              onDateChange={(next) => update({ date: next, slot: null })}
+              onSlotChange={(next) => update({ slot: next })}
+            />
+          </section>
+
+          {/* Add-ons — a private countryside privilege, and the form says so. */}
+          {addOnsOffered ? (
+            <section aria-labelledby="bk-extras">
+              <h2 id="bk-extras" className="text-xl font-semibold sm:text-2xl">
+                {t(c.labels.addOns, l)}
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">{t(c.labels.addOnsHint, l)}</p>
+              {mode === "public" ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {t(c.labels.addOnsPublicNote, l)}
+                </p>
+              ) : null}
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {complements.map((entry) => {
+                  const blocked = mode !== "private" ? "" : addOnBlocked(entry);
+                  const usable = mode === "private" && !blocked;
+                  const active = usable && addOns.includes(entry.slug);
+                  const perAdult =
+                    entry.pricing?.type === "addon" ? entry.pricing.perAdultCents : 0;
+                  return (
+                    <button
+                      key={entry.slug}
+                      type="button"
+                      disabled={!usable}
+                      onClick={() => toggleAddOn(entry.slug)}
+                      aria-pressed={active}
+                      className={cn(
+                        "flex items-start justify-between gap-3 rounded-xl border p-4 text-left transition-all focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
+                        active
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                          : usable
+                            ? "border-border hover:border-primary/50"
+                            : "cursor-not-allowed border-border opacity-60",
+                      )}
+                    >
+                      <span>
+                        <span className="block font-medium">{t(entry.title, l)}</span>
+                        <span className="mt-0.5 block text-sm text-muted-foreground">
+                          {t(entry.tagline, l)}
+                        </span>
+                        <span className="mt-1 block text-sm font-medium">
+                          +{price(perAdult)}{" "}
+                          <span className="font-normal text-muted-foreground">
+                            {t(c.labels.perAdult, l)}
+                          </span>
+                        </span>
+                        {blocked ? (
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            {blocked}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span
+                        className={cn(
+                          "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                          active
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border",
+                        )}
+                      >
+                        {active && <Check className="size-3" />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {state.fieldErrors?.addOns ? (
+                <p className="mt-2 text-sm text-destructive" role="alert">
+                  {state.fieldErrors.addOns}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
+          <section aria-labelledby="bk-you" className="flex flex-col gap-5">
+            <h2 id="bk-you" className="text-xl font-semibold sm:text-2xl">
+              {t(c.labels.yourDetails, l)}
+            </h2>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="name">{t(c.labels.name, l)}</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  required
+                  autoComplete="name"
+                  enterKeyHint="next"
+                  value={basket.name}
+                  onChange={(event) => update({ name: event.target.value })}
+                  aria-invalid={Boolean(state.fieldErrors?.name)}
+                  aria-describedby={state.fieldErrors?.name ? "name-error" : undefined}
+                />
+                {state.fieldErrors?.name ? (
+                  <p id="name-error" className="text-sm text-destructive" role="alert">
+                    {state.fieldErrors.name}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="email">{t(c.labels.email, l)}</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  enterKeyHint="next"
+                  value={basket.email}
+                  onChange={(event) => update({ email: event.target.value })}
+                  aria-invalid={Boolean(state.fieldErrors?.email)}
+                  aria-describedby={state.fieldErrors?.email ? "email-error" : undefined}
+                />
+                {state.fieldErrors?.email ? (
+                  <p id="email-error" className="text-sm text-destructive" role="alert">
+                    {state.fieldErrors.email}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="phone">
+                  {t(c.labels.phone, l)} {optional}
+                </Label>
+                <Input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  value={basket.phone}
+                  onChange={(event) => update({ phone: event.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="message">
+                {t(c.labels.message, l)} {optional}
+              </Label>
+              <Textarea
+                id="message"
+                name="message"
+                rows={3}
+                placeholder={t(c.labels.messagePlaceholder, l)}
+                value={basket.message}
+                onChange={(event) => update({ message: event.target.value })}
+              />
+            </div>
+
+            {/*
+              Marketing opt-in. Never pre-ticked and never a condition of paying —
+              the same three requirements of valid consent the enquiry form
+              carries (GDPR Art. 4(11), 7(4)), and just as easy to break here.
+            */}
+            <div className="rounded-xl border border-border bg-secondary/20 px-4 py-3">
+              <label className="flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  name="marketingConsent"
+                  value="on"
+                  className="mt-0.5 size-4 shrink-0 rounded border-border accent-primary"
+                />
+                <span>
+                  {t(privacyContent.marketing.label, l)}
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {t(privacyContent.marketing.hint, l)}
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <p className="max-w-prose text-xs leading-relaxed text-muted-foreground">
+              {t(privacyContent.formNotice.intro, l)}{" "}
+              {t(privacyContent.formNotice.linkPrefix, l)}{" "}
+              <Link href={href(l, "privacidade")} className="underline hover:text-primary">
+                {t(privacyContent.formNotice.linkLabel, l)}
+              </Link>
+              .
+            </p>
+          </section>
+        </div>
+
+        <Card className="lg:sticky lg:top-24">
+          <CardContent className="space-y-4 p-5">
+            <p className="font-heading text-lg font-semibold">{t(c.labels.summary, l)}</p>
+
+            {summary}
+
+            {total}
+
+            {quoteProblem ? (
+              <p className="text-sm text-muted-foreground" role="status">
+                {quoteProblem}
               </p>
             ) : null}
-          </section>
-        ) : null}
 
-        <section aria-labelledby="bk-you" className="flex flex-col gap-5">
-          <h2 id="bk-you" className="text-xl font-semibold sm:text-2xl">
-            {t(c.labels.yourDetails, l)}
-          </h2>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="name">{t(c.labels.name, l)}</Label>
-              <Input
-                id="name"
-                name="name"
-                required
-                autoComplete="name"
-                enterKeyHint="next"
-                value={basket.name}
-                onChange={(event) => update({ name: event.target.value })}
-                aria-invalid={Boolean(state.fieldErrors?.name)}
-                aria-describedby={state.fieldErrors?.name ? "name-error" : undefined}
-              />
-              {state.fieldErrors?.name ? (
-                <p id="name-error" className="text-sm text-destructive" role="alert">
-                  {state.fieldErrors.name}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">{t(c.labels.email, l)}</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                enterKeyHint="next"
-                value={basket.email}
-                onChange={(event) => update({ email: event.target.value })}
-                aria-invalid={Boolean(state.fieldErrors?.email)}
-                aria-describedby={state.fieldErrors?.email ? "email-error" : undefined}
-              />
-              {state.fieldErrors?.email ? (
-                <p id="email-error" className="text-sm text-destructive" role="alert">
-                  {state.fieldErrors.email}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="phone">
-                {t(c.labels.phone, l)} {optional}
-              </Label>
-              <Input
-                id="phone"
-                name="phone"
-                type="tel"
-                autoComplete="tel"
-                value={basket.phone}
-                onChange={(event) => update({ phone: event.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="message">
-              {t(c.labels.message, l)} {optional}
-            </Label>
-            <Textarea
-              id="message"
-              name="message"
-              rows={3}
-              placeholder={t(c.labels.messagePlaceholder, l)}
-              value={basket.message}
-              onChange={(event) => update({ message: event.target.value })}
-            />
-          </div>
-
-          {/*
-            Marketing opt-in. Never pre-ticked and never a condition of paying —
-            the same three requirements of valid consent the enquiry form
-            carries (GDPR Art. 4(11), 7(4)), and just as easy to break here.
-          */}
-          <div className="rounded-xl border border-border bg-secondary/20 px-4 py-3">
-            <label className="flex items-start gap-3 text-sm">
-              <input
-                type="checkbox"
-                name="marketingConsent"
-                value="on"
-                className="mt-0.5 size-4 shrink-0 rounded border-border accent-primary"
-              />
-              <span>
-                {t(privacyContent.marketing.label, l)}
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  {t(privacyContent.marketing.hint, l)}
-                </span>
-              </span>
-            </label>
-          </div>
-
-          <p className="max-w-prose text-xs leading-relaxed text-muted-foreground">
-            {t(privacyContent.formNotice.intro, l)}{" "}
-            {t(privacyContent.formNotice.linkPrefix, l)}{" "}
-            <Link href={href(l, "privacidade")} className="underline hover:text-primary">
-              {t(privacyContent.formNotice.linkLabel, l)}
-            </Link>
-            .
-          </p>
-        </section>
-      </div>
-
-      <Card className="lg:sticky lg:top-24">
-        <CardContent className="space-y-4 p-5">
-          <p className="font-heading text-lg font-semibold">{t(c.labels.summary, l)}</p>
-
-          <dl className="space-y-2 text-sm">
-            {quote?.ok
-              ? quote.lines.map((line, i) => (
-                  <div key={`${line.slug}-${line.unit}-${i}`} className="flex justify-between gap-3">
-                    <dt className="text-muted-foreground">{lineLabel(line)}</dt>
-                    <dd className="font-medium">
-                      {line.unit === "group"
-                        ? price(line.unitCents)
-                        : `${price(line.unitCents)} × ${line.quantity}`}
-                    </dd>
-                  </div>
-                ))
-              : null}
-            {infants > 0 ? (
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted-foreground">{t(c.labels.infantsLine, l)}</dt>
-                <dd className="font-medium">× {infants}</dd>
-              </div>
+            {/*
+              The pay button is the last thing on the page on a phone, and the
+              fields it validates are all above it. Without this, tapping pay on
+              a bad date scrolled nothing, showed nothing where the thumb was,
+              and read as "the button is broken" — so whatever went wrong is
+              repeated here, next to the control that triggered it.
+            */}
+            {problem ? (
+              <p className="text-sm text-destructive" role="alert">
+                {problem}
+              </p>
             ) : null}
-            <div className="flex justify-between gap-3 border-t pt-2 text-muted-foreground">
-              <dt>
-                {seats} {seats === 1 ? t(c.labels.person, l) : t(c.labels.people, l)}
-              </dt>
-              <dd />
-            </div>
-          </dl>
 
-          <div className="flex justify-between rounded-lg bg-muted/60 p-3 font-medium">
-            <span>{t(c.labels.total, l)}</span>
-            <span>{quote?.ok ? price(quote.totalCents) : "—"}</span>
+            {testMode ? (
+              <p className="rounded-lg border border-dashed border-input px-3 py-2 text-xs font-medium">
+                {t(c.labels.testMode, l)}
+              </p>
+            ) : null}
+
+            {/*
+              The terms are presented before payment, not after: a guest who is
+              about to prepay in full is owed the seller's identity, the
+              cancellation procedure and the withdrawal statement one tap away
+              from the button that commits them (Directive 2011/83/EU Art. 6 and
+              8). A sentence and a link, not a checkbox — see `terms.ts`.
+            */}
+            <p className="text-center text-xs text-muted-foreground">
+              {t(termsContent.checkoutNotice.prefix, l)}{" "}
+              <Link href={href(l, "termos")} className="underline hover:text-primary">
+                {t(termsContent.checkoutNotice.linkLabel, l)}
+              </Link>
+              .
+            </p>
+
+            <PayButton locale={l} />
+
+            <p className="text-center text-xs text-muted-foreground">
+              {t(c.labels.holdNote, l)}
+            </p>
+
+            <p className="text-center text-xs text-muted-foreground">
+              {t(c.labels.freeCancellation, l)}
+            </p>
+
+            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
+              {t(c.labels.securePayment, l)}
+            </p>
+          </CardContent>
+        </Card>
+      </form>
+    </div>
+  );
+}
+
+/** `2026-08-15` → "sábado, 15 de agosto de 2026" / "Saturday, 15 August 2026". */
+function dayLabel(key: string, locale: Locale): string {
+  const [year, month, day] = key.split("-").map(Number);
+  if (!year || !month || !day) return key;
+  return new Intl.DateTimeFormat(locale === "pt" ? "pt-PT" : "en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
+/**
+ * The payment step: Stripe's form where the booking form was, with what is
+ * being bought kept in view — above the form on a phone, beside it on a wide
+ * screen — and the way back to change it.
+ */
+function PaymentStep({
+  locale: l,
+  payment,
+  tourTitle,
+  date,
+  slotLabel,
+  summary,
+  total,
+  testMode,
+  onBack,
+}: {
+  locale: Locale;
+  payment: NonNullable<CheckoutState["payment"]>;
+  tourTitle: string;
+  date: string | null;
+  slotLabel: string | null;
+  summary: ReactNode;
+  total: ReactNode;
+  testMode: boolean;
+  onBack: () => void;
+}) {
+  const c = bookingContent.labels;
+  const back = (
+    <Button type="button" variant="outline" onClick={onBack} className="w-full sm:w-auto">
+      <ArrowLeft className="size-4" />
+      {t(c.backToDetails, l)}
+    </Button>
+  );
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-start">
+      <Card className="lg:sticky lg:top-24 lg:order-last">
+        <CardContent className="space-y-4 p-5">
+          <p className="font-heading text-lg font-semibold">{t(c.summary, l)}</p>
+          <div className="space-y-1 text-sm">
+            <p className="font-medium">{tourTitle}</p>
+            {date ? <p className="text-muted-foreground">{dayLabel(date, l)}</p> : null}
+            {slotLabel ? <p className="text-muted-foreground">{slotLabel}</p> : null}
           </div>
-
-          {quoteProblem ? (
-            <p className="text-sm text-muted-foreground" role="status">
-              {quoteProblem}
-            </p>
-          ) : null}
-
-          {/*
-            The pay button is the last thing on the page on a phone, and the
-            fields it validates are all above it. Without this, tapping pay on
-            a bad date scrolled nothing, showed nothing where the thumb was,
-            and read as "the button is broken" — so whatever went wrong is
-            repeated here, next to the control that triggered it.
-          */}
-          {problem ? (
-            <p className="text-sm text-destructive" role="alert">
-              {problem}
-            </p>
-          ) : null}
-
+          {summary}
+          {total}
           {testMode ? (
             <p className="rounded-lg border border-dashed border-input px-3 py-2 text-xs font-medium">
-              {t(c.labels.testMode, l)}
+              {t(c.testMode, l)}
             </p>
           ) : null}
-
-          {/*
-            The terms are presented before payment, not after: a guest who is
-            about to prepay in full is owed the seller's identity, the
-            cancellation procedure and the withdrawal statement one tap away
-            from the button that commits them (Directive 2011/83/EU Art. 6 and
-            8). A sentence and a link, not a checkbox — see `terms.ts`.
-          */}
-          <p className="text-center text-xs text-muted-foreground">
-            {t(termsContent.checkoutNotice.prefix, l)}{" "}
-            <Link href={href(l, "termos")} className="underline hover:text-primary">
-              {t(termsContent.checkoutNotice.linkLabel, l)}
-            </Link>
-            .
-          </p>
-
-          <PayButton locale={l} />
-
-          <p className="text-center text-xs text-muted-foreground">
-            {t(c.labels.holdNote, l)}
-          </p>
-
-          <p className="text-center text-xs text-muted-foreground">
-            {t(c.labels.freeCancellation, l)}
-          </p>
-
-          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-            <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
-            {t(c.labels.securePayment, l)}
-          </p>
+          <p className="text-center text-xs text-muted-foreground">{t(c.holdNote, l)}</p>
         </CardContent>
       </Card>
-    </form>
+
+      <section aria-labelledby="bk-pay" className="flex flex-col gap-4">
+        <div>
+          <h2 id="bk-pay" className="text-xl font-semibold sm:text-2xl">
+            {t(c.paymentStep, l)}
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">{t(c.paymentStepHint, l)}</p>
+        </div>
+        <div>{back}</div>
+        <EmbeddedCheckout
+          key={payment.clientSecret}
+          clientSecret={payment.clientSecret}
+          publishableKey={payment.publishableKey}
+          stripeAccount={payment.stripeAccount}
+          locale={l}
+          loading={t(c.paymentLoading, l)}
+          failure={
+            <div className="flex flex-col gap-3 rounded-xl border border-destructive/40 px-4 py-3 text-sm">
+              <p>{t(c.paymentLoadFailed, l)}</p>
+              <div className="flex flex-wrap gap-3">
+                {back}
+                <Button asChild variant="ghost">
+                  <Link href={href(l, "contactos")}>{t(c.contactUs, l)}</Link>
+                </Button>
+              </div>
+            </div>
+          }
+        />
+        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
+          {t(c.securePayment, l)}
+        </p>
+      </section>
+    </div>
   );
 }
