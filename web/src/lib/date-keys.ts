@@ -80,6 +80,20 @@ export function todayKey(now: Date = new Date()): DateKey {
   return businessDayFormatter.format(now);
 }
 
+const businessClockFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: BUSINESS_TIME_ZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Minutes since midnight on the business's clock — 09:59 in Sintra is 599, in any season. */
+export function minutesOfDay(now: Date = new Date()): number {
+  const parts = businessClockFormatter.formatToParts(now);
+  const part = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return part("hour") * 60 + part("minute");
+}
+
 /** `2026-08-15` → a UTC midnight `Date`. Invalid keys give `null`. */
 export function parseDateKey(key: string): Date | null {
   if (!isDateKey(key)) return null;
