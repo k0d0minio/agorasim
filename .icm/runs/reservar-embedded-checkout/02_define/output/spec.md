@@ -29,12 +29,12 @@ the form on phone width and beside it on wide screens, and a "back" control. Str
 script is loaded only when the payment step mounts, never on page load and never on any other
 page.
 
-**After paying (settled in Define).** The guest lands on `/reservar/confirmacao?session_id=…`
+**After paying (D-5, settled in Define).** The guest lands on `/reservar/confirmacao?session_id=…`
 exactly as today — Stripe's in-frame completion navigates the top window to that agorasim URL
 (the session's `return_url`, replacing `success_url`). The confirmation page and its
 webhook-race fallback (`confirmPaidBooking`) are unchanged.
 
-**Going back (settled in Define).** "Back" returns to the booking form with every field the guest
+**Going back (D-6, settled in Define).** "Back" returns to the booking form with every field the guest
 had filled in (the existing browser draft in `lib/checkout-draft.ts`, minus the marketing
 opt-in, as today) and **releases the car at once**: the server expires the Stripe session, the
 existing `checkout.session.expired` webhook closes the booking row as `expired` through
@@ -44,7 +44,7 @@ they were just handed. If the expire call fails, the guest still goes back to th
 hold lapses at its normal expiry. The `cancel_url` return path is retired for bookings (embedded
 Checkout has none); the draft-restore code path it fed is reused by "back".
 
-**Security policy, narrowest that works.** Today `PUBLIC_CSP` has `frame-src 'none'`,
+**Security policy, narrowest that works (D-7).** Today `PUBLIC_CSP` has `frame-src 'none'`,
 `connect-src 'self'`, no third-party script, and `Permissions-Policy` sets `payment=()`. Only on
 the booking route (`/:locale/reservar` and below), a payment variant of the public policy is
 served: `PUBLIC_CSP` plus exactly the origins Stripe documents for embedded Checkout (script
@@ -55,7 +55,7 @@ origin so Apple Pay / Google Pay can run inside the frame. Every other public pa
 policy, are byte-for-byte unchanged. The route stays ISR — no nonce (AGENTS.md § Conventions).
 Stub 2 adds the quote route to the same variant; this stub does not.
 
-**Publishable key.** Read at runtime from a server-only `STRIPE_PUBLISHABLE_KEY` and handed to
+**Publishable key (D-8).** Read at runtime from a server-only `STRIPE_PUBLISHABLE_KEY` and handed to
 the browser in the action's response — not a `NEXT_PUBLIC_` variable, so it is never baked into
 the prerendered HTML and is always the deployment's own. `keyModeMismatch` extends to it: a
 `pk_live_` on a preview, a `pk_test_` on production, or a publishable key whose mode differs from
@@ -94,7 +94,7 @@ redirect to stripe.com.
 
 ## Out of scope
 
-- Quote payments on `/orcamento/<token>` — stub 2 (`quote-embedded-checkout`), which reuses the embedded component and adds its route to the payment policy.
+- Quote payments on `/orcamento/<token>` — moved by D-2 too, but in stub 2 (`quote-embedded-checkout`), which reuses the embedded component and adds its route to the payment policy.
 - The UAT "There was an error processing your request." payment error — a separate bug lane (D-4).
 - A custom card form (Stripe's Payment Element) (D-1).
 - Which payment methods are offered, and Stripe Checkout branding — Stripe dashboard settings.

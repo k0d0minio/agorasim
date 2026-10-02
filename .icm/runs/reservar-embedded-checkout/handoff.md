@@ -6,18 +6,18 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. <the very next action, with the exact command or file>
+1. Operator reads `02_define/output/spec.md` and ticks **Spec approved** on https://github.com/k0d0minio/agorasim/pull/175.
+2. Then `/pipeline build reservar-embedded-checkout` — follow `plan.md` pass by pass.
 
 ## Blockers
 
-- <what blocks, and who unblocks it — or "none">
-- blocked on operator: <the human-only act that unblocks the run — tick a gate, merge, a
-  dashboard or env change>
-
-A blocking operator act is written here **and** in the stop report's `Operator:` list; a
-non-blocking one lives only in that list, never here (`_shared/output.md` → Split by actor).
+- blocked on operator: tick **Spec approved** on PR #175.
+- blocked on operator (before the smoke, not before Build): set `STRIPE_PUBLISHABLE_KEY` (the `pk_test_…` matching the existing `sk_test_…`) in Vercel for Preview and the `uat` environment — without it the preview shows the enquiry form, by design.
 
 ## Do not
 
-- <what the next session must not do — a branch not to touch, a gate not to tick, a file
-  another run owns>
+- Switch to the Payment Element (D-1), or fall back to a redirect to stripe.com on any error.
+- Fix the UAT "There was an error processing your request." error here (D-4 — its own bug lane).
+- Touch the quote page or `lib/quote-checkout.ts` — stub 2 (`quote-embedded-checkout`).
+- Use a `NEXT_PUBLIC_` variable for the publishable key, or a per-request nonce on `/reservar` (ISR).
+- Change the CSP or Permissions-Policy of any route other than `/:locale/reservar` and below.

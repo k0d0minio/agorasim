@@ -15,5 +15,7 @@ decision made mid-run has one home.
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-5 — After paying, the guest lands on `/{locale}/reservar/confirmacao?session_id=…` as today (Stripe's `return_url`), not a result in place. Keeps the confirmation page and its webhook-race fallback unchanged. Define, operator's answer.
+- D-6 — "Back" from the payment step expires the Stripe session at once; the expired webhook closes the booking and frees the car. A guest's abandoned hold no longer blocks their own re-submit. Define, operator's answer.
+- D-7 — The payment CSP and `Permissions-Policy: payment` apply only to `/:locale/reservar` and below (stub 2 adds the quote route), derived from `PUBLIC_CSP`. Define.
+- D-8 — The publishable key is a runtime, server-only `STRIPE_PUBLISHABLE_KEY` returned by the checkout action and mode-checked like the secret key; missing = payments off. Define.

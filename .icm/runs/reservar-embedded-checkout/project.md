@@ -13,9 +13,12 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- D-1 embedded Checkout only; D-3 form replaced in place, summary in view, a way back; D-4 the UAT error is not this run's.
+- Hold, price, fee, `expires_at`, webhook confirm path, emails and Sales board behaviour unchanged.
+- Public pages stay ISR; the publishable key is runtime-only, mode-checked like the secret key.
+- Header changes scoped to `/:locale/reservar` and below; `PUBLIC_CSP` and the admin policy unchanged.
+- Adding Stripe.js to a page changes the privacy text and `data-protection.md` in the same PR.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read `security-headers.ts`, `booking-checkout.ts` (session creation, `closeUnpaidBooking`), `checkout-actions.ts` (redirect), `stripe.ts` (`keyModeMismatch`), `next.config.ts` headers and the privacy cookies paragraph — beyond the Inputs table, to close the stub's open questions on the policy, the key and going back.
