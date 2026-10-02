@@ -484,6 +484,27 @@ export async function listQuoteBalanceMessages(
 }
 
 /**
+ * Whether the couple were ever sent a refund notice for this quote — a
+ * `quote-refunded` row the provider accepted. A claim that is still `sending`
+ * or `failed` does not count: they have not got the email.
+ */
+export async function hasSentQuoteRefundNotice(quoteId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: messageLog.id })
+    .from(messageLog)
+    .where(
+      and(
+        eq(messageLog.quoteId, quoteId),
+        inArray(messageLog.kind, [...QUOTE_REFUND_KINDS]),
+        eq(messageLog.recipient, "guest"),
+        eq(messageLog.status, "sent"),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
  * One send as the Notifications page shows it — linkage and status, plus the
  * guest's name borrowed from the enquiry. Never the provider id: it is not
  * actionable on that page and retention expires it anyway.
