@@ -1,7 +1,6 @@
 "use server";
 
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 
 import { bookingContent } from "@/content/booking";
 import {
@@ -12,7 +11,7 @@ import {
   type Locale,
 } from "@/i18n/config";
 import { checkSlotAvailable } from "@/lib/availability";
-import { startBookingCheckout } from "@/lib/booking-checkout";
+import { releaseBookingCheckout, startBookingCheckout } from "@/lib/booking-checkout";
 import { slotOccupancyOn } from "@/lib/bookings";
 import { listExperiences } from "@/lib/experience-catalogue";
 import { priceBooking, type PricingFailure } from "@/lib/pricing";
@@ -20,7 +19,11 @@ import { bookingCheckoutSchema, formValues, type BookingCheckoutField } from "@/
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
-import { isStripeConfigured } from "@/lib/stripe";
+import {
+  connectedAccountId,
+  isEmbeddedCheckoutConfigured,
+  publishableKey,
+} from "@/lib/stripe";
 
 /** A form value as a trimmed string, or undefined when it was never filled in. */
 function text(value: FormDataEntryValue | FormDataEntryValue[] | undefined) {
@@ -33,8 +36,9 @@ function text(value: FormDataEntryValue | FormDataEntryValue[] | undefined) {
  * The form posts it as a hidden field carrying the page's own `[locale]` — a
  * server action gets no route params of its own, so that field is how the path
  * reaches here. It decides more than the error messages below: it is stored on
- * the booking, sets Stripe's checkout language, builds the `success_url` the
- * guest returns to, and is the language their confirmation email is written in.
+ * the booking, sets Stripe's checkout language, builds the `return_url` the
+ * guest lands on after paying, and is the language their confirmation email is
+ * written in.
  *
  * When the field is missing or unrecognised the referring URL answers the same
  * question — a form on `/en/reservar` was submitted from `/en/reservar` — which
@@ -55,7 +59,26 @@ async function bookingLocale(field: unknown): Promise<Locale> {
   }
 }
 
+/**
+ * What the browser needs to show Stripe's form for the session just started.
+ *
+ * Handed over only in this response — never rendered into the page, which is
+ * prerendered and served to everyone. The client secret opens this one session
+ * and nothing else; the publishable key is public by design, and travels here
+ * rather than as a `NEXT_PUBLIC_` value so it is always this deployment's own
+ * (`lib/stripe.ts`). `stripeAccount` is the connected account a direct charge
+ * lives on, which Stripe.js must be told to find the session at all; `null` on
+ * a platform-only deployment.
+ */
+export type EmbeddedPayment = {
+  clientSecret: string;
+  publishableKey: string;
+  stripeAccount: string | null;
+};
+
 export type CheckoutState = {
+  /** Set on success: the form steps aside for Stripe's payment form. */
+  payment?: EmbeddedPayment;
   error?: string;
   fieldErrors?: Partial<Record<BookingCheckoutField, string>>;
   /**
@@ -106,7 +129,7 @@ function pricingFailureState(
 }
 
 /**
- * Take a booking to Stripe.
+ * Start a booking's payment.
  *
  * The action's job is to be suspicious. Everything the browser sends is a
  * suggestion: the departure is re-checked against the live calendar and the
@@ -116,9 +139,9 @@ function pricingFailureState(
  * (`lib/pricing.ts`), from the catalogue rows. A hidden `total` input would be
  * the obvious way to build this and the obvious way to get robbed.
  *
- * Failures are localized and returned to the form. Success does not return: the
- * function redirects to Stripe, which means the `redirect()` call has to live
- * outside every `try`, because it works by throwing.
+ * Failures are localized and returned to the form. Success returns the
+ * session's client secret ({@link EmbeddedPayment}), and the booking page swaps
+ * its form for Stripe's — the guest is never sent to a stripe.com address.
  *
  * The same two cheap abuse defences as the enquiry form — honeypot and per-IP
  * throttle — for a better reason than the enquiry form has: an unauthenticated
@@ -141,7 +164,7 @@ export async function startCheckout(
     date: text(values.date),
   };
 
-  if (!isStripeConfigured()) {
+  if (!isEmbeddedCheckoutConfigured()) {
     // Should be unreachable: the page only renders this form when payments are
     // switched on. Checked anyway, because "should be unreachable" and "cannot
     // happen" are different claims, and a deployment can lose its key.
@@ -257,7 +280,7 @@ export async function startCheckout(
     };
   }
 
-  let url: string;
+  let clientSecret: string;
   try {
     const started = await startBookingCheckout({
       guest: {
@@ -278,13 +301,43 @@ export async function startCheckout(
       lines: priced.lines,
       totalCents: priced.totalCents,
     });
-    url = started.url;
+    clientSecret = started.clientSecret;
   } catch (err) {
     console.error("[checkout] could not start a Stripe session", err);
     return { error: t(c.generic, locale), values: entered };
   }
 
-  // Outside the try: `redirect` signals by throwing, and catching it here would
-  // turn a successful checkout into "something went wrong".
-  redirect(url);
+  return {
+    payment: {
+      clientSecret,
+      publishableKey: publishableKey(),
+      stripeAccount: connectedAccountId(),
+    },
+  };
+}
+
+/**
+ * The guest went back from the payment step: release the car now.
+ *
+ * Best-effort by design, and silent either way. The guest is returned to their
+ * form whatever this answers; if Stripe or the database is slow, the hold lapses
+ * at its normal expiry like any abandoned checkout. What it will release is
+ * decided by `releaseBookingCheckout` — only the unpaid session this client
+ * secret belongs to.
+ *
+ * Throttled like `startCheckout`, on its own key: every release follows a
+ * start, so one guest never needs more of these than of those.
+ */
+export async function releaseCheckout(clientSecret: string): Promise<void> {
+  if (typeof clientSecret !== "string" || clientSecret.length > 500) return;
+
+  const ip = await clientIp();
+  const throttle = await rateLimit(`checkout-release:${ip}`, TOUR_REQUEST_RATE_LIMIT);
+  if (!throttle.allowed) return;
+
+  try {
+    await releaseBookingCheckout(clientSecret);
+  } catch (err) {
+    console.error("[checkout] could not release a checkout the guest left", err);
+  }
 }

@@ -19,7 +19,7 @@ import {
 } from "@/lib/availability";
 import { countSlotOccupancy } from "@/lib/bookings";
 import { isPriced } from "@/lib/pricing";
-import { isStripeConfigured, isTestMode } from "@/lib/stripe";
+import { isEmbeddedCheckoutConfigured, isTestMode } from "@/lib/stripe";
 import { JsonLd } from "@/components/json-ld";
 import { organizationJsonLd } from "@/lib/jsonld";
 import { alternates } from "@/lib/seo";
@@ -30,7 +30,9 @@ import { alternates } from "@/lib/seo";
  * actions), so the hour is a backstop rather than the mechanism.
  *
  * Nothing on this page is per-guest. The Stripe session is created by a server
- * action on submit, and the confirmation lives on its own dynamic route.
+ * action on submit — its client secret reaches the browser in that action's
+ * response, never in this HTML — and the confirmation lives on its own dynamic
+ * route.
  */
 export const revalidate = 3600;
 
@@ -60,7 +62,7 @@ const bookingPage = cache(async (locale: Locale) => {
   return {
     experiences,
     availability,
-    canCheckout: isStripeConfigured() && tours.length > 0 && anyOpenings,
+    canCheckout: isEmbeddedCheckoutConfigured() && tours.length > 0 && anyOpenings,
   };
 });
 
