@@ -6,3 +6,4 @@
 - not done: the stub's "webhook refunds a payment on a cancelled quote" — automated refunds are money movement beyond a bug fix; the race (paid between supersede and expire) still alerts. Left for a decision.
 - changelog: announce: none
 - learned: none
+- ci: Vercel RED (`Resource provisioning failed`, ~1s, no log) — identical on unrelated branches; not this PR's. Parked: `vercel-preview-resource-provisioning-failed`. Quality (advisory) passes.
