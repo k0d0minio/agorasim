@@ -5,6 +5,6 @@ flips. A resuming session reads this first, then `handoff.md` (`_shared/stage-pr
 
 - phase: lane
 - step: 1
-- ci: none yet
+- ci: RED — Vercel `Resource provisioning failed` (Neon branch cap; not this PR's — lane/output/error.log)
 - blocked: no
 - updated: 2026-10-02

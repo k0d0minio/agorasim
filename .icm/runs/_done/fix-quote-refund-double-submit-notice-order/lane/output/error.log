@@ -1,0 +1,5 @@
+## 2026-10-02 — Vercel RED, not this PR's
+
+- Vercel `BUILD_FAILED` / `Resource provisioning failed` on head `649d9fe` (deployment `dpl_ErobpDp5me8mVeVfGHngUaf1gLkV`, ERROR, ready 1.3s after create — pre-build, no logs).
+- Cause: Neon `uat-agorasim` (`lingering-frog-97017403`) holds exactly 10 branches (the free-plan cap) per `mcp__Neon__list_branches`; none is this PR's `preview/claude/charming-tesla-aejgyt`. Already recorded by `.icm/intake/triage/neon-uat-branch-limit-blocks-previews.md`; same signature as `quote-page-throttle-wording`.
+- resolved: no — degraded hand-off per `_shared/ci.md` → "The one exit from RED"; the quality job (lint, typecheck, tests) passed.
