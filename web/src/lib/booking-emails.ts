@@ -1972,6 +1972,11 @@ export type QuoteEventCancelledEmailFacts = {
   venue: string | null;
   /** What has gone back on the whole quote, formatted. */
   totalRefunded: string;
+  /**
+   * Whether a `quote-refunded` email actually went out. False swaps the lead
+   * for one that does not refer to an earlier email.
+   */
+  refundNoticeSent: boolean;
 };
 
 /**
@@ -1994,7 +1999,7 @@ export function guestQuoteEventCancelledEmail(facts: QuoteEventCancelledEmailFac
 
   const subject = fill(t(c.subject, l), values);
   const greeting = fill(t(c.greeting, l), values);
-  const lead = fill(t(c.lead, l), values);
+  const lead = fill(t(facts.refundNoticeSent ? c.lead : c.leadNoEarlierEmail, l), values);
 
   const rows: DetailRow[] = [
     { label: t(r.labels.reference, l), value: facts.ref, mono: true },

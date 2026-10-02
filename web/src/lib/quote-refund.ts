@@ -64,7 +64,7 @@ import {
   topUpApplicationFee,
 } from "@/lib/booking-refund";
 import { isEmailConfigured } from "@/lib/email";
-import { sendLoggedEmail } from "@/lib/message-log";
+import { hasSentQuoteRefundNotice, sendLoggedEmail } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import { expireSession } from "@/lib/quote-checkout";
 import {
@@ -867,6 +867,9 @@ async function sendEventCancelledNotice(quoteId: string): Promise<void> {
       0,
     );
 
+    // A failed or skipped refund notice leaves nothing earlier to point at.
+    const refundNoticeSent = await hasSentQuoteRefundNotice(quote.id);
+
     const result = await sendLoggedEmail(
       {
         kind: "quote-event-cancelled",
@@ -882,6 +885,7 @@ async function sendEventCancelledNotice(quoteId: string): Promise<void> {
         date: formatDay(quote.eventDate, locale),
         venue: quote.venue,
         totalRefunded: formatPrice(totalRefunded, locale, quote.currency),
+        refundNoticeSent,
       }),
     );
 
