@@ -64,7 +64,7 @@ import {
   topUpApplicationFee,
 } from "@/lib/booking-refund";
 import { isEmailConfigured } from "@/lib/email";
-import { sendLoggedEmail } from "@/lib/message-log";
+import { isRefundNoticeClaimed, sendLoggedEmail } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import { expireSession } from "@/lib/quote-checkout";
 import {
@@ -561,7 +561,20 @@ async function settleInstalmentRefund(options: {
     const cancelled = options.cancelEvent
       ? await cancelEvent(quote, actorUserId, "refund", now)
       : null;
-    if (cancelled) await sendEventCancelledNotice(quote.id);
+    // Only once the winner's refund notice is claimed: it builds its text after
+    // taking the claim, so before that it still reads the quote as cancelled
+    // and says so — and "Evento cancelado … see the earlier email" would reach
+    // the couple ahead of the email it points to.
+    if (
+      cancelled &&
+      (await isRefundNoticeClaimed({
+        quoteId: quote.id,
+        quotePaymentId: payment.id,
+        refundedTotalCents: refundedAmountCents,
+      }))
+    ) {
+      await sendEventCancelledNotice(quote.id);
+    }
 
     const fresh = await getPayment(payment.id);
     return {
@@ -656,7 +669,11 @@ async function settleInstalmentRefund(options: {
     });
   }
 
-  return { claimed: true, quote: cancelled ?? quote, payment: settled };
+  // `cancelled` is null when the other door's cancellation got there first
+  // (a double submit, with the lost claim above); the quote is then read fresh,
+  // so the caller reports it cancelled and the calendar is revalidated.
+  const current = cancelled ?? (options.cancelEvent ? await getQuote(quote.id) : null);
+  return { claimed: true, quote: current ?? quote, payment: settled };
 }
 
 // ---------------------------------------------------------------------------
@@ -796,13 +813,6 @@ async function sendRefundNotice(options: {
       .limit(1);
     if (!lead) return;
 
-    const locale = quote.locale;
-    const money = (cents: number) => formatPrice(cents, locale, quote.currency);
-    const totalRefunded = quote.payments.reduce(
-      (sum, payment) => sum + payment.refundedAmountCents,
-      0,
-    );
-
     const result = await sendLoggedEmail(
       {
         kind: "quote-refunded",
@@ -812,19 +822,34 @@ async function sendRefundNotice(options: {
         refundedTotalCents: options.refundedTotalCents,
         tourRequestId: lead.id,
       },
-      guestQuoteRefundEmail({
-        instalment: found.payment.kind,
-        ref: quoteRef(quote.id),
-        guestName: lead.name,
-        guestEmail: lead.email,
-        locale,
-        date: formatDay(quote.eventDate, locale),
-        venue: quote.venue,
-        paid: money(found.payment.amountCents),
-        amount: money(options.refundedNowCents),
-        totalRefunded: money(totalRefunded),
-        eventCancelled: quote.status === "cancelled",
-      }),
+      // Built under the claim, from a read taken after it: a lost-claim
+      // cancellation that finds this claim absent stands down on the promise
+      // that this text will say the event is off.
+      async () => {
+        const latest = await getQuote(quote.id);
+        if (!latest) return null;
+
+        const locale = latest.locale;
+        const money = (cents: number) => formatPrice(cents, locale, latest.currency);
+        const totalRefunded = latest.payments.reduce(
+          (sum, payment) => sum + payment.refundedAmountCents,
+          0,
+        );
+
+        return guestQuoteRefundEmail({
+          instalment: found.payment.kind,
+          ref: quoteRef(latest.id),
+          guestName: lead.name,
+          guestEmail: lead.email,
+          locale,
+          date: formatDay(latest.eventDate, locale),
+          venue: latest.venue,
+          paid: money(found.payment.amountCents),
+          amount: money(options.refundedNowCents),
+          totalRefunded: money(totalRefunded),
+          eventCancelled: latest.status === "cancelled",
+        });
+      },
     );
 
     if (result.status === "failed" || result.status === "skipped") {
