@@ -9,3 +9,6 @@ Error: [vitest] No "canonicalOrigin" export is defined on the "@/lib/site-origin
 AssertionError: object-src: expected [ '\'none\'' ] to deeply equal []
  ❯ src/lib/security-headers.test.ts:167:50
 - resolved: The test's expectation was wrong, not the policy: `PAYMENT_CSP` replaces `'none'` only in directives Stripe extends (`frame-src`); the test now strips `'none'` only where it adds Stripe origins, so `object-src 'none'` is asserted to stand.
+
+## 2026-10-02T15:47:19Z session — Release stop class 3: env.sh audit --changed GAPS
+  [GAP]  STRIPE_PUBLISHABLE_KEY: declared for [production,preview] but Vercel/agorasim has it only for [development,preview] — missing production
