@@ -1,7 +1,7 @@
 # Build notes: reservar-embedded-checkout
 
 - commits: b2b6aa0 (policy + key switch) · b7a57ee (embedded session + release) · 9e37290 (payment step + links) · 055b3de (privacy + processor record)
-- ci: pending — read at the flip
+- ci: GREEN (full gate) on 6d2eaac; advisory quality RED on two test-only faults — fixed, see error.log
 - ready: 2026-10-02T12:43:56Z — flipped on 8545c4f
 
 ## What changed

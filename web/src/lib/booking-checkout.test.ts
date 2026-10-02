@@ -81,7 +81,10 @@ vi.mock("@/lib/stripe", () => ({
   }),
 }));
 
-vi.mock("@/lib/site-origin", () => ({ siteUrl: () => "https://agorasim.example" }));
+vi.mock("@/lib/site-origin", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/site-origin")>()),
+  siteUrl: () => "https://agorasim.example",
+}));
 vi.mock("@/lib/audit", () => ({ recordAuditOrWarn: vi.fn() }));
 vi.mock("@/lib/message-log", () => ({ sendLoggedEmail: vi.fn() }));
 vi.mock("@/lib/email", () => ({

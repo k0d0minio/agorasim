@@ -163,11 +163,13 @@ describe("payment CSP — the booking route", () => {
     expect(directiveNames(PAYMENT_CSP)).toEqual(directiveNames(PUBLIC_CSP));
 
     for (const name of directiveNames(PUBLIC_CSP)) {
-      const publicValues = directive(PUBLIC_CSP, name).filter((value) => value !== "'none'");
-      expect(directive(PAYMENT_CSP, name), name).toEqual([
-        ...publicValues,
-        ...(STRIPE_ADDITIONS[name] ?? []),
-      ]);
+      const additions = STRIPE_ADDITIONS[name];
+      // `'none'` gives way only where Stripe is added (`frame-src`); everywhere
+      // else — `object-src` — it stands exactly as on the public policy.
+      const publicValues = additions
+        ? directive(PUBLIC_CSP, name).filter((value) => value !== "'none'")
+        : directive(PUBLIC_CSP, name);
+      expect(directive(PAYMENT_CSP, name), name).toEqual([...publicValues, ...(additions ?? [])]);
     }
   });
 
