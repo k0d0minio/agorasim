@@ -66,7 +66,7 @@ import {
 import { isEmailConfigured } from "@/lib/email";
 import { sendLoggedEmail } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
-import { expireSession } from "@/lib/quote-checkout";
+import { expireWrittenOffSessions } from "@/lib/quote-checkout";
 import {
   cancelQuoteAndOpenInstalments,
   depositRefundedInFull,
@@ -730,37 +730,6 @@ async function cancelEvent(
   });
 
   return result.quote;
-}
-
-/**
- * Close the Checkout session behind each instalment the cancellation wrote
- * off, so a couple with the balance page still open cannot pay a cancelled
- * event ({@link cancelQuoteAndOpenInstalments} only marks the row).
- *
- * Best-effort, on the owning account: a Stripe failure here must not undo the
- * cancellation, which has already landed by the time this runs — the quote
- * page's own check on `recordQuotePayment` is the backstop if a session slips
- * through.
- */
-async function expireWrittenOffSessions(writtenOff: readonly QuotePayment[]): Promise<void> {
-  if (!isStripeConfigured()) return;
-
-  await Promise.all(
-    writtenOff
-      .filter((payment): payment is QuotePayment & { stripeSessionId: string } =>
-        payment.stripeSessionId !== null,
-      )
-      .map(async (payment) => {
-        try {
-          await expireSession(payment.stripeSessionId);
-        } catch (err) {
-          console.error(
-            `[quote-refund] couldn't expire the Checkout session behind the written-off ${payment.kind}`,
-            err,
-          );
-        }
-      }),
-  );
 }
 
 // ---------------------------------------------------------------------------
