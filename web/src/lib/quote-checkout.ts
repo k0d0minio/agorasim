@@ -8,18 +8,26 @@
  * session for whichever instalment is due right then (`dueInstalment`). A
  * session lives an hour; the page, not the session, is the durable thing.
  *
+ * **Paid inside the quote page.** Sessions are embedded Checkout: the tap
+ * hands the page the session's client secret, and Stripe's form mounts where
+ * the button was (`components/quote-pay-form.tsx`). Nothing here ever sends the
+ * couple to a stripe.com address — a hosted session left over from before the
+ * switch is treated like one under older terms, and replaced.
+ *
  * **Never two payable sessions for one instalment.** That is the rule every
  * branch below serves, because two open sessions is how a couple pays their
  * deposit twice:
  *
- * - an instalment whose current session is still open reuses it;
+ * - an instalment whose current session is still open — and embedded — reuses
+ *   it;
  * - one whose session has expired gets a new one, and the swap on the row is
  *   compare-and-set on the session it replaces (`reissuePayment`'s
  *   `replacing`), so two taps racing each other record one session and the
  *   loser expires its own at Stripe;
- * - an open session minted under older terms is expired at Stripe *before* its
- *   replacement is created — the couple are paying under the terms the page
- *   shows them now, and the session carries that version;
+ * - an open session minted under older terms, or as a hosted page, is expired
+ *   at Stripe *before* its replacement is created — the couple are paying under
+ *   the terms the page shows them now, in the page itself, and the session
+ *   carries that version;
  * - a completed session (paid, or waiting on a delayed method like
  *   Multibanco) mints nothing: the money is on its way.
  *
@@ -36,7 +44,7 @@
  * without a connected account can still take a test payment.
  *
  * **The token.** The plaintext reaches this module from the page's own URL and
- * leaves it inside the return URLs Stripe sends the couple back to. It is
+ * leaves it inside the one return URL Stripe sends the couple back to. It is
  * never logged, never put in session metadata and never stored.
  */
 import "server-only";
@@ -160,8 +168,13 @@ export function quoteSessionMetadata(
 
 /** What a tap on the pay button came to. The page turns each into a sentence. */
 export type QuoteCheckoutOutcome =
-  /** Off to Stripe — a fresh session, or the one still open. */
-  | { status: "redirect"; url: string }
+  /**
+   * Stripe's form for this instalment, to mount in the page — a fresh session,
+   * or the one still open. `stripeAccount` is the connected account a direct
+   * charge lives on, which Stripe.js must be told to find the session at all;
+   * `null` on a platform-only deployment.
+   */
+  | { status: "embedded"; clientSecret: string; stripeAccount: string | null }
   /** The session completed and is paid; the page now shows the receipt. */
   | { status: "paid" }
   /** The session completed on a delayed method; the money is on its way. */
@@ -178,8 +191,8 @@ export type QuoteCheckoutOutcome =
   | { status: "failed" };
 
 /**
- * The pay button: find what is due, and send the couple to the one session
- * that may take it. Re-checks everything the page showed — the render may be
+ * The pay button: find what is due, and hand the page the one session that
+ * may take it. Re-checks everything the page showed — the render may be
  * hours old, and the balance may have fallen due or been paid since.
  */
 export async function startQuoteCheckout(options: {
@@ -215,15 +228,27 @@ async function checkoutFor(
   const previous = payment.stripeSessionId;
 
   if (previous) {
-    const existing = await retrieveSession(previous);
+    const owned = await retrieveOwnedSession(previous);
+    const existing = owned?.session ?? null;
     if (existing?.status === "open") {
-      // Still payable, and under the terms the page shows today: the same
-      // session, not a second one.
-      if (existing.url && existing.metadata?.termsVersion === TERMS_VERSION) {
-        return { status: "redirect", url: existing.url };
+      // Still payable, embedded, and under the terms the page shows today: the
+      // same session, not a second one — which is also what "back" on the
+      // payment step relies on to cost nothing.
+      if (
+        existing.ui_mode === "embedded_page" &&
+        existing.client_secret &&
+        existing.metadata?.termsVersion === TERMS_VERSION
+      ) {
+        return {
+          status: "embedded",
+          clientSecret: existing.client_secret,
+          stripeAccount: owned?.stripeAccount ?? null,
+        };
       }
-      // Minted under older terms. Expired first, so it can never be paid
-      // alongside the one that replaces it.
+      // Minted under older terms, or as a hosted page before the form moved
+      // into the quote page (a hosted session has no client secret, and its
+      // URL is stripe.com). Expired first, so it can never be paid alongside
+      // the one that replaces it.
       const closed = await expireSession(previous);
       if (closed?.status === "complete") return settleCompleted(closed, context.now);
     } else if (existing?.status === "complete") {
@@ -254,6 +279,9 @@ async function checkoutFor(
   const session = await stripe().checkout.sessions.create(
     {
       mode: "payment",
+      // Stripe's form inside the quote page, as at the tour checkout
+      // (`booking-checkout.ts`).
+      ui_mode: "embedded_page",
       line_items: [
         {
           quantity: 1,
@@ -276,17 +304,22 @@ async function checkoutFor(
       },
       expires_at: Math.floor(context.now.getTime() / 1000) + QUOTE_SESSION_TTL_MINUTES * 60,
       locale: context.locale === "pt" ? "pt" : "en",
-      // Back to the quote page either way. The token rides in these two URLs,
-      // which Stripe — already the processor of the payment — holds for the
-      // session's life; it goes nowhere else.
-      success_url: `${page}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: page,
+      // Back to the quote page once paid, where `reconcileQuoteReturn` reads
+      // `session_id` — the URL the hosted page's `success_url` used. "always"
+      // so a card and a redirect-based method end in the same place. There is
+      // no `cancel_url` in embedded mode: going back is the page's own button.
+      // The token rides in this one URL, which Stripe — already the processor
+      // of the payment — holds for the session's life; it goes nowhere else.
+      redirect_on_completion: "always",
+      return_url: `${page}?session_id={CHECKOUT_SESSION_ID}`,
     },
     // A direct charge on the client's account when Connect is configured;
     // `undefined` (the platform) when it is not.
     onConnectedAccount(),
   );
-  if (!session.url) throw new Error("Stripe returned a session with no URL");
+  if (!session.client_secret) {
+    throw new Error("Stripe returned an embedded session with no client secret");
+  }
 
   const commissionRateBps = fee ? fee.rateBps : null;
   const recorded = previous
@@ -302,7 +335,10 @@ async function checkoutFor(
         now: context.now,
       });
 
-  if (recorded) return { status: "redirect", url: session.url };
+  // Created on the connected account when there is one (`onConnectedAccount`).
+  if (recorded) {
+    return { status: "embedded", clientSecret: session.client_secret, stripeAccount: connected };
+  }
 
   // Another tap recorded its session first. Ours must not stay payable; the
   // winner's is the one to use, so read the row again and take it.
@@ -332,10 +368,22 @@ async function settleCompleted(
  * second one beside a first that may still be open and payable.
  */
 async function retrieveSession(id: string): Promise<Stripe.Checkout.Session | null> {
+  return (await retrieveOwnedSession(id))?.session ?? null;
+}
+
+/**
+ * {@link retrieveSession}, with the account it was found on — which Stripe.js
+ * needs to mount a reused session: one minted before Connect was configured
+ * lives on the platform, not on the connected account.
+ */
+async function retrieveOwnedSession(
+  id: string,
+): Promise<{ session: Stripe.Checkout.Session; stripeAccount: string | null } | null> {
   try {
-    return await onOwningAccount((account) =>
-      stripe().checkout.sessions.retrieve(id, undefined, account),
-    );
+    return await onOwningAccount(async (account) => ({
+      session: await stripe().checkout.sessions.retrieve(id, undefined, account),
+      stripeAccount: account?.stripeAccount ?? null,
+    }));
   } catch (err) {
     if ((err as { code?: string } | null)?.code === "resource_missing") return null;
     throw err;
