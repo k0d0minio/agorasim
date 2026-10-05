@@ -1007,7 +1007,8 @@ describe("a double-submitted refund that cancels the event", () => {
     recordAuditOrWarn.mockImplementationOnce(() => winnerHeld);
 
     const presses = [refundQuotePayment(press), refundQuotePayment(press)];
-    await vi.waitFor(() => expect(recordAuditOrWarn).toHaveBeenCalledTimes(1));
+    // (The loser's own cancellation audits too, so "at least once", not once.)
+    await vi.waitFor(() => expect(recordAuditOrWarn).toHaveBeenCalled());
     const loser = await Promise.race(presses);
 
     // The loser called the event off, but the winner's notice has not been
