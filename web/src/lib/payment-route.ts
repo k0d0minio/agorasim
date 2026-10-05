@@ -1,6 +1,7 @@
 /**
- * Whether the browser document the booking form runs in was *loaded* on the
- * booking route — and so is living under the policy that admits Stripe.
+ * Whether the browser document a payment form runs in — the booking form, or a
+ * quote's pay form — was *loaded* on a payment route, and so is living under
+ * the policy that admits Stripe.
  *
  * A Content-Security-Policy belongs to a document, not to a URL. `/reservar` is
  * served with the payment policy (`PAYMENT_CSP`, `lib/security-headers.ts`),
@@ -18,15 +19,21 @@
  */
 import { locales } from "@/i18n/config";
 
-const PAYMENT_ROUTE = new RegExp(`^/(${locales.join("|")})/reservar(/.*)?$`);
+const PAYMENT_ROUTE = new RegExp(
+  `^/(${locales.join("|")})/(reservar(/.*)?|orcamento/.+)$`,
+);
 
-/** `/pt/reservar`, `/en/reservar/confirmacao` — the paths served the payment policy. */
+/**
+ * `/pt/reservar`, `/en/reservar/confirmacao`, `/pt/orcamento/<token>` — the
+ * paths served the payment policy (`PAYMENT_ROUTE_SOURCES`). Both routes get
+ * the one policy, so a document loaded on either may mount Stripe's form.
+ */
 export function isPaymentRoutePath(pathname: string): boolean {
   return PAYMENT_ROUTE.test(pathname);
 }
 
 /**
- * Whether this document was loaded on the booking route. `true` when the
+ * Whether this document was loaded on a payment route. `true` when the
  * browser cannot say (no Navigation Timing entry), so the backstop never turns
  * into a reload loop on a browser that does not report one.
  */

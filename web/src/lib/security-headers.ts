@@ -125,9 +125,10 @@ const STRIPE_EMBEDDED_CHECKOUT: Record<string, string[]> = {
 };
 
 /**
- * The public policy plus Stripe's embedded Checkout — served only on the
- * booking route (`/:locale/reservar` and below, see `next.config.ts`), because
- * that is the only page that takes a card on the site's own pages.
+ * The public policy plus Stripe's embedded Checkout — served only on the two
+ * routes that take a card on the site's own pages, the booking page
+ * (`/:locale/reservar` and below) and a quote page (`/:locale/orcamento/<token>`),
+ * see `next.config.ts` and {@link PAYMENT_ROUTE_SOURCES}.
  *
  * Derived from {@link PUBLIC_DIRECTIVES} rather than written out again, so the
  * two can only ever differ by the Stripe origins: a directive tightened on the
@@ -136,7 +137,9 @@ const STRIPE_EMBEDDED_CHECKOUT: Record<string, string[]> = {
  * invalid, and the whole point of this policy is that the page frames Stripe.
  *
  * Still no nonce: the booking page is prerendered like every public page (ISR,
- * `AGENTS.md`), so the reasoning in the module note holds here unchanged.
+ * `AGENTS.md`), so the reasoning in the module note holds here unchanged. The
+ * quote page is dynamic and could carry one, but one policy for both routes is
+ * the narrower thing to reason about.
  */
 export const PAYMENT_CSP = policy(
   Object.fromEntries(
@@ -208,7 +211,7 @@ function permissionsPolicy(payment: string): string {
 }
 
 /**
- * The booking route's feature policy: the baseline, except that the Payment
+ * The payment routes' feature policy: the baseline, except that the Payment
  * Request API may be used by the page and delegated to Stripe's frames — which
  * is what lets Apple Pay and Google Pay appear inside embedded Checkout. Every
  * other feature stays off. Served by `next.config.ts` on the same paths as
@@ -220,12 +223,13 @@ export const PAYMENT_PERMISSIONS_POLICY = permissionsPolicy(
 
 /**
  * The paths that serve {@link PAYMENT_CSP} and
- * {@link PAYMENT_PERMISSIONS_POLICY}: the booking page in each locale, and
- * everything below it (the confirmation page). One source of truth for
- * `next.config.ts` and for the booking form's check that the document it runs
- * in was loaded under this policy (`lib/payment-route.ts`).
+ * {@link PAYMENT_PERMISSIONS_POLICY}: the booking page in each locale and
+ * everything below it (the confirmation page), and every quote page. One source
+ * of truth for `next.config.ts` and for the payment forms' check that the
+ * document they run in was loaded under this policy (`lib/payment-route.ts`).
  */
 export const PAYMENT_ROUTE_SOURCES = [
   "/:locale(pt|en)/reservar",
   "/:locale(pt|en)/reservar/:path*",
+  "/:locale(pt|en)/orcamento/:path*",
 ] as const;
