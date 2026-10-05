@@ -29,8 +29,10 @@
       grep: `booking-refund.ts` only.
 - [x] Both idempotency keys unchanged — same template strings, sent as `{ ...account, idempotencyKey }`.
 - [x] `chargeRefundState` backs both sync prologues — neither reads `charge.payment_intent` any more.
-- [x] `sendRefundNotice` makes one `getQuote` and no `getPayment`; the email's fields are the same
-      values (the instalment now comes from `quote.payments` of the same fresh read).
+- [x] `sendRefundNotice` makes no `getPayment`; the email's fields are the same values (the
+      instalment comes from `quote.payments` of the context read). Since the Release merge it
+      reads the quote twice: #189 (merged after Build) added a deliberate second read inside the
+      message-log claim, kept as is — the "one quote read" count is superseded by that fix.
 - [x] The dialog takes `refundableCents` as a prop; the page computes it with
       `instalmentRefundableCents`.
 - [x] No behaviour change, the three test files unedited — `git diff origin/main -- '*.test.ts'`
@@ -48,9 +50,22 @@
 - `security-check.sh --branch` → `BLOCKED 1` on `dependency-audit`: the `braces` high advisory
   (dev-only, via `eslint-config-next`, no upstream fix) that `main` already carries — this branch
   touches no manifest or lockfile. Parked as `intake/triage/braces-advisory-eslint-chain.md`;
-  Release's `--audit` read will need the operator's waiver or that chore merged first.
+  Release's `--audit` read needed that chore: merged as #194 (the operator's waiver).
 - Merging `main` met `quote-notice-context-dedupe` (#185) in `sendRefundNotice`: resolved onto its
   `loadQuoteNoticeContext(options.quoteId, …)`, with the instalment check as its `accept` so a
   vanished instalment still returns before the no-lead warning, exactly as before.
 - Context budget: the merge conflict needed `loadQuoteNoticeContext` from #185 — read beyond the
   spec's `touches:`.
+- Release merge of `main` met `fix-quote-refund-double-submit-notice-order` (#189) in
+  `sendRefundNotice`: resolved onto its email-built-under-the-claim shape, keeping this run's
+  `quoteId` + `accept` lookup (no `getPayment`) and #189's in-claim re-read.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN on <the close-out head> (ci-status.sh, after the last push — recorded in the stop report)
+- reviews: code medium — no findings · security `security-check.sh --branch --audit`: OK (after #194, the operator's recorded waiver of GHSA-vfj7-8cjw-p6xm) + /security-review — no findings (payments) · /production-readiness — n/a, no such skill in this repo · readiness `env.sh audit --changed`: OK
+- parked: braces-advisory-eslint-chain.md (at Build; consumed by chore #194) · none from the reviews
+- migrations: skip — none of this run's own
+- learned: none from retrospective.sh (dependency-audit already a rule); 1 from FAILURE.md via close-out
+- docs: no docs impact · announce: deferred to promotion
