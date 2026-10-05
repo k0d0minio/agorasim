@@ -128,8 +128,10 @@ vi.mock("@/lib/stripe", () => ({
 }));
 
 const sendLoggedEmail = vi.fn();
+const hasSentQuoteRefundNotice = vi.fn();
 vi.mock("@/lib/message-log", () => ({
   sendLoggedEmail: (...args: unknown[]) => sendLoggedEmail(...args),
+  hasSentQuoteRefundNotice: (...args: unknown[]) => hasSentQuoteRefundNotice(...args),
 }));
 vi.mock("@/lib/email", () => ({
   isEmailConfigured: () => true,
@@ -303,6 +305,8 @@ beforeEach(() => {
     return { quote: quoteRow(), writtenOff };
   });
   sendLoggedEmail.mockResolvedValue({ status: "sent", providerMessageId: "re_mail" });
+  // By default the refund notice went out, so the cancellation can point at it.
+  hasSentQuoteRefundNotice.mockResolvedValue(true);
   sessionsExpire.mockImplementation(async (id: string) => ({ id, status: "expired" }));
 });
 
@@ -1338,6 +1342,36 @@ describe("the admin refund and its webhook echo — whichever lands first", () =
     expect(kinds).toEqual(["quote-refunded", "quote-event-cancelled"]);
     expect(sendLoggedEmail.mock.calls[0][1].text).toContain("O seu evento continua marcado");
     expect(sendLoggedEmail.mock.calls[1][1].subject).toContain("Evento cancelado");
+  });
+
+  it("points at the earlier refund email only when one was sent", async () => {
+    for (const sent of [true, false]) {
+      vi.clearAllMocks();
+      hasSentQuoteRefundNotice.mockResolvedValue(sent);
+      sendLoggedEmail.mockResolvedValue({ status: "sent", providerMessageId: "re_mail" });
+      payments = new Map([
+        [DEPOSIT_ID, instalment("deposit", "paid")],
+        [BALANCE_ID, instalment("balance", "pending")],
+      ]);
+      quoteStatus = "deposit_paid";
+      echoBeforeTheCardSettles(justNow() - 11 * 60);
+
+      await refundQuotePayment({
+        paymentId: DEPOSIT_ID,
+        refundCents: 57_600,
+        cancelEvent: true,
+        attemptId: crypto.randomUUID(),
+        actorUserId: ADMIN_ID,
+      });
+
+      const cancelled = sendLoggedEmail.mock.calls.find(
+        ([subject]) => (subject as { kind: string }).kind === "quote-event-cancelled",
+      );
+      expect(cancelled).toBeDefined();
+      const text = cancelled![1].text as string;
+      if (sent) expect(text).toContain("email anterior");
+      else expect(text).not.toContain("email anterior");
+    }
   });
 
   it("sends only the refund notice when the card settles and cancels in the ordinary way", async () => {
