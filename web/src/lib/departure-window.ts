@@ -30,6 +30,7 @@ import {
   listAvailabilityRows,
   occupancySlotKey,
   saleBounds,
+  shiftDays,
   todayKey,
   TOUR_SLOTS,
   type DateKey,
@@ -95,8 +96,7 @@ export async function readDepartureWindow(options: {
 
 /** The last day of a window `days` long that starts on `today`, inclusive. */
 function lastDayOfWindow(today: DateKey, days: number): DateKey {
-  const start = Date.parse(`${today}T00:00:00Z`);
-  return new Date(start + Math.max(0, days - 1) * 86_400_000).toISOString().slice(0, 10);
+  return shiftDays(today, Math.max(0, days - 1));
 }
 
 /** The picker's options for one day: the day, named, and its departures. */

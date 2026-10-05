@@ -35,11 +35,13 @@ import "server-only";
 import { eq } from "drizzle-orm";
 
 import { bookings, db, tourRequests, type Booking } from "@/db";
-import { bookingEmails } from "@/content/emails";
-import { departureLabel } from "@/content/logistics";
-import { t, type Locale } from "@/i18n/config";
+import type { Locale } from "@/i18n/config";
 import { BUSINESS_TIME_ZONE, formatDay } from "@/lib/availability";
-import { partyLabel, teamCancellationEmail } from "@/lib/booking-emails";
+import {
+  bookingLogisticsFacts,
+  teamCancellationEmail,
+  titleFromCatalogue,
+} from "@/lib/booking-emails";
 import { cancelAndRefundBooking, isCancellable, refundableCents } from "@/lib/booking-refund";
 import { bookingRef } from "@/lib/bookings";
 import {
@@ -93,16 +95,18 @@ async function summarise(
   deadline: Date,
 ): Promise<GuestBookingSummary> {
   const catalogue = new Map((await listCatalogue()).map((entry) => [entry.slug, entry]));
-  const experience = catalogue.get(booking.experienceSlug);
+  const { experience, departure, partyLabel } = bookingLogisticsFacts(
+    booking,
+    titleFromCatalogue(catalogue),
+    locale,
+  );
 
   return {
     ref: bookingRef(booking.id),
-    // A retired route still has to be nameable to the guest who bought it; the
-    // slug is a poor name but never a blank — same rule as the emails.
-    experience: `${experience ? t(experience.title, locale) : booking.experienceSlug} — ${t(bookingEmails.guest.modeWords[booking.mode], locale)}`,
+    experience,
     date: formatDay(booking.date, locale),
-    departure: t(departureLabel(booking.experienceSlug, booking.slot), locale),
-    partyLabel: partyLabel(booking, locale),
+    departure,
+    partyLabel,
     total: formatPrice(booking.amountCents, locale, booking.currency),
     refund: formatPrice(refundableCents(booking), locale, booking.currency),
     deadline: formatDeadline(deadline, locale),
@@ -338,7 +342,6 @@ async function notifyTeam(options: {
     // The guest's language, not the team's: the team's mail reports what the
     // guest was shown, and a date they can read back to them on the phone.
     const locale = booking.locale;
-    const experience = catalogue.get(booking.experienceSlug);
 
     const result = await sendLoggedEmail(
       {
@@ -358,9 +361,7 @@ async function notifyTeam(options: {
           guestPhone: lead?.phone ?? null,
           locale,
           date: formatDay(booking.date, locale),
-          experience: `${experience ? t(experience.title, locale) : booking.experienceSlug} — ${t(bookingEmails.guest.modeWords[booking.mode], locale)}`,
-          departure: t(departureLabel(booking.experienceSlug, booking.slot), locale),
-          partyLabel: partyLabel(booking, locale),
+          ...bookingLogisticsFacts(booking, titleFromCatalogue(catalogue), locale),
           total: formatPrice(booking.amountCents, locale, booking.currency),
           refund: refundFailed
             ? null

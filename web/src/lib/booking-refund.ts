@@ -74,13 +74,15 @@ import {
 } from "@/db";
 import { formatDay } from "@/lib/availability";
 import { recordAuditOrWarn } from "@/lib/audit";
-import { guestCancellationEmail, partyLabel } from "@/lib/booking-emails";
+import {
+  bookingLogisticsFacts,
+  guestCancellationEmail,
+  titleFromCatalogue,
+} from "@/lib/booking-emails";
 import { bookingRef } from "@/lib/bookings";
 import { isEmailConfigured } from "@/lib/email";
 import { listCatalogue } from "@/lib/experience-catalogue";
 import { sendLoggedEmail } from "@/lib/message-log";
-import { bookingEmails } from "@/content/emails";
-import { t } from "@/i18n/config";
 import { formatPrice } from "@/lib/money";
 import { isStripeConfigured, onOwningAccount, stripe } from "@/lib/stripe";
 
@@ -404,7 +406,6 @@ async function sendCancellationEmail(
 
     const catalogue = new Map((await listCatalogue()).map((entry) => [entry.slug, entry]));
     const locale = booking.locale;
-    const experience = catalogue.get(booking.experienceSlug);
 
     const result = await sendLoggedEmail(
       {
@@ -419,10 +420,7 @@ async function sendCancellationEmail(
         guestEmail: lead.email,
         locale,
         date: formatDay(booking.date, locale),
-        // A retired experience still has to be nameable in the mail of the
-        // guest who bought it; the slug is a poor name but never a blank.
-        experience: `${experience ? t(experience.title, locale) : booking.experienceSlug} — ${t(bookingEmails.guest.modeWords[booking.mode], locale)}`,
-        partyLabel: partyLabel(booking, locale),
+        ...bookingLogisticsFacts(booking, titleFromCatalogue(catalogue), locale),
         total: formatPrice(booking.amountCents, locale, booking.currency),
         refund:
           refundCents > 0

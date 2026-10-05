@@ -34,15 +34,8 @@
  */
 import "server-only";
 
-import { bookingEmails } from "@/content/emails";
-import {
-  departureLabel,
-  departureTimeFollowsByEmail,
-  meetingPoints,
-} from "@/content/logistics";
-import { t } from "@/i18n/config";
-import { dateKey, formatDay, parseDateKey, todayKey, type DateKey } from "@/lib/availability";
-import { guestReminderEmail, partyLabel, type ReminderWhen } from "@/lib/booking-emails";
+import { formatDay, shiftDays, todayKey, type DateKey } from "@/lib/availability";
+import { bookingLogisticsFacts, guestReminderEmail, type ReminderWhen } from "@/lib/booking-emails";
 import { bookingRef, confirmedBookingsOn } from "@/lib/bookings";
 import { catalogueTitleOf, runSealedPass, type TitleOf } from "@/lib/cron/dispatch-helpers";
 import { register, type CronJobResult } from "@/lib/cron/jobs";
@@ -51,15 +44,10 @@ import { sendLoggedEmail } from "@/lib/message-log";
 /** The job's stable name in the dispatcher's audit row. */
 export const DAY_BEFORE_REMINDER_JOB = "day-before-reminder";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 /** Lisbon's today and tomorrow at `now`, as calendar keys. */
 export function reminderDays(now: Date): { today: DateKey; tomorrow: DateKey } {
   const today = todayKey(now);
-  // `todayKey` always returns a valid key, so the parse cannot miss; UTC
-  // midnight plus a day is the next calendar day with no DST to trip on.
-  const midnight = parseDateKey(today) as Date;
-  return { today, tomorrow: dateKey(new Date(midnight.getTime() + DAY_MS)) };
+  return { today, tomorrow: shiftDays(today, 1) };
 }
 
 /** What one pass did. `already` is a booking a previous send had claimed. */
@@ -108,12 +96,7 @@ async function remindDay(date: DateKey, when: ReminderWhen, titleOf: TitleOf): P
           guestEmail: booking.email,
           locale,
           date: formatDay(booking.date, locale),
-          experience: `${titleOf(booking.experienceSlug, locale)} — ${t(bookingEmails.guest.modeWords[booking.mode], locale)}`,
-          departure: t(departureLabel(booking.experienceSlug, booking.slot), locale),
-          departureTimeFollows: departureTimeFollowsByEmail(booking.experienceSlug),
-          meetingPoint: meetingPoints[booking.experienceSlug] ?? null,
-          addOns: booking.addOns.map((slug) => titleOf(slug, locale)),
-          partyLabel: partyLabel(booking, locale),
+          ...bookingLogisticsFacts(booking, titleOf, locale),
         }),
       );
 

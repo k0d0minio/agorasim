@@ -75,12 +75,6 @@ import {
 } from "@/db";
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { bookingContent } from "@/content/booking";
-import { bookingEmails } from "@/content/emails";
-import {
-  departureLabel,
-  departureTimeFollowsByEmail,
-  meetingPoints,
-} from "@/content/logistics";
 import { t, type Locale } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
 import { formatDay, type DateKey } from "@/lib/availability";
@@ -94,9 +88,10 @@ import { BOOKING_CURRENCY, formatPrice } from "@/lib/money";
 import type { VehicleClass } from "@/lib/fleet";
 import type { BookingMode, PartyCount, PricedLine } from "@/lib/pricing";
 import {
+  bookingLogisticsFacts,
   guestConfirmationEmail,
-  partyLabel,
   teamNotificationEmail,
+  titleFromCatalogue,
 } from "@/lib/booking-emails";
 import { isEmailConfigured, teamRecipients } from "@/lib/email";
 import { sendLoggedEmail } from "@/lib/message-log";
@@ -651,13 +646,6 @@ async function sendConfirmationEmails(
   if (!isEmailConfigured()) return;
 
   const locale = booking.locale;
-  const name = (slug: string) => {
-    const entry = catalogue.get(slug);
-    // A retired add-on still has to be nameable in the email of the guest who
-    // bought it; the slug is a poor name but it is never a blank line.
-    return entry ? t(entry.title, locale) : slug;
-  };
-
   const facts = {
     ref: bookingRef(booking.id),
     guestName: lead.name,
@@ -665,13 +653,8 @@ async function sendConfirmationEmails(
     guestPhone: lead.phone,
     locale,
     date: formatDay(booking.date, locale),
-    experience: `${name(booking.experienceSlug)} — ${t(bookingEmails.guest.modeWords[booking.mode], locale)}`,
-    departure: t(departureLabel(booking.experienceSlug, booking.slot), locale),
-    departureTimeFollows: departureTimeFollowsByEmail(booking.experienceSlug),
-    meetingPoint: meetingPoints[booking.experienceSlug] ?? null,
-    addOns: booking.addOns.map(name),
+    ...bookingLogisticsFacts(booking, titleFromCatalogue(catalogue), locale),
     partySize: booking.partySize,
-    partyLabel: partyLabel(booking, locale),
     total: formatPrice(booking.amountCents, locale, booking.currency),
     adminUrl: `${siteUrl()}/admin/sales/${lead.id}`,
     cancelUrl: cancelToken
