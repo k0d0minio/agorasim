@@ -1835,6 +1835,74 @@ export function teamQuoteReceiptEmail(
   };
 }
 
+/**
+ * The text and HTML frame the couple's quote notices share — greeting, lead,
+ * details, an optional note, then the contacts and sign-off, which are the
+ * refund notice's wording whichever notice it frames. The muted banner strip
+ * is the refund notice's: this is news about money or an event that is off,
+ * not a confirmation, and must not wear the confirmation's green.
+ */
+function quoteNoticeFrame(parts: {
+  locale: Locale;
+  subject: string;
+  greeting: string;
+  lead: string;
+  preheader: string;
+  banner: string;
+  detailsHeading: string;
+  rows: DetailRow[];
+  note?: { title: string; body: string };
+}): { text: string; html: string } {
+  const r = bookingEmails.quoteRefund;
+  const l = parts.locale;
+
+  const text = textLines([
+    parts.greeting,
+    "",
+    parts.lead,
+    "",
+    ...parts.rows.map((row) => `${row.label}: ${row.value}`),
+    "",
+    ...(parts.note ? [`${parts.note.title}: ${parts.note.body}`, ""] : []),
+    t(r.questions, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(r.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: parts.subject,
+    preheader: parts.preheader,
+    banner: { text: parts.banner, background: emailPalette.textMuted },
+    content: [
+      emailHeading(parts.greeting),
+      emailParagraph(parts.lead, { spaceBelow: 24 }),
+      emailEyebrow(parts.detailsHeading),
+      emailDetails(parts.rows),
+      emailSpacer(24),
+      ...(parts.note ? [emailNote(parts.note), emailSpacer(16)] : []),
+      emailParagraph(t(r.questions, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(r.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(r.footerNote, l))],
+  });
+
+  return { text, html };
+}
+
 /** Which instalment a refund went back on — the three kinds a quote carries. */
 export type QuoteRefundInstalment = "deposit" | "balance" | "other";
 
@@ -1899,52 +1967,16 @@ export function guestQuoteRefundEmail(facts: QuoteRefundEmailFacts): EmailMessag
     { label: t(c.labels.refund, l), value: facts.amount, emphasis: true },
   ];
 
-  const text = textLines([
+  const { text, html } = quoteNoticeFrame({
+    locale: l,
+    subject,
     greeting,
-    "",
     lead,
-    "",
-    ...rows.map((row) => `${row.label}: ${row.value}`),
-    "",
-    `${moneyNote.title}: ${moneyNote.body}`,
-    "",
-    t(c.questions, l),
-    `${diogo.name} ${diogo.phoneDisplay}`,
-    `${rita.name} ${rita.phoneDisplay}`,
-    "",
-    t(c.signoff, l),
-    siteUrl(),
-  ]);
-
-  const html = emailDocument({
-    lang: l,
-    title: subject,
     preheader: fill(t(c.preheader, l), values),
-    // The muted strip, as on the tour cancellation: this is money going back,
-    // not a confirmation, and must not wear the confirmation's green.
-    banner: { text: t(c.banner[state], l), background: emailPalette.textMuted },
-    content: [
-      emailHeading(greeting),
-      emailParagraph(lead, { spaceBelow: 24 }),
-      emailEyebrow(t(c.detailsHeading, l)),
-      emailDetails(rows),
-      emailSpacer(24),
-      emailNote(moneyNote),
-      emailSpacer(16),
-      emailParagraph(t(c.questions, l), { spaceBelow: 12 }),
-      emailContacts(
-        [diogo, rita].map((contact) => ({
-          name: contact.name,
-          display: contact.phoneDisplay,
-          href: `tel:${contact.phone}`,
-        })),
-      ),
-      emailSpacer(24),
-      emailDivider(),
-      emailSpacer(20),
-      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
-    ].join(""),
-    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+    banner: t(c.banner[state], l),
+    detailsHeading: t(c.detailsHeading, l),
+    rows,
+    note: moneyNote,
   });
 
   return {
@@ -2009,47 +2041,15 @@ export function guestQuoteEventCancelledEmail(facts: QuoteEventCancelledEmailFac
     { label: t(r.labels.totalRefunded, l), value: facts.totalRefunded },
   ];
 
-  const text = textLines([
+  const { text, html } = quoteNoticeFrame({
+    locale: l,
+    subject,
     greeting,
-    "",
     lead,
-    "",
-    ...rows.map((row) => `${row.label}: ${row.value}`),
-    "",
-    t(r.questions, l),
-    `${diogo.name} ${diogo.phoneDisplay}`,
-    `${rita.name} ${rita.phoneDisplay}`,
-    "",
-    t(r.signoff, l),
-    siteUrl(),
-  ]);
-
-  const html = emailDocument({
-    lang: l,
-    title: subject,
     preheader: fill(t(c.preheader, l), values),
-    // The refund notice's muted strip: news about an event that is off.
-    banner: { text: t(c.banner, l), background: emailPalette.textMuted },
-    content: [
-      emailHeading(greeting),
-      emailParagraph(lead, { spaceBelow: 24 }),
-      emailEyebrow(t(c.detailsHeading, l)),
-      emailDetails(rows),
-      emailSpacer(24),
-      emailParagraph(t(r.questions, l), { spaceBelow: 12 }),
-      emailContacts(
-        [diogo, rita].map((contact) => ({
-          name: contact.name,
-          display: contact.phoneDisplay,
-          href: `tel:${contact.phone}`,
-        })),
-      ),
-      emailSpacer(24),
-      emailDivider(),
-      emailSpacer(20),
-      emailParagraph(t(r.signoff, l), { muted: true, spaceBelow: 0 }),
-    ].join(""),
-    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(r.footerNote, l))],
+    banner: t(c.banner, l),
+    detailsHeading: t(c.detailsHeading, l),
+    rows,
   });
 
   return {

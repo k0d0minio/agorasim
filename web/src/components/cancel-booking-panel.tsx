@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import {
@@ -64,9 +64,17 @@ export function CancelBookingPanel({
   );
   const [confirming, setConfirming] = useState(false);
 
+  // Tapping "start" unmounts that button; put focus on the safe action instead
+  // of dropping it to <body> (WCAG 2.4.3).
+  const keepRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirming) keepRef.current?.focus();
+  }, [confirming]);
+
   if (state.status === "done") {
     return (
       <Panel
+        announce
         tone="good"
         icon={<CheckCircle2 className="size-5" />}
         title={t(c.doneTitle, locale)}
@@ -81,13 +89,13 @@ export function CancelBookingPanel({
   }
 
   if (state.status === "unknown") {
-    return <UnknownPanel locale={locale} />;
+    return <UnknownPanel locale={locale} announce />;
   }
 
   // The window closed between the render and the submit — or was already closed
   // and somebody posted the form anyway. Same answer either way.
   if (state.status === "too-late") {
-    return <TooLatePanel locale={locale} deadline={state.deadline} />;
+    return <TooLatePanel locale={locale} deadline={state.deadline} announce />;
   }
 
   if (!open) {
@@ -155,7 +163,12 @@ export function CancelBookingPanel({
                 * default action, so it is what a keyboard reaches first and what
                 * a screen reader reads first.
                 */}
-              <Button type="button" size="lg" onClick={() => setConfirming(false)}>
+              <Button
+                ref={keepRef}
+                type="button"
+                size="lg"
+                onClick={() => setConfirming(false)}
+              >
                 {t(c.keep, locale)}
               </Button>
               <ConfirmButton locale={locale} />
@@ -195,10 +208,18 @@ function ConfirmButton({ locale }: { locale: Locale }) {
  * Exported because the page renders it without ever reaching the interactive
  * panel — there is nothing to confirm when there is no booking.
  */
-export function UnknownPanel({ locale }: { locale: Locale }) {
+export function UnknownPanel({
+  locale,
+  announce,
+}: {
+  locale: Locale;
+  /** Set when this replaces a form the guest just submitted (not on first render). */
+  announce?: boolean;
+}) {
   const c = bookingContent.cancellation;
   return (
     <Panel
+      announce={announce}
       tone="wait"
       icon={<HelpCircle className="size-5" />}
       title={t(c.unknownTitle, locale)}
@@ -241,13 +262,17 @@ export function ThrottledPanel({ locale }: { locale: Locale }) {
 export function TooLatePanel({
   locale,
   deadline,
+  announce,
 }: {
   locale: Locale;
   deadline: string;
+  /** Set when this replaces a form the guest just submitted (not on first render). */
+  announce?: boolean;
 }) {
   const c = bookingContent.cancellation;
   return (
     <Panel
+      announce={announce}
       tone="wait"
       icon={<AlertTriangle className="size-5" />}
       title={t(c.tooLateTitle, locale)}
@@ -331,20 +356,27 @@ function fill(template: string, values: Record<string, string>): string {
 }
 
 function Panel({
+  announce = false,
   tone,
   icon,
   title,
   lead,
   children,
 }: {
+  /** Outcome of a submit: announce it and move focus to its heading. */
+  announce?: boolean;
   tone: "good" | "wait";
   icon: React.ReactNode;
   title: string;
   lead: string;
   children?: React.ReactNode;
 }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (announce) headingRef.current?.focus();
+  }, [announce]);
   return (
-    <Card>
+    <Card role={announce ? "status" : undefined}>
       <CardContent className="p-6">
         <div
           className={
@@ -355,7 +387,13 @@ function Panel({
         >
           {icon}
         </div>
-        <h1 className="mt-4 font-heading text-2xl font-semibold">{title}</h1>
+        <h1
+          ref={headingRef}
+          tabIndex={announce ? -1 : undefined}
+          className="mt-4 font-heading text-2xl font-semibold outline-none"
+        >
+          {title}
+        </h1>
         <p className="mt-2 text-muted-foreground">{lead}</p>
         {children}
       </CardContent>

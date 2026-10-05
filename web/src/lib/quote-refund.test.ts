@@ -1233,6 +1233,68 @@ describe("the admin refund and its webhook echo — whichever lands first", () =
     expect(outcome).toMatchObject({ status: "synced", refundedAmountCents: 57_600 });
   });
 
+  describe("two refunds close together on one instalment", () => {
+    const refundOf = (
+      id: string,
+      amount: number,
+      created: number,
+      via?: "admin",
+    ) => ({
+      id,
+      object: "refund",
+      amount,
+      status: "succeeded",
+      created,
+      metadata: via ? { quotePaymentId: DEPOSIT_ID, via } : {},
+    });
+
+    it("defers an admin refund's echo even though a dashboard refund landed after it", async () => {
+      const t = justNow();
+      // Newest first, as Stripe lists them: the dashboard refund is the latest.
+      refundsList.mockResolvedValue({
+        data: [refundOf("re_dashboard_28800", 28_800, t, undefined), refundOf("re_admin_28800", 28_800, t - 5, "admin")],
+      });
+
+      const outcome = await syncQuotePaymentRefundFromStripe({ charge: depositCharge(57_600) });
+
+      expect(outcome).toMatchObject({ status: "deferred" });
+      expect(recordPaymentRefund).not.toHaveBeenCalled();
+      expect(sendLoggedEmail).not.toHaveBeenCalled();
+    });
+
+    it("defers a dashboard refund's event while an admin refund after it is unrecorded", async () => {
+      const t = justNow();
+      refundsList.mockResolvedValue({
+        data: [refundOf("re_admin_28800", 28_800, t, "admin"), refundOf("re_dashboard_28800", 28_800, t - 5)],
+      });
+
+      const outcome = await syncQuotePaymentRefundFromStripe({ charge: depositCharge(57_600) });
+
+      // The total this event would write includes the admin refund, so the card goes first.
+      expect(outcome).toMatchObject({ status: "deferred" });
+    });
+
+    it("does not defer for an admin refund the row already carries, behind a newer dashboard one", async () => {
+      const t = justNow();
+      payments.set(
+        DEPOSIT_ID,
+        instalment("deposit", "paid", {
+          refundedAmountCents: 28_800,
+          refundedFeeCents: 1_728,
+          stripeRefundId: "re_admin_28800",
+        }),
+      );
+      refundsList.mockResolvedValue({
+        data: [refundOf("re_dashboard_28800", 28_800, t), refundOf("re_admin_28800", 28_800, t - 5, "admin")],
+      });
+      feesRetrieve.mockResolvedValue({ id: "fee_deposit", amount_refunded: DEPOSIT_FEE });
+
+      const outcome = await syncQuotePaymentRefundFromStripe({ charge: depositCharge(57_600) });
+
+      expect(outcome).toMatchObject({ status: "synced", refundedAmountCents: 57_600 });
+    });
+  });
+
   it("never defers a dashboard refund, however fresh", async () => {
     refundsList.mockResolvedValue({
       data: [

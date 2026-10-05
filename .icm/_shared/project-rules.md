@@ -318,3 +318,12 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 - Before a spec changes what a Stripe call is keyed on, grep the repo's tests for every caller of that function (action suites, webhook route tests) and list them in `touches:` — not only the module's own test file. (`FAILURE.md` — refund-idempotency-cached-declines)
 <!-- Retrospective Learned Rule [2026-10-01] -->
 - When a new rule can take away something the guest already chose (a day, a slot, an add-on), give that drop its own sentence naming its own cause — never reuse an existing drop message written for another cause, and never drop silently. (`FAILURE.md` — guest-calendar-polish)
+
+<!-- Retrospective Learned Rule [2026-10-02] -->
+- A vitest file that imports `web/src/lib/booking-checkout.ts` (or anything reaching `content/site.ts`) must mock `@/lib/site-origin` partially — spread `importOriginal()` — because `content/site.ts` calls `canonicalOrigin()` at module load. (`error: [vitest] no "canonicalorigin" export is defined on the "@" mock. `, seen 1× — reservar-embedded-checkout; root, web, web/src)
+<!-- Retrospective Learned Rule [2026-10-02] -->
+- A security header scoped to some routes (`next.config.ts` `headers()` by `source`) only binds a document *loaded* on that route: spec how guests navigate in (full loads, or a reload guard) whenever a route-scoped CSP is what lets a page work. (`FAILURE.md` — reservar-embedded-checkout)
+<!-- Retrospective Learned Rule [2026-10-02] -->
+- Pin `@stripe/stripe-js` to the major whose release train matches `API_VERSION` in `web/src/lib/stripe.ts` (read `RELEASE_TRAIN` in the package's `dist/pure.mjs`), never to the newest major. (`FAILURE.md` — reservar-embedded-checkout)
+<!-- Retrospective Learned Rule [2026-10-02] -->
+- When a run adds an env key, name every Vercel target it is declared for — Production included — as an operator act in the Build stop report, not only the ones the preview smoke needs: Release's `env.sh audit --changed` holds all of them. (`FAILURE.md` — reservar-embedded-checkout)
