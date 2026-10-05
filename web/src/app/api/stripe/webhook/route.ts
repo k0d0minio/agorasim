@@ -324,24 +324,36 @@ export async function POST(request: Request): Promise<Response> {
  * refund that later fails lowers it again. Adding up refunds instead would
  * double-count the first redelivery.
  *
- * `charge.refunded` already carries that object, so it costs nothing.
- * `refund.updated` carries only the refund, so the charge is fetched — on
- * whichever account owns it, which for a booking taken before Connect was
- * configured is the platform (`lib/stripe.ts`).
+ * Neither event's payload is trusted for the figure. Stripe does not guarantee
+ * delivery order, so a delayed or redelivered `charge.refunded` carries the
+ * charge as it was when the event was created — a lower `amount_refunded` than
+ * a later refund already recorded, which the reconcilers would follow down. So
+ * the charge is always fetched, never read off the event: `charge.refunded`
+ * names it as its own object, `refund.updated` as the refund's `charge`. It is
+ * fetched on whichever account owns it, which for a booking taken before
+ * Connect was configured is the platform (`lib/stripe.ts`).
  *
  * `null` on anything unreadable, which the caller acknowledges rather than
  * retries: an event about a charge that cannot be fetched will not become
  * fetchable in three days of Stripe trying again.
  */
 async function chargeBehind(event: Stripe.Event): Promise<Stripe.Charge | null> {
-  if (event.type === "charge.refunded") return event.data.object as Stripe.Charge;
-
-  const refund = event.data.object as Stripe.Refund;
-  const chargeId =
-    typeof refund.charge === "string" ? refund.charge : (refund.charge?.id ?? null);
+  // `charge.refunded` is about a charge; `refund.updated` about a refund that
+  // names one.
+  let chargeId: string | null;
+  let subjectId: string;
+  if (event.type === "charge.refunded") {
+    const snapshot = event.data.object as Stripe.Charge;
+    chargeId = snapshot.id;
+    subjectId = snapshot.id;
+  } else {
+    const refund = event.data.object as Stripe.Refund;
+    chargeId = typeof refund.charge === "string" ? refund.charge : (refund.charge?.id ?? null);
+    subjectId = refund.id;
+  }
 
   if (!chargeId) {
-    console.error(`[stripe] ${refund.id} names no charge — nothing to reconcile`);
+    console.error(`[stripe] ${subjectId} names no charge — nothing to reconcile`);
     return null;
   }
 
@@ -352,7 +364,7 @@ async function chargeBehind(event: Stripe.Event): Promise<Stripe.Charge | null> 
       stripe().charges.retrieve(chargeId, { expand: ["refunds"] }, account),
     );
   } catch (err) {
-    console.error(`[stripe] couldn't read ${chargeId} behind refund ${refund.id}`, err);
+    console.error(`[stripe] couldn't read ${chargeId} behind ${event.type} ${event.id}`, err);
     return null;
   }
 }
