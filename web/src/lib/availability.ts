@@ -317,6 +317,21 @@ export function isInOnlineWindow(date: DateKey, today: DateKey = todayKey()): bo
   return date >= first && date <= last;
 }
 
+/**
+ * The two calendar bounds {@link describeSlot} reads, both functions of `today`
+ * alone. A caller describing many departures computes them once and hands them
+ * down, instead of every departure recomputing the same month arithmetic.
+ */
+export type SaleBounds = {
+  online: { first: DateKey; last: DateKey };
+  teamEnd: DateKey;
+};
+
+/** The bounds for one `today` — see {@link SaleBounds}. */
+export function saleBounds(today: DateKey = todayKey()): SaleBounds {
+  return { online: onlineWindow(today), teamEnd: teamHorizonEnd(today) };
+}
+
 // ---------------------------------------------------------------------------
 // What a departure is, once supply and demand are put together
 // ---------------------------------------------------------------------------
@@ -369,11 +384,6 @@ export type SlotAvailability = {
   /** Saturday or Sunday — the admin's "open the weekends" sweep selects on it. */
   weekend: boolean;
   /**
-   * Inside the guest's online window — two days' notice, six months ahead.
-   * Reported for both audiences; only `online` is bound by it.
-   */
-  inOnlineWindow: boolean;
-  /**
    * This audience may sell the departure, capacity aside: for `online`, not
    * past, not blocked and inside the window; for `team`, not past and inside
    * the admin calendar's horizon ({@link teamHorizonEnd}).
@@ -419,12 +429,15 @@ export function describeSlot(options: {
   row?: Pick<AvailabilityRow, "id" | "slot" | "status" | "drivers" | "note"> | null;
   occupancy?: SlotOccupancy;
   today?: DateKey;
+  /** Precomputed from `today`; a caller describing many departures passes it. */
+  bounds?: SaleBounds;
   /** The clock; only read when it falls on `today`, so a pinned `today` stays pinned. */
   now?: Date;
   audience?: Audience;
 }): SlotAvailability {
   const { date, slot, row, now = new Date(), audience = "online" } = options;
   const today = options.today ?? todayKey(now);
+  const bounds = options.bounds ?? saleBounds(today);
   const occupancy = options.occupancy ?? noOccupancy();
 
   // No row is an untouched departure, and an untouched departure is open with
@@ -448,11 +461,10 @@ export function describeSlot(options: {
     minutesOfDay(now) >= SLOT_DEPARTURE_MINUTES[slot];
   const past = date < today || departed;
   const blocked = row?.status === "closed";
-  const inOnlineWindow = isInOnlineWindow(date, today);
   const onSale =
     audience === "team"
-      ? !past && date <= teamHorizonEnd(today)
-      : !past && !blocked && inOnlineWindow;
+      ? !past && date <= bounds.teamEnd
+      : !past && !blocked && date >= bounds.online.first && date <= bounds.online.last;
   const hasRoom = !heldByEvent && driversLeft > 0 && anyVehicleFree(vehiclesLeft);
 
   return {
@@ -469,7 +481,6 @@ export function describeSlot(options: {
     vehiclesLeft,
     past,
     weekend: isWeekend(date),
-    inOnlineWindow,
     onSale,
     heldByEvent,
     hasRoom,
@@ -538,6 +549,7 @@ export function describeMonth(options: {
 }): DaySlots[] {
   const { month, rows, occupancy, today = todayKey(), audience } = options;
   const byKey = new Map(rows.map((row) => [occupancySlotKey(row.date, row.slot), row]));
+  const bounds = saleBounds(today);
 
   return monthDays(month).map((date) => ({
     date,
@@ -548,6 +560,7 @@ export function describeMonth(options: {
         row: byKey.get(occupancySlotKey(date, slot)) ?? null,
         occupancy: occupancy?.get(occupancySlotKey(date, slot)),
         today,
+        bounds,
         audience,
       }),
     ),
@@ -839,6 +852,7 @@ export async function checkDayBookable(options: {
   }
 
   const byKey = new Map(rows.map((row) => [occupancySlotKey(row.date, row.slot), row]));
+  const bounds = saleBounds(today);
   return TOUR_SLOTS.some(
     (slot) =>
       describeSlot({
@@ -847,6 +861,7 @@ export async function checkDayBookable(options: {
         row: byKey.get(occupancySlotKey(date, slot)) ?? null,
         occupancy: occupancy?.get(occupancySlotKey(date, slot)),
         today,
+        bounds,
         audience: "online",
       }).bookable,
   );

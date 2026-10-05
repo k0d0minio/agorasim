@@ -326,7 +326,7 @@ describe("describeSlot", () => {
     expect(at("2026-08-11").some((slot) => slot.bookable)).toBe(false);
     expect(at("2026-08-12").every((slot) => slot.bookable)).toBe(true);
     // Not on sale online, but not full either — the admin must not read "esgotada".
-    expect(at("2026-08-11").every((slot) => slot.hasRoom && !slot.inOnlineWindow)).toBe(true);
+    expect(at("2026-08-11").every((slot) => slot.hasRoom && !slot.onSale)).toBe(true);
   });
 
   it("counts the notice in Lisbon days, not UTC", () => {

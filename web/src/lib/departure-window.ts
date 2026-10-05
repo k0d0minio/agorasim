@@ -29,6 +29,7 @@ import {
   formatDay,
   listAvailabilityRows,
   occupancySlotKey,
+  saleBounds,
   todayKey,
   TOUR_SLOTS,
   type DateKey,
@@ -74,6 +75,7 @@ export async function readDepartureWindow(options: {
     countSlotOccupancy({ from: windowStart, to: windowEnd }),
   ]);
   const byKey = new Map(rows.map((row) => [occupancySlotKey(row.date, row.slot), row]));
+  const bounds = saleBounds(today);
 
   return days.map((date) => ({
     date,
@@ -84,6 +86,7 @@ export async function readDepartureWindow(options: {
         row: byKey.get(occupancySlotKey(date, slot)) ?? null,
         occupancy: occupancy.get(occupancySlotKey(date, slot)),
         today,
+        bounds,
         audience: "team",
       }),
     ),
