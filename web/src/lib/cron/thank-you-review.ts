@@ -31,10 +31,10 @@
  */
 import "server-only";
 
-import { t } from "@/i18n/config";
 import { dateKey, parseDateKey, todayKey, type DateKey } from "@/lib/availability";
 import { guestThankYouEmail } from "@/lib/booking-emails";
-import { bookingRef, bookingsToThankOn, type BookingToThank } from "@/lib/bookings";
+import { bookingRef, bookingsToThankOn } from "@/lib/bookings";
+import { catalogueTitleOf, runSealedPass, type TitleOf } from "@/lib/cron/dispatch-helpers";
 import { register, type CronJobResult } from "@/lib/cron/jobs";
 import {
   isOptOutConfigured,
@@ -43,9 +43,8 @@ import {
   optOutPath,
   optOutTokenFromHash,
 } from "@/lib/email-opt-out-token";
-import { listCatalogue } from "@/lib/experience-catalogue";
 import { sendLoggedEmail } from "@/lib/message-log";
-import { captureAlert, captureError } from "@/lib/observability";
+import { captureAlert } from "@/lib/observability";
 import { siteUrl } from "@/lib/site-origin";
 
 /** The job's stable name in the dispatcher's audit row. */
@@ -79,15 +78,17 @@ function emptyTally(): ThankYouTally {
 
 type Pass = "yesterday" | "day before";
 
+const runPass = (pass: Pass, date: DateKey, titleOf: TitleOf) =>
+  runSealedPass(THANK_YOU_REVIEW_JOB, "thank-you", pass, date, async () =>
+    summarise(pass, date, await thankDay(date, titleOf)),
+  );
+
 function summarise(pass: Pass, date: DateKey, tally: ThankYouTally): string {
   return `${pass} ${date}: ${tally.sent} sent, ${tally.already} already thanked, ${tally.skipped} skipped, ${tally.optedOut} opted out, ${tally.failed} failed`;
 }
 
 /** Thank every booking owed it on `date`. */
-async function thankDay(
-  date: DateKey,
-  titleOf: (slug: string, locale: BookingToThank["locale"]) => string,
-): Promise<ThankYouTally> {
+async function thankDay(date: DateKey, titleOf: TitleOf): Promise<ThankYouTally> {
   const tally = emptyTally();
   const origin = siteUrl();
 
@@ -152,24 +153,6 @@ async function thankDay(
 }
 
 /**
- * One pass, sealed off from the other: a day whose bookings cannot be read is
- * reported (the log, the error tracker, the summary) and the other still runs.
- */
-async function runPass(
-  date: DateKey,
-  pass: Pass,
-  titleOf: (slug: string, locale: BookingToThank["locale"]) => string,
-): Promise<string> {
-  try {
-    return summarise(pass, date, await thankDay(date, titleOf));
-  } catch (err) {
-    console.error(`[thank-you] ${pass} ${date} — bookings could not be read`, err);
-    captureError(err, { area: "cron", tags: { job: THANK_YOU_REVIEW_JOB, pass } });
-    return `${pass} ${date}: not run — bookings could not be read`;
-  }
-}
-
-/**
  * The dispatcher job. It does not throw: every per-booking outcome is a count
  * in the summary, and a day whose bookings cannot be read — or a deployment
  * without the opt-out secret — says so there and in the error tracker.
@@ -186,16 +169,10 @@ export async function thankYouReview(now: Date = new Date()): Promise<CronJobRes
 
   const { yesterday, dayBefore } = thankYouDays(now);
 
-  const catalogue = new Map((await listCatalogue()).map((entry) => [entry.slug, entry]));
-  // A retired route still has to be nameable to the guest who took it; the
-  // slug is a poor name but never a blank — same rule as the other mails.
-  const titleOf = (slug: string, locale: BookingToThank["locale"]) => {
-    const entry = catalogue.get(slug);
-    return entry ? t(entry.title, locale) : slug;
-  };
+  const titleOf = await catalogueTitleOf();
 
-  const recent = await runPass(yesterday, "yesterday", titleOf);
-  const catchUp = await runPass(dayBefore, "day before", titleOf);
+  const recent = await runPass("yesterday", yesterday, titleOf);
+  const catchUp = await runPass("day before", dayBefore, titleOf);
 
   return { name: THANK_YOU_REVIEW_JOB, summary: `${recent} · ${catchUp}` };
 }
