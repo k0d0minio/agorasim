@@ -418,8 +418,9 @@ describe("supersedeSentQuotes — a new version replaces the old", () => {
 
   it("cancels the lead's other sent quotes, and says which replaced which", async () => {
     queueResult([quote({ id: OLD_ID, status: "cancelled" } as Partial<Quote>)]);
+    queueResult([]); // the write-off of the old quote's instalments
 
-    const superseded = await supersedeSentQuotes(
+    const { quotes: superseded } = await supersedeSentQuotes(
       { id: QUOTE_ID, tourRequestId: LEAD_ID },
       { actorUserId: OPERATOR_ID, now: NOW },
     );
@@ -444,8 +445,38 @@ describe("supersedeSentQuotes — a new version replaces the old", () => {
   });
 
   it("does nothing for a quote with no lead behind it", async () => {
-    expect(await supersedeSentQuotes({ id: QUOTE_ID, tourRequestId: null })).toEqual([]);
+    expect(await supersedeSentQuotes({ id: QUOTE_ID, tourRequestId: null })).toEqual({
+      quotes: [],
+      writtenOff: [],
+    });
     expect(calls).toEqual([]);
+  });
+
+  it("writes off the old quote's unpaid instalments, and returns them to be expired", async () => {
+    const open = { id: "pay-1", quoteId: OLD_ID, kind: "deposit", status: "cancelled" };
+    queueResult([quote({ id: OLD_ID, status: "cancelled" } as Partial<Quote>)]);
+    queueResult([open]);
+
+    const { writtenOff } = await supersedeSentQuotes(
+      { id: QUOTE_ID, tourRequestId: LEAD_ID },
+      { now: NOW },
+    );
+
+    expect(writtenOff).toEqual([open]);
+    expect(updatedValues()[1]).toMatchObject({ status: "cancelled", updatedAt: NOW });
+    const { params } = whereSql(1);
+    expect(params).toEqual(expect.arrayContaining([OLD_ID, "pending", "issued"]));
+    expect(params).not.toContain("paid");
+  });
+
+  it("touches no instalments when nothing was superseded", async () => {
+    queueResult([]);
+
+    expect(
+      await supersedeSentQuotes({ id: QUOTE_ID, tourRequestId: LEAD_ID }, { now: NOW }),
+    ).toEqual({ quotes: [], writtenOff: [] });
+    // Only the quotes update ran; no second write for instalments.
+    expect(updatedValues()).toHaveLength(1);
   });
 });
 

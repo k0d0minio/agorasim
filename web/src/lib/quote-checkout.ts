@@ -386,6 +386,39 @@ export async function expireSession(id: string): Promise<Stripe.Checkout.Session
   }
 }
 
+/**
+ * Close the Checkout session behind each instalment a cancellation wrote off,
+ * so a couple with the payment page still open cannot pay a quote that is no
+ * longer theirs ({@link cancelQuoteAndOpenInstalments} and
+ * {@link supersedeSentQuotes} only mark the rows).
+ *
+ * Best-effort, on the owning account: a Stripe failure here must not undo the
+ * cancellation, which has already landed by the time this runs — the check on
+ * `recordQuotePayment` is the backstop if a session slips through.
+ */
+export async function expireWrittenOffSessions(
+  writtenOff: readonly QuotePayment[],
+): Promise<void> {
+  if (!isStripeConfigured()) return;
+
+  await Promise.all(
+    writtenOff
+      .filter((payment): payment is QuotePayment & { stripeSessionId: string } =>
+        payment.stripeSessionId !== null,
+      )
+      .map(async (payment) => {
+        try {
+          await expireSession(payment.stripeSessionId);
+        } catch (err) {
+          console.error(
+            `[quote-checkout] couldn't expire the Checkout session behind the written-off ${payment.kind}`,
+            err,
+          );
+        }
+      }),
+  );
+}
+
 /** The enquiry behind a quote — the couple's name and address. */
 export async function readQuoteLead(id: string): Promise<TourRequest | null> {
   const [lead] = await db.select().from(tourRequests).where(eq(tourRequests.id, id)).limit(1);
