@@ -2,6 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
+      "Bash(vercel env pull:*)",
       "Bash(pnpm install:*)",
       "Bash(pnpm why:*)",
       "Bash(pnpm exec:*)",
