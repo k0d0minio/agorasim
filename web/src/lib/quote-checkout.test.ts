@@ -131,6 +131,8 @@ const DEPOSIT_ID = "cccccccc-3333-4333-8333-333333333333";
 const BALANCE_ID = "dddddddd-4444-4444-8444-444444444444";
 // Well before the balance falls due on 1 August.
 const NOW = new Date("2026-06-01T10:00:00Z");
+/** What a tap on the deposit hands the page to name. */
+const DEPOSIT_DUE = { kind: "deposit", amountCents: 57_600, currency: "eur" };
 
 function instalment(
   kind: "deposit" | "balance",
@@ -196,12 +198,18 @@ const LEAD = {
   locale: "pt",
 };
 
+/** An embedded session's client secret, as Stripe shapes it: the id, then `_secret_`. */
+const secretOf = (id: string) => `${id}_secret_abc123`;
+
 function session(overrides: Partial<Stripe.Checkout.Session> = {}): Stripe.Checkout.Session {
+  const id = overrides.id ?? "cs_test_new";
   return {
-    id: "cs_test_new",
+    id,
     status: "open",
     payment_status: "unpaid",
-    url: "https://checkout.stripe.com/c/pay/cs_test_new",
+    ui_mode: "embedded_page",
+    client_secret: secretOf(id),
+    url: null,
     payment_intent: null,
     metadata: {
       quoteId: QUOTE_ID,
@@ -245,7 +253,12 @@ describe("startQuoteCheckout — the first tap on the deposit", () => {
   it("charges the deposit on the connected account with the agreement's 6% as the fee", async () => {
     const outcome = await startQuoteCheckout({ token, locale: "pt", now: NOW });
 
-    expect(outcome).toEqual({ status: "redirect", url: session().url });
+    expect(outcome).toEqual({
+      status: "embedded",
+      clientSecret: secretOf("cs_test_new"),
+      stripeAccount: "acct_test_agorasim",
+      instalment: DEPOSIT_DUE,
+    });
     const [params, options] = sessionsCreate.mock.calls[0];
     expect(params.line_items[0].price_data.unit_amount).toBe(57_600);
     expect(params.payment_intent_data.application_fee_amount).toBe(
@@ -268,8 +281,29 @@ describe("startQuoteCheckout — the first tap on the deposit", () => {
     expect(params.payment_intent_data.metadata).toMatchObject(expected);
     // The token is in the way back and nowhere else.
     expect(JSON.stringify(params.metadata)).not.toContain(token);
-    expect(params.success_url).toContain(`/en/orcamento/${token}?session_id={CHECKOUT_SESSION_ID}`);
+    expect(JSON.stringify(params.payment_intent_data)).not.toContain(token);
     expect(params.locale).toBe("en");
+  });
+
+  it("is Stripe's form inside the quote page, coming back to it once paid", async () => {
+    await startQuoteCheckout({ token, locale: "en", now: NOW });
+
+    const [params] = sessionsCreate.mock.calls[0];
+    expect(params.ui_mode).toBe("embedded_page");
+    expect(params.redirect_on_completion).toBe("always");
+    expect(
+      params.return_url.endsWith(`/en/orcamento/${token}?session_id={CHECKOUT_SESSION_ID}`),
+    ).toBe(true);
+    // Embedded Checkout has neither; the hosted page's pair is gone.
+    expect(params).not.toHaveProperty("success_url");
+    expect(params).not.toHaveProperty("cancel_url");
+  });
+
+  it("keeps the hour-long session", async () => {
+    await startQuoteCheckout({ token, locale: "pt", now: NOW });
+
+    const [params] = sessionsCreate.mock.calls[0];
+    expect(params.expires_at).toBe(Math.floor(NOW.getTime() / 1000) + 60 * 60);
   });
 
   it("records the session and the rate on the instalment", async () => {
@@ -286,8 +320,9 @@ describe("startQuoteCheckout — the first tap on the deposit", () => {
   it("takes no fee and charges the platform while Connect is unconfigured", async () => {
     connectedAccount = null;
 
-    await startQuoteCheckout({ token, locale: "pt", now: NOW });
+    const outcome = await startQuoteCheckout({ token, locale: "pt", now: NOW });
 
+    expect(outcome).toMatchObject({ status: "embedded", stripeAccount: null });
     const [params, options] = sessionsCreate.mock.calls[0];
     expect(params.payment_intent_data).not.toHaveProperty("application_fee_amount");
     expect(options).toBeUndefined();
@@ -307,18 +342,46 @@ describe("startQuoteCheckout — an instalment that already has a session", () =
 
   it("reuses a session that is still open under today's terms", async () => {
     getQuoteByAccessTokenHash.mockResolvedValue(withSession("cs_test_open"));
-    sessionsRetrieve.mockResolvedValue(
-      session({ id: "cs_test_open", url: "https://checkout.stripe.com/c/pay/cs_test_open" }),
-    );
+    sessionsRetrieve.mockResolvedValue(session({ id: "cs_test_open" }));
 
     const outcome = await startQuoteCheckout({ token, locale: "pt", now: NOW });
 
     expect(outcome).toEqual({
-      status: "redirect",
-      url: "https://checkout.stripe.com/c/pay/cs_test_open",
+      status: "embedded",
+      clientSecret: secretOf("cs_test_open"),
+      stripeAccount: "acct_test_agorasim",
+      instalment: DEPOSIT_DUE,
     });
     expect(sessionsCreate).not.toHaveBeenCalled();
     expect(sessionsExpire).not.toHaveBeenCalled();
+  });
+
+  it("expires an open hosted session from before the switch, and mints an embedded one", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue(withSession("cs_test_hosted"));
+    sessionsRetrieve.mockResolvedValue(
+      session({
+        id: "cs_test_hosted",
+        ui_mode: "hosted_page",
+        client_secret: null,
+        url: "https://checkout.stripe.com/c/pay/cs_test_hosted",
+      }),
+    );
+    sessionsExpire.mockResolvedValue(session({ id: "cs_test_hosted", status: "expired" }));
+    reissuePayment.mockResolvedValue(instalment("deposit", "issued"));
+
+    const outcome = await startQuoteCheckout({ token, locale: "pt", now: NOW });
+
+    // Never the hosted page's stripe.com address.
+    expect(JSON.stringify(outcome)).not.toContain("checkout.stripe.com");
+    expect(outcome).toMatchObject({ status: "embedded", clientSecret: secretOf("cs_test_new") });
+    expect(sessionsExpire).toHaveBeenCalledWith("cs_test_hosted", undefined, expect.anything());
+    expect(sessionsExpire.mock.invocationCallOrder[0]).toBeLessThan(
+      sessionsCreate.mock.invocationCallOrder[0],
+    );
+    expect(reissuePayment).toHaveBeenCalledWith(
+      DEPOSIT_ID,
+      expect.objectContaining({ stripeSessionId: "cs_test_new", replacing: "cs_test_hosted" }),
+    );
   });
 
   it("expires an open session minted under older terms before minting its replacement", async () => {
@@ -334,7 +397,7 @@ describe("startQuoteCheckout — an instalment that already has a session", () =
 
     const outcome = await startQuoteCheckout({ token, locale: "pt", now: NOW });
 
-    expect(outcome).toMatchObject({ status: "redirect" });
+    expect(outcome).toMatchObject({ status: "embedded" });
     expect(sessionsExpire.mock.invocationCallOrder[0]).toBeLessThan(
       sessionsCreate.mock.invocationCallOrder[0],
     );
@@ -351,7 +414,7 @@ describe("startQuoteCheckout — an instalment that already has a session", () =
 
     const outcome = await startQuoteCheckout({ token, locale: "pt", now: NOW });
 
-    expect(outcome).toEqual({ status: "redirect", url: session().url });
+    expect(outcome).toMatchObject({ status: "embedded", clientSecret: secretOf("cs_test_new") });
     expect(sessionsExpire).not.toHaveBeenCalled();
     expect(reissuePayment).toHaveBeenCalledWith(
       DEPOSIT_ID,
@@ -387,7 +450,7 @@ describe("startQuoteCheckout — an instalment that already has a session", () =
 
     const outcome = await startQuoteCheckout({ token, locale: "pt", now: NOW });
 
-    expect(outcome).toEqual({ status: "redirect", url: session().url });
+    expect(outcome).toMatchObject({ status: "embedded", clientSecret: secretOf("cs_test_new") });
     expect(reissuePayment).toHaveBeenCalledWith(
       DEPOSIT_ID,
       expect.objectContaining({ replacing: "cs_test_multibanco" }),
@@ -448,13 +511,11 @@ describe("startQuoteCheckout — an instalment that already has a session", () =
     expect(markPaymentPaid).toHaveBeenCalledTimes(1);
   });
 
-  it("loses a race gracefully: expires its own session and sends the couple to the winner's", async () => {
+  it("loses a race gracefully: expires its own session and hands the page the winner's", async () => {
     getQuoteByAccessTokenHash.mockResolvedValue(withSession("cs_test_expired"));
     sessionsRetrieve
       .mockResolvedValueOnce(session({ id: "cs_test_expired", status: "expired" }))
-      .mockResolvedValueOnce(
-        session({ id: "cs_test_winner", url: "https://checkout.stripe.com/c/pay/cs_test_winner" }),
-      );
+      .mockResolvedValueOnce(session({ id: "cs_test_winner" }));
     // The other tap swapped the row first.
     reissuePayment.mockResolvedValue(null);
     sessionsExpire.mockResolvedValue(session({ status: "expired" }));
@@ -465,8 +526,10 @@ describe("startQuoteCheckout — an instalment that already has a session", () =
     expect(sessionsExpire).toHaveBeenCalledWith("cs_test_new", undefined, expect.anything());
     expect(sessionsCreate).toHaveBeenCalledTimes(1);
     expect(outcome).toEqual({
-      status: "redirect",
-      url: "https://checkout.stripe.com/c/pay/cs_test_winner",
+      status: "embedded",
+      clientSecret: secretOf("cs_test_winner"),
+      stripeAccount: "acct_test_agorasim",
+      instalment: DEPOSIT_DUE,
     });
   });
 });
@@ -499,7 +562,11 @@ describe("startQuoteCheckout — refusals", () => {
       now: new Date("2026-08-01T09:00:00Z"),
     });
 
-    expect(outcome).toMatchObject({ status: "redirect" });
+    // The tap names what it opened: the balance, whatever the page last showed.
+    expect(outcome).toMatchObject({
+      status: "embedded",
+      instalment: { kind: "balance", amountCents: 134_400, currency: "eur" },
+    });
     const [params] = sessionsCreate.mock.calls[0];
     expect(params.line_items[0].price_data.unit_amount).toBe(134_400);
     expect(params.metadata).toMatchObject({ paymentId: BALANCE_ID, kind: "balance" });

@@ -8,24 +8,25 @@ import type { Locale } from "@/i18n/config";
 /**
  * Stripe's Checkout form, mounted inside our own page.
  *
- * Generic on purpose: the booking page uses it today, and a quote's deposit or
- * balance is the same session with a different `return_url` — whatever page
- * shows a payment passes the session's client secret and what to say while it
- * loads or if it cannot.
+ * Generic on purpose: the booking page and the quote page both mount it — a
+ * quote's deposit or balance is the same kind of session with a different
+ * `return_url` — and each passes the session's client secret and what to say
+ * while it loads or if it cannot.
  *
  * **Stripe's script loads here, and only here.** `@stripe/stripe-js/pure`
  * rather than the package root, because the root module injects
  * `js.stripe.com` the moment it is imported — onto every page that happens to
  * share a bundle with this one. The pure entry waits for {@link loadStripe},
  * which runs when this component mounts: after "Pay" has created a session,
- * never on page load. Only the booking route's policy admits the script
- * (`PAYMENT_CSP`, `lib/security-headers.ts`); anywhere else it is refused and
- * this component shows its failure.
+ * never on page load. Only the payment routes' policy admits the script —
+ * `/reservar` and a quote page (`PAYMENT_CSP`, `lib/security-headers.ts`);
+ * anywhere else it is refused and this component shows its failure.
  *
  * **One form at a time.** Stripe allows a single embedded Checkout per page,
  * so a mount waits for the previous instance to be destroyed — which matters
  * when React mounts, unmounts and remounts in quick succession (development's
- * strict mode, or a guest going back and paying again).
+ * strict mode, or a guest going back and paying again — on a quote page, the
+ * same session mounted a second time).
  */
 let previous: Promise<unknown> = Promise.resolve();
 

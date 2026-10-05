@@ -238,8 +238,15 @@ describe("payment route", () => {
     expect(PAYMENT_ROUTE_SOURCES).toContain(`/:locale(${locales.join("|")})/reservar/:path*`);
   });
 
+  it("is a quote page, in every locale", () => {
+    expect(PAYMENT_ROUTE_SOURCES).toContain(`/:locale(${locales.join("|")})/orcamento/:path*`);
+    for (const locale of locales) {
+      expect(isPaymentRoutePath(`/${locale}/orcamento/qt_abc123`)).toBe(true);
+    }
+  });
+
   it("is no other page", () => {
-    for (const path of ["/pt", "/en/experiencias", "/pt/reservarx", "/fr/reservar", "/admin", "/pt/reserva/cancelar/x"]) {
+    for (const path of ["/pt", "/en/experiencias", "/pt/reservarx", "/fr/reservar", "/admin", "/pt/reserva/cancelar/x", "/pt/orcamento", "/fr/orcamento/x", "/pt/orcamentos/x"]) {
       expect(isPaymentRoutePath(path), path).toBe(false);
     }
   });

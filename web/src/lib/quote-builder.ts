@@ -55,6 +55,7 @@ import {
   updateQuoteDraft,
   type QuoteWithPayments,
 } from "@/lib/quotes";
+import { expireWrittenOffSessions } from "@/lib/quote-checkout";
 import { issueQuoteToken, isQuoteTokenConfigured, quotePath } from "@/lib/quote-token";
 import { siteUrl } from "@/lib/site-origin";
 
@@ -310,6 +311,8 @@ export async function sendQuote(options: {
   if (!quote) return { status: "not-sendable" };
 
   const superseded = await supersedeSentQuotes(quote, { actorUserId, now });
+  // Close the old instalments' open Checkout sessions — a stale tab cannot pay them.
+  await expireWrittenOffSessions(superseded.writtenOff);
 
   await recordAuditOrWarn({
     actorUserId,
@@ -325,7 +328,7 @@ export async function sendQuote(options: {
   });
 
   const email = await emailQuote(quote, lead, link.token);
-  return { status: "sent", quote, email, superseded: superseded.length };
+  return { status: "sent", quote, email, superseded: superseded.quotes.length };
 }
 
 /**

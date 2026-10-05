@@ -71,6 +71,28 @@ export const quotePageContent = {
     } as Localized,
   },
 
+  /**
+   * The payment step: Stripe's form where the button was, on this page. The
+   * heading names what is being paid — "Sinal — 576 €".
+   */
+  paymentStep: {
+    heading: "{instalment} — {amount}",
+    back: { pt: "Voltar", en: "Back" } as Localized,
+    loading: {
+      pt: "A abrir o pagamento seguro…",
+      en: "Opening the secure payment…",
+    } as Localized,
+    /**
+     * Stripe's form could not load (a blocked script, the network). Never a
+     * redirect to Stripe's own page in its place: the way out is back, or us —
+     * the contacts are at the foot of this page.
+     */
+    failed: {
+      pt: "Não foi possível abrir o formulário de pagamento. Volte atrás e tente outra vez, ou fale connosco — os contactos estão mais abaixo.",
+      en: "The payment form could not load. Go back and try again, or talk to us — our contacts are below.",
+    } as Localized,
+  },
+
   notYet: {
     title: {
       pt: "O restante é pago a partir de {date}",
