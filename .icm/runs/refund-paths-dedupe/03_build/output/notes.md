@@ -44,3 +44,12 @@
   retry was already unreachable from it; now that does not rest on its catch.
 - Types were not checked locally (the pipeline runs no typecheck in session); `next build` on
   the preview and the advisory job check them.
+- `security-check.sh --branch` → `BLOCKED 1` on `dependency-audit`: the `braces` high advisory
+  (dev-only, via `eslint-config-next`, no upstream fix) that `main` already carries — this branch
+  touches no manifest or lockfile. Parked as `intake/triage/braces-advisory-eslint-chain.md`;
+  Release's `--audit` read will need the operator's waiver or that chore merged first.
+- Merging `main` met `quote-notice-context-dedupe` (#185) in `sendRefundNotice`: resolved onto its
+  `loadQuoteNoticeContext(options.quoteId, …)`, with the instalment check as its `accept` so a
+  vanished instalment still returns before the no-lead warning, exactly as before.
+- Context budget: the merge conflict needed `loadQuoteNoticeContext` from #185 — read beyond the
+  spec's `touches:`.
