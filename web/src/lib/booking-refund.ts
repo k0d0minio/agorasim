@@ -273,13 +273,51 @@ async function issueRefund(
   amountCents: number,
   via: CancelledVia,
 ): Promise<Stripe.Refund> {
-  const client = stripe();
-  const paymentIntentId = booking.stripePaymentIntentId!;
+  // Keyed on the claim that let this caller through (see the module note):
+  // one claim, one request — and a booking claimed again, by any path, asks
+  // Stripe afresh rather than replaying this answer. Read before Stripe is
+  // asked anything, so an unclaimed row is refused without a call.
+  const idempotencyKey = `booking-refund:${booking.id}:${claimedAt(booking)}`;
 
-  // Both calls go to whichever account took the money — the client's for a
-  // booking paid under Connect, the platform's for one paid before it. Wrapping
-  // the pair keeps them on the same account: the retry only happens when the
-  // intent was not found, so no refund exists to be issued twice.
+  const { refund } = await refundPaymentIntent({
+    paymentIntentId: booking.stripePaymentIntentId!,
+    amountCents,
+    metadata: { bookingId: booking.id, ref: bookingRef(booking.id), via },
+    idempotencyKey,
+  });
+  return refund;
+}
+
+export type IssuedPaymentIntentRefund = {
+  refund: Stripe.Refund;
+  /** The intent's latest charge as read before the refund, or `null`. */
+  charge: Stripe.Charge | null;
+  /** The request options the refund went out on — the account that owns the money. */
+  account: Stripe.RequestOptions | undefined;
+};
+
+/**
+ * Refund part or all of a payment intent — the Stripe half both refund paths
+ * share: a tour booking's here, a quote instalment's in `quote-refund.ts`.
+ *
+ * Both calls go to whichever account took the money — the client's for a
+ * payment taken under Connect, the platform's for one taken before it.
+ * Wrapping the pair keeps them on the same account: the retry only happens
+ * when the intent was not found, so no refund exists to be issued twice.
+ *
+ * The caller owns the idempotency key whole, because what makes a request
+ * "this attempt" differs by path — the claim's moment for a booking, the
+ * dialog's attempt id for an instalment.
+ */
+export async function refundPaymentIntent(options: {
+  paymentIntentId: string;
+  amountCents: number;
+  metadata: Record<string, string>;
+  idempotencyKey: string;
+}): Promise<IssuedPaymentIntentRefund> {
+  const { paymentIntentId, amountCents, metadata, idempotencyKey } = options;
+  const client = stripe();
+
   return onOwningAccount(async (account) => {
     const intent = await client.paymentIntents.retrieve(
       paymentIntentId,
@@ -292,7 +330,7 @@ async function issueRefund(
         : null;
     const hasApplicationFee = Boolean(charge?.application_fee_amount);
 
-    return client.refunds.create(
+    const refund = await client.refunds.create(
       {
         payment_intent: paymentIntentId,
         amount: amountCents,
@@ -301,16 +339,12 @@ async function issueRefund(
         // what the commission agreement requires ("refunds return commission in
         // proportion") — so the arithmetic is Stripe's, not ours.
         ...(hasApplicationFee ? { refund_application_fee: true } : {}),
-        metadata: { bookingId: booking.id, ref: bookingRef(booking.id), via },
+        metadata,
       },
-      {
-        ...account,
-        // Keyed on the claim that let this caller through (see the module
-        // note): one claim, one request — and a booking claimed again, by any
-        // path, asks Stripe afresh rather than replaying this answer.
-        idempotencyKey: `booking-refund:${booking.id}:${claimedAt(booking)}`,
-      },
+      { ...account, idempotencyKey },
     );
+
+    return { refund, charge, account };
   });
 }
 
@@ -442,6 +476,31 @@ export function proportionalFeeRefundCents(options: {
   return Math.min(feeCents, Math.round((feeCents * refundedCents) / chargeCents));
 }
 
+/**
+ * What Stripe now counts as refunded on a charge, read the one way both refund
+ * syncs need it — this file's for a booking, `quote-refund.ts`'s for a quote
+ * instalment: the payment intent the charge belongs to (one of the two handles
+ * a row is found by), the cumulative total refunded, and the fee that total
+ * should have returned (§6). Pure: every number is Stripe's, off the charge.
+ */
+export function chargeRefundState(charge: Stripe.Charge): {
+  paymentIntentId: string | null;
+  refundedAmountCents: number;
+  feeTargetCents: number;
+} {
+  const paymentIntentId =
+    typeof charge.payment_intent === "string"
+      ? charge.payment_intent
+      : (charge.payment_intent?.id ?? null);
+  const refundedAmountCents = charge.amount_refunded;
+  const feeTargetCents = proportionalFeeRefundCents({
+    feeCents: charge.application_fee_amount ?? 0,
+    chargeCents: charge.amount,
+    refundedCents: refundedAmountCents,
+  });
+  return { paymentIntentId, refundedAmountCents, feeTargetCents };
+}
+
 export type RefundSyncOutcome =
   /** The row moved: amounts, and a status if the refund was a full one. */
   | {
@@ -505,11 +564,8 @@ export async function syncRefundFromStripe(options: {
 }): Promise<RefundSyncOutcome> {
   const { charge } = options;
   const now = new Date();
-
-  const paymentIntentId =
-    typeof charge.payment_intent === "string"
-      ? charge.payment_intent
-      : (charge.payment_intent?.id ?? null);
+  const { paymentIntentId, refundedAmountCents, feeTargetCents: feeTarget } =
+    chargeRefundState(charge);
 
   // Either handle finds the booking: the charge id is written at confirmation,
   // the payment intent from checkout — and a booking confirmed before
@@ -529,13 +585,7 @@ export async function syncRefundFromStripe(options: {
 
   if (!existing) return { status: "unknown-charge" };
 
-  const refundedAmountCents = charge.amount_refunded;
   const feeTaken = charge.application_fee_amount ?? 0;
-  const feeTarget = proportionalFeeRefundCents({
-    feeCents: feeTaken,
-    chargeCents: charge.amount,
-    refundedCents: refundedAmountCents,
-  });
 
   // Nothing Stripe is saying is news. The common case by a distance: every
   // webhook retry, and every event our own refund action caused.

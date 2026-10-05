@@ -83,6 +83,7 @@ function Outcome({ state }: { state: QuoteActionState }) {
  */
 export function RefundQuotePaymentDialog({
   payment,
+  refundableCents,
   quote,
 }: {
   payment: {
@@ -93,6 +94,8 @@ export function RefundQuotePaymentDialog({
     amountCents: number;
     refundedAmountCents: number;
   };
+  /** What is still returnable on the instalment — the page's `instalmentRefundableCents`. */
+  refundableCents: number;
   quote: {
     ref: string;
     currency: string;
@@ -105,8 +108,7 @@ export function RefundQuotePaymentDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
-  const refundable = Math.max(0, payment.amountCents - payment.refundedAmountCents);
-  const [amount, setAmount] = useState(() => priceInputValue(refundable));
+  const [amount, setAmount] = useState(() => priceInputValue(refundableCents));
   // `null` until the operator touches the box — until then it follows the amount.
   const [cancelChoice, setCancelChoice] = useState<boolean | null>(null);
   // This press of "Reembolsar", as the refund's idempotency key: minted when
@@ -131,11 +133,11 @@ export function RefundQuotePaymentDialog({
   }, [state.ok, router]);
 
   const parsed = parseAmountInput(amount);
-  const amountValid = parsed !== null && parsed > 0 && parsed <= refundable;
+  const amountValid = parsed !== null && parsed > 0 && parsed <= refundableCents;
   const money = (cents: number) => formatPrice(cents, "pt", quote.currency);
 
   const emptiesDeposit =
-    quote.depositRefundedInFull || (payment.kind === "deposit" && amountValid && parsed === refundable);
+    quote.depositRefundedInFull || (payment.kind === "deposit" && amountValid && parsed === refundableCents);
   const cancelEvent = !quote.cancelled && (cancelChoice ?? emptiesDeposit);
 
   return (
@@ -191,12 +193,12 @@ export function RefundQuotePaymentDialog({
                 {payment.refundedAmountCents > 0
                   ? ` · já reembolsado: ${money(payment.refundedAmountCents)}`
                   : ""}{" "}
-                · máximo agora: {money(refundable)}.
+                · máximo agora: {money(refundableCents)}.
               </p>
               <p className="text-xs" role="status">
                 {amountValid && parsed !== null
                   ? `Vão ser devolvidos ${money(parsed)}.`
-                  : `Indique um valor entre 0,01 € e ${money(refundable)}.`}
+                  : `Indique um valor entre 0,01 € e ${money(refundableCents)}.`}
               </p>
             </div>
 
