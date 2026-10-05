@@ -1,7 +1,7 @@
 # Build notes: refund-paths-dedupe
 
 - commits: feat: refund-paths-dedupe — one Stripe half for both refund paths
-- ci: draft head GREEN (cheap tier) — full gate settles on the ready head
+- ci: GREEN on 707e61c — full gate (Vercel preview pass, Quality (advisory) pass)
 - ready: 2026-10-05T12:29:19Z — flipped on b536198
 
 ## What changed
@@ -33,8 +33,8 @@
       values (the instalment now comes from `quote.payments` of the same fresh read).
 - [x] The dialog takes `refundableCents` as a prop; the page computes it with
       `instalmentRefundableCents`.
-- [ ] No behaviour change, the three test files unedited — `git diff origin/main -- '*.test.ts'`
-      is empty; the advisory quality job on the ready head is the proof.
+- [x] No behaviour change, the three test files unedited — `git diff origin/main -- '*.test.ts'`
+      is empty; Quality (advisory) passed on 707e61c.
 
 ## Notes for Release
 

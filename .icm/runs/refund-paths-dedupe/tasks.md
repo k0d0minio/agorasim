@@ -12,7 +12,7 @@ step, so a resuming session can pick up the first unticked line.
 - [x] `chargeRefundState` in `web/src/lib/booking-refund.ts` backs the prologue of both
 - [x] `sendRefundNotice` makes one quote read (`getQuote`) and no `getPayment` call; the couple's
 - [x] `RefundQuotePaymentDialog` takes `refundableCents` as a prop and no longer subtracts
-- [ ] No behaviour change: every existing test in `booking-refund.test.ts`, — proven by CI on the ready head
+- [x] No behaviour change: every existing test in `booking-refund.test.ts`, — Quality (advisory) pass on 707e61c
 
 ## Queue
 
@@ -20,4 +20,4 @@ step, so a resuming session can pick up the first unticked line.
 - [x] Sync prologue — `chargeRefundState` in `booking-refund.ts`; both sync functions on it
 - [x] Notice — `sendRefundNotice` takes `quoteId`, one `getQuote`
 - [x] Dialog ceiling — sales page → lead quote card → `refundableCents` prop
-- [ ] Ready flip + full gate GREEN (test files untouched)
+- [x] Ready flip + full gate GREEN (test files untouched)
