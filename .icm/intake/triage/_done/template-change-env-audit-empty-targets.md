@@ -1,4 +1,5 @@
 # Stub: env.sh audit loses every key's note when the key declares no targets
+> Retired 2026-10-02: fixed in icm-board #101 (7a8e81a) — `parse_example` and both audit readers split on `\x1f`, fixture case in `_system/scripts/env-audit-stability.sh`; this repo synced past it (template 2070dfb, `.icm/scripts/env.sh` lines 241/417).
 
 - lane: chore
 - found-by: template-change · 2026-09-24

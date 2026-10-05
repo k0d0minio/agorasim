@@ -52,6 +52,11 @@ vi.mock("@/lib/quotes", async () => {
   return { ...actual, ...quotesMock };
 });
 
+const expireWrittenOffSessions = vi.fn();
+vi.mock("@/lib/quote-checkout", () => ({
+  expireWrittenOffSessions: (...args: unknown[]) => expireWrittenOffSessions(...args),
+}));
+
 const recordAuditOrWarn = vi.fn();
 vi.mock("@/lib/audit", () => ({ recordAuditOrWarn: (...args: unknown[]) => recordAuditOrWarn(...args) }));
 
@@ -139,12 +144,13 @@ function quote(overrides: Partial<Quote> = {}): QuoteWithPayments {
 beforeEach(() => {
   lead = weddingLead();
   emailConfigured = true;
+  expireWrittenOffSessions.mockReset();
   for (const fn of Object.values(quotesMock)) fn.mockReset();
   recordAuditOrWarn.mockReset();
   sendLoggedEmail.mockReset();
   sendLoggedEmail.mockResolvedValue({ status: "sent", providerMessageId: "re_1" });
   quotesMock.listQuotesForLead.mockResolvedValue([]);
-  quotesMock.supersedeSentQuotes.mockResolvedValue([]);
+  quotesMock.supersedeSentQuotes.mockResolvedValue({ quotes: [], writtenOff: [] });
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
@@ -424,7 +430,10 @@ describe("sendQuote — Enviar orçamento", () => {
 
   it("replaces the lead's previous sent quote when this is a new version", async () => {
     queueSend();
-    quotesMock.supersedeSentQuotes.mockResolvedValue([quote({ id: "old", status: "cancelled" })]);
+    quotesMock.supersedeSentQuotes.mockResolvedValue({
+      quotes: [quote({ id: "old", status: "cancelled" })],
+      writtenOff: [{ id: "pay-old", kind: "deposit", stripeSessionId: "cs_old_tab" }],
+    });
 
     const outcome = await sendQuote({ quoteId: QUOTE_ID, actorUserId: OPERATOR_ID, now: NOW });
 
@@ -433,6 +442,10 @@ describe("sendQuote — Enviar orçamento", () => {
       { actorUserId: OPERATOR_ID, now: NOW },
     );
     expect(outcome).toMatchObject({ status: "sent", superseded: 1 });
+    // The old quote's open Checkout session is closed, so a stale tab cannot pay it.
+    expect(expireWrittenOffSessions).toHaveBeenCalledWith([
+      expect.objectContaining({ stripeSessionId: "cs_old_tab" }),
+    ]);
   });
 
   it("sends nothing the second time — a double tap finds no draft", async () => {
