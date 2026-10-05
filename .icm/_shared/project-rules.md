@@ -335,3 +335,5 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 - When a run adds an env key, name every Vercel target it is declared for — Production included — as an operator act in the Build stop report, not only the ones the preview smoke needs: Release's `env.sh audit --changed` holds all of them. (`FAILURE.md` — reservar-embedded-checkout)
 <!-- Retrospective Learned Rule [2026-10-05] -->
 - In a spec, name the call that must go (`no getPayment in sendRefundNotice`), never a total of reads or calls in a function other open runs can also change — a sibling's correctness fix can add one legitimately before this run merges. (`FAILURE.md` — refund-paths-dedupe)
+<!-- Retrospective Learned Rule [2026-10-05] -->
+- Anything shown beside a payment form on the quote page — the instalment, its amount — comes from the server action's answer, never from the page render: the action re-decides what is due at tap time. (`FAILURE.md` — quote-embedded-checkout)

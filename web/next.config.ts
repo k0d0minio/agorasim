@@ -40,11 +40,12 @@ const nextConfig: NextConfig = {
    * which one survives, and the loser being the stricter policy is not a failure
    * mode worth having.
    *
-   * The booking route is the one public exception, and it is listed *last* on
-   * purpose: when two entries match a path and set the same key, the later one
-   * is the value sent. So `/:locale/reservar` gets the public policy plus
-   * Stripe's embedded Checkout, and the feature policy that lets Apple Pay and
-   * Google Pay run in Stripe's frame — and no other path changes at all.
+   * The payment routes — the booking route and a quote page — are the public
+   * exception, and they are listed *last* on purpose: when two entries match a
+   * path and set the same key, the later one is the value sent. So
+   * `/:locale/reservar` and `/:locale/orcamento/<token>` get the public policy
+   * plus Stripe's embedded Checkout, and the feature policy that lets Apple Pay
+   * and Google Pay run in Stripe's frame — and no other path changes at all.
    */
   async headers() {
     return [

@@ -151,16 +151,18 @@ export function publishableKeyMismatch(): string | null {
 }
 
 /**
- * Whether `/reservar` can take a payment in its own page — Stripe is on
+ * Whether a page can take a payment in its own page — Stripe is on
  * ({@link isStripeConfigured}) *and* the browser can be handed a publishable
- * key that agrees with it.
+ * key that agrees with it. Asked by `/reservar` and by the quote page's pay
+ * button, the two places Stripe's form is mounted.
  *
  * Deliberately a separate switch rather than a stricter
- * {@link isStripeConfigured}: the webhook, the confirmation page, refunds and
- * the quote page's (still hosted) checkout need only the secret key, and a
- * missing browser key must not take any of them down with the booking form.
- * When this answers `false` the booking page offers the enquiry form, exactly
- * as it does with no Stripe at all, and the reason reaches Sentry once.
+ * {@link isStripeConfigured}: the webhook, the confirmation page and refunds
+ * need only the secret key, and a missing browser key must not take any of them
+ * down with the payment forms. When this answers `false` the booking page
+ * offers the enquiry form and a quote's pay button says online payment is
+ * unavailable — exactly as with no Stripe at all, never Stripe's own page —
+ * and the reason reaches Sentry once.
  */
 export function isEmbeddedCheckoutConfigured(): boolean {
   if (!isStripeConfigured()) return false;
