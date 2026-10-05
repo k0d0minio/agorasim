@@ -26,3 +26,5 @@ In the agorasim repo (`web/`), read `.icm/intake/triage/dependency-advisories-ne
 Bump `next` to the patched release and lift `undici` past the advisories with pnpm, then
 confirm `.icm/scripts/security-check.sh --branch` passes the dependency audit. `git mv` the
 stub to `_done/` in the PR, on a `claude/` branch; CI is the source of truth.
+
+> Dropped: already shipped in PR 171 (deps-next-undici-advisories), 2026-10-02
