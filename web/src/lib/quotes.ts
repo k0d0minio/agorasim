@@ -57,7 +57,7 @@ import {
   type AppLocale,
 } from "@/db";
 import { recordAuditOrWarn } from "@/lib/audit";
-import { dateKey, isDateKey, parseDateKey, todayKey, type DateKey } from "@/lib/availability";
+import { isDateKey, shiftDays, todayKey, type DateKey } from "@/lib/availability";
 import { BOOKING_CURRENCY } from "@/lib/money";
 import {
   BALANCE_DUE_DAYS_BEFORE,
@@ -105,18 +105,8 @@ export {
   type QuoteSplit,
 } from "@/lib/quote-math";
 
-/**
- * `2026-08-15` plus or minus whole days, as a key.
- *
- * UTC midnight arithmetic, so a DST boundary cannot move a due date: the keys
- * this engine passes around are calendar days, and Portugal changing its clocks
- * in October is not fourteen days becoming thirteen.
- */
-export function shiftDays(key: DateKey, days: number): DateKey {
-  const date = parseDateKey(key);
-  if (!date) throw new Error(`shiftDays: ${key} is not a YYYY-MM-DD date`);
-  return dateKey(new Date(date.getTime() + days * 86_400_000));
-}
+// `shiftDays` lives with the date-key primitives; callers keep importing it from here.
+export { shiftDays };
 
 /**
  * When the balance falls due for an event on this day: T−14.

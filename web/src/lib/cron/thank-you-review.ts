@@ -31,7 +31,7 @@
  */
 import "server-only";
 
-import { dateKey, parseDateKey, todayKey, type DateKey } from "@/lib/availability";
+import { shiftDays, todayKey, type DateKey } from "@/lib/availability";
 import { guestThankYouEmail } from "@/lib/booking-emails";
 import { bookingRef, bookingsToThankOn } from "@/lib/bookings";
 import { catalogueTitleOf, runSealedPass, type TitleOf } from "@/lib/cron/dispatch-helpers";
@@ -50,17 +50,10 @@ import { siteUrl } from "@/lib/site-origin";
 /** The job's stable name in the dispatcher's audit row. */
 export const THANK_YOU_REVIEW_JOB = "thank-you-review";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 /** Lisbon's yesterday and the day before, at `now`, as calendar keys. */
 export function thankYouDays(now: Date): { yesterday: DateKey; dayBefore: DateKey } {
-  // `todayKey` always returns a valid key, so the parse cannot miss; UTC
-  // midnight minus a day is the previous calendar day with no DST to trip on.
-  const midnight = parseDateKey(todayKey(now)) as Date;
-  return {
-    yesterday: dateKey(new Date(midnight.getTime() - DAY_MS)),
-    dayBefore: dateKey(new Date(midnight.getTime() - 2 * DAY_MS)),
-  };
+  const today = todayKey(now);
+  return { yesterday: shiftDays(today, -1), dayBefore: shiftDays(today, -2) };
 }
 
 /** What one pass did. `already` is a booking a previous send had claimed. */

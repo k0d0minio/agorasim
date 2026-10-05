@@ -18,10 +18,15 @@
  */
 import { classicCars, site, taglines } from "@/content/site";
 import { bookingEmails } from "@/content/emails";
+import {
+  departureLabel,
+  departureTimeFollowsByEmail,
+  meetingPoints,
+} from "@/content/logistics";
 import { serviceHoursLabel } from "@/content/quote-request";
 import { termsContent, termsSection } from "@/content/terms";
-import type { EnquiryKind } from "@/db/schema";
-import { t, type Locale } from "@/i18n/config";
+import type { Booking, EnquiryKind } from "@/db/schema";
+import { t, type Locale, type Localized } from "@/i18n/config";
 import type { EmailMessage } from "@/lib/email";
 import {
   emailButton,
@@ -164,6 +169,99 @@ export function partyLabel(
   return label || String(party.partySize);
 }
 
+/** Names a catalogue slug for a guest in their locale. */
+export type TitleOf = (slug: string, locale: Locale) => string;
+
+/**
+ * The title lookup over a catalogue. A retired route or add-on still has to be
+ * nameable to the guest who bought it; the slug is a poor name but never a
+ * blank line.
+ */
+export function titleFromCatalogue(
+  catalogue: ReadonlyMap<string, { title: Localized }>,
+): TitleOf {
+  return (slug, locale) => {
+    const entry = catalogue.get(slug);
+    return entry ? t(entry.title, locale) : slug;
+  };
+}
+
+/** The booking columns the logistics facts read. */
+type LogisticsBooking = Pick<
+  Booking,
+  "experienceSlug" | "mode" | "slot" | "addOns" | "adults" | "children" | "infants" | "partySize"
+>;
+
+/** What every booking mail says about where, when and who: the facts it shares. */
+export type BookingLogisticsFacts = Pick<
+  BookingEmailFacts,
+  | "experience"
+  | "departure"
+  | "departureTimeFollows"
+  | "meetingPoint"
+  | "addOns"
+  | "partyLabel"
+>;
+
+/**
+ * The logistics facts of a booking, formatted for reading — one place, so the
+ * confirmation, the move notice and the reminder cannot disagree about where
+ * and when to meet. The date is the caller's (`formatDay` is server-only).
+ */
+export function bookingLogisticsFacts(
+  booking: LogisticsBooking,
+  titleOf: TitleOf,
+  locale: Locale,
+): BookingLogisticsFacts {
+  return {
+    experience: `${titleOf(booking.experienceSlug, locale)} — ${t(bookingEmails.guest.modeWords[booking.mode], locale)}`,
+    departure: t(departureLabel(booking.experienceSlug, booking.slot), locale),
+    departureTimeFollows: departureTimeFollowsByEmail(booking.experienceSlug),
+    meetingPoint: meetingPoints[booking.experienceSlug] ?? null,
+    addOns: booking.addOns.map((slug) => titleOf(slug, locale)),
+    partyLabel: partyLabel(booking, locale),
+  };
+}
+
+/**
+ * The details rows every guest booking mail carries between the date and the
+ * total: departure, the meeting point (when the tour has one), the party and
+ * the add-ons (when there are any). Omitted rather than left blank — a mail
+ * with an empty field reads like something went wrong.
+ */
+function logisticsRows(
+  facts: Pick<BookingLogisticsFacts, "departure" | "meetingPoint" | "addOns" | "partyLabel">,
+  locale: Locale,
+): DetailRow[] {
+  const g = bookingEmails.guest;
+  return [
+    { label: t(g.labels.departure, locale), value: facts.departure },
+    ...(facts.meetingPoint
+      ? [
+          {
+            label: t(g.labels.meetingPoint, locale),
+            value: facts.meetingPoint.address,
+            href: facts.meetingPoint.mapsUrl,
+          },
+        ]
+      : []),
+    { label: t(g.labels.party, locale), value: facts.partyLabel },
+    ...(facts.addOns.length > 0
+      ? [{ label: t(g.labels.addOns, locale), value: facts.addOns.join(", ") }]
+      : []),
+  ];
+}
+
+/** The text part's pin line: the bare maps URL, which a text client makes tappable. */
+function pinLine(
+  facts: Pick<BookingLogisticsFacts, "meetingPoint">,
+  locale: Locale,
+): string | null {
+  return facts.meetingPoint
+    ? `${t(bookingEmails.guest.labels.meetingPoint, locale)}: ${facts.meetingPoint.mapsUrl}`
+    : null;
+}
+
 /**
  * The guest's confirmation, in the language they booked in.
  *
@@ -187,7 +285,6 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
 
   const subject = fillTemplate(t(c.subject, l), values);
   const greeting = fillTemplate(t(c.greeting, l), values);
-  const addOnsList = facts.addOns.join(", ");
 
   // "What happens next" ends by referring to the guest's departure time. When
   // the tour has one, the details above it said so; when it does not, this is
@@ -202,20 +299,7 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     { label: t(c.labels.reference, l), value: facts.ref, mono: true },
     { label: t(c.labels.experience, l), value: facts.experience },
     { label: t(c.labels.date, l), value: facts.date },
-    { label: t(c.labels.departure, l), value: facts.departure },
-    ...(facts.meetingPoint
-      ? [
-          {
-            label: t(c.labels.meetingPoint, l),
-            value: facts.meetingPoint.address,
-            href: facts.meetingPoint.mapsUrl,
-          },
-        ]
-      : []),
-    { label: t(c.labels.party, l), value: facts.partyLabel },
-    ...(facts.addOns.length > 0
-      ? [{ label: t(c.labels.addOns, l), value: addOnsList }]
-      : []),
+    ...logisticsRows(facts, l),
     { label: t(c.labels.total, l), value: facts.total, emphasis: true },
   ];
 
@@ -225,7 +309,7 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     t(c.lead, l),
     "",
     ...rows.map((row) => `${row.label}: ${row.value}`),
-    facts.meetingPoint ? `${t(c.labels.meetingPoint, l)}: ${facts.meetingPoint.mapsUrl}` : null,
+    pinLine(facts, l),
     "",
     // One paragraph in text, two blocks in HTML: on a phone a wall of text is
     // read as a wall, but in a plain text mail an isolated line looks truncated.
@@ -381,20 +465,7 @@ export function guestMoveEmail(facts: BookingMoveFacts): EmailMessage {
       value: `${facts.previousDate} · ${facts.previousDeparture}`,
     },
     { label: t(g.labels.date, l), value: facts.date, emphasis: true },
-    { label: t(g.labels.departure, l), value: facts.departure },
-    ...(facts.meetingPoint
-      ? [
-          {
-            label: t(g.labels.meetingPoint, l),
-            value: facts.meetingPoint.address,
-            href: facts.meetingPoint.mapsUrl,
-          },
-        ]
-      : []),
-    { label: t(g.labels.party, l), value: facts.partyLabel },
-    ...(facts.addOns.length > 0
-      ? [{ label: t(g.labels.addOns, l), value: facts.addOns.join(", ") }]
-      : []),
+    ...logisticsRows(facts, l),
     { label: t(g.labels.total, l), value: facts.total },
   ];
 
@@ -404,7 +475,7 @@ export function guestMoveEmail(facts: BookingMoveFacts): EmailMessage {
     lead,
     "",
     ...rows.map((row) => `${row.label}: ${row.value}`),
-    facts.meetingPoint ? `${t(g.labels.meetingPoint, l)}: ${facts.meetingPoint.mapsUrl}` : null,
+    pinLine(facts, l),
     "",
     `${t(c.note.title, l)}: ${noteBody}`,
     "",
@@ -526,20 +597,7 @@ export function guestReminderEmail(facts: ReminderEmailFacts): EmailMessage {
     { label: t(g.labels.reference, l), value: facts.ref, mono: true },
     { label: t(g.labels.experience, l), value: facts.experience },
     { label: t(g.labels.date, l), value: facts.date },
-    { label: t(g.labels.departure, l), value: facts.departure },
-    ...(facts.meetingPoint
-      ? [
-          {
-            label: t(g.labels.meetingPoint, l),
-            value: facts.meetingPoint.address,
-            href: facts.meetingPoint.mapsUrl,
-          },
-        ]
-      : []),
-    { label: t(g.labels.party, l), value: facts.partyLabel },
-    ...(facts.addOns.length > 0
-      ? [{ label: t(g.labels.addOns, l), value: facts.addOns.join(", ") }]
-      : []),
+    ...logisticsRows(facts, l),
   ];
 
   const text = textLines([
@@ -548,7 +606,7 @@ export function guestReminderEmail(facts: ReminderEmailFacts): EmailMessage {
     t(w.lead, l),
     "",
     ...rows.map((row) => `${row.label}: ${row.value}`),
-    facts.meetingPoint ? `${t(g.labels.meetingPoint, l)}: ${facts.meetingPoint.mapsUrl}` : null,
+    pinLine(facts, l),
     "",
     departureTime ? `${t(c.departureTime.title, l)}: ${departureTime}` : null,
     departureTime ? "" : null,

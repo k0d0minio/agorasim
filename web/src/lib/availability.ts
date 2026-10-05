@@ -76,11 +76,11 @@ import {
 } from "@/lib/fleet";
 import type { SlotOccupancy } from "@/lib/bookings";
 import {
-  dateKey,
   firstOnlineDay,
   isDateKey,
   minutesOfDay,
   parseDateKey,
+  shiftDays,
   todayKey,
   type DateKey,
 } from "@/lib/date-keys";
@@ -95,6 +95,7 @@ export {
   isDateKey,
   ONLINE_NOTICE_DAYS,
   parseDateKey,
+  shiftDays,
   todayKey,
   type DateKey,
 } from "@/lib/date-keys";
@@ -903,12 +904,8 @@ export function expandDateRange(
   if (!start || !end || start > end) return [];
 
   const days: DateKey[] = [];
-  for (
-    let day = start;
-    day <= end && days.length < limit;
-    day = new Date(day.getTime() + 86_400_000)
-  ) {
-    days.push(dateKey(day));
+  for (let day = from; day <= to && days.length < limit; day = shiftDays(day, 1)) {
+    days.push(day);
   }
   return days;
 }
