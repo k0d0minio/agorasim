@@ -74,16 +74,20 @@ export function keyModeMismatch(): string | null {
   return null;
 }
 
-/** So a mismatch reaches Sentry once per instance, not once per page view. */
-let mismatchReported = false;
+/**
+ * So each mismatch reaches Sentry once per instance, not once per page view.
+ * Keyed by the reason, because the secret key and the publishable key can be
+ * wrong independently, and the second must not be silenced by the first.
+ */
+const mismatchesReported = new Set<string>();
 
 /**
  * Say it where Jamie will see it within the minute: Sentry, and the
  * deployment's own logs. The key itself is never in the message.
  */
 function reportMismatch(reason: string): void {
-  if (mismatchReported) return;
-  mismatchReported = true;
+  if (mismatchesReported.has(reason)) return;
+  mismatchesReported.add(reason);
   console.error(`[stripe] refusing to take payments — ${reason}`);
   captureAlert(`Stripe key mode contradicts the deployment: ${reason}`, {
     area: "stripe",
@@ -109,6 +113,76 @@ export function isStripeConfigured(): boolean {
     return false;
   }
   return true;
+}
+
+/**
+ * The publishable key's own mode check — the same rule as the secret key's,
+ * plus the one only a pair can break: the two keys must be the same mode, or
+ * the browser would mount a form for a session its key cannot see.
+ *
+ * Returns what is wrong in one line, or `null`. A missing publishable key is a
+ * finding here (unlike a missing secret key in {@link keyModeMismatch}): with a
+ * secret key set it means payments are on and the embedded form cannot load.
+ * The key itself is never in the message.
+ */
+export function publishableKeyMismatch(): string | null {
+  const secret = process.env.STRIPE_SECRET_KEY?.trim();
+  if (!secret) return null;
+
+  const key = process.env.STRIPE_PUBLISHABLE_KEY?.trim();
+  if (!key) return "STRIPE_PUBLISHABLE_KEY is not set";
+  if (!key.startsWith("pk_live_") && !key.startsWith("pk_test_")) {
+    return "STRIPE_PUBLISHABLE_KEY is not a publishable key";
+  }
+
+  const live = key.startsWith("pk_live_");
+  if (live !== secret.startsWith("sk_live_")) {
+    return "STRIPE_PUBLISHABLE_KEY and STRIPE_SECRET_KEY are not the same mode";
+  }
+
+  const env = process.env.VERCEL_ENV;
+  if (env === "production" && !live) {
+    return "STRIPE_PUBLISHABLE_KEY on the production deployment is not a live key";
+  }
+  if (env === "preview" && live) {
+    return "STRIPE_PUBLISHABLE_KEY on a preview deployment is a live key";
+  }
+  return null;
+}
+
+/**
+ * Whether `/reservar` can take a payment in its own page — Stripe is on
+ * ({@link isStripeConfigured}) *and* the browser can be handed a publishable
+ * key that agrees with it.
+ *
+ * Deliberately a separate switch rather than a stricter
+ * {@link isStripeConfigured}: the webhook, the confirmation page, refunds and
+ * the quote page's (still hosted) checkout need only the secret key, and a
+ * missing browser key must not take any of them down with the booking form.
+ * When this answers `false` the booking page offers the enquiry form, exactly
+ * as it does with no Stripe at all, and the reason reaches Sentry once.
+ */
+export function isEmbeddedCheckoutConfigured(): boolean {
+  if (!isStripeConfigured()) return false;
+  const mismatch = publishableKeyMismatch();
+  if (mismatch) {
+    reportMismatch(mismatch);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * The publishable key for the browser — read at request time from a
+ * server-only variable and handed over in the checkout action's response, never
+ * a `NEXT_PUBLIC_` value: those are inlined at build, which would bake one
+ * deployment's key into prerendered pages and skip the mode check above.
+ * Callers ask {@link isEmbeddedCheckoutConfigured} first.
+ */
+export function publishableKey(): string {
+  const key = process.env.STRIPE_PUBLISHABLE_KEY?.trim();
+  if (!key) throw new Error("STRIPE_PUBLISHABLE_KEY is not set");
+  return key;
 }
 
 /** Whether this deployment can verify a webhook it is sent. */

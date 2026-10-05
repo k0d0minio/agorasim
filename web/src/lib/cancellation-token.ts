@@ -37,6 +37,7 @@
  */
 
 import { secretsMatch } from "@/lib/admin-session";
+import { base64UrlEncode } from "@/lib/crypto-encoding";
 
 /**
  * Entropy per token. 32 bytes is what makes the "nothing to guess" claim above
@@ -61,11 +62,6 @@ export type IssuedCancellationToken = {
 };
 
 const encoder = new TextEncoder();
-
-function base64UrlEncode(bytes: ArrayBuffer): string {
-  const binary = String.fromCharCode(...new Uint8Array(bytes));
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
 
 /** The signing key. Required in every environment — see the module note. */
 function tokenSecret(): string {
@@ -116,7 +112,7 @@ export async function cancellationTokenDigest(token: string): Promise<string> {
 export async function issueCancellationToken(): Promise<IssuedCancellationToken> {
   const bytes = new Uint8Array(CANCELLATION_TOKEN_BYTES);
   crypto.getRandomValues(bytes);
-  const token = base64UrlEncode(bytes.buffer as ArrayBuffer);
+  const token = base64UrlEncode(bytes);
   return { token, digest: await cancellationTokenDigest(token) };
 }
 

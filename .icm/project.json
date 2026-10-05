@@ -76,7 +76,7 @@
     }
   },
   "security": {
-    "audit_command": ""
+    "audit_command": "pnpm audit --audit-level=high"
   },
   "support": {
     "tier": "none",

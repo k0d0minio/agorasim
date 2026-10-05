@@ -40,6 +40,15 @@ import { site } from "@/content/site";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
+/**
+ * How long one send may take before it is abandoned. Every caller awaits the
+ * send, the Stripe webhook included — and there the booking has already been
+ * flipped out of `pending`, so a retry from Stripe finds nothing to do and the
+ * confirmation would never go out. A hung Resend must end as a reported
+ * failure well inside the platform's function limit, not as a killed function.
+ */
+const SEND_TIMEOUT_MS = 8_000;
+
 export type EmailMessage = {
   to: string[];
   subject: string;
@@ -113,6 +122,7 @@ export async function sendEmail(message: EmailMessage): Promise<EmailResult> {
         authorization: `Bearer ${apiKey}`,
         "content-type": "application/json",
       },
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
       body: JSON.stringify({
         from,
         to: message.to,
@@ -147,9 +157,15 @@ export async function sendEmail(message: EmailMessage): Promise<EmailResult> {
     console.error(`[email] failed to send "${message.subject}"`, err);
     captureError(err, {
       area: "email",
-      tags: { reason: "network" },
+      // A timeout surfaces as a `TimeoutError` DOMException; named apart from
+      // a network failure because the fix on the operator's side differs.
+      tags: { reason: isTimeout(err) ? "timeout" : "network" },
       extra: { recipients: message.to.length },
     });
     return { sent: false, reason: "failed" };
   }
+}
+
+function isTimeout(err: unknown): boolean {
+  return err instanceof Error && err.name === "TimeoutError";
 }

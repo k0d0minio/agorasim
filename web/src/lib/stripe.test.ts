@@ -236,3 +236,102 @@ describe("keyModeMismatch — the key's mode against the deployment", () => {
     expect(alert).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * The browser's key. The booking page mounts Stripe's form with it, so it must
+ * agree with the deployment and with the secret key — and a missing one turns
+ * the booking page to its enquiry form without touching anything else that
+ * only needs the secret key (the webhook, refunds, the quote page).
+ */
+describe("publishable key — the embedded form's switch", () => {
+  const load = async () => {
+    vi.resetModules();
+    const alert = vi.fn();
+    vi.doMock("@/lib/observability", () => ({ captureAlert: alert }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const mod = await import("./stripe");
+    return { ...mod, alert };
+  };
+
+  afterEach(() => {
+    vi.doUnmock("@/lib/observability");
+  });
+
+  it("is on when both keys agree with each other and with the deployment", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "pk_test_123");
+    let mod = await load();
+    expect(mod.publishableKeyMismatch()).toBeNull();
+    expect(mod.isEmbeddedCheckoutConfigured()).toBe(true);
+    expect(mod.publishableKey()).toBe("pk_test_123");
+
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_live_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "  pk_live_123\n");
+    mod = await load();
+    expect(mod.isEmbeddedCheckoutConfigured()).toBe(true);
+    expect(mod.publishableKey()).toBe("pk_live_123");
+    expect(mod.alert).not.toHaveBeenCalled();
+  });
+
+  it("is off, and says so once, when the publishable key is missing", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "");
+    const { isEmbeddedCheckoutConfigured, isStripeConfigured, alert } = await load();
+
+    expect(isEmbeddedCheckoutConfigured()).toBe(false);
+    expect(isEmbeddedCheckoutConfigured()).toBe(false);
+    expect(alert).toHaveBeenCalledOnce();
+    // Everything that needs only the secret key carries on.
+    expect(isStripeConfigured()).toBe(true);
+  });
+
+  it("refuses a test publishable key on production", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_live_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "pk_test_123");
+    const { publishableKeyMismatch, isEmbeddedCheckoutConfigured } = await load();
+    // Caught by the pairing rule before the deployment rule — either says no.
+    expect(publishableKeyMismatch()).not.toBeNull();
+    expect(isEmbeddedCheckoutConfigured()).toBe(false);
+  });
+
+  it("refuses a live publishable key on a preview", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "pk_live_123");
+    const { publishableKeyMismatch, isEmbeddedCheckoutConfigured } = await load();
+    expect(publishableKeyMismatch()).not.toBeNull();
+    expect(isEmbeddedCheckoutConfigured()).toBe(false);
+  });
+
+  it("refuses a pair whose modes differ, even where no deployment rule applies", async () => {
+    vi.stubEnv("VERCEL_ENV", "");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "pk_live_123");
+    const { publishableKeyMismatch } = await load();
+    expect(publishableKeyMismatch()).toMatch(/same mode/);
+  });
+
+  it("refuses a value that is not a publishable key, and keeps it out of the message", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "sk_test_pasted_by_mistake");
+    const { publishableKeyMismatch, isEmbeddedCheckoutConfigured, alert } = await load();
+    expect(publishableKeyMismatch()).toMatch(/not a publishable key/);
+    expect(isEmbeddedCheckoutConfigured()).toBe(false);
+    expect(String(alert.mock.calls[0][0])).not.toContain("sk_test_pasted_by_mistake");
+  });
+
+  it("follows the secret key's switch: no secret key, no form, no alert", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("STRIPE_SECRET_KEY", "");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "");
+    const { isEmbeddedCheckoutConfigured, publishableKeyMismatch, alert } = await load();
+    expect(publishableKeyMismatch()).toBeNull();
+    expect(isEmbeddedCheckoutConfigured()).toBe(false);
+    expect(alert).not.toHaveBeenCalled();
+  });
+});

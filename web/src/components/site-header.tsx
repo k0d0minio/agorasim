@@ -10,7 +10,13 @@ import { BookingButton } from "@/components/booking-button";
 
 export function SiteHeader({ locale }: { locale: Locale }) {
   const dict = getDictionary(locale);
-  const items = navOrder.map((key) => ({ label: dict.nav[key], href: href(locale, key) }));
+  const items = navOrder.map((key) => ({
+    label: dict.nav[key],
+    href: href(locale, key),
+    // The booking page must be loaded as a document of its own to show
+    // Stripe's form — see `BookingButton`.
+    fullLoad: key === "reservar",
+  }));
 
   return (
     /*
@@ -29,15 +35,19 @@ export function SiteHeader({ locale }: { locale: Locale }) {
 
         {/* Seven items need the wider breakpoint — below lg the sheet menu takes over. */}
         <nav className="hidden items-center gap-5 lg:flex xl:gap-7" aria-label="Primary">
-          {items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="text-sm font-medium text-foreground/80 transition-colors hover:text-primary"
-            >
-              {item.label}
-            </Link>
-          ))}
+          {items.map((item) => {
+            const className =
+              "text-sm font-medium text-foreground/80 transition-colors hover:text-primary";
+            return item.fullLoad ? (
+              <a key={item.href} href={item.href} className={className}>
+                {item.label}
+              </a>
+            ) : (
+              <Link key={item.href} href={item.href} className={className}>
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="flex items-center gap-3">
