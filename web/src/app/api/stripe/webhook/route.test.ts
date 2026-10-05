@@ -213,6 +213,9 @@ beforeEach(() => {
   calls = [];
   results = [];
   vi.clearAllMocks();
+  // clearAllMocks keeps queued once-answers: a charge queued for an event the route drops
+  // before reading it (a foreign account's) would answer the next test's retrieve.
+  chargesRetrieve.mockReset();
   // The route logs the cases it cannot fix; the suite provokes several of them.
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
