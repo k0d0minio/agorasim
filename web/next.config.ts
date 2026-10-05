@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
 import { LEGACY_REDIRECTS } from "./src/lib/legacy-redirects";
-import { BASELINE_SECURITY_HEADERS, PUBLIC_CSP } from "./src/lib/security-headers";
+import {
+  BASELINE_SECURITY_HEADERS,
+  PAYMENT_CSP,
+  PAYMENT_PERMISSIONS_POLICY,
+  PAYMENT_ROUTE_SOURCES,
+  PUBLIC_CSP,
+} from "./src/lib/security-headers";
 
 const nextConfig: NextConfig = {
   // Nothing gains from advertising the framework and its version.
@@ -33,6 +39,12 @@ const nextConfig: NextConfig = {
    * and a proxy header on the same path and the same key is a coin toss over
    * which one survives, and the loser being the stricter policy is not a failure
    * mode worth having.
+   *
+   * The booking route is the one public exception, and it is listed *last* on
+   * purpose: when two entries match a path and set the same key, the later one
+   * is the value sent. So `/:locale/reservar` gets the public policy plus
+   * Stripe's embedded Checkout, and the feature policy that lets Apple Pay and
+   * Google Pay run in Stripe's frame — and no other path changes at all.
    */
   async headers() {
     return [
@@ -41,6 +53,13 @@ const nextConfig: NextConfig = {
         source: "/:path((?!admin$|admin/).*)",
         headers: [{ key: "Content-Security-Policy", value: PUBLIC_CSP }],
       },
+      ...PAYMENT_ROUTE_SOURCES.map((source) => ({
+        source,
+        headers: [
+          { key: "Content-Security-Policy", value: PAYMENT_CSP },
+          { key: "Permissions-Policy", value: PAYMENT_PERMISSIONS_POLICY },
+        ],
+      })),
     ];
   },
 

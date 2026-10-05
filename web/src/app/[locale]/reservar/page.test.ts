@@ -94,6 +94,7 @@ describe("/reservar with no STRIPE_SECRET_KEY — the launch fallback", () => {
 describe("/reservar with a key that fits the deployment — the checkout", () => {
   beforeEach(() => {
     vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "pk_test_123");
     vi.stubEnv("VERCEL_ENV", "preview");
   });
 
@@ -129,5 +130,36 @@ describe("/reservar with a key that contradicts the deployment", () => {
     const tree = await BookingPage({ params: Promise.resolve({ locale: "en" }) });
     expect(componentNames(tree).has("TourRequestForm")).toBe(true);
     vi.restoreAllMocks();
+  });
+});
+
+describe("/reservar with no publishable key — the form cannot load in the page", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  // Stripe's form is mounted with the publishable key, so without one the page
+  // takes the same payments-off path as no Stripe at all — never a checkout
+  // whose payment step could not appear.
+  it("falls back to the enquiry form", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { default: BookingPage } = await load();
+    const tree = await BookingPage({ params: Promise.resolve({ locale: "en" }) });
+    expect(componentNames(tree).has("TourRequestForm")).toBe(true);
+    expect(componentNames(tree).has("BookingCheckoutForm")).toBe(false);
+  });
+
+  it("never renders the publishable key into the prerendered page", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "pk_test_in_the_html");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const { default: BookingPage } = await load();
+    const tree = await BookingPage({ params: Promise.resolve({ locale: "en" }) });
+    expect(componentNames(tree).has("BookingCheckoutForm")).toBe(true);
+    expect(JSON.stringify(tree)).not.toContain("pk_test_in_the_html");
   });
 });
