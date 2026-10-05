@@ -130,6 +130,7 @@ vi.mock("@/lib/stripe", () => ({
 // A claimed message is built after the claim, so the stand-in builds it the same
 // way and records the message it made — what the assertions below read.
 const sendLoggedEmail = vi.fn();
+const hasSentQuoteRefundNotice = vi.fn();
 vi.mock("@/lib/message-log", () => ({
   sendLoggedEmail: async (subject: unknown, content: unknown) =>
     sendLoggedEmail(
@@ -148,6 +149,7 @@ vi.mock("@/lib/message-log", () => ({
         (sent as { refundedTotalCents: number }).refundedTotalCents ===
           subject.refundedTotalCents,
     ),
+  hasSentQuoteRefundNotice: (...args: unknown[]) => hasSentQuoteRefundNotice(...args),
 }));
 vi.mock("@/lib/email", () => ({
   isEmailConfigured: () => true,
@@ -321,6 +323,8 @@ beforeEach(() => {
     return { quote: quoteRow(), writtenOff };
   });
   sendLoggedEmail.mockResolvedValue({ status: "sent", providerMessageId: "re_mail" });
+  // By default the refund notice went out, so the cancellation can point at it.
+  hasSentQuoteRefundNotice.mockResolvedValue(true);
   sessionsExpire.mockImplementation(async (id: string) => ({ id, status: "expired" }));
 });
 
@@ -1291,6 +1295,68 @@ describe("the admin refund and its webhook echo — whichever lands first", () =
     expect(outcome).toMatchObject({ status: "synced", refundedAmountCents: 57_600 });
   });
 
+  describe("two refunds close together on one instalment", () => {
+    const refundOf = (
+      id: string,
+      amount: number,
+      created: number,
+      via?: "admin",
+    ) => ({
+      id,
+      object: "refund",
+      amount,
+      status: "succeeded",
+      created,
+      metadata: via ? { quotePaymentId: DEPOSIT_ID, via } : {},
+    });
+
+    it("defers an admin refund's echo even though a dashboard refund landed after it", async () => {
+      const t = justNow();
+      // Newest first, as Stripe lists them: the dashboard refund is the latest.
+      refundsList.mockResolvedValue({
+        data: [refundOf("re_dashboard_28800", 28_800, t, undefined), refundOf("re_admin_28800", 28_800, t - 5, "admin")],
+      });
+
+      const outcome = await syncQuotePaymentRefundFromStripe({ charge: depositCharge(57_600) });
+
+      expect(outcome).toMatchObject({ status: "deferred" });
+      expect(recordPaymentRefund).not.toHaveBeenCalled();
+      expect(sendLoggedEmail).not.toHaveBeenCalled();
+    });
+
+    it("defers a dashboard refund's event while an admin refund after it is unrecorded", async () => {
+      const t = justNow();
+      refundsList.mockResolvedValue({
+        data: [refundOf("re_admin_28800", 28_800, t, "admin"), refundOf("re_dashboard_28800", 28_800, t - 5)],
+      });
+
+      const outcome = await syncQuotePaymentRefundFromStripe({ charge: depositCharge(57_600) });
+
+      // The total this event would write includes the admin refund, so the card goes first.
+      expect(outcome).toMatchObject({ status: "deferred" });
+    });
+
+    it("does not defer for an admin refund the row already carries, behind a newer dashboard one", async () => {
+      const t = justNow();
+      payments.set(
+        DEPOSIT_ID,
+        instalment("deposit", "paid", {
+          refundedAmountCents: 28_800,
+          refundedFeeCents: 1_728,
+          stripeRefundId: "re_admin_28800",
+        }),
+      );
+      refundsList.mockResolvedValue({
+        data: [refundOf("re_dashboard_28800", 28_800, t), refundOf("re_admin_28800", 28_800, t - 5, "admin")],
+      });
+      feesRetrieve.mockResolvedValue({ id: "fee_deposit", amount_refunded: DEPOSIT_FEE });
+
+      const outcome = await syncQuotePaymentRefundFromStripe({ charge: depositCharge(57_600) });
+
+      expect(outcome).toMatchObject({ status: "synced", refundedAmountCents: 57_600 });
+    });
+  });
+
   it("never defers a dashboard refund, however fresh", async () => {
     refundsList.mockResolvedValue({
       data: [
@@ -1338,6 +1404,36 @@ describe("the admin refund and its webhook echo — whichever lands first", () =
     expect(kinds).toEqual(["quote-refunded", "quote-event-cancelled"]);
     expect(sendLoggedEmail.mock.calls[0][1].text).toContain("O seu evento continua marcado");
     expect(sendLoggedEmail.mock.calls[1][1].subject).toContain("Evento cancelado");
+  });
+
+  it("points at the earlier refund email only when one was sent", async () => {
+    for (const sent of [true, false]) {
+      vi.clearAllMocks();
+      hasSentQuoteRefundNotice.mockResolvedValue(sent);
+      sendLoggedEmail.mockResolvedValue({ status: "sent", providerMessageId: "re_mail" });
+      payments = new Map([
+        [DEPOSIT_ID, instalment("deposit", "paid")],
+        [BALANCE_ID, instalment("balance", "pending")],
+      ]);
+      quoteStatus = "deposit_paid";
+      echoBeforeTheCardSettles(justNow() - 11 * 60);
+
+      await refundQuotePayment({
+        paymentId: DEPOSIT_ID,
+        refundCents: 57_600,
+        cancelEvent: true,
+        attemptId: crypto.randomUUID(),
+        actorUserId: ADMIN_ID,
+      });
+
+      const cancelled = sendLoggedEmail.mock.calls.find(
+        ([subject]) => (subject as { kind: string }).kind === "quote-event-cancelled",
+      );
+      expect(cancelled).toBeDefined();
+      const text = cancelled![1].text as string;
+      if (sent) expect(text).toContain("email anterior");
+      else expect(text).not.toContain("email anterior");
+    }
   });
 
   it("sends only the refund notice when the card settles and cancels in the ordinary way", async () => {

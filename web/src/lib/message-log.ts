@@ -71,6 +71,15 @@ import {
   type MessageStatus,
 } from "@/db";
 import { isEmailConfigured, sendEmail, type EmailMessage } from "@/lib/email";
+import { isOptedOut } from "@/lib/email-opt-out";
+
+/**
+ * The kinds sent on the soft opt-in rather than as contract performance
+ * (register D24): {@link sendLoggedEmail} checks the suppression list for them
+ * before the claim, so no sender can forget to. A new marketing-basis kind is
+ * added here; booking mail never is — an opt-out does not stop the contract.
+ */
+export const MARKETING_KINDS: readonly MessageKind[] = ["thank-you-review"];
 
 /**
  * The kinds whose subject is a *departure* rather than the booking itself.
@@ -253,14 +262,15 @@ export type SendFailure = "unconfigured" | "no-recipient" | "failed";
  * `duplicate` is a success, not an error: it means this message had already
  * been claimed, which is the answer a scheduled job wants. `skipped` is the
  * deployment saying it cannot send mail at all (no Resend key, nobody to send
- * to) — nothing was attempted, so nothing is logged; a log full of non-events
+ * to), or a marketing-basis recipient on the suppression list (`opted-out`) —
+ * nothing was attempted, so nothing is logged; a log full of non-events
  * would make the Notifications page unreadable on a half-configured
  * deployment.
  */
 export type LoggedSend =
   | { status: "sent"; providerMessageId: string | null }
   | { status: "duplicate" }
-  | { status: "skipped"; reason: "unconfigured" | "no-recipient" }
+  | { status: "skipped"; reason: "unconfigured" | "no-recipient" | "opted-out" }
   | { status: "failed"; reason: SendFailure };
 
 /**
@@ -273,6 +283,28 @@ export type LoggedSend =
  * all (the log is unreachable) it is never built, and the send is `failed`.
  */
 export type ClaimedMessage = () => Promise<EmailMessage | null>;
+
+/**
+ * The suppression verdict for a marketing-basis message, or `null` to go on.
+ * Fails closed: when the list cannot be read (`EMAIL_OPT_OUT_SECRET` unset, the
+ * database down) the send is `failed`, since a sender that cannot ask must not
+ * send. Never logs an address.
+ */
+async function suppression(
+  subject: MessageSubject,
+  message: EmailMessage,
+): Promise<LoggedSend | null> {
+  if (!MARKETING_KINDS.includes(subject.kind)) return null;
+  try {
+    for (const address of message.to) {
+      if (await isOptedOut(address)) return { status: "skipped", reason: "opted-out" };
+    }
+    return null;
+  } catch (err) {
+    console.error(`[message-log] suppression list unreadable — not sending ${subject.kind}`, err);
+    return { status: "failed", reason: "failed" };
+  }
+}
 
 /**
  * Send one message and record it, exactly once.
@@ -300,6 +332,13 @@ export async function sendLoggedEmail(
     return { status: "skipped", reason: "no-recipient" };
   }
 
+  // Marketing-basis mail honours the suppression list here, before the claim,
+  // so an opted-out address leaves no log row and no sender can forget to ask.
+  if (typeof content !== "function") {
+    const verdict = await suppression(subject, content);
+    if (verdict) return verdict;
+  }
+
   const claim = await claimSend(subject);
   if (claim === "duplicate") return { status: "duplicate" };
   // A message whose making has a side effect is made only under a claim. The
@@ -319,6 +358,14 @@ export async function sendLoggedEmail(
   if (!message || message.to.length === 0) {
     if (claim) await release(claim);
     return message ? { status: "skipped", reason: "no-recipient" } : { status: "duplicate" };
+  }
+  // A built message is only known now; the claim is given back if it is barred.
+  if (typeof content === "function") {
+    const verdict = await suppression(subject, message);
+    if (verdict) {
+      if (claim) await release(claim);
+      return verdict;
+    }
   }
 
   const result = await sendEmail(message);
@@ -520,6 +567,27 @@ export async function listQuoteBalanceMessages(
     byQuote.set(row.quoteId, list);
   }
   return byQuote;
+}
+
+/**
+ * Whether the couple were ever sent a refund notice for this quote — a
+ * `quote-refunded` row the provider accepted. A claim that is still `sending`
+ * or `failed` does not count: they have not got the email.
+ */
+export async function hasSentQuoteRefundNotice(quoteId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: messageLog.id })
+    .from(messageLog)
+    .where(
+      and(
+        eq(messageLog.quoteId, quoteId),
+        inArray(messageLog.kind, [...QUOTE_REFUND_KINDS]),
+        eq(messageLog.recipient, "guest"),
+        eq(messageLog.status, "sent"),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 /**

@@ -1,6 +1,6 @@
 /**
- * The paid-booking loop: hold a car, send the guest to Stripe, and confirm
- * when the money actually arrives.
+ * The paid-booking loop: hold a car, open Stripe's payment form inside
+ * `/reservar`, and confirm when the money actually arrives.
  *
  * **Confirmation is idempotent, and that is the whole design.** Two things race
  * to confirm every booking — Stripe's webhook and the guest landing back on the
@@ -11,11 +11,19 @@
  * net for a webhook that is late, misconfigured, or being demonstrated on a
  * phone.
  *
- * **The car is held before the guest leaves.** A `pending` booking row is
+ * **The car is held before the guest pays.** A `pending` booking row is
  * written first, then the Stripe session; the hold and the session are given
  * the same 30-minute deadline, so a guest who wanders off releases the driver
  * and the car by the clock (see `lib/bookings.ts`) rather than by a job that
- * has to run.
+ * has to run. A guest who presses "back" on the payment step releases them at
+ * once instead ({@link releaseBookingCheckout}).
+ *
+ * **The guest never leaves the site.** The session is Stripe Checkout in its
+ * embedded mode: Stripe's own form, mounted in the booking page from the
+ * session's client secret (`components/embedded-checkout.tsx`). Nothing behind
+ * it differs from the hosted page it replaced — the same session, fee, expiry
+ * and webhook — and on success Stripe sends the top window to the same
+ * confirmation page on our own domain.
  *
  * **Every booking is born with a credential.** The row carries a hashed
  * cancellation token from the insert (`lib/cancellation-token.ts`), because the
@@ -54,6 +62,8 @@
  */
 import "server-only";
 
+import { timingSafeEqual } from "node:crypto";
+
 import { and, eq } from "drizzle-orm";
 
 import {
@@ -80,7 +90,6 @@ import {
   isCancellationTokenConfigured,
   issueCancellationToken,
 } from "@/lib/cancellation-token";
-import { CANCEL_RETURN_PARAM, CANCEL_RETURN_VALUE } from "@/lib/checkout-draft";
 import { BOOKING_CURRENCY, formatPrice } from "@/lib/money";
 import type { VehicleClass } from "@/lib/fleet";
 import type { BookingMode, PartyCount, PricedLine } from "@/lib/pricing";
@@ -105,7 +114,9 @@ import {
 /**
  * Start a checkout: the lead, the hold, and the Stripe session.
  *
- * Returns the URL to send the guest to. Throws only for genuinely unexpected
+ * Returns the session's client secret, which the browser mounts Stripe's form
+ * with — the secret is scoped to this one session and is what Stripe's own
+ * hosted page would have carried in its URL. Throws only for genuinely unexpected
  * failures — the expected ones (day gone, nothing priced) are decided by the
  * caller before it gets here.
  */
@@ -133,7 +144,7 @@ export async function startBookingCheckout(options: {
   addOns: Experience[];
   lines: PricedLine[];
   totalCents: number;
-}): Promise<{ url: string; bookingId: string }> {
+}): Promise<{ clientSecret: string; bookingId: string }> {
   const {
     guest,
     locale,
@@ -158,7 +169,7 @@ export async function startBookingCheckout(options: {
    * one question to ask of a link.
    *
    * The plaintext is deliberately dropped here rather than returned: the guest
-   * is about to be sent to Stripe, and the confirmation email that will
+   * is about to be shown Stripe's form, and the confirmation email that will
    * eventually carry the link is composed in another request entirely (see
    * {@link confirmPaidBooking}), which cannot recover a plaintext from a hash.
    * Issuing the link the guest actually receives therefore belongs to that
@@ -248,7 +259,7 @@ export async function startBookingCheckout(options: {
   );
 
   /**
-   * What one priced line is called on Stripe's payment page. The slug names
+   * What one priced line is called on Stripe's payment form. The slug names
    * the experience; `unit` says which band of the price list the line is —
    * and the guest sees exactly the split the summary card showed them.
    */
@@ -263,6 +274,9 @@ export async function startBookingCheckout(options: {
     const session = await stripe().checkout.sessions.create(
       {
         mode: "payment",
+        // Stripe's form inside our page rather than a page of Stripe's own.
+        // `embedded_page` is this API version's name for embedded Checkout.
+        ui_mode: "embedded_page",
         // Payment methods come from the Stripe dashboard rather than being listed
         // here, so enabling MB WAY or Multibanco — which Portuguese guests will
         // expect — is a switch the team can flip without a deploy.
@@ -305,16 +319,16 @@ export async function startBookingCheckout(options: {
         // whether paying is still possible.
         expires_at: Math.floor(holdExpiresAt.getTime() / 1000),
         locale: locale === "pt" ? "pt" : "en",
-        success_url: `${base}/${locale}/reservar/confirmacao?session_id={CHECKOUT_SESSION_ID}`,
-        // Back to the form, not to an error: a guest who changed their mind about
-        // the card has not changed their mind about the tour.
+        // Where a completed payment sends the page — the same confirmation
+        // page the hosted checkout's `success_url` used, on our own domain.
+        // "always" rather than Stripe's `if_required`, so a card and a
+        // redirect-based method end in the same place and the confirmation
+        // page's webhook-race fallback runs for both.
         //
-        // The flag is what tells the form this is a return rather than a fresh
-        // visit, so it puts their basket back from the draft their own browser
-        // kept (`lib/checkout-draft.ts`). Deliberately the *only* thing on this
-        // URL: a `cancel_url` carrying their name, email and party would put all
-        // of it into browser history, proxy logs and the next page's referrer.
-        cancel_url: `${base}/${locale}/reservar?${CANCEL_RETURN_PARAM}=${CANCEL_RETURN_VALUE}`,
+        // There is no `cancel_url` in embedded mode: going back is the booking
+        // page's own button, which calls `releaseBookingCheckout`.
+        redirect_on_completion: "always",
+        return_url: `${base}/${locale}/reservar/confirmacao?session_id={CHECKOUT_SESSION_ID}`,
       },
       // Direct charge: with the connected account configured this session,
       // its payment intent and its charge are all created on the client's
@@ -324,14 +338,16 @@ export async function startBookingCheckout(options: {
       onConnectedAccount(),
     );
 
-    if (!session.url) throw new Error("Stripe returned a session with no URL");
+    if (!session.client_secret) {
+      throw new Error("Stripe returned an embedded session with no client secret");
+    }
 
     await db
       .update(bookings)
       .set({ stripeSessionId: session.id, updatedAt: new Date() })
       .where(eq(bookings.id, booking.id));
 
-    return { url: session.url, bookingId: booking.id };
+    return { clientSecret: session.client_secret, bookingId: booking.id };
   } catch (err) {
     // The hold would lapse on its own in half an hour, but a car held for a
     // checkout that never started is a car nobody can book for no reason.
@@ -378,7 +394,7 @@ export async function confirmPaidBooking(options: {
    * `/pt/reservar/confirmacao`, `en` for `/en/…`.
    *
    * The booking already carries the language it was made in, and the two agree
-   * in the ordinary case because Stripe returns the guest to a `success_url`
+   * in the ordinary case because Stripe returns the guest to a `return_url`
    * built from that same locale. This is what settles the case where they do
    * not: the confirmation the guest is reading *right now*, in the language
    * they are reading it in, is the better evidence of which language to write
@@ -745,4 +761,73 @@ export async function closeUnpaidBooking(options: {
     after: { ref: bookingRef(closed.id), date: closed.date, status: options.status },
     ipAddress: null,
   });
+}
+
+/**
+ * The checkout session a client secret belongs to, or `null` when the value is
+ * not shaped like one. Stripe's client secrets are the session id with
+ * `_secret_` and a random part appended; nothing is trusted on the strength of
+ * this parse — it only says which session to go and ask Stripe about.
+ */
+export function sessionIdFromClientSecret(clientSecret: string): string | null {
+  const match = /^(cs_(?:test|live)_[A-Za-z0-9]+)_secret_[A-Za-z0-9]+$/.exec(clientSecret);
+  return match ? match[1] : null;
+}
+
+/** Equal strings, compared in constant time — a secret is being checked. */
+function sameSecret(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+/**
+ * The guest pressed "back" on the payment step: end their checkout now and
+ * give the car back, rather than holding it for the rest of the half hour.
+ *
+ * Without this, a guest who goes back to change their party size and pays
+ * again is competing with their own abandoned hold — and with two cars in the
+ * fleet, that first hold can be the reason the second attempt is told the day
+ * is gone.
+ *
+ * **Only the guest's own, unpaid checkout.** The caller holds a client secret,
+ * which Stripe gave only to the browser that started this session; the secret
+ * is checked against the session Stripe returns, so a session id alone — which
+ * appears in URLs and logs — releases nothing. The booking must still be
+ * `pending` here and the session still `open` at Stripe: a payment that has
+ * gone through is never expired out from under the guest, and a second press
+ * finds nothing left to do.
+ *
+ * Expiring the session is the release. The `checkout.session.expired` webhook
+ * then closes the booking as it does for any lapsed checkout; the same close is
+ * run here as well so the car is free the moment this returns, whether or not
+ * the webhook has arrived yet — {@link closeUnpaidBooking} is guarded by
+ * `status = 'pending'`, so whichever runs second changes nothing.
+ */
+export async function releaseBookingCheckout(
+  clientSecret: string,
+): Promise<"released" | "ignored"> {
+  const sessionId = sessionIdFromClientSecret(clientSecret);
+  if (!sessionId || !isStripeConfigured()) return "ignored";
+
+  const [booking] = await db
+    .select({ id: bookings.id })
+    .from(bookings)
+    .where(and(eq(bookings.stripeSessionId, sessionId), eq(bookings.status, "pending")))
+    .limit(1);
+  if (!booking) return "ignored";
+
+  const session = await onOwningAccount((options) =>
+    stripe().checkout.sessions.retrieve(sessionId, {}, options),
+  );
+  if (!session.client_secret || !sameSecret(session.client_secret, clientSecret)) {
+    return "ignored";
+  }
+  if (session.status !== "open") return "ignored";
+
+  await onOwningAccount((options) =>
+    stripe().checkout.sessions.expire(sessionId, {}, options),
+  );
+  await closeUnpaidBooking({ sessionId, status: "expired" });
+  return "released";
 }

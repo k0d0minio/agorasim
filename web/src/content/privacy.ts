@@ -5,8 +5,9 @@ import type { Localized } from "@/i18n/config";
  * booking form and the marketing opt-in.
  *
  * The recipients section names every processor the site actually uses: Vercel
- * and Neon (hosting, database), Stripe (payment — Checkout is a redirect, card
- * data never touches this app; the client's account is merchant of record and
+ * and Neon (hosting, database), Stripe (payment — Checkout embedded in
+ * `/reservar` for a tour, still a redirect for a quote instalment; card data
+ * never touches this app; the client's account is merchant of record and
  * the platform takes an application fee, see `lib/booking-checkout.ts`) and
  * Resend (email, EU-west/Ireland region, see `lib/email.ts` — the booking mail,
  * and the one post-tour thank-you sent under the soft opt-in, D24).
@@ -80,7 +81,7 @@ export const privacyContent = {
   } as Localized,
 
   lastUpdatedLabel: { pt: "Última atualização", en: "Last updated" } as Localized,
-  lastUpdated: { pt: "25 de setembro de 2026", en: "25 September 2026" } as Localized,
+  lastUpdated: { pt: "2 de outubro de 2026", en: "2 October 2026" } as Localized,
 
   sections: {
     pt: [
@@ -122,7 +123,7 @@ export const privacyContent = {
         heading: "Com quem partilhamos os dados",
         body: [
           "Recorremos a prestadores de serviços que tratam dados por nossa conta: a Vercel (alojamento do site e armazenamento das fotografias das experiências), a Neon (base de dados onde os pedidos e as reservas ficam guardados), a Stripe (processamento de pagamentos) e a Resend (envio de emails).",
-          "Stripe — processamento de pagamentos. Quando paga uma reserva é encaminhado para uma página de pagamento da Stripe; os dados do cartão são introduzidos aí e nunca passam pelo nosso site. A Stripe recebe o seu email, a descrição do que está a reservar (experiência, data, número de pessoas) e o montante, e devolve-nos a confirmação do pagamento e as referências para o associar à sua reserva. O pagamento é cobrado na conta Stripe da Agorasim, que é o comerciante registado e a quem o valor pertence; a plataforma que opera este site recebe, através da Stripe, uma comissão de serviço sobre cada pagamento e nunca vê os dados do seu cartão. A política de privacidade da Stripe está em stripe.com/privacy.",
+          "Stripe — processamento de pagamentos. Quando paga a reserva de uma experiência, o formulário de pagamento da Stripe é apresentado dentro da nossa página de reserva; quando paga uma prestação de um orçamento, é encaminhado para uma página de pagamento da Stripe. Em ambos os casos os dados do cartão são introduzidos no formulário da Stripe e nunca passam pelo nosso site. A Stripe recebe o seu email, a descrição do que está a reservar (experiência, data, número de pessoas) e o montante, e devolve-nos a confirmação do pagamento e as referências para o associar à sua reserva. O pagamento é cobrado na conta Stripe da Agorasim, que é o comerciante registado e a quem o valor pertence; a plataforma que opera este site recebe, através da Stripe, uma comissão de serviço sobre cada pagamento e nunca vê os dados do seu cartão. A política de privacidade da Stripe está em stripe.com/privacy.",
           "Resend — envio de emails: a confirmação da reserva, o lembrete na véspera e o cancelamento, o orçamento enviado, o pedido do restante do evento e o seu lembrete, os recibos de sinal e de restante pagos, o aviso de reembolso, o agradecimento depois do passeio, a resposta ao seu pedido e a cópia que a equipa recebe. Os emails são processados na região europeia da Resend (eu-west, Irlanda). A Resend tem sede nos Estados Unidos; para qualquer tratamento pela empresa-mãe fora do Espaço Económico Europeu, o mecanismo de transferência aplicável são as cláusulas contratuais-tipo aprovadas pela Comissão Europeia.",
           "Usamos ainda a Sentry para monitorização de erros: quando algo falha nos nossos servidores, é-lhe enviado um relatório técnico — o erro, a operação em curso e metadados do pedido (endereço da página, método e cabeçalhos, sem cookies). Não coloca cookies, não corre nada no seu navegador e os endereços IP não são recolhidos.",
           "Não vendemos os seus dados nem os partilhamos para fins de marketing de terceiros.",
@@ -131,7 +132,7 @@ export const privacyContent = {
       {
         heading: "Cookies e serviços externos",
         body: [
-          "O site não usa cookies de análise nem de publicidade, e não coloca cookies de terceiros. Não há sistemas externos incorporados nas nossas páginas: o pedido e a reserva são feitos através dos nossos próprios formulários e, quando paga, é encaminhado para uma página alojada pela Stripe (checkout.stripe.com), que tem a sua própria política de cookies e de privacidade, regressando ao nosso site no fim. Por isso não verá um aviso de cookies no nosso site — não há nada a que consentir.",
+          "O site não usa cookies de análise nem de publicidade. Há um único sistema externo incorporado nas nossas páginas: o formulário de pagamento da Stripe, no passo de pagamento da página de reserva. Só é carregado quando carrega em pagar — nunca ao abrir a página, nem em qualquer outra página — e, aí, a Stripe pode guardar no seu navegador cookies próprios, estritamente necessários à prevenção de fraude no pagamento, ao abrigo da sua própria política de cookies e de privacidade (stripe.com/privacy). Quando paga uma prestação de um orçamento, é encaminhado para uma página alojada pela Stripe (checkout.stripe.com) e regressa ao nosso site no fim. Fora disto, o pedido e a reserva são feitos através dos nossos próprios formulários. Por isso não verá um aviso de cookies no nosso site — não há nada a que consentir.",
           "As fontes tipográficas são servidas a partir do nosso próprio domínio, pelo que a sua visita não gera pedidos a servidores da Google.",
           "A área reservada de administração usa um cookie estritamente necessário para manter a sessão iniciada. Não é usado para qualquer outro fim.",
         ],
@@ -190,7 +191,7 @@ export const privacyContent = {
         heading: "Who we share it with",
         body: [
           "We use service providers who process data on our behalf: Vercel (website hosting and storage of the experience photos), Neon (the database the enquiries and bookings are stored in), Stripe (payment processing) and Resend (email delivery).",
-          "Stripe — payment processing. When you pay for a booking you are redirected to a payment page hosted by Stripe; your card details are entered there and never pass through our site. Stripe receives your email address, a description of what you are booking (experience, date, number of people) and the amount, and returns to us confirmation of the payment and the references to match it to your booking. The payment is taken on Agorasim's own Stripe account — Agorasim is the merchant of record and the money is theirs; the platform that operates this site receives, through Stripe, a service fee on each payment and never sees your card details. Stripe's privacy policy is at stripe.com/privacy.",
+          "Stripe — payment processing. When you pay for a tour booking, Stripe's payment form is shown inside our booking page; when you pay a quote instalment, you are redirected to a payment page hosted by Stripe. Either way your card details are entered into Stripe's form and never pass through our site. Stripe receives your email address, a description of what you are booking (experience, date, number of people) and the amount, and returns to us confirmation of the payment and the references to match it to your booking. The payment is taken on Agorasim's own Stripe account — Agorasim is the merchant of record and the money is theirs; the platform that operates this site receives, through Stripe, a service fee on each payment and never sees your card details. Stripe's privacy policy is at stripe.com/privacy.",
           "Resend — email delivery: your booking confirmation, the day-before reminder and any cancellation, the quote sent, the balance request and its reminder, the deposit-received and balance-paid receipts, the refund notice, the thank-you after your tour, the reply to your enquiry, and the copy the team receives. Emails are processed in Resend's European region (eu-west, Ireland). Resend is headquartered in the United States; for any processing by the parent company outside the European Economic Area, the transfer safeguard relied on is the standard contractual clauses approved by the European Commission.",
           "We also use Sentry for error monitoring: when something fails on our servers, a technical report is sent to it — the error, the operation under way and request metadata (page address, method and headers, without cookies). It sets no cookies, runs nothing in your browser, and IP addresses are not collected.",
           "We do not sell your data and we do not share it for third-party marketing.",
@@ -199,7 +200,7 @@ export const privacyContent = {
       {
         heading: "Cookies and third-party services",
         body: [
-          "The site uses no analytics and no advertising cookies, and sets no third-party cookies. There are no external systems embedded in our pages: enquiries and bookings go through our own forms and, when you pay, you are redirected to a page hosted by Stripe (checkout.stripe.com), which has its own cookie and privacy policies, and returned to our site afterwards. That is why there is no cookie banner on our site — there is nothing to consent to.",
+          "The site uses no analytics and no advertising cookies. One external system is embedded in our pages: Stripe's payment form, on the payment step of the booking page. It loads only when you press pay — never when the page opens, and on no other page — and there Stripe may store its own cookies in your browser, strictly necessary for preventing payment fraud, under its own cookie and privacy policies (stripe.com/privacy). When you pay a quote instalment, you are redirected to a page hosted by Stripe (checkout.stripe.com) and returned to our site afterwards. Otherwise, enquiries and bookings go through our own forms. That is why there is no cookie banner on our site — there is nothing to consent to.",
           "Web fonts are served from our own domain, so visiting the site sends no request to Google's servers.",
           "The admin area uses one strictly necessary cookie to keep an operator signed in. It is used for nothing else.",
         ],

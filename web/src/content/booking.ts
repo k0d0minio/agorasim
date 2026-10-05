@@ -96,9 +96,11 @@ export const bookingContent = {
     when: { pt: "Quando querem vir?", en: "When would you like to come?" } as Localized,
 
     /**
-     * Shown to a guest Stripe has sent back after they cancelled: their basket
-     * has been put back from the draft their own browser kept, and saying so is
-     * what makes a pre-filled form read as helpful rather than uncanny.
+     * Shown to a guest whose basket was put back from the draft their own
+     * browser kept, on a return to `/reservar` that carries the draft flag:
+     * saying so is what makes a pre-filled form read as helpful rather than
+     * uncanny. (Going back from the payment step needs no such line — the form
+     * simply reappears as they left it.)
      */
     resumed: {
       pt: "Bem-vindo de volta — guardámos a sua escolha. Reveja os dados e conclua quando quiser.",
@@ -164,11 +166,39 @@ export const bookingContent = {
       pt: "Modo de teste — nenhum pagamento real será cobrado.",
       en: "Test mode — no real payment will be taken.",
     } as Localized,
-    /** How long the car is held while they are on Stripe's page. */
+    /** How long the car is held while they are on the payment step. */
     holdNote: {
       pt: "Guardamos o vosso carro durante 30 minutos enquanto conclui o pagamento.",
       en: "We hold your car for 30 minutes while you complete the payment.",
     } as Localized,
+
+    /**
+     * The payment step — Stripe's form, shown in place of the booking form on
+     * the same page, with the summary kept beside it and a way back.
+     */
+    paymentStep: { pt: "Pagamento", en: "Payment" } as Localized,
+    paymentStepHint: {
+      pt: "Introduza os dados de pagamento abaixo. Fica no nosso site do princípio ao fim.",
+      en: "Enter your payment details below. You stay on our site from start to finish.",
+    } as Localized,
+    /** Back to the form; the car held for this attempt is released at once. */
+    backToDetails: {
+      pt: "Voltar e alterar a reserva",
+      en: "Back to change the booking",
+    } as Localized,
+    paymentLoading: {
+      pt: "A carregar o pagamento seguro…",
+      en: "Loading secure payment…",
+    } as Localized,
+    /**
+     * Stripe's form could not load — blocked script, lost connection. Never a
+     * redirect to Stripe's own page in its place: the way out is back, or us.
+     */
+    paymentLoadFailed: {
+      pt: "Não foi possível carregar o formulário de pagamento. Volte atrás e tente de novo, ou fale connosco e tratamos da reserva consigo.",
+      en: "The payment form could not load. Go back and try again, or get in touch and we will book it with you.",
+    } as Localized,
+    contactUs: { pt: "Contactos", en: "Contact us" } as Localized,
   },
 
   errors: {
