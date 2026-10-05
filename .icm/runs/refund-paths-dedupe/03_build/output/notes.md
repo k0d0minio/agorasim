@@ -63,9 +63,9 @@
 ## Release
 
 - gate: Ready to merge ticked — merge authorised
-- ci: GREEN on <the close-out head> (ci-status.sh, after the last push — recorded in the stop report)
+- ci: blocking GREEN on the close-out head (ci-status.sh, after the last push — SHA in the stop report) · Quality (advisory) RED on `route.test.ts` — `main`'s since #181 (identical five failures on #181's own head 63d857e), not this diff; parked
 - reviews: code medium — no findings · security `security-check.sh --branch --audit`: OK (after #194, the operator's recorded waiver of GHSA-vfj7-8cjw-p6xm) + /security-review — no findings (payments) · /production-readiness — n/a, no such skill in this repo · readiness `env.sh audit --changed`: OK
-- parked: braces-advisory-eslint-chain.md (at Build; consumed by chore #194) · none from the reviews
+- parked: braces-advisory-eslint-chain.md (at Build; consumed by chore #194) · webhook-route-test-leaked-charge-mock.md (main's red advisory suite, found at Release) · none from the reviews
 - migrations: skip — none of this run's own
 - learned: none from retrospective.sh (dependency-audit already a rule); 1 from FAILURE.md via close-out
 - docs: no docs impact · announce: deferred to promotion
