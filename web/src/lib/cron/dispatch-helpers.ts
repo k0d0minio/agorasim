@@ -6,13 +6,12 @@
  */
 import "server-only";
 
-import { t, type Locale } from "@/i18n/config";
 import type { DateKey } from "@/lib/availability";
+import { titleFromCatalogue, type TitleOf } from "@/lib/booking-emails";
 import { listCatalogue } from "@/lib/experience-catalogue";
 import { captureError } from "@/lib/observability";
 
-/** Names a catalogue slug for a guest in their locale. */
-export type TitleOf = (slug: string, locale: Locale) => string;
+export type { TitleOf };
 
 /**
  * Reads the catalogue once and returns the title lookup. A retired route or
@@ -21,10 +20,7 @@ export type TitleOf = (slug: string, locale: Locale) => string;
  */
 export async function catalogueTitleOf(): Promise<TitleOf> {
   const catalogue = new Map((await listCatalogue()).map((entry) => [entry.slug, entry]));
-  return (slug, locale) => {
-    const entry = catalogue.get(slug);
-    return entry ? t(entry.title, locale) : slug;
-  };
+  return titleFromCatalogue(catalogue);
 }
 
 /**

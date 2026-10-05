@@ -100,7 +100,7 @@ const DATE_KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
  * When the balance falls due for an event on this day — T−14, as a
  * `YYYY-MM-DD` key — or `null` for anything that is not a calendar day.
  *
- * UTC midnight arithmetic, the same as `shiftDays` in `lib/quotes.ts`, so a
+ * UTC midnight arithmetic, the same as `shiftDays` in `lib/date-keys.ts`, so a
  * DST boundary cannot move a due date. `null` rather than a throw because the
  * builder calls this on every keystroke of a half-typed date.
  */

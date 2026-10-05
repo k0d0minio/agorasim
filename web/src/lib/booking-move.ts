@@ -39,12 +39,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 
 import { bookings, db, tourRequests, type Booking } from "@/db";
-import { bookingEmails } from "@/content/emails";
-import {
-  departureLabel,
-  departureTimeFollowsByEmail,
-  meetingPoints,
-} from "@/content/logistics";
+import { departureLabel } from "@/content/logistics";
 import { t } from "@/i18n/config";
 import { recordAuditOrWarn } from "@/lib/audit";
 import {
@@ -64,7 +59,7 @@ import {
   type Departure,
   type DepartureGroup,
 } from "@/lib/departure-window";
-import { guestMoveEmail, partyLabel } from "@/lib/booking-emails";
+import { bookingLogisticsFacts, guestMoveEmail, titleFromCatalogue } from "@/lib/booking-emails";
 import { bookingRef, slotOccupancyOn } from "@/lib/bookings";
 import {
   cancellationPath,
@@ -354,13 +349,6 @@ async function sendMoveEmail(booking: Booking, from: MoveTarget): Promise<void> 
 
     const catalogue = new Map((await listCatalogue()).map((entry) => [entry.slug, entry]));
     const locale = booking.locale;
-    // A retired route still has to be nameable to the guest who bought it; the
-    // slug is a poor name but never a blank — same rule as the other mails.
-    const name = (slug: string) => {
-      const entry = catalogue.get(slug);
-      return entry ? t(entry.title, locale) : slug;
-    };
-
     const issued = isCancellationTokenConfigured() ? await issueCancellationToken() : null;
 
     const result = await sendLoggedEmail(
@@ -382,13 +370,8 @@ async function sendMoveEmail(booking: Booking, from: MoveTarget): Promise<void> 
         date: formatDay(booking.date, locale),
         previousDate: formatDay(from.date, locale),
         previousDeparture: t(departureLabel(booking.experienceSlug, from.slot), locale),
-        experience: `${name(booking.experienceSlug)} — ${t(bookingEmails.guest.modeWords[booking.mode], locale)}`,
-        departure: t(departureLabel(booking.experienceSlug, booking.slot), locale),
-        departureTimeFollows: departureTimeFollowsByEmail(booking.experienceSlug),
-        meetingPoint: meetingPoints[booking.experienceSlug] ?? null,
-        addOns: booking.addOns.map(name),
+        ...bookingLogisticsFacts(booking, titleFromCatalogue(catalogue), locale),
         partySize: booking.partySize,
-        partyLabel: partyLabel(booking, locale),
         total: formatPrice(booking.amountCents, locale, booking.currency),
         adminUrl: `${siteUrl()}/admin/sales/${lead.id}`,
         cancelUrl: issued

@@ -115,6 +115,19 @@ export function addDays(key: DateKey, days: number): DateKey {
 }
 
 /**
+ * {@link addDays}, strict: a key that is not a `YYYY-MM-DD` day throws instead
+ * of coming back unchanged. For callers where a bad key is a bug, not input —
+ * the balance schedule, the reminder days, the departure window. UTC midnight
+ * arithmetic, so a DST boundary cannot move a due date: Portugal changing its
+ * clocks is not fourteen days becoming thirteen.
+ */
+export function shiftDays(key: DateKey, days: number): DateKey {
+  const date = parseDateKey(key);
+  if (!date) throw new Error(`shiftDays: ${key} is not a YYYY-MM-DD date`);
+  return dateKey(new Date(date.getTime() + days * 86_400_000));
+}
+
+/**
  * The first day a guest may book online on `today` — today plus the notice
  * (D-3). The other end of the online window is the six-month horizon, which
  * the payload already enforces by never carrying a day past it.
