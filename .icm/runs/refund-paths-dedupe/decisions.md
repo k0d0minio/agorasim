@@ -8,9 +8,14 @@ decision made mid-run has one home.
 
 ## From the scope
 
-- <D-n — the decision, one line, as the scope worded it>
+- none — epic cut by `triage batch`, no `scope.md`
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-1 — the sync half shares only its prologue, through a second helper `chargeRefundState`
+  (`refundPaymentIntent` creates refunds; the syncs never do). Operator, at Define.
+- D-2 — both shared helpers live in `booking-refund.ts`, beside the three already shared from
+  there; no new module. Operator, at Define.
+- D-3 — `refundPaymentIntent` takes `metadata` as `Record<string, string>` rather than Stripe's
+  metadata type: every value passed is a string, and a plain record stays valid whatever Stripe names its type.
+  Build; not a spec gap.

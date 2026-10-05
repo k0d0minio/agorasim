@@ -7,13 +7,17 @@ step, so a resuming session can pick up the first unticked line.
 
 ## Definition of done
 
-- [ ] `refundPaymentIntent` in `web/src/lib/booking-refund.ts` holds the only `refunds.create`
-- [ ] Both idempotency keys are unchanged: `booking-refund:<bookingId>:<claimedAt ms>` and
-- [ ] `chargeRefundState` in `web/src/lib/booking-refund.ts` backs the prologue of both
-- [ ] `sendRefundNotice` makes one quote read (`getQuote`) and no `getPayment` call; the couple's
-- [ ] `RefundQuotePaymentDialog` takes `refundableCents` as a prop and no longer subtracts
-- [ ] No behaviour change: every existing test in `booking-refund.test.ts`,
+- [x] `refundPaymentIntent` in `web/src/lib/booking-refund.ts` holds the only `refunds.create`
+- [x] Both idempotency keys are unchanged: `booking-refund:<bookingId>:<claimedAt ms>` and
+- [x] `chargeRefundState` in `web/src/lib/booking-refund.ts` backs the prologue of both
+- [x] `sendRefundNotice` makes one quote read (`getQuote`) and no `getPayment` call; the couple's
+- [x] `RefundQuotePaymentDialog` takes `refundableCents` as a prop and no longer subtracts
+- [ ] No behaviour change: every existing test in `booking-refund.test.ts`, — proven by CI on the ready head
 
 ## Queue
 
-- [ ] <task — small enough for one commit; name the file or area>
+- [x] Issue half — `refundPaymentIntent` in `booking-refund.ts`; `issueRefund` and `issueInstalmentRefund` on it
+- [x] Sync prologue — `chargeRefundState` in `booking-refund.ts`; both sync functions on it
+- [x] Notice — `sendRefundNotice` takes `quoteId`, one `getQuote`
+- [x] Dialog ceiling — sales page → lead quote card → `refundableCents` prop
+- [ ] Ready flip + full gate GREEN (test files untouched)

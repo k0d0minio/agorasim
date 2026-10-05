@@ -1,0 +1,46 @@
+# Build notes: refund-paths-dedupe
+
+- commits: feat: refund-paths-dedupe — one Stripe half for both refund paths
+- ci: draft head — nothing owed; full gate settles after the ready flip
+
+## What changed
+
+- `web/src/lib/booking-refund.ts`: new exported `refundPaymentIntent({ paymentIntentId,
+  amountCents, metadata, idempotencyKey })` → `{ refund, charge, account }` — the
+  intent read, the conditional `refund_application_fee` and the keyed `refunds.create`, inside
+  one `onOwningAccount`. `issueRefund` computes its claim key first, then calls it. New exported
+  `chargeRefundState(charge)` → `{ paymentIntentId, refundedAmountCents, feeTargetCents }`;
+  `syncRefundFromStripe` starts from it (`feeTaken` stays local — the audit row needs it).
+- `web/src/lib/quote-refund.ts`: `issueInstalmentRefund` calls `refundPaymentIntent`, then
+  `readChargeAfterRefund` on the returned account, outside the owning-account retry.
+  `syncQuotePaymentRefundFromStripe` starts from `chargeRefundState`. `sendRefundNotice` takes
+  `quoteId` and makes one `getQuote`, finding the instalment in `quote.payments`.
+- `web/src/app/admin/sales/[id]/page.tsx`: `instalmentRefundableCents` computed once per
+  instalment into `refundableCents`; `refundable` reads off it.
+- `web/src/components/admin/lead-quote-card.tsx`: payment shape gains `refundableCents`, passed to
+  the dialog.
+- `web/src/components/admin/quote-refund-dialogs.tsx`: `RefundQuotePaymentDialog` takes
+  `refundableCents` as a prop; its local subtraction is gone.
+
+## Acceptance criteria status
+
+- [x] `refundPaymentIntent` holds the only `refunds.create` in `web/src/lib` outside tests —
+      grep: `booking-refund.ts` only.
+- [x] Both idempotency keys unchanged — same template strings, sent as `{ ...account, idempotencyKey }`.
+- [x] `chargeRefundState` backs both sync prologues — neither reads `charge.payment_intent` any more.
+- [x] `sendRefundNotice` makes one `getQuote` and no `getPayment`; the email's fields are the same
+      values (the instalment now comes from `quote.payments` of the same fresh read).
+- [x] The dialog takes `refundableCents` as a prop; the page computes it with
+      `instalmentRefundableCents`.
+- [ ] No behaviour change, the three test files unedited — `git diff origin/main -- '*.test.ts'`
+      is empty; the advisory quality job on the ready head is the proof.
+
+## Notes for Release
+
+- One ordering change, by design (plan risk 3): `issueRefund` reads the claim's moment before
+  asking Stripe anything, so a row without `cancelledAt` is refused without the intent read it
+  used to make first. Same outcome (a failed refund); every caller passes the claimed row.
+- `readChargeAfterRefund` moved from inside `onOwningAccount` to after it. It never throws, so the
+  retry was already unreachable from it; now that does not rest on its catch.
+- Types were not checked locally (the pipeline runs no typecheck in session); `next build` on
+  the preview and the advisory job check them.

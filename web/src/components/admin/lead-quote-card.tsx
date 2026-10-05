@@ -97,6 +97,8 @@ export type QuoteCardItem = {
     refundedAmountCents: number;
     dueDateLabel: string | null;
     status: QuotePaymentStatus;
+    /** What is still returnable on it — the refund dialog's ceiling. */
+    refundableCents: number;
     /** Paid through Stripe with something left to give back — "Reembolsar". */
     refundable: boolean;
   }[];
@@ -292,6 +294,7 @@ function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: s
                     amountCents: payment.amountCents,
                     refundedAmountCents: payment.refundedAmountCents,
                   }}
+                  refundableCents={payment.refundableCents}
                   quote={{
                     ref: quote.ref,
                     currency: quote.currency,
