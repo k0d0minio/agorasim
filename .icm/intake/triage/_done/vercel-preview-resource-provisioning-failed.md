@@ -20,3 +20,5 @@ Neon integration / storage resource provisioning for previews; redeploy once fix
 ## Prompt
 
 Operator-only (Vercel dashboard). Once resolved, `git mv` this stub to `_done/`.
+
+> Dropped: resolved on its own — Vercel previews built again on the next push (2026-10-05).
