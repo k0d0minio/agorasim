@@ -67,8 +67,9 @@ import { fillTemplate } from "@/lib/fill-template";
  * so a couple sharing an IP with other traffic isn't told a live quote is
  * dead. Neither panel says anything about whether the quote ever existed.
  *
- * **It also reconciles**, as `/reservar/confirmacao` does. Stripe returns the
- * couple here with `?session_id=`; the page asks Stripe whether that session —
+ * **It also reconciles**, as `/reservar/confirmacao` does. The couple pay in
+ * Stripe's form inside this page (`QuotePayForm`), and Stripe then sends the
+ * tab back here with `?session_id=` — the session's `return_url`; the page asks Stripe whether that session —
  * if it is this quote's — is paid, and if so runs the webhook's own idempotent
  * recording. Whichever of the two arrives first records it and sends the
  * receipts; the other finds it done.
@@ -294,6 +295,11 @@ function QuoteView({
                 t(due.payment.kind === "balance" ? c.pay.balance : c.pay.deposit, locale),
                 { amount: money(due.payment.amountCents) },
               )}
+              instalment={t(
+                c.instalmentNames[due.payment.kind === "balance" ? "balance" : "deposit"],
+                locale,
+              )}
+              amount={money(due.payment.amountCents)}
             />
           ) : due.kind === "not-yet" ? (
             <QuoteNotice
