@@ -6,23 +6,27 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Operator smokes the preview: https://agorasim-git-claude-amazing-cori-0e2qjo-kodominio.vercel.app
-   — `/admin/sales/<a lead with a paid quote>`: open "Reembolsar" on an instalment; the default
-   amount and "máximo agora" read the instalment's paid-less-refunded total; a sandbox partial
-   refund goes through and the card refreshes.
-2. Operator ticks **Ready to merge** on https://github.com/k0d0minio/agorasim/pull/188.
-3. Then `/pipeline release refund-paths-dedupe`.
+1. Re-run `/pipeline release refund-paths-dedupe` once the operator has decided the `braces`
+   advisory:
+   - **waived** → record `audit waived — braces GHSA-vfj7-8cjw-p6xm, <the operator's reason>` in
+     the `## Release` record's `security` slot and re-read with
+     `security-check.sh refund-paths-dedupe --branch --no-audit`;
+   - **fixed** (chore `braces-advisory-eslint-chain` merged) → merge `main` in and re-read with
+     `--branch --audit`.
+2. Done already this Release (carry into the record, don't redo): Ready to merge ticked;
+   `ci-status.sh` GREEN on 7c9d641 (full gate); `env.sh audit --changed` OK;
+   `/code-review` medium — no findings; `/security-review` (payments) — no findings;
+   `/production-readiness` — not available in this repo's skills, recorded n/a. Nothing parked by
+   the reviews.
+3. Then Release steps 5–9: no docs impact; no changelog (`announce: deferred to promotion` — UAT
+   repo); merge `main`, `check-migrations.sh`, `retrospective.sh`, the record, close-out, merge.
 
 ## Blockers
 
-- blocked on operator: smoke the preview and tick **Ready to merge** on PR #188.
-- Release's `security-check.sh --audit` will report the `braces` high advisory that `main`
-  carries (dev-only, no upstream fix) — not this run's; parked as
-  `intake/triage/braces-advisory-eslint-chain.md`. Release needs the operator's waiver or that
-  chore merged first.
+- blocked on operator: decide the `braces` high advisory (dev-only, via eslint-config-next, no
+  published fix) — waive it for this merge, or run `chore braces-advisory-eslint-chain` first.
 
 ## Do not
 
-- Do not edit `booking-refund.test.ts`, `quote-refund.test.ts` or `quotes.test.ts` — their
-  passing unchanged is the acceptance criterion.
-- Do not tick Ready to merge — it is the operator's.
+- Do not waive the advisory on the operator's behalf, and do not merge around the `BLOCKED`.
+- Do not edit `booking-refund.test.ts`, `quote-refund.test.ts` or `quotes.test.ts`.
