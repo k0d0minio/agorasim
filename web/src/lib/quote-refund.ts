@@ -60,8 +60,10 @@ import { formatDay } from "@/lib/availability";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { guestQuoteEventCancelledEmail, guestQuoteRefundEmail } from "@/lib/booking-emails";
 import {
+  chargeRefundState,
   latestRefundId,
   proportionalFeeRefundCents,
+  refundPaymentIntent,
   topUpApplicationFee,
 } from "@/lib/booking-refund";
 import { isEmailConfigured } from "@/lib/email";
@@ -294,49 +296,28 @@ async function issueInstalmentRefund(
   amountCents: number,
   attemptId: string,
 ): Promise<IssuedInstalmentRefund> {
-  const client = stripe();
-  const paymentIntentId = payment.stripePaymentIntentId!;
-
-  return onOwningAccount(async (account) => {
-    const intent = await client.paymentIntents.retrieve(
-      paymentIntentId,
-      { expand: ["latest_charge"] },
-      account,
-    );
-    const charge =
-      intent.latest_charge && typeof intent.latest_charge !== "string"
-        ? intent.latest_charge
-        : null;
-    const hasApplicationFee = Boolean(charge?.application_fee_amount);
-
-    const refund = await client.refunds.create(
-      {
-        payment_intent: paymentIntentId,
-        amount: amountCents,
-        reason: "requested_by_customer",
-        // Stripe returns the fee in proportion to the amount refunded — §6.
-        // The reconciler tops up any cent its rounding leaves behind.
-        ...(hasApplicationFee ? { refund_application_fee: true } : {}),
-        metadata: {
-          quotePaymentId: payment.id,
-          ref: quoteRef(quote.id),
-          instalment: payment.kind,
-          via: "admin",
-        },
-      },
-      {
-        ...account,
-        idempotencyKey: `quote-refund:${payment.id}:${attemptId}`,
-      },
-    );
-
-    const after = await readChargeAfterRefund(client, charge?.id ?? chargeIdOf(refund), account);
-    return {
-      refund,
-      charge: after ?? charge,
-      totalRefundedCents: after ? after.amount_refunded : null,
-    };
+  // Stripe returns the fee in proportion to the amount refunded — §6. The
+  // reconciler tops up any cent its rounding leaves behind.
+  const { refund, charge, account } = await refundPaymentIntent({
+    paymentIntentId: payment.stripePaymentIntentId!,
+    amountCents,
+    metadata: {
+      quotePaymentId: payment.id,
+      ref: quoteRef(quote.id),
+      instalment: payment.kind,
+      via: "admin",
+    },
+    idempotencyKey: `quote-refund:${payment.id}:${attemptId}`,
   });
+
+  // On the account the refund went out on, and outside its retry: the money
+  // has gone back by now, so nothing here may re-issue it on the platform.
+  const after = await readChargeAfterRefund(stripe(), charge?.id ?? chargeIdOf(refund), account);
+  return {
+    refund,
+    charge: after ?? charge,
+    totalRefundedCents: after ? after.amount_refunded : null,
+  };
 }
 
 /**
@@ -404,22 +385,12 @@ export async function syncQuotePaymentRefundFromStripe(options: {
   now?: Date;
 }): Promise<QuoteRefundSyncOutcome> {
   const { charge, now = new Date() } = options;
-
-  const paymentIntentId =
-    typeof charge.payment_intent === "string"
-      ? charge.payment_intent
-      : (charge.payment_intent?.id ?? null);
+  const { paymentIntentId, refundedAmountCents, feeTargetCents: feeTarget } =
+    chargeRefundState(charge);
 
   const found = await getPaymentByCharge(charge.id, paymentIntentId);
   if (!found) return { status: "unknown-charge" };
   const { payment } = found;
-
-  const refundedAmountCents = charge.amount_refunded;
-  const feeTarget = proportionalFeeRefundCents({
-    feeCents: charge.application_fee_amount ?? 0,
-    chargeCents: charge.amount,
-    refundedCents: refundedAmountCents,
-  });
 
   // The common case by a distance: every retry, and every event our own
   // refund action caused.
@@ -691,6 +662,7 @@ async function settleInstalmentRefund(options: {
   // moved only the fee, or followed a failed refund down, says nothing.
   if (refundedAmountCents > payment.refundedAmountCents) {
     await sendRefundNotice({
+      quoteId: quote.id,
       paymentId: settled.id,
       refundedTotalCents: refundedAmountCents,
       refundedNowCents: refundedAmountCents - payment.refundedAmountCents,
@@ -872,6 +844,7 @@ function warnIfUnsent(
  * Never throws: the money is recorded whatever the mail does.
  */
 async function sendRefundNotice(options: {
+  quoteId: string;
   paymentId: string;
   refundedTotalCents: number;
   refundedNowCents: number;
@@ -879,18 +852,23 @@ async function sendRefundNotice(options: {
   if (!isEmailConfigured()) return;
 
   try {
-    const found = await getPayment(options.paymentId);
-    if (!found) return;
-    const context = await loadQuoteNoticeContext(found.quote.id, "refund notice");
+    // The instalment is found among the quote's own payments, with no read of
+    // its own. Checked before the lead, so a vanished instalment returns as
+    // quietly as before.
+    const isThisPayment = (candidate: QuotePayment) => candidate.id === options.paymentId;
+    const context = await loadQuoteNoticeContext(options.quoteId, "refund notice", (quote) =>
+      quote.payments.some(isThisPayment),
+    );
     if (!context) return;
     const { quote, lead } = context;
+    const payment = quote.payments.find(isThisPayment)!;
 
     const result = await sendLoggedEmail(
       {
         kind: "quote-refunded",
         recipient: "guest",
         quoteId: quote.id,
-        quotePaymentId: found.payment.id,
+        quotePaymentId: payment.id,
         refundedTotalCents: options.refundedTotalCents,
         tourRequestId: lead.id,
       },
@@ -902,14 +880,14 @@ async function sendRefundNotice(options: {
         if (!latest) return null;
 
         return guestQuoteRefundEmail({
-          instalment: found.payment.kind,
+          instalment: payment.kind,
           ref: quoteRef(latest.quote.id),
           guestName: lead.name,
           guestEmail: lead.email,
           locale: latest.locale,
           date: formatDay(latest.quote.eventDate, latest.locale),
           venue: latest.quote.venue,
-          paid: latest.money(found.payment.amountCents),
+          paid: latest.money(payment.amountCents),
           amount: latest.money(options.refundedNowCents),
           totalRefunded: latest.money(latest.totalRefunded),
           eventCancelled: latest.quote.status === "cancelled",

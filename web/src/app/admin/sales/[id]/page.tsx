@@ -129,21 +129,27 @@ export default async function AdminLeadPage({
     bookingClash: clashes.get(quote.id) ?? null,
     depositRefundedInFull: depositRefundedInFull(quote.payments),
     balanceUnpaid: isBalanceFlagged(quote, today),
-    payments: quote.payments.map((payment) => ({
-      id: payment.id,
-      kind: payment.kind,
-      amountCents: payment.amountCents,
-      refundedAmountCents: payment.refundedAmountCents,
-      dueDateLabel: payment.dueDate ? formatDay(payment.dueDate, "pt") : null,
-      status: payment.status,
-      // "Reembolsar" is offered only where it can work: money taken through
-      // Stripe and not all of it given back. A transfer written off has no
-      // charge to refund against.
-      refundable:
-        payment.status === "paid" &&
-        payment.stripePaymentIntentId !== null &&
-        instalmentRefundableCents(payment) > 0,
-    })),
+    payments: quote.payments.map((payment) => {
+      // What is still returnable — the ceiling the refund dialog offers and
+      // validates against, computed once here.
+      const refundableCents = instalmentRefundableCents(payment);
+      return {
+        id: payment.id,
+        kind: payment.kind,
+        amountCents: payment.amountCents,
+        refundedAmountCents: payment.refundedAmountCents,
+        dueDateLabel: payment.dueDate ? formatDay(payment.dueDate, "pt") : null,
+        status: payment.status,
+        refundableCents,
+        // "Reembolsar" is offered only where it can work: money taken through
+        // Stripe and not all of it given back. A transfer written off has no
+        // charge to refund against.
+        refundable:
+          payment.status === "paid" &&
+          payment.stripePaymentIntentId !== null &&
+          refundableCents > 0,
+      };
+    }),
   }));
 
   /**
