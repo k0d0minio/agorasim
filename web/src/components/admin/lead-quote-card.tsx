@@ -133,6 +133,10 @@ export function LeadQuoteCard({
   // makes it stale, and that — not an effect — is what closes the form.
   const [creatingAt, setCreatingAt] = useState<number | null>(null);
   const creating = creatingAt === quotes.length;
+  // The last action's success message, kept here because the card outlives the
+  // refresh that follows an action — the button that ran it may not (a sent
+  // draft loses "Enviar", a discarded one loses every action).
+  const [notice, setNotice] = useState<{ ref: string; message: string } | null>(null);
 
   return (
     <Card>
@@ -144,6 +148,12 @@ export function LeadQuoteCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
+        {notice ? (
+          <p className="rounded-lg bg-muted/60 px-3 py-2 text-sm" role="status">
+            <span className="font-mono">{notice.ref}</span> · {notice.message}
+          </p>
+        ) : null}
+
         {canStart ? (
           creating ? (
             <QuoteForm
@@ -171,7 +181,12 @@ export function LeadQuoteCard({
         ) : null}
 
         {quotes.map((quote) => (
-          <QuoteEntry key={quote.id} quote={quote} guestEmail={guestEmail} />
+          <QuoteEntry
+            key={quote.id}
+            quote={quote}
+            guestEmail={guestEmail}
+            onNotice={(message) => setNotice({ ref: quote.ref, message })}
+          />
         ))}
       </CardContent>
     </Card>
@@ -185,7 +200,15 @@ function clashWords(clash: NonNullable<QuoteCardItem["bookingClash"]>): string {
 }
 
 /** One quote: its summary, and the actions its state allows. */
-function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: string }) {
+function QuoteEntry({
+  quote,
+  guestEmail,
+  onNotice,
+}: {
+  quote: QuoteCardItem;
+  guestEmail: string;
+  onNotice: (message: string) => void;
+}) {
   // The quote's `updatedAt` when "Editar" was pressed: a save moves it, which
   // closes the editor on the refreshed render without an effect.
   const [editingAt, setEditingAt] = useState<string | null>(null);
@@ -357,6 +380,7 @@ function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: s
           </Button>
           <ConfirmedQuoteAction
             action={sendLeadQuote}
+            onNotice={onNotice}
             fields={{ quoteId: quote.id }}
             trigger={{ label: "Enviar orçamento", icon: <Send className="size-4" /> }}
             title={`Enviar o orçamento ${quote.ref}?`}
@@ -369,6 +393,7 @@ function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: s
           />
           <ConfirmedQuoteAction
             action={discardQuote}
+            onNotice={onNotice}
             fields={{ quoteId: quote.id }}
             trigger={{ label: "Descartar rascunho", icon: <Trash2 className="size-4" />, variant: "ghost" }}
             title={`Descartar o rascunho ${quote.ref}?`}
@@ -383,6 +408,7 @@ function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: s
           {quote.canNewVersion ? (
             <ConfirmedQuoteAction
               action={newQuoteVersion}
+              onNotice={onNotice}
               fields={{ quoteId: quote.id }}
               trigger={{ label: "Nova versão", icon: <Copy className="size-4" />, variant: "outline" }}
               title={`Nova versão do orçamento ${quote.ref}?`}
@@ -393,6 +419,7 @@ function QuoteEntry({ quote, guestEmail }: { quote: QuoteCardItem; guestEmail: s
           {quote.sentAt ? (
             <ConfirmedQuoteAction
               action={resendLeadQuote}
+              onNotice={onNotice}
               fields={{ quoteId: quote.id, sentAt: quote.sentAt }}
               trigger={{ label: "Reenviar", icon: <RotateCw className="size-4" />, variant: "outline" }}
               title={`Reenviar o orçamento ${quote.ref}?`}
@@ -428,11 +455,13 @@ function SubmitButton({
 /**
  * A button that asks first, then runs one quote action — every action on a
  * quote either emails a couple or changes what they can open, so none of them
- * is a single tap. The result is read back under the button, and the page
- * refreshes so the card shows the quote as it now is.
+ * is a single tap. A failure is read back under the button; a success is handed
+ * to the card (`onNotice`) and the page refreshes so the card shows the quote
+ * as it now is — the button itself may not survive that refresh.
  */
 function ConfirmedQuoteAction({
   action,
+  onNotice,
   fields,
   trigger,
   title,
@@ -440,6 +469,7 @@ function ConfirmedQuoteAction({
   confirm,
 }: {
   action: QuoteAction;
+  onNotice: (message: string) => void;
   fields: Record<string, string>;
   trigger: { label: string; icon: ReactNode; variant?: "default" | "outline" | "ghost" };
   title: string;
@@ -455,7 +485,11 @@ function ConfirmedQuoteAction({
   const open = openedOn !== null && (openedOn === state || !state.ok);
 
   useEffect(() => {
-    if (state.ok) router.refresh();
+    if (!state.ok) return;
+    if (state.message) onNotice(state.message);
+    router.refresh();
+    // `onNotice` is a fresh closure every render; the state object is the trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, router]);
 
   return (
@@ -467,11 +501,6 @@ function ConfirmedQuoteAction({
       {state.error ? (
         <p className="text-xs text-destructive" role="alert">
           {state.error}
-        </p>
-      ) : null}
-      {state.ok && state.message ? (
-        <p className="text-xs text-muted-foreground" role="status">
-          {state.message}
         </p>
       ) : null}
 

@@ -18,8 +18,9 @@
  * one, so a moved booking is thanked only after its new date.
  *
  * **Not contract performance — the soft opt-in (register D24).** So every
- * address is checked against the suppression list before its claim
- * (`lib/email-opt-out.ts`): an opted-out address is counted and never claimed,
+ * address is checked against the suppression list before its claim — by
+ * `sendLoggedEmail` itself, `thank-you-review` being a `MARKETING_KINDS` member
+ * (`lib/message-log.ts`): an opted-out address is counted and never claimed,
  * and every mail carries its own way out. Without `EMAIL_OPT_OUT_SECRET` the
  * list cannot be read, and a sender that cannot ask must not send — the job
  * sends nothing and says so, in its summary and to the error tracker.
@@ -35,7 +36,6 @@ import { dateKey, parseDateKey, todayKey, type DateKey } from "@/lib/availabilit
 import { guestThankYouEmail } from "@/lib/booking-emails";
 import { bookingRef, bookingsToThankOn, type BookingToThank } from "@/lib/bookings";
 import { register, type CronJobResult } from "@/lib/cron/jobs";
-import { isAddressHashOptedOut } from "@/lib/email-opt-out";
 import {
   isOptOutConfigured,
   optOutAddressHash,
@@ -102,17 +102,10 @@ async function thankDay(
     }
 
     try {
-      // Hashed once and reused below — the opt-out check and the link token
-      // both need the same address hash.
-      const addressHash = await optOutAddressHash(booking.email);
-
-      // Asked before the claim, so an opted-out address leaves no log row.
-      if (await isAddressHashOptedOut(addressHash)) {
-        tally.optedOut += 1;
-        continue;
-      }
-
-      const token = await optOutTokenFromHash(addressHash);
+      // The suppression list is enforced inside `sendLoggedEmail` (an
+      // opted-out address is reported `skipped` / `opted-out`, never claimed);
+      // the hash is only needed here for the guest's own opt-out link.
+      const token = await optOutTokenFromHash(await optOutAddressHash(booking.email));
       const result = await sendLoggedEmail(
         {
           kind: "thank-you-review",
@@ -138,7 +131,8 @@ async function thankDay(
           tally.already += 1;
           break;
         case "skipped":
-          tally.skipped += 1;
+          if (result.reason === "opted-out") tally.optedOut += 1;
+          else tally.skipped += 1;
           break;
         case "failed":
           tally.failed += 1;
