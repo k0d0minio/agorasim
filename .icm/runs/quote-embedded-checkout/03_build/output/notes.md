@@ -2,6 +2,7 @@
 
 - commits: cd7885b (payment policy on the quote route) · a115da1 (embedded quote sessions) · b032425 (pay action returns the payment step) · c2425d1 (payment step in the quote page) · bfdee98 (privacy + processor record)
 - ci: GREEN (cheap tier, draft) on 450dd9d
+- ci (full gate) : GREEN on fe2d4a7 — Vercel preview pass; Quality (advisory) RED on webhook/route.test.ts only, main's (see Notes for Release)
 - ready: 2026-10-05T13:24:39Z — flipped on 1e19b16
 
 ## What changed
@@ -34,6 +35,8 @@
 - [x] Unit tests cover the six named cases — `quote-checkout.test.ts`, `orcamento/actions.test.ts`, `security-headers.test.ts`.
 
 ## Notes for Release
+
+- **Quality (advisory) is red on fe2d4a7 — not this run's.** Five tests in `web/src/app/api/stripe/webhook/route.test.ts` (refund cases, lines 543–659) fail on `main` since #181; the cause and the 3-line test-only fix are in #196 (`chargesRetrieve.mockReset()` in `beforeEach`). Everything this run touched passed (79 of 80 files). Release step 7's main merge carries the fix once #196 merges; not ported here (Build contract: never absorb another ticket's fix). `error.log` has the entry.
 
 - Review closely: the reuse condition in `checkoutFor` (`ui_mode`, `client_secret`, terms) and that every path that used to return a URL now returns a client secret; `retrieveOwnedSession`'s account capture.
 - A hosted session open at deploy time (≤ 60 min old) is expired on the next tap; if the couple pays it in an older tab anyway, `recordQuotePayment` already records a non-current paid session and alerts a second charge.

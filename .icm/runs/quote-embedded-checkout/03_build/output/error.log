@@ -1,0 +1,5 @@
+## 2026-10-05T13:26:29Z ci Quality (advisory) — 5 tests red in web/src/app/api/stripe/webhook/route.test.ts on fe2d4a7
+FAIL src/app/api/stripe/webhook/route.test.ts > POST /api/stripe/webhook — refund.updated > acknowledges a refund whose charge cannot be read
+AssertionError: expected { received: true, …(1) } to deeply equal { Object (received, ignored) }  (route.test.ts:543, 569, 600, 616, 659)
+Test Files  1 failed | 79 passed (80) · Tests  5 failed | 1305 passed (1310)
+- resolved: not this run's — red on main since #181 (a queued `chargesRetrieve` once-answer leaks between tests; triage stub webhook-route-test-leaked-charge-mock, parked by refund-paths-dedupe); the test-only fix is open as #196 and reaches this branch through Release's main merge once #196 merges. Every suite this run touched (quote-checkout, orcamento/actions, security-headers) passed.

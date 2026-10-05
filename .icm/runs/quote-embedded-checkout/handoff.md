@@ -6,16 +6,15 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Operator reads `02_define/output/spec.md` (or the PR's Spec block); changes go through `revise quote-embedded-checkout "<what>"`.
-2. Operator ticks **Spec approved** on https://github.com/k0d0minio/agorasim/pull/195, then runs `build quote-embedded-checkout`.
-3. Build follows `plan.md` pass by pass; first check `STRIPE_PUBLISHABLE_KEY` on Preview and `uat` with `env.sh audit --changed`.
+1. Operator smokes the preview: https://agorasim-git-claude-trusting-bardeen-xda9m9-kodominio.vercel.app — open a sent quote's link (`/pt/orcamento/<token>`, `/en/…`), tap pay, check the form mounts in the page (no stripe.com navigation), "back", pay again (same session), test card 4242…, lands back on the quote page paid; 375px; devtools-block `js.stripe.com` for the failure block.
+2. Operator ticks **Ready to merge** on https://github.com/k0d0minio/agorasim/pull/195, then `release quote-embedded-checkout`.
+3. Release merges main in (step 7): after #196 merges, that brings the webhook test fix and the advisory goes green.
 
 ## Blockers
 
-- blocked on operator: tick **Spec approved** on https://github.com/k0d0minio/agorasim/pull/195.
+- none for Release's gate. The advisory red is main's (#196).
 
 ## Do not
 
-- Do not start Build before the tick.
-- Do not reintroduce a redirect to stripe.com as a fallback (D-15).
-- Do not touch `/reservar`'s booking flow, `lib/booking-checkout.ts` or the webhook beyond what the spec names — stub 1 shipped them.
+- Do not port #196's test change into this PR — it is that lane's diff.
+- Do not tick Ready to merge — the operator's.
