@@ -13,12 +13,12 @@ general; keep the retrospectives specific; never restate an `error.log` entry he
 
 ## Retrospectives
 
-### <YYYY-MM-DD> — <what failed, one line>
+### 2026-10-05 — payment-step heading named the rendered instalment, not the one the tap opened
 
-- what happened: <the observable — the check, the error, the wrong file>
-- why: <the cause, once it was known>
-- fixed by: <the commit, or the action>
+- what happened: Release's `/code-review` found the quote payment step's heading built from the page render ("Sinal — 576 €") while the session was minted from what the server found due at tap time — a deposit paid since from another phone would leave the heading on the deposit over a balance form.
+- why: Define's spec and Build both took the "line naming the instalment and amount" from the page's props, forgetting the module's own rule that the server re-decides what is due.
+- fixed by: 6a5a49c — `startQuoteCheckout` returns the instalment it opened; `payQuote` names it.
 
 ## Learned rules
 
-- <one sentence, imperative, general enough to apply to the next run in this repo>
+- Anything shown beside a payment form on the quote page — the instalment, its amount — comes from the server action's answer, never from the page render: the action re-decides what is due at tap time.

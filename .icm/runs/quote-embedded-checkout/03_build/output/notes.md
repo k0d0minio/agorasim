@@ -41,3 +41,15 @@
 - Review closely: the reuse condition in `checkoutFor` (`ui_mode`, `client_secret`, terms) and that every path that used to return a URL now returns a client secret; `retrieveOwnedSession`'s account capture.
 - A hosted session open at deploy time (≤ 60 min old) is expired on the next tap; if the couple pays it in an older tab anyway, `recordQuotePayment` already records a non-current paid session and alerts a second charge.
 - Context budget: read `reservar/checkout-actions.test.ts`, `booking-checkout-form.tsx` (payment step + backstop), `src/proxy.ts` (quote matcher, CSP untouched) and `next.config.ts` beyond `touches:` — the reuse of stub 1's shapes and the header ordering needed them. `next.config.ts` changed by a comment only.
+
+## Release
+
+- gate: Ready to merge ticked — merge authorised
+- ci: GREEN on ea62cb3 (full gate) before the record; re-read with ci-status.sh after the close-out push, before the merge. Quality (advisory) red on ea62cb3 was main's webhook suite — #196 merged into main and came in with the main merge.
+- reviews: code medium — 1 finding: the payment step's heading came from the page render, not the instalment the tap opened (fixed in-ticket, 6a5a49c; tests updated) · security security-check.sh --branch --audit: OK (built-in patterns + pnpm audit clean) + /security-review — no findings (token-gated secret, cross-quote reuse, return_url, CSP scope, data exposure checked) · production-readiness n/a — the skill is not installed in this repo; env readiness is the next measure · readiness env.sh audit --changed: OK
+- parked: none
+- migrations: skip — none of this run's own
+- learned: none from retrospective.sh (the one class is already a rule) · 1 from FAILURE.md at close-out
+- docs: .icm/docs/data-protection.md (Stripe row, Build) · announce: deferred to promotion
+- Context budget: read main's incoming quote-checkout.ts change (#178, expireWrittenOffSessions) beyond the Inputs — it auto-merged into a file this run edits.
+
