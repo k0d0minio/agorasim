@@ -126,7 +126,13 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   before every lane's push (template-owned; the one local check that is a gate). Not wired as a
   git pre-commit hook — there is no Husky here, by choice — so the stages call it. gitleaks is
   not installed on Jamie's machine; the built-in patterns are the floor. `security.audit_command`
-  is empty: the pnpm lockfile is audited automatically.
+  is `pnpm audit --audit-level=high`, judged on its exit code, so the root `package.json` →
+  `pnpm.auditConfig.ignoreGhsas` list binds the gate. That list is a waiver, Jamie's alone (decided
+  2026-10-05, chore `braces-advisory-eslint-chain`): it holds `GHSA-vfj7-8cjw-p6xm` — `braces`
+  <=3.0.3, no patched version, reached only through dev tooling (`eslint-config-next`, `shadcn`,
+  `ts-morph` → `fast-glob` → `micromatch`). Drop the entry once `braces` ships a fix or the chain
+  stops pulling it; add one only on Jamie's word. Without the override the gate reads pnpm's
+  `metadata` counts, which still count an ignored advisory.
 - **The run's database** — `database.isolation: neon` in `.icm/project.json` (decided
   2026-09-23, the day the template gained the engine — estate decision D32): every run gets a
   Neon branch of its own, `run/<slug>`, made at `db-branch.sh <slug> up` with a 7-day expiry —

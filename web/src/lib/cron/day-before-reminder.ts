@@ -43,11 +43,10 @@ import {
 import { t } from "@/i18n/config";
 import { dateKey, formatDay, parseDateKey, todayKey, type DateKey } from "@/lib/availability";
 import { guestReminderEmail, partyLabel, type ReminderWhen } from "@/lib/booking-emails";
-import { bookingRef, confirmedBookingsOn, type BookingToRemind } from "@/lib/bookings";
+import { bookingRef, confirmedBookingsOn } from "@/lib/bookings";
+import { catalogueTitleOf, runSealedPass, type TitleOf } from "@/lib/cron/dispatch-helpers";
 import { register, type CronJobResult } from "@/lib/cron/jobs";
-import { listCatalogue } from "@/lib/experience-catalogue";
 import { sendLoggedEmail } from "@/lib/message-log";
-import { captureError } from "@/lib/observability";
 
 /** The job's stable name in the dispatcher's audit row. */
 export const DAY_BEFORE_REMINDER_JOB = "day-before-reminder";
@@ -75,11 +74,7 @@ function summarise(when: ReminderWhen, date: DateKey, tally: ReminderTally): str
 }
 
 /** Remind every confirmed booking on `date`, with the wording for `when`. */
-async function remindDay(
-  date: DateKey,
-  when: ReminderWhen,
-  titleOf: (slug: string, locale: BookingToRemind["locale"]) => string,
-): Promise<ReminderTally> {
+async function remindDay(date: DateKey, when: ReminderWhen, titleOf: TitleOf): Promise<ReminderTally> {
   const tally = emptyTally();
 
   for (const booking of await confirmedBookingsOn(date)) {
@@ -156,19 +151,10 @@ async function remindDay(
  * urgent of the two, since its tours leave in a few hours and there is no later
  * run, and a failed read of tomorrow must not cost it.
  */
-async function runPass(
-  date: DateKey,
-  when: ReminderWhen,
-  titleOf: (slug: string, locale: BookingToRemind["locale"]) => string,
-): Promise<string> {
-  try {
-    return summarise(when, date, await remindDay(date, when, titleOf));
-  } catch (err) {
-    console.error(`[reminder] ${when} ${date} — bookings could not be read`, err);
-    captureError(err, { area: "cron", tags: { job: DAY_BEFORE_REMINDER_JOB, pass: when } });
-    return `${when} ${date}: not run — bookings could not be read`;
-  }
-}
+const runPass = (when: ReminderWhen, date: DateKey, titleOf: TitleOf) =>
+  runSealedPass(DAY_BEFORE_REMINDER_JOB, "reminder", when, date, async () =>
+    summarise(when, date, await remindDay(date, when, titleOf)),
+  );
 
 /**
  * The dispatcher job. It does not throw: every per-booking outcome is a count
@@ -179,16 +165,10 @@ async function runPass(
 export async function dayBeforeReminder(now: Date = new Date()): Promise<CronJobResult> {
   const { today, tomorrow } = reminderDays(now);
 
-  const catalogue = new Map((await listCatalogue()).map((entry) => [entry.slug, entry]));
-  // A retired route or add-on still has to be nameable to the guest who bought
-  // it; the slug is a poor name but never a blank — same rule as the other mails.
-  const titleOf = (slug: string, locale: BookingToRemind["locale"]) => {
-    const entry = catalogue.get(slug);
-    return entry ? t(entry.title, locale) : slug;
-  };
+  const titleOf = await catalogueTitleOf();
 
-  const ahead = await runPass(tomorrow, "tomorrow", titleOf);
-  const catchUp = await runPass(today, "today", titleOf);
+  const ahead = await runPass("tomorrow", tomorrow, titleOf);
+  const catchUp = await runPass("today", today, titleOf);
 
   return { name: DAY_BEFORE_REMINDER_JOB, summary: `${ahead} · ${catchUp}` };
 }

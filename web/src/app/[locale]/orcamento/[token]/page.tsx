@@ -32,6 +32,7 @@ import { QuotePayForm } from "@/components/quote-pay-form";
 import { Section } from "@/components/section";
 import { SellerDetails } from "@/components/terms-of-sale";
 import { Card, CardContent } from "@/components/ui/card";
+import { fillTemplate } from "@/lib/fill-template";
 
 /**
  * The couple's quote: `/[locale]/orcamento/<token>` (D25).
@@ -144,12 +145,6 @@ export default async function QuotePage({
   );
 }
 
-function fill(template: string, values: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (match, key: string) =>
-    key in values ? values[key] : match,
-  );
-}
-
 function QuoteView({
   locale,
   token,
@@ -184,10 +179,10 @@ function QuoteView({
       <div className="mx-auto max-w-2xl space-y-8">
         <header>
           <p className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-            {fill(t(c.eyebrow, locale), { ref })}
+            {fillTemplate(t(c.eyebrow, locale), { ref })}
           </p>
           <h1 className="mt-2 font-heading text-3xl font-semibold sm:text-4xl">
-            {name ? fill(t(c.greeting, locale), { name }) : t(c.metaTitle, locale)}
+            {name ? fillTemplate(t(c.greeting, locale), { name }) : t(c.metaTitle, locale)}
           </h1>
           <p className="mt-4 text-lg text-muted-foreground">{t(lead, locale)}</p>
         </header>
@@ -205,7 +200,7 @@ function QuoteView({
                 <li key={index} className="flex justify-between gap-4">
                   <span>
                     {line.quantity > 1
-                      ? fill(c.lineQuantity, { quantity: String(line.quantity), label: line.label })
+                      ? fillTemplate(c.lineQuantity, { quantity: String(line.quantity), label: line.label })
                       : line.label}
                   </span>
                   <span className="font-medium tabular-nums">
@@ -228,7 +223,7 @@ function QuoteView({
               {deposit ? (
                 <Instalment
                   locale={locale}
-                  label={fill(t(c.depositLabel, locale), { percent: String(quote.depositPercent) })}
+                  label={fillTemplate(t(c.depositLabel, locale), { percent: String(quote.depositPercent) })}
                   amount={money(deposit.amountCents)}
                   payment={deposit}
                 />
@@ -251,11 +246,11 @@ function QuoteView({
               {t(c.termsHeading, locale)}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {fill(t(c.termsVersion, locale), { date: t(termsContent.lastUpdated, locale) })}
+              {fillTemplate(t(c.termsVersion, locale), { date: t(termsContent.lastUpdated, locale) })}
             </p>
             {quote.acceptedTermsVersion ? (
               <p className="mt-1 text-sm text-muted-foreground">
-                {fill(t(c.acceptedVersion, locale), {
+                {fillTemplate(t(c.acceptedVersion, locale), {
                   version: formatDay(quote.acceptedTermsVersion, locale),
                 })}
               </p>
@@ -295,7 +290,7 @@ function QuoteView({
             <QuotePayForm
               locale={locale}
               token={token}
-              label={fill(
+              label={fillTemplate(
                 t(due.payment.kind === "balance" ? c.pay.balance : c.pay.deposit, locale),
                 { amount: money(due.payment.amountCents) },
               )}
@@ -303,8 +298,8 @@ function QuoteView({
           ) : due.kind === "not-yet" ? (
             <QuoteNotice
               icon={<Clock className="size-5" />}
-              title={fill(t(c.notYet.title, locale), { date: formatDay(due.dueDate, locale) })}
-              body={fill(t(c.notYet.body, locale), { days: String(BALANCE_DUE_DAYS_BEFORE) })}
+              title={fillTemplate(t(c.notYet.title, locale), { date: formatDay(due.dueDate, locale) })}
+              body={fillTemplate(t(c.notYet.body, locale), { days: String(BALANCE_DUE_DAYS_BEFORE) })}
             />
           ) : null}
         </div>
@@ -329,7 +324,7 @@ function Instalment({
   const s = quotePageContent.instalmentState;
   const state =
     payment.status === "paid"
-      ? fill(t(s.paidOn, locale), {
+      ? fillTemplate(t(s.paidOn, locale), {
           date: payment.paidAt ? formatDay(todayKey(payment.paidAt), locale) : "",
         })
       : payment.status === "cancelled"
@@ -337,7 +332,7 @@ function Instalment({
         : payment.status === "refunded"
           ? t(s.refunded, locale)
           : payment.dueDate
-            ? fill(t(s.dueBy, locale), { date: formatDay(payment.dueDate, locale) })
+            ? fillTemplate(t(s.dueBy, locale), { date: formatDay(payment.dueDate, locale) })
             : t(s.toPay, locale);
 
   return (

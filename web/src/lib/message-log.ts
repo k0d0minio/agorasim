@@ -481,6 +481,45 @@ async function settle(
   }
 }
 
+/**
+ * Whether the couple's `quote-refunded` notice for this instalment and refunded
+ * total has been claimed — being sent (`sending`) or sent. A failed claim does
+ * not count: it blocks nothing, and nobody is writing that notice any more.
+ *
+ * Read by the lost-claim cancellation in `lib/quote-refund.ts`: the winner
+ * builds its notice only after it holds the claim, so "claimed" means its text
+ * may predate the cancellation and the loser must tell the couple on its own,
+ * while "not claimed" means the winner's notice will still read the cancelled
+ * quote. Reads the log failing as claimed, the side that sends one email too
+ * many (the cancellation notice is once per quote) rather than none.
+ */
+export async function isRefundNoticeClaimed(subject: {
+  quoteId: string;
+  quotePaymentId: string;
+  refundedTotalCents: number;
+}): Promise<boolean> {
+  try {
+    const [row] = await db
+      .select({ id: messageLog.id })
+      .from(messageLog)
+      .where(
+        and(
+          eq(messageLog.kind, "quote-refunded"),
+          eq(messageLog.recipient, "guest"),
+          eq(messageLog.quoteId, subject.quoteId),
+          eq(messageLog.quotePaymentId, subject.quotePaymentId),
+          eq(messageLog.refundedTotalCents, subject.refundedTotalCents),
+          inArray(messageLog.status, ["sending", "sent"]),
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
+  } catch (err) {
+    console.error("[message-log] could not read the refund notice claim", err);
+    return true;
+  }
+}
+
 /** One balance message as the log holds it — what the scheduler and the Sales board read back. */
 export type QuoteBalanceMessage = {
   kind: QuoteBalanceKind;
@@ -528,6 +567,27 @@ export async function listQuoteBalanceMessages(
     byQuote.set(row.quoteId, list);
   }
   return byQuote;
+}
+
+/**
+ * Whether the couple were ever sent a refund notice for this quote — a
+ * `quote-refunded` row the provider accepted. A claim that is still `sending`
+ * or `failed` does not count: they have not got the email.
+ */
+export async function hasSentQuoteRefundNotice(quoteId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: messageLog.id })
+    .from(messageLog)
+    .where(
+      and(
+        eq(messageLog.quoteId, quoteId),
+        inArray(messageLog.kind, [...QUOTE_REFUND_KINDS]),
+        eq(messageLog.recipient, "guest"),
+        eq(messageLog.status, "sent"),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 /**
