@@ -65,7 +65,12 @@ import {
   topUpApplicationFee,
 } from "@/lib/booking-refund";
 import { isEmailConfigured } from "@/lib/email";
-import { hasSentQuoteRefundNotice, sendLoggedEmail, type LoggedSend } from "@/lib/message-log";
+import {
+  hasSentQuoteRefundNotice,
+  isRefundNoticeClaimed,
+  sendLoggedEmail,
+  type LoggedSend,
+} from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import { expireSession } from "@/lib/quote-checkout";
 import {
@@ -584,7 +589,20 @@ async function settleInstalmentRefund(options: {
     const cancelled = options.cancelEvent
       ? await cancelEvent(quote, actorUserId, "refund", now)
       : null;
-    if (cancelled) await sendEventCancelledNotice(quote.id);
+    // Only once the winner's refund notice is claimed: it builds its text after
+    // taking the claim, so before that it still reads the quote as cancelled
+    // and says so — and "Evento cancelado … see the earlier email" would reach
+    // the couple ahead of the email it points to.
+    if (
+      cancelled &&
+      (await isRefundNoticeClaimed({
+        quoteId: quote.id,
+        quotePaymentId: payment.id,
+        refundedTotalCents: refundedAmountCents,
+      }))
+    ) {
+      await sendEventCancelledNotice(quote.id);
+    }
 
     const fresh = await getPayment(payment.id);
     return {
@@ -679,7 +697,11 @@ async function settleInstalmentRefund(options: {
     });
   }
 
-  return { claimed: true, quote: cancelled ?? quote, payment: settled };
+  // `cancelled` is null when the other door's cancellation got there first
+  // (a double submit, with the lost claim above); the quote is then read fresh,
+  // so the caller reports it cancelled and the calendar is revalidated.
+  const current = cancelled ?? (options.cancelEvent ? await getQuote(quote.id) : null);
+  return { claimed: true, quote: current ?? quote, payment: settled };
 }
 
 // ---------------------------------------------------------------------------
@@ -861,7 +883,7 @@ async function sendRefundNotice(options: {
     if (!found) return;
     const context = await loadQuoteNoticeContext(found.quote.id, "refund notice");
     if (!context) return;
-    const { quote, lead, locale, money, totalRefunded } = context;
+    const { quote, lead } = context;
 
     const result = await sendLoggedEmail(
       {
@@ -872,19 +894,27 @@ async function sendRefundNotice(options: {
         refundedTotalCents: options.refundedTotalCents,
         tourRequestId: lead.id,
       },
-      guestQuoteRefundEmail({
-        instalment: found.payment.kind,
-        ref: quoteRef(quote.id),
-        guestName: lead.name,
-        guestEmail: lead.email,
-        locale,
-        date: formatDay(quote.eventDate, locale),
-        venue: quote.venue,
-        paid: money(found.payment.amountCents),
-        amount: money(options.refundedNowCents),
-        totalRefunded: money(totalRefunded),
-        eventCancelled: quote.status === "cancelled",
-      }),
+      // Built under the claim, from a read taken after it: a lost-claim
+      // cancellation that finds this claim absent stands down on the promise
+      // that this text will say the event is off.
+      async () => {
+        const latest = await loadQuoteNoticeContext(quote.id, "refund notice");
+        if (!latest) return null;
+
+        return guestQuoteRefundEmail({
+          instalment: found.payment.kind,
+          ref: quoteRef(latest.quote.id),
+          guestName: lead.name,
+          guestEmail: lead.email,
+          locale: latest.locale,
+          date: formatDay(latest.quote.eventDate, latest.locale),
+          venue: latest.quote.venue,
+          paid: latest.money(found.payment.amountCents),
+          amount: latest.money(options.refundedNowCents),
+          totalRefunded: latest.money(latest.totalRefunded),
+          eventCancelled: latest.quote.status === "cancelled",
+        });
+      },
     );
 
     warnIfUnsent(quote, "refund notice", result);

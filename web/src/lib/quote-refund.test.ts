@@ -127,10 +127,28 @@ vi.mock("@/lib/stripe", () => ({
   }),
 }));
 
+// A claimed message is built after the claim, so the stand-in builds it the same
+// way and records the message it made — what the assertions below read.
 const sendLoggedEmail = vi.fn();
 const hasSentQuoteRefundNotice = vi.fn();
 vi.mock("@/lib/message-log", () => ({
-  sendLoggedEmail: (...args: unknown[]) => sendLoggedEmail(...args),
+  sendLoggedEmail: async (subject: unknown, content: unknown) =>
+    sendLoggedEmail(
+      subject,
+      typeof content === "function" ? await (content as () => Promise<unknown>)() : content,
+    ),
+  // The log's claim on the refund notice: any `quote-refunded` already recorded.
+  isRefundNoticeClaimed: async (subject: {
+    quotePaymentId: string;
+    refundedTotalCents: number;
+  }) =>
+    sendLoggedEmail.mock.calls.some(
+      ([sent]) =>
+        (sent as { kind: string }).kind === "quote-refunded" &&
+        (sent as { quotePaymentId: string }).quotePaymentId === subject.quotePaymentId &&
+        (sent as { refundedTotalCents: number }).refundedTotalCents ===
+          subject.refundedTotalCents,
+    ),
   hasSentQuoteRefundNotice: (...args: unknown[]) => hasSentQuoteRefundNotice(...args),
 }));
 vi.mock("@/lib/email", () => ({
@@ -966,6 +984,51 @@ describe("syncQuotePaymentRefundFromStripe — a refund made in the dashboard", 
       }),
     ).toEqual({ status: "unknown-charge" });
     expect(recordPaymentRefund).not.toHaveBeenCalled();
+  });
+});
+
+describe("a double-submitted refund that cancels the event", () => {
+  it("tells the couple once, in the refund notice, whichever press settles second", async () => {
+    stripeRefundsAsAsked();
+    const stripeAnswered = stripeKeepsAnswersByKey();
+    const press = {
+      paymentId: DEPOSIT_ID,
+      refundCents: 57_600,
+      cancelEvent: true,
+      attemptId: ATTEMPT_ID,
+      actorUserId: ADMIN_ID,
+    };
+
+    // Hold whichever press wins the compare-and-set at its audit row — after it
+    // has written the refund, before it has cancelled or told anyone — while the
+    // other, which read the instalment before either wrote, runs to the end.
+    let releaseWinner!: () => void;
+    const winnerHeld = new Promise<void>((resolve) => (releaseWinner = resolve));
+    recordAuditOrWarn.mockImplementationOnce(() => winnerHeld);
+
+    const presses = [refundQuotePayment(press), refundQuotePayment(press)];
+    // (The loser's own cancellation audits too, so "at least once", not once.)
+    await vi.waitFor(() => expect(recordAuditOrWarn).toHaveBeenCalled());
+    const loser = await Promise.race(presses);
+
+    // The loser called the event off, but the winner's notice has not been
+    // claimed yet: sending "Evento cancelado" now would beat the refund email.
+    expect(loser).toMatchObject({ status: "refunded", eventCancelled: true });
+    expect(quoteStatus).toBe("cancelled");
+    expect(sendLoggedEmail).not.toHaveBeenCalled();
+
+    releaseWinner();
+    const outcomes = await Promise.all(presses);
+
+    // The winner's own cancellation found the quote already called off; it still
+    // reports it so, and its notice reads the fresh state.
+    for (const outcome of outcomes) {
+      expect(outcome).toMatchObject({ status: "refunded", eventCancelled: true });
+    }
+    expect(stripeAnswered()).toBe(1);
+    const kinds = sendLoggedEmail.mock.calls.map(([subject]) => (subject as { kind: string }).kind);
+    expect(kinds).toEqual(["quote-refunded"]);
+    expect(sendLoggedEmail.mock.calls[0][1].subject).toContain("Evento cancelado");
   });
 });
 
