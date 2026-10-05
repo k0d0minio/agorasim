@@ -39,6 +39,7 @@ import {
   escapeHtml,
   type DetailRow,
 } from "@/lib/email-layout";
+import { fillTemplate } from "@/lib/fill-template";
 import { href } from "@/lib/routes";
 import { siteUrl, siteUrlLabel } from "@/lib/site-origin";
 
@@ -89,13 +90,6 @@ export type BookingEmailFacts = {
    */
   cancelUrl: string | null;
 };
-
-/** Replace every `{key}` in `template`. Unknown keys are left alone, visibly. */
-function fill(template: string, values: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (match, key: string) =>
-    key in values ? values[key] : match,
-  );
-}
 
 const [diogo, rita] = site.contacts;
 
@@ -191,8 +185,8 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     site: siteUrl(),
   };
 
-  const subject = fill(t(c.subject, l), values);
-  const greeting = fill(t(c.greeting, l), values);
+  const subject = fillTemplate(t(c.subject, l), values);
+  const greeting = fillTemplate(t(c.greeting, l), values);
   const addOnsList = facts.addOns.join(", ");
 
   // "What happens next" ends by referring to the guest's departure time. When
@@ -240,7 +234,7 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     // The URL on its own line: a text client turns a bare link into a tappable
     // one, and a sentence wrapped around it is a link that breaks across lines.
     facts.cancelUrl
-      ? fill(t(c.cancelLink.textLine, l), { url: facts.cancelUrl })
+      ? fillTemplate(t(c.cancelLink.textLine, l), { url: facts.cancelUrl })
       : null,
     facts.cancelUrl ? "" : null,
     `${diogo.name} ${diogo.phoneDisplay}`,
@@ -251,14 +245,14 @@ export function guestConfirmationEmail(facts: BookingEmailFacts): EmailMessage {
     "",
     // The small print, last. In text an anchor is impossible, so the sentence
     // names the terms and the URL that reaches them is the line under it.
-    fill(t(c.withdrawalNote, l), { terms: t(termsContent.checkoutNotice.linkLabel, l) }),
-    fill(t(c.termsTextLine, l), { url: termsUrl(l) }),
+    fillTemplate(t(c.withdrawalNote, l), { terms: t(termsContent.checkoutNotice.linkLabel, l) }),
+    fillTemplate(t(c.termsTextLine, l), { url: termsUrl(l) }),
   ]);
 
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: fill(t(c.preheader, l), values),
+    preheader: fillTemplate(t(c.preheader, l), values),
     banner: { text: t(c.banner, l) },
     content: [
       emailHeading(greeting),
@@ -366,9 +360,9 @@ export function guestMoveEmail(facts: BookingMoveFacts): EmailMessage {
     site: siteUrl(),
   };
 
-  const subject = fill(t(c.subject, l), values);
-  const greeting = fill(t(c.greeting, l), values);
-  const lead = fill(t(c.lead, l), values);
+  const subject = fillTemplate(t(c.subject, l), values);
+  const greeting = fillTemplate(t(c.greeting, l), values);
+  const lead = fillTemplate(t(c.lead, l), values);
 
   // Same sentence the confirmation appends when the tour owes an hour: the
   // guest is being sent to a departure whose time is still to follow, and this
@@ -417,7 +411,7 @@ export function guestMoveEmail(facts: BookingMoveFacts): EmailMessage {
     `${diogo.name} ${diogo.phoneDisplay}`,
     `${rita.name} ${rita.phoneDisplay}`,
     "",
-    facts.cancelUrl ? fill(t(g.cancelLink.textLine, l), { url: facts.cancelUrl }) : null,
+    facts.cancelUrl ? fillTemplate(t(g.cancelLink.textLine, l), { url: facts.cancelUrl }) : null,
     facts.cancelUrl ? "" : null,
     t(c.signoff, l),
     siteUrl(),
@@ -426,7 +420,7 @@ export function guestMoveEmail(facts: BookingMoveFacts): EmailMessage {
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: fill(t(c.preheader, l), values),
+    preheader: fillTemplate(t(c.preheader, l), values),
     // The banner says it moved, in the banner's own words: a guest who reads
     // the first inch of this mail and stops must not come away believing the
     // original date still stands.
@@ -522,10 +516,10 @@ export function guestReminderEmail(facts: ReminderEmailFacts): EmailMessage {
     ritaPhone: rita.phoneDisplay,
   };
 
-  const subject = fill(t(w.subject, l), values);
-  const greeting = fill(t(c.greeting, l), values);
+  const subject = fillTemplate(t(w.subject, l), values);
+  const greeting = fillTemplate(t(c.greeting, l), values);
   const departureTime = facts.departureTimeFollows
-    ? fill(t(c.departureTime.body, l), values)
+    ? fillTemplate(t(c.departureTime.body, l), values)
     : null;
 
   const rows: DetailRow[] = [
@@ -569,7 +563,7 @@ export function guestReminderEmail(facts: ReminderEmailFacts): EmailMessage {
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: fill(t(c.preheader, l), values),
+    preheader: fillTemplate(t(c.preheader, l), values),
     banner: { text: t(w.banner, l) },
     content: [
       emailHeading(greeting),
@@ -648,8 +642,8 @@ export function guestThankYouEmail(facts: ThankYouEmailFacts): EmailMessage {
     site: siteUrl(),
   };
 
-  const subject = name ? fill(t(c.subject, l), values) : t(c.subjectNoName, l);
-  const greeting = name ? fill(t(c.greeting, l), values) : t(c.greetingNoName, l);
+  const subject = name ? fillTemplate(t(c.subject, l), values) : t(c.subjectNoName, l);
+  const greeting = name ? fillTemplate(t(c.greeting, l), values) : t(c.greetingNoName, l);
   const reviewUrl = site.reviews.google;
   const close = t(c.close, l);
 
@@ -661,18 +655,18 @@ export function guestThankYouEmail(facts: ThankYouEmailFacts): EmailMessage {
     t(c.reviewAsk, l),
     reviewUrl,
     "",
-    fill(close, { instagram: `${c.instagramHandle} (${site.social.instagram})` }),
+    fillTemplate(close, { instagram: `${c.instagramHandle} (${site.social.instagram})` }),
     "",
     t(c.signoff, l),
     siteUrl(),
     "",
-    fill(t(c.optOut.textLine, l), values),
+    fillTemplate(t(c.optOut.textLine, l), values),
   ]);
 
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: fill(t(c.preheader, l), values),
+    preheader: fillTemplate(t(c.preheader, l), values),
     banner: { text: t(c.banner, l) },
     content: [
       emailHeading(greeting),
@@ -760,8 +754,8 @@ export function guestCancellationEmail(facts: BookingCancellationFacts): EmailMe
     site: siteUrl(),
   };
 
-  const subject = fill(t(c.subject, l), values);
-  const greeting = fill(t(c.greeting, l), values);
+  const subject = fillTemplate(t(c.subject, l), values);
+  const greeting = fillTemplate(t(c.greeting, l), values);
 
   // The money, as one block: what went back and when to expect it, or a plain
   // statement that nothing did. Never both, and never neither.
@@ -769,8 +763,8 @@ export function guestCancellationEmail(facts: BookingCancellationFacts): EmailMe
     ? {
         title: t(c.refundLine.title, l),
         body: [
-          fill(t(c.refundLine.body, l), values),
-          facts.partialRefund ? fill(t(c.partialNote, l), values) : null,
+          fillTemplate(t(c.refundLine.body, l), values),
+          facts.partialRefund ? fillTemplate(t(c.partialNote, l), values) : null,
         ]
           .filter((line) => line !== null)
           .join(" "),
@@ -791,7 +785,7 @@ export function guestCancellationEmail(facts: BookingCancellationFacts): EmailMe
   const text = textLines([
     greeting,
     "",
-    fill(t(c.lead, l), values),
+    fillTemplate(t(c.lead, l), values),
     "",
     ...rows.map((row) => `${row.label}: ${row.value}`),
     "",
@@ -808,14 +802,14 @@ export function guestCancellationEmail(facts: BookingCancellationFacts): EmailMe
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: fill(t(c.preheader, l), values),
+    preheader: fillTemplate(t(c.preheader, l), values),
     // The muted strip, not the green one: this is not a confirmation, and a
     // cancellation wearing the confirmation's banner is a guest who reads the
     // first inch of the mail and believes the opposite of what it says.
     banner: { text: t(c.banner, l), background: emailPalette.textMuted },
     content: [
       emailHeading(greeting),
-      emailParagraph(fill(t(c.lead, l), values), { spaceBelow: 24 }),
+      emailParagraph(fillTemplate(t(c.lead, l), values), { spaceBelow: 24 }),
       emailEyebrow(t(c.detailsHeading, l)),
       emailDetails(rows),
       emailSpacer(24),
@@ -866,7 +860,7 @@ export function teamNotificationEmail(
     adminUrl: facts.adminUrl,
   };
 
-  const subject = fill(c.subject, values);
+  const subject = fillTemplate(c.subject, values);
   const phone = facts.guestPhone ?? "—";
 
   const bookingRows: DetailRow[] = [
@@ -909,13 +903,13 @@ export function teamNotificationEmail(
     c.guestHeading,
     ...guestRows.map((row) => `${row.label}: ${row.value}`),
     "",
-    fill(c.ctaLine, values),
+    fillTemplate(c.ctaLine, values),
   ]);
 
   const html = emailDocument({
     lang: "pt",
     title: subject,
-    preheader: fill(c.preheader, values),
+    preheader: fillTemplate(c.preheader, values),
     banner: { text: c.banner, background: emailPalette.primaryDark },
     content: [
       emailHeading(facts.guestName),
@@ -1008,7 +1002,7 @@ export function teamCancellationEmail(
     adminUrl: facts.adminUrl,
   };
 
-  const subject = fill(c.subject, values);
+  const subject = fillTemplate(c.subject, values);
 
   const bookingRows: DetailRow[] = [
     { label: bookingEmails.team.labels.reference, value: facts.ref, mono: true },
@@ -1045,13 +1039,13 @@ export function teamCancellationEmail(
     bookingEmails.team.guestHeading,
     ...guestRows.map((row) => `${row.label}: ${row.value}`),
     "",
-    fill(c.ctaLine, values),
+    fillTemplate(c.ctaLine, values),
   ]);
 
   const html = emailDocument({
     lang: "pt",
     title: subject,
-    preheader: fill(c.preheader, values),
+    preheader: fillTemplate(c.preheader, values),
     // Muted, like the guest's cancellation notice and for the same reason: this
     // is not a sale, and it must not read like one at a glance.
     banner: { text: c.banner, background: emailPalette.textMuted },
@@ -1144,8 +1138,8 @@ export function guestEnquiryAckEmail(facts: EnquiryEmailFacts): EmailMessage {
     site: siteUrl(),
   };
 
-  const subject = fill(t(voice.subject, l), values);
-  const greeting = fill(t(c.greeting, l), values);
+  const subject = fillTemplate(t(voice.subject, l), values);
+  const greeting = fillTemplate(t(c.greeting, l), values);
 
   const text = textLines([
     greeting,
@@ -1162,7 +1156,7 @@ export function guestEnquiryAckEmail(facts: EnquiryEmailFacts): EmailMessage {
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: fill(t(voice.preheader, l), values),
+    preheader: fillTemplate(t(voice.preheader, l), values),
     banner: { text: t(voice.banner, l) },
     content: [
       emailHeading(greeting),
@@ -1221,7 +1215,7 @@ export function teamEnquiryEmail(
     adminUrl: facts.adminUrl,
   };
 
-  const subject = fill(
+  const subject = fillTemplate(
     facts.kind === "tour" ? c.subject : c.quote.subject[facts.kind],
     values,
   );
@@ -1272,13 +1266,13 @@ export function teamEnquiryEmail(
     c.guestHeading,
     ...guestRows.map((row) => `${row.label}: ${row.value}`),
     "",
-    fill(c.ctaLine, values),
+    fillTemplate(c.ctaLine, values),
   ]);
 
   const html = emailDocument({
     lang: "pt",
     title: subject,
-    preheader: fill(isQuote ? c.quote.preheader : c.preheader, values),
+    preheader: fillTemplate(isQuote ? c.quote.preheader : c.preheader, values),
     banner: {
       text: isQuote ? c.quote.banner : c.banner,
       background: emailPalette.primaryDark,
@@ -1368,12 +1362,12 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
     site: siteUrl(),
   };
 
-  const subject = fill(t(c.subject, l), values);
-  const greeting = fill(t(c.greeting, l), values);
+  const subject = fillTemplate(t(c.subject, l), values);
+  const greeting = fillTemplate(t(c.greeting, l), values);
   const nextBody = facts.balance
-    ? fill(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) })
+    ? fillTemplate(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) })
     : t(c.next.bodyFull, l);
-  const termsNote = fill(t(c.termsNote, l), { days: String(facts.termsWindowDays) });
+  const termsNote = fillTemplate(t(c.termsNote, l), { days: String(facts.termsWindowDays) });
 
   const rows: DetailRow[] = [
     { label: t(c.labels.reference, l), value: facts.ref, mono: true },
@@ -1382,19 +1376,19 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
     ...facts.lines.map((line) => ({
       label:
         line.quantity > 1
-          ? fill(c.lineQuantity, { quantity: String(line.quantity), label: line.label })
+          ? fillTemplate(c.lineQuantity, { quantity: String(line.quantity), label: line.label })
           : line.label,
       value: line.amount,
     })),
     { label: t(c.labels.total, l), value: facts.total, emphasis: true },
     {
-      label: fill(t(c.labels.deposit, l), { percent: String(facts.depositPercent) }),
+      label: fillTemplate(t(c.labels.deposit, l), { percent: String(facts.depositPercent) }),
       value: facts.deposit,
     },
     {
       label: t(c.labels.balance, l),
       value: facts.balance
-        ? fill(t(c.balanceDue, l), { amount: facts.balance.amount, date: facts.balance.dueDate })
+        ? fillTemplate(t(c.balanceDue, l), { amount: facts.balance.amount, date: facts.balance.dueDate })
         : t(c.noBalance, l),
     },
   ];
@@ -1410,7 +1404,7 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
     "",
     // The URL on its own line, as the cancel link is — a text client makes a
     // bare line tappable and breaks one wrapped in a sentence.
-    fill(t(c.ctaTextLine, l), { url: facts.quoteUrl }),
+    fillTemplate(t(c.ctaTextLine, l), { url: facts.quoteUrl }),
     "",
     termsNote,
     "",
@@ -1425,7 +1419,7 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: fill(t(c.preheader, l), values),
+    preheader: fillTemplate(t(c.preheader, l), values),
     banner: { text: t(c.banner, l) },
     content: [
       emailHeading(greeting),
@@ -1517,8 +1511,8 @@ export function guestBalanceEmail(facts: BalanceEmailFacts): EmailMessage {
     due: facts.dueDate ?? "",
   };
 
-  const subject = fill(t(c.subject[stage], l), values);
-  const greeting = fill(t(c.greeting, l), values);
+  const subject = fillTemplate(t(c.subject[stage], l), values);
+  const greeting = fillTemplate(t(c.greeting, l), values);
 
   const rows: DetailRow[] = [
     { label: t(c.labels.reference, l), value: facts.ref, mono: true },
@@ -1536,7 +1530,7 @@ export function guestBalanceEmail(facts: BalanceEmailFacts): EmailMessage {
     ...rows.map((row) => `${row.label}: ${row.value}`),
     "",
     // The URL on its own line, as the quote email's is.
-    fill(t(c.ctaTextLine, l), { url: facts.quoteUrl }),
+    fillTemplate(t(c.ctaTextLine, l), { url: facts.quoteUrl }),
     t(c.linkNote, l),
     "",
     t(c.alreadyPaid, l),
@@ -1552,7 +1546,7 @@ export function guestBalanceEmail(facts: BalanceEmailFacts): EmailMessage {
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: facts.dueDate ? fill(t(c.preheader, l), values) : facts.amount,
+    preheader: facts.dueDate ? fillTemplate(t(c.preheader, l), values) : facts.amount,
     banner: { text: t(c.banner[stage], l) },
     content: [
       emailHeading(greeting),
@@ -1649,13 +1643,13 @@ export function guestQuoteReceiptEmail(facts: QuoteReceiptEmailFacts): EmailMess
     site: siteUrl(),
   };
 
-  const subject = fill(t(c.subject[which], l), values);
-  const greeting = fill(t(c.greeting, l), values);
+  const subject = fillTemplate(t(c.subject[which], l), values);
+  const greeting = fillTemplate(t(c.greeting, l), values);
   const events = termsSection("events", l);
-  const termsHeading = fill(t(c.termsHeading, l), {
+  const termsHeading = fillTemplate(t(c.termsHeading, l), {
     version: t(termsContent.lastUpdated, l),
   });
-  const nextBody = fill(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) });
+  const nextBody = fillTemplate(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) });
   const fullTermsUrl = termsUrl(l);
 
   const rows: DetailRow[] = [
@@ -1667,7 +1661,7 @@ export function guestQuoteReceiptEmail(facts: QuoteReceiptEmailFacts): EmailMess
     {
       label: t(c.labels.remaining, l),
       value: facts.remaining
-        ? fill(t(c.remainingDue, l), {
+        ? fillTemplate(t(c.remainingDue, l), {
             amount: facts.remaining.amount,
             date: facts.remaining.dueDate,
           })
@@ -1689,7 +1683,7 @@ export function guestQuoteReceiptEmail(facts: QuoteReceiptEmailFacts): EmailMess
     events.heading,
     ...events.body,
     "",
-    fill(t(c.fullTerms, l), { url: fullTermsUrl }),
+    fillTemplate(t(c.fullTerms, l), { url: fullTermsUrl }),
     "",
     t(c.questions, l),
     `${diogo.name} ${diogo.phoneDisplay}`,
@@ -1702,7 +1696,7 @@ export function guestQuoteReceiptEmail(facts: QuoteReceiptEmailFacts): EmailMess
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: fill(t(c.preheader[which], l), values),
+    preheader: fillTemplate(t(c.preheader[which], l), values),
     banner: { text: t(c.banner[which], l) },
     content: [
       emailHeading(greeting),
@@ -1764,8 +1758,8 @@ export function teamQuoteReceiptEmail(
     adminUrl: facts.adminUrl,
   };
 
-  const subject = fill(c.subject[which], values);
-  const heading = fill(c.heading[which], values);
+  const subject = fillTemplate(c.subject[which], values);
+  const heading = fillTemplate(c.heading[which], values);
 
   const rows: DetailRow[] = [
     { label: c.labels.reference, value: facts.ref, mono: true },
@@ -1775,7 +1769,7 @@ export function teamQuoteReceiptEmail(
     {
       label: c.labels.remaining,
       value: facts.remaining
-        ? fill(c.remainingDue, { amount: facts.remaining.amount, date: facts.remaining.dueDate })
+        ? fillTemplate(c.remainingDue, { amount: facts.remaining.amount, date: facts.remaining.dueDate })
         : c.fullyPaid,
     },
     { label: c.labels.fee, value: facts.fee ?? c.noFee },
@@ -1801,13 +1795,13 @@ export function teamQuoteReceiptEmail(
     c.guestHeading,
     ...guestRows.map((row) => `${row.label}: ${row.value}`),
     "",
-    fill(c.ctaLine, values),
+    fillTemplate(c.ctaLine, values),
   ]);
 
   const html = emailDocument({
     lang: "pt",
     title: subject,
-    preheader: fill(c.preheader, values),
+    preheader: fillTemplate(c.preheader, values),
     banner: { text: c.banner[which], background: emailPalette.primaryDark },
     content: [
       emailHeading(facts.guestName),
@@ -1951,9 +1945,9 @@ export function guestQuoteRefundEmail(facts: QuoteRefundEmailFacts): EmailMessag
     site: siteUrl(),
   };
 
-  const subject = fill(t(c.subject[state], l), values);
-  const greeting = fill(t(c.greeting, l), values);
-  const lead = fill(t(c.lead[state], l), values);
+  const subject = fillTemplate(t(c.subject[state], l), values);
+  const greeting = fillTemplate(t(c.greeting, l), values);
+  const lead = fillTemplate(t(c.lead[state], l), values);
   const moneyNote = { title: t(c.moneyNote.title, l), body: t(c.moneyNote.body, l) };
 
   const rows: DetailRow[] = [
@@ -1972,7 +1966,7 @@ export function guestQuoteRefundEmail(facts: QuoteRefundEmailFacts): EmailMessag
     subject,
     greeting,
     lead,
-    preheader: fill(t(c.preheader, l), values),
+    preheader: fillTemplate(t(c.preheader, l), values),
     banner: t(c.banner[state], l),
     detailsHeading: t(c.detailsHeading, l),
     rows,
@@ -2029,9 +2023,9 @@ export function guestQuoteEventCancelledEmail(facts: QuoteEventCancelledEmailFac
     site: siteUrl(),
   };
 
-  const subject = fill(t(c.subject, l), values);
-  const greeting = fill(t(c.greeting, l), values);
-  const lead = fill(t(facts.refundNoticeSent ? c.lead : c.leadNoEarlierEmail, l), values);
+  const subject = fillTemplate(t(c.subject, l), values);
+  const greeting = fillTemplate(t(c.greeting, l), values);
+  const lead = fillTemplate(t(facts.refundNoticeSent ? c.lead : c.leadNoEarlierEmail, l), values);
 
   const rows: DetailRow[] = [
     { label: t(r.labels.reference, l), value: facts.ref, mono: true },
@@ -2046,7 +2040,7 @@ export function guestQuoteEventCancelledEmail(facts: QuoteEventCancelledEmailFac
     subject,
     greeting,
     lead,
-    preheader: fill(t(c.preheader, l), values),
+    preheader: fillTemplate(t(c.preheader, l), values),
     banner: t(c.banner, l),
     detailsHeading: t(c.detailsHeading, l),
     rows,
