@@ -1,0 +1,3 @@
+# Usage: quote-embedded-checkout
+
+- usage: define start 2026-10-05T13:07:36Z harness=claude-cloud session=ca7afa0c-2b6c-53af-bd7d-40a4ade479e5 source=transcript model=anthropic/claude-opus-5-5 in=18 out=2541 cache_read=856133 cache_write=77882 cost_usd=0.8452 turns=1
