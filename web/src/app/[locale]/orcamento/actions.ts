@@ -1,12 +1,11 @@
 "use server";
 
-import { redirect } from "next/navigation";
-
 import { isLocale, type Locale } from "@/i18n/config";
 import { startQuoteCheckout } from "@/lib/quote-checkout";
 import { looksLikeQuoteToken } from "@/lib/quote-token";
 import { QUOTE_PAY_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
+import { isEmbeddedCheckoutConfigured, publishableKey } from "@/lib/stripe";
 
 /**
  * The quote page's one write: the pay button (D25).
@@ -14,13 +13,31 @@ import { clientIp } from "@/lib/request-ip";
  * Unauthenticated, like the cancel link — the token in the body is the whole
  * of the authorisation, and it is checked where the work happens
  * (`lib/quote-checkout.ts`), not here. What is here is the request-shaped part:
- * the throttle, the redirect to Stripe, and turning every other outcome into a
- * state the button can say in a sentence.
+ * the throttle, handing the page what it needs to show Stripe's form, and
+ * turning every other outcome into a state the button can say in a sentence.
  */
 
-/** What the pay form renders after a tap that did not leave for Stripe. */
+/**
+ * What the browser needs to mount Stripe's form for this instalment — the same
+ * three things the booking page is handed (`reservar/checkout-actions.ts`).
+ *
+ * Only ever in this response, to the tab holding the quote's token. The client
+ * secret opens this one session and nothing else; the publishable key is public
+ * by design and read at request time so it is this deployment's own
+ * (`lib/stripe.ts`); `stripeAccount` is the connected account the session lives
+ * on, or `null` on the platform.
+ */
+export type EmbeddedQuotePayment = {
+  clientSecret: string;
+  publishableKey: string;
+  stripeAccount: string | null;
+};
+
+/** What the pay form renders after a tap. */
 export type QuotePayState =
   | { status: "idle" }
+  /** The payment step: Stripe's form where the button was. */
+  | { status: "payment"; payment: EmbeddedQuotePayment }
   /** Paid a moment ago, or on its way by a delayed method — reload to see it. */
   | { status: "paid" | "awaiting" }
   /** Keyed to `quotePageContent.refused`. */
@@ -46,13 +63,24 @@ export async function payQuote(
   const token = String(formData.get("token") ?? "");
   if (!looksLikeQuoteToken(token)) return { status: "invalid" };
 
+  // No session is minted that the browser could not mount: without a
+  // publishable key that agrees with the secret key (or with no Stripe at
+  // all) the tap says payment is unavailable — the switch reports why, once —
+  // and never falls back to Stripe's own page.
+  if (!isEmbeddedCheckoutConfigured()) return { status: "refused", reason: "unconfigured" };
+
   const outcome = await startQuoteCheckout({ token, locale });
 
-  // Outside any try: `redirect` works by throwing, and a catch here would
-  // swallow the one outcome that is meant to leave the page.
-  if (outcome.status === "redirect") redirect(outcome.url);
-
   switch (outcome.status) {
+    case "embedded":
+      return {
+        status: "payment",
+        payment: {
+          clientSecret: outcome.clientSecret,
+          publishableKey: publishableKey(),
+          stripeAccount: outcome.stripeAccount,
+        },
+      };
     case "paid":
     case "awaiting":
       return { status: outcome.status };
