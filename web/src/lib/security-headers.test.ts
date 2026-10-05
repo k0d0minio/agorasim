@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { BASELINE_SECURITY_HEADERS, PUBLIC_CSP, adminCsp } from "./security-headers";
+import { locales } from "@/i18n/config";
+
+import {
+  BASELINE_SECURITY_HEADERS,
+  PAYMENT_CSP,
+  PAYMENT_PERMISSIONS_POLICY,
+  PAYMENT_ROUTE_SOURCES,
+  PUBLIC_CSP,
+  adminCsp,
+} from "./security-headers";
+import { isPaymentRoutePath } from "./payment-route";
 
 /**
  * These assert the properties the two policies exist for, not their exact text.
@@ -49,6 +59,7 @@ describe("baseline security headers", () => {
 
 describe.each([
   ["public", PUBLIC_CSP],
+  ["payment", PAYMENT_CSP],
   ["admin", ADMIN_CSP],
 ])("%s CSP", (_name, csp) => {
   it("locks down the directives that hold without nonces", () => {
@@ -121,5 +132,115 @@ describe("public CSP", () => {
     // booking on our own form, both directions are closed.
     expect(directive(PUBLIC_CSP, "frame-src")).toEqual(["'none'"]);
     expect(directive(PUBLIC_CSP, "frame-ancestors")).toEqual(["'none'"]);
+  });
+});
+
+/** Every directive name in a policy, in order. */
+function directiveNames(csp: string): string[] {
+  return csp
+    .split(";")
+    .map((part) => part.trim().split(/\s+/)[0])
+    .filter(Boolean);
+}
+
+/** Stripe's published embedded-Checkout origins: Stripe.js plus Checkout. */
+const STRIPE_ADDITIONS: Record<string, string[]> = {
+  "script-src": ["https://js.stripe.com", "https://*.js.stripe.com", "https://checkout.stripe.com"],
+  "frame-src": [
+    "https://js.stripe.com",
+    "https://*.js.stripe.com",
+    "https://hooks.stripe.com",
+    "https://checkout.stripe.com",
+  ],
+  "connect-src": ["https://api.stripe.com", "https://checkout.stripe.com"],
+  "img-src": ["https://*.stripe.com"],
+};
+
+describe("payment CSP — the booking route", () => {
+  it("is the public policy plus Stripe's embedded Checkout, and nothing else", () => {
+    // Same directives, same order: a directive tightened on the public policy
+    // cannot be left behind here, because this one is derived from it.
+    expect(directiveNames(PAYMENT_CSP)).toEqual(directiveNames(PUBLIC_CSP));
+
+    for (const name of directiveNames(PUBLIC_CSP)) {
+      const additions = STRIPE_ADDITIONS[name];
+      // `'none'` gives way only where Stripe is added (`frame-src`); everywhere
+      // else — `object-src` — it stands exactly as on the public policy.
+      const publicValues = additions
+        ? directive(PUBLIC_CSP, name).filter((value) => value !== "'none'")
+        : directive(PUBLIC_CSP, name);
+      expect(directive(PAYMENT_CSP, name), name).toEqual([...publicValues, ...(additions ?? [])]);
+    }
+  });
+
+  it("frames Stripe only, and is still framed by nothing", () => {
+    expect(directive(PAYMENT_CSP, "frame-src")).not.toContain("'none'");
+    expect(directive(PAYMENT_CSP, "frame-src").every((src) => src.endsWith("stripe.com"))).toBe(
+      true,
+    );
+    expect(directive(PAYMENT_CSP, "frame-ancestors")).toEqual(["'none'"]);
+  });
+
+  it("admits no third party but Stripe and the photo host", () => {
+    const origins = new Set(PAYMENT_CSP.match(/https?:\/\/[^\s;]+/g) ?? []);
+    for (const origin of origins) {
+      expect(
+        origin.endsWith(".stripe.com") ||
+          origin.endsWith("//js.stripe.com") ||
+          origin === "https://*.public.blob.vercel-storage.com",
+        origin,
+      ).toBe(true);
+    }
+  });
+
+  it("leaves the public and admin policies exactly as they were", () => {
+    expect(PUBLIC_CSP).not.toContain("stripe.com");
+    expect(ADMIN_CSP).not.toContain("stripe.com");
+  });
+});
+
+describe("payment Permissions-Policy — the booking route", () => {
+  const baseline = BASELINE_SECURITY_HEADERS.find(
+    (header) => header.key === "Permissions-Policy",
+  )!.value;
+
+  /** Feature name → its allowlist, from a Permissions-Policy value. */
+  const features = (value: string) =>
+    Object.fromEntries(
+      value.split(",").map((entry) => {
+        const [name, allow] = entry.trim().split("=");
+        return [name, allow];
+      }),
+    );
+
+  it("delegates payment to Stripe's frames, and changes no other feature", () => {
+    const pay = features(PAYMENT_PERMISSIONS_POLICY);
+    const base = features(baseline);
+    expect(Object.keys(pay)).toEqual(Object.keys(base));
+    expect(pay.payment).toBe('(self "https://js.stripe.com" "https://checkout.stripe.com")');
+    for (const name of Object.keys(base).filter((key) => key !== "payment")) {
+      expect(pay[name], name).toBe(base[name]);
+    }
+  });
+
+  it("keeps payment off everywhere else", () => {
+    expect(features(baseline).payment).toBe("()");
+  });
+});
+
+describe("payment route", () => {
+  it("is the booking page and what lies below it, in every locale", () => {
+    for (const locale of locales) {
+      expect(PAYMENT_ROUTE_SOURCES).toContain(`/:locale(${locales.join("|")})/reservar`);
+      expect(isPaymentRoutePath(`/${locale}/reservar`)).toBe(true);
+      expect(isPaymentRoutePath(`/${locale}/reservar/confirmacao`)).toBe(true);
+    }
+    expect(PAYMENT_ROUTE_SOURCES).toContain(`/:locale(${locales.join("|")})/reservar/:path*`);
+  });
+
+  it("is no other page", () => {
+    for (const path of ["/pt", "/en/experiencias", "/pt/reservarx", "/fr/reservar", "/admin", "/pt/reserva/cancelar/x"]) {
+      expect(isPaymentRoutePath(path), path).toBe(false);
+    }
   });
 });

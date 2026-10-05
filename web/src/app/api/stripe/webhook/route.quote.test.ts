@@ -80,6 +80,11 @@ function sessionEvent(
 
 async function post(event: Record<string, unknown>): Promise<Response> {
   constructEventAsync.mockResolvedValueOnce(event);
+  // The route re-reads the charge for either refund event; by default Stripe's
+  // current figure is the one the event carried.
+  if (event.type === "charge.refunded") {
+    chargesRetrieve.mockResolvedValueOnce((event.data as { object: unknown }).object);
+  }
   return POST(
     new Request("https://agorasim.pt/api/stripe/webhook", {
       method: "POST",

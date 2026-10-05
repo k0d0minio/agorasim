@@ -178,6 +178,17 @@ vi.mock("@/lib/email", () => ({
   senderAddress: () => "hello@agorasim.pt",
 }));
 
+/** Addresses on the suppression list, and a switch for it being unreadable. */
+let suppressed = new Set<string>();
+let suppressionError: Error | null = null;
+
+vi.mock("@/lib/email-opt-out", () => ({
+  isOptedOut: async (email: string) => {
+    if (suppressionError) throw suppressionError;
+    return suppressed.has(email);
+  },
+}));
+
 const { sendLoggedEmail } = await import("./message-log");
 
 const BOOKING = "11111111-2222-3333-4444-555555555555";
@@ -214,6 +225,8 @@ beforeEach(() => {
   updatedPatches.length = 0;
   claimError = null;
   configured = true;
+  suppressed = new Set();
+  suppressionError = null;
   sendEmail.mockReset();
   sendEmail.mockResolvedValue({ sent: true, id: "re_1" });
   vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -320,6 +333,59 @@ describe("sendLoggedEmail", () => {
  * already gone out. Keyed on the booking alone, that reminder held the key for
  * ever and the guest was never told about the new morning.
  */
+describe("the suppression list", () => {
+  const THANK_YOU = {
+    kind: "thank-you-review",
+    recipient: "guest",
+    bookingId: BOOKING,
+    tourRequestId: LEAD,
+  } as const;
+
+  it("skips an opted-out marketing-basis recipient before the claim", async () => {
+    suppressed.add("guest@example.com");
+
+    const result = await sendLoggedEmail(THANK_YOU, MESSAGE);
+
+    expect(result).toEqual({ status: "skipped", reason: "opted-out" });
+    expect(trace).toEqual([]);
+    expect(rows).toHaveLength(0);
+  });
+
+  it("sends a marketing-basis message to an address that is not on the list", async () => {
+    const result = await sendLoggedEmail(THANK_YOU, MESSAGE);
+
+    expect(result).toEqual({ status: "sent", providerMessageId: "re_1" });
+    expect(trace).toEqual(["claim", "send", "settle"]);
+  });
+
+  it("never asks the list for booking mail — the contract outranks an opt-out", async () => {
+    suppressed.add("guest@example.com");
+
+    const result = await sendLoggedEmail(SUBJECT, MESSAGE);
+
+    expect(result.status).toBe("sent");
+  });
+
+  it("fails closed when the list cannot be read", async () => {
+    suppressionError = new Error("EMAIL_OPT_OUT_SECRET is not set");
+
+    const result = await sendLoggedEmail(THANK_YOU, MESSAGE);
+
+    expect(result).toEqual({ status: "failed", reason: "failed" });
+    expect(trace).toEqual([]);
+  });
+
+  it("gives the claim back when a built marketing message is barred", async () => {
+    suppressed.add("guest@example.com");
+
+    const result = await sendLoggedEmail(THANK_YOU, async () => MESSAGE);
+
+    expect(result).toEqual({ status: "skipped", reason: "opted-out" });
+    expect(trace).toEqual(["claim", "release"]);
+    expect(rows).toHaveLength(0);
+  });
+});
+
 describe("a booking whose date changes", () => {
   it("is reminded again for the new date, and never twice for either", async () => {
     expect(await sendLoggedEmail(reminder("2026-08-15", 0), MESSAGE)).toMatchObject({

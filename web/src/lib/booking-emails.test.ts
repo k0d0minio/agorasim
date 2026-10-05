@@ -1375,9 +1375,32 @@ describe("guestQuoteEventCancelledEmail — quote-event-cancelled", () => {
       date: "sábado, 15 de agosto de 2026",
       venue: "Quinta do Hespanhol, Mafra",
       totalRefunded: "486 €",
+      refundNoticeSent: true,
       ...overrides,
     };
   }
+
+  it("states the refund without an earlier email when none was sent", () => {
+    const pt = guestQuoteEventCancelledEmail(cancelledFacts({ refundNoticeSent: false }));
+    expect(pt.text).toContain(
+      "O seu evento de sábado, 15 de agosto de 2026 foi cancelado. O reembolso de 486 € já foi feito.",
+    );
+    expect(pt.text).not.toContain("email anterior");
+
+    const en = guestQuoteEventCancelledEmail(
+      cancelledFacts({
+        locale: "en",
+        date: "Saturday, 15 August 2026",
+        totalRefunded: "€486",
+        refundNoticeSent: false,
+      }),
+    );
+    expect(en.text).toContain(
+      "Your event on Saturday, 15 August 2026 has been cancelled. The refund of €486 has already been made.",
+    );
+    expect(en.text).not.toContain("earlier email");
+    expect(en.html).not.toContain("earlier email");
+  });
 
   it("says the event is off and points at the earlier refund email, in Portuguese", () => {
     const pt = guestQuoteEventCancelledEmail(cancelledFacts());

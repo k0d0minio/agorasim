@@ -326,7 +326,7 @@ describe("describeSlot", () => {
     expect(at("2026-08-11").some((slot) => slot.bookable)).toBe(false);
     expect(at("2026-08-12").every((slot) => slot.bookable)).toBe(true);
     // Not on sale online, but not full either — the admin must not read "esgotada".
-    expect(at("2026-08-11").every((slot) => slot.hasRoom && !slot.inOnlineWindow)).toBe(true);
+    expect(at("2026-08-11").every((slot) => slot.hasRoom && !slot.onSale)).toBe(true);
   });
 
   it("counts the notice in Lisbon days, not UTC", () => {
@@ -347,6 +347,36 @@ describe("describeSlot", () => {
       describeSlot({ date, slot: "afternoon", row: null, today }).bookable;
     expect(on("2027-01-31")).toBe(true);
     expect(on("2027-02-01")).toBe(false);
+  });
+
+  describe("a departure of today", () => {
+    // Lisbon is UTC+1 in summer (10:00 = 09:00Z) and UTC+0 in winter.
+    const check = (iso: string, slot: "morning" | "afternoon", audience: "team" | "online") => {
+      const now = new Date(iso);
+      return describeSlot({ date: todayKey(now), slot, row: null, now, audience });
+    };
+
+    it.each([
+      ["summer 09:59", "2026-08-10T08:59:00Z", "morning", false],
+      ["summer 10:00", "2026-08-10T09:00:00Z", "morning", true],
+      ["summer 10:01", "2026-08-10T09:01:00Z", "morning", true],
+      ["winter 09:59", "2026-12-10T09:59:00Z", "morning", false],
+      ["winter 10:01", "2026-12-10T10:01:00Z", "morning", true],
+      ["summer 13:59, afternoon", "2026-08-10T12:59:00Z", "afternoon", false],
+      ["summer 14:01, afternoon", "2026-08-10T13:01:00Z", "afternoon", true],
+      ["winter 14:01, afternoon", "2026-12-10T14:01:00Z", "afternoon", true],
+    ] as const)("%s: past=%s for the team", (_label, iso, slot, past) => {
+      const described = check(iso, slot, "team");
+      expect(described.past).toBe(past);
+      expect(described.bookable).toBe(!past);
+    });
+
+    it("leaves the afternoon on sale once the morning has gone", () => {
+      const now = new Date("2026-08-10T12:00:00Z"); // 13:00 Lisbon
+      expect(check("2026-08-10T12:00:00Z", "morning", "team").bookable).toBe(false);
+      expect(check("2026-08-10T12:00:00Z", "afternoon", "team").bookable).toBe(true);
+      expect(todayKey(now)).toBe("2026-08-10");
+    });
   });
 
   describe("for the team", () => {
