@@ -4,7 +4,7 @@ Where the run is, in five lines. Updated at every stage start and stop, and when
 flips. A resuming session reads this first, then `handoff.md` (`_shared/stage-preamble.md`).
 
 - phase: build
-- step: 9 (pre-flip verdict)
-- ci: not read (draft)
+- step: 12 (full verdict)
+- ci: GREEN (draft); full gate pending
 - blocked: no
 - updated: 2026-10-05

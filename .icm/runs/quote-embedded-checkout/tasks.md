@@ -27,4 +27,4 @@ step, so a resuming session can pick up the first unticked line.
 - [x] Pay action returns the payment step — orcamento/actions.ts + new test (b032425)
 - [x] Payment step in the quote page — quote-pay-form.tsx, quote-page.ts, page.tsx (c2425d1)
 - [x] Privacy and processor record — privacy.ts, data-protection.md (bfdee98)
-- [ ] Pre-flip verdict, merge main, flip ready, full gate
+- [x] Pre-flip verdict GREEN, main merged (1e19b16), flipped ready

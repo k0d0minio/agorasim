@@ -1,7 +1,8 @@
 # Build notes: quote-embedded-checkout
 
 - commits: cd7885b (payment policy on the quote route) · a115da1 (embedded quote sessions) · b032425 (pay action returns the payment step) · c2425d1 (payment step in the quote page) · bfdee98 (privacy + processor record)
-- ci: not read yet (draft)
+- ci: GREEN (cheap tier, draft) on 450dd9d
+- ready: 2026-10-05T13:24:39Z — flipped on 1e19b16
 
 ## What changed
 
