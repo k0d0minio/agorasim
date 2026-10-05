@@ -475,7 +475,8 @@ describe("supersedeSentQuotes — a new version replaces the old", () => {
     expect(
       await supersedeSentQuotes({ id: QUOTE_ID, tourRequestId: LEAD_ID }, { now: NOW }),
     ).toEqual({ quotes: [], writtenOff: [] });
-    expect(calls).toHaveLength(1);
+    // Only the quotes update ran; no second write for instalments.
+    expect(updatedValues()).toHaveLength(1);
   });
 });
 
