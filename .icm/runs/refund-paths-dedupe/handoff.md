@@ -6,13 +6,11 @@ stops, so nothing is carried in anyone's head.
 
 ## Next steps
 
-1. Re-run `/pipeline release refund-paths-dedupe` once the operator has decided the `braces`
-   advisory:
-   - **waived** → record `audit waived — braces GHSA-vfj7-8cjw-p6xm, <the operator's reason>` in
-     the `## Release` record's `security` slot and re-read with
-     `security-check.sh refund-paths-dedupe --branch --no-audit`;
-   - **fixed** (chore `braces-advisory-eslint-chain` merged) → merge `main` in and re-read with
-     `--branch --audit`.
+1. Once PR #194 (chore `braces-advisory-eslint-chain`, the operator's recorded waiver in
+   `pnpm.auditConfig.ignoreGhsas` + `security.audit_command`) is merged, re-run
+   `/pipeline release refund-paths-dedupe`: merge `main` in and re-read
+   `security-check.sh refund-paths-dedupe --branch --audit` → `OK`. The triage stub this run
+   parked was consumed by that chore and removed from this branch.
 2. Done already this Release (carry into the record, don't redo): Ready to merge ticked;
    `ci-status.sh` GREEN on 7c9d641 (full gate); `env.sh audit --changed` OK;
    `/code-review` medium — no findings; `/security-review` (payments) — no findings;
@@ -23,8 +21,7 @@ stops, so nothing is carried in anyone's head.
 
 ## Blockers
 
-- blocked on operator: decide the `braces` high advisory (dev-only, via eslint-config-next, no
-  published fix) — waive it for this merge, or run `chore braces-advisory-eslint-chain` first.
+- blocked on operator: squash-merge PR #194 (the `braces` waiver chore).
 
 ## Do not
 
