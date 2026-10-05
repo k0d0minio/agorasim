@@ -172,9 +172,16 @@ export type QuoteCheckoutOutcome =
    * Stripe's form for this instalment, to mount in the page — a fresh session,
    * or the one still open. `stripeAccount` is the connected account a direct
    * charge lives on, which Stripe.js must be told to find the session at all;
-   * `null` on a platform-only deployment.
+   * `null` on a platform-only deployment. `instalment` is what this tap found
+   * due — not what the page showed when it loaded, which may be hours stale —
+   * so the payment step names what the form will actually charge.
    */
-  | { status: "embedded"; clientSecret: string; stripeAccount: string | null }
+  | {
+      status: "embedded";
+      clientSecret: string;
+      stripeAccount: string | null;
+      instalment: { kind: QuoteReceiptInstalment; amountCents: number; currency: string };
+    }
   /** The session completed and is paid; the page now shows the receipt. */
   | { status: "paid" }
   /** The session completed on a delayed method; the money is on its way. */
@@ -226,6 +233,11 @@ async function checkoutFor(
 
   const payment = due.payment;
   const previous = payment.stripeSessionId;
+  const instalment = {
+    kind: payment.kind === "balance" ? ("balance" as const) : ("deposit" as const),
+    amountCents: payment.amountCents,
+    currency: payment.currency,
+  };
 
   if (previous) {
     const owned = await retrieveOwnedSession(previous);
@@ -243,6 +255,7 @@ async function checkoutFor(
           status: "embedded",
           clientSecret: existing.client_secret,
           stripeAccount: owned?.stripeAccount ?? null,
+          instalment,
         };
       }
       // Minted under older terms, or as a hosted page before the form moved
@@ -264,7 +277,7 @@ async function checkoutFor(
   }
 
   const lead = quote.tourRequestId ? await readQuoteLead(quote.tourRequestId) : null;
-  const kind = payment.kind === "balance" ? "balance" : "deposit";
+  const kind = instalment.kind;
   const connected = connectedAccountId();
   const fee = connected ? commissionOn("event", payment.amountCents) : null;
   const metadata: QuoteSessionMetadata = {
@@ -337,7 +350,12 @@ async function checkoutFor(
 
   // Created on the connected account when there is one (`onConnectedAccount`).
   if (recorded) {
-    return { status: "embedded", clientSecret: session.client_secret, stripeAccount: connected };
+    return {
+      status: "embedded",
+      clientSecret: session.client_secret,
+      stripeAccount: connected,
+      instalment,
+    };
   }
 
   // Another tap recorded its session first. Ours must not stay payable; the

@@ -46,18 +46,12 @@ export function QuotePayForm({
   locale,
   token,
   label,
-  instalment,
-  amount,
 }: {
   locale: Locale;
   /** Echoed back on submit — it is already in the URL this page was reached by. */
   token: string;
   /** "Pagar sinal de 576 €" — already filled in by the page. */
   label: string;
-  /** "Sinal" — what the payment step's heading calls this instalment. */
-  instalment: string;
-  /** "576 €" — the instalment's amount, formatted by the page. */
-  amount: string;
 }) {
   const c = quotePageContent;
   const [state, formAction] = useActionState<QuotePayState, FormData>(payQuote, {
@@ -78,11 +72,12 @@ export function QuotePayForm({
   }, []);
 
   if (state.status === "payment" && state.payment !== closed) {
-    const { payment } = state;
+    const { payment, instalment, amount } = state;
     return (
       <PaymentStep
         locale={locale}
         payment={payment}
+        // What the tap opened, which may differ from what the page loaded with.
         heading={fillTemplate(c.paymentStep.heading, { instalment, amount })}
         onBack={() => setClosed(payment)}
       />

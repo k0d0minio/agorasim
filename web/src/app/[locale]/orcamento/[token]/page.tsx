@@ -295,11 +295,6 @@ function QuoteView({
                 t(due.payment.kind === "balance" ? c.pay.balance : c.pay.deposit, locale),
                 { amount: money(due.payment.amountCents) },
               )}
-              instalment={t(
-                c.instalmentNames[due.payment.kind === "balance" ? "balance" : "deposit"],
-                locale,
-              )}
-              amount={money(due.payment.amountCents)}
             />
           ) : due.kind === "not-yet" ? (
             <QuoteNotice

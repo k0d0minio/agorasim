@@ -131,6 +131,8 @@ const DEPOSIT_ID = "cccccccc-3333-4333-8333-333333333333";
 const BALANCE_ID = "dddddddd-4444-4444-8444-444444444444";
 // Well before the balance falls due on 1 August.
 const NOW = new Date("2026-06-01T10:00:00Z");
+/** What a tap on the deposit hands the page to name. */
+const DEPOSIT_DUE = { kind: "deposit", amountCents: 57_600, currency: "eur" };
 
 function instalment(
   kind: "deposit" | "balance",
@@ -255,6 +257,7 @@ describe("startQuoteCheckout — the first tap on the deposit", () => {
       status: "embedded",
       clientSecret: secretOf("cs_test_new"),
       stripeAccount: "acct_test_agorasim",
+      instalment: DEPOSIT_DUE,
     });
     const [params, options] = sessionsCreate.mock.calls[0];
     expect(params.line_items[0].price_data.unit_amount).toBe(57_600);
@@ -347,6 +350,7 @@ describe("startQuoteCheckout — an instalment that already has a session", () =
       status: "embedded",
       clientSecret: secretOf("cs_test_open"),
       stripeAccount: "acct_test_agorasim",
+      instalment: DEPOSIT_DUE,
     });
     expect(sessionsCreate).not.toHaveBeenCalled();
     expect(sessionsExpire).not.toHaveBeenCalled();
@@ -525,6 +529,7 @@ describe("startQuoteCheckout — an instalment that already has a session", () =
       status: "embedded",
       clientSecret: secretOf("cs_test_winner"),
       stripeAccount: "acct_test_agorasim",
+      instalment: DEPOSIT_DUE,
     });
   });
 });
@@ -557,7 +562,11 @@ describe("startQuoteCheckout — refusals", () => {
       now: new Date("2026-08-01T09:00:00Z"),
     });
 
-    expect(outcome).toMatchObject({ status: "embedded" });
+    // The tap names what it opened: the balance, whatever the page last showed.
+    expect(outcome).toMatchObject({
+      status: "embedded",
+      instalment: { kind: "balance", amountCents: 134_400, currency: "eur" },
+    });
     const [params] = sessionsCreate.mock.calls[0];
     expect(params.line_items[0].price_data.unit_amount).toBe(134_400);
     expect(params.metadata).toMatchObject({ paymentId: BALANCE_ID, kind: "balance" });

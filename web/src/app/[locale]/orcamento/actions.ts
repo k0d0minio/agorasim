@@ -1,6 +1,8 @@
 "use server";
 
-import { isLocale, type Locale } from "@/i18n/config";
+import { quotePageContent } from "@/content/quote-page";
+import { isLocale, t, type Locale } from "@/i18n/config";
+import { formatPrice } from "@/lib/money";
 import { startQuoteCheckout } from "@/lib/quote-checkout";
 import { looksLikeQuoteToken } from "@/lib/quote-token";
 import { QUOTE_PAY_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
@@ -36,8 +38,13 @@ export type EmbeddedQuotePayment = {
 /** What the pay form renders after a tap. */
 export type QuotePayState =
   | { status: "idle" }
-  /** The payment step: Stripe's form where the button was. */
-  | { status: "payment"; payment: EmbeddedQuotePayment }
+  /**
+   * The payment step: Stripe's form where the button was, under what this tap
+   * found due — "Sinal" and "576 €", in the page's language. Read from the
+   * tap, not the render: a page left open may show a deposit that was paid
+   * from another phone since, while the session is the balance's.
+   */
+  | { status: "payment"; payment: EmbeddedQuotePayment; instalment: string; amount: string }
   /** Paid a moment ago, or on its way by a delayed method — reload to see it. */
   | { status: "paid" | "awaiting" }
   /** Keyed to `quotePageContent.refused`. */
@@ -80,6 +87,8 @@ export async function payQuote(
           publishableKey: publishableKey(),
           stripeAccount: outcome.stripeAccount,
         },
+        instalment: t(quotePageContent.instalmentNames[outcome.instalment.kind], locale),
+        amount: formatPrice(outcome.instalment.amountCents, locale, outcome.instalment.currency),
       };
     case "paid":
     case "awaiting":

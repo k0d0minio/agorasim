@@ -57,6 +57,7 @@ describe("payQuote — paying on the quote page", () => {
       status: "embedded",
       clientSecret: "cs_test_1_secret_2",
       stripeAccount: "acct_test_agorasim",
+      instalment: { kind: "balance", amountCents: 134_400, currency: "eur" },
     });
     const { payQuote } = await load();
 
@@ -71,6 +72,10 @@ describe("payQuote — paying on the quote page", () => {
         publishableKey: "pk_test_123",
         stripeAccount: "acct_test_agorasim",
       },
+      // Named from what the tap opened, in the page's language — not from the
+      // render, which may still show a deposit paid since from another phone.
+      instalment: "Balance",
+      amount: "€1,344",
     });
     expect(startQuoteCheckout).toHaveBeenCalledWith({ token: TOKEN, locale: "en" });
   });
