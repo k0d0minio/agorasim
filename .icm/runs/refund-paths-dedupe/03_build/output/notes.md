@@ -1,7 +1,8 @@
 # Build notes: refund-paths-dedupe
 
 - commits: feat: refund-paths-dedupe — one Stripe half for both refund paths
-- ci: draft head — nothing owed; full gate settles after the ready flip
+- ci: draft head GREEN (cheap tier) — full gate settles on the ready head
+- ready: 2026-10-05T12:29:19Z — flipped on b536198
 
 ## What changed
 
