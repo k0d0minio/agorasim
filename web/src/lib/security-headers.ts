@@ -75,11 +75,12 @@ function policy(directives: Record<string, string[] | null>): string {
  *
  * `frame-ancestors 'none'` and `frame-src 'none'` both: nothing on agorasim.pt
  * is meant to be embedded anywhere, and the site embeds nothing in return —
- * booking is the site's own `/reservar` form, so no booking provider needs
- * framing. The one third-party origin left is the blob host the uploaded
- * experience photos are served from, and it is an image source only.
+ * except Stripe's payment form on the booking page, which gets its own policy
+ * ({@link PAYMENT_CSP}) rather than a hole in this one. The one third-party
+ * origin left here is the blob host the uploaded experience photos are served
+ * from, and it is an image source only.
  */
-export const PUBLIC_CSP = policy({
+const PUBLIC_DIRECTIVES: Record<string, string[] | null> = {
   "default-src": ["'self'"],
   "base-uri": ["'self'"],
   "object-src": ["'none'"],
@@ -95,7 +96,58 @@ export const PUBLIC_CSP = policy({
   "worker-src": ["'self'", "blob:"],
   "manifest-src": ["'self'"],
   "upgrade-insecure-requests": null,
-});
+};
+
+export const PUBLIC_CSP = policy(PUBLIC_DIRECTIVES);
+
+/**
+ * What Stripe's embedded Checkout needs on the page that shows it, per
+ * directive: Stripe's published lists for Stripe.js (which loads the form) and
+ * for Checkout (which is the form), unioned — docs.stripe.com/security/guide,
+ * "Content Security Policy". Nothing optional rides along: no Google Maps (we
+ * use no Address Element), no Link origins (Link runs inside Checkout's own
+ * frame, under Stripe's policy rather than ours).
+ *
+ * `*.js.stripe.com` is Stripe's own recommendation — it starts frames on
+ * sibling origins for speed — and `hooks.stripe.com` is where 3-D Secure and
+ * redirect-based methods (iDEAL, Bancontact) put their challenge frame.
+ */
+const STRIPE_EMBEDDED_CHECKOUT: Record<string, string[]> = {
+  "script-src": ["https://js.stripe.com", "https://*.js.stripe.com", "https://checkout.stripe.com"],
+  "frame-src": [
+    "https://js.stripe.com",
+    "https://*.js.stripe.com",
+    "https://hooks.stripe.com",
+    "https://checkout.stripe.com",
+  ],
+  "connect-src": ["https://api.stripe.com", "https://checkout.stripe.com"],
+  "img-src": ["https://*.stripe.com"],
+};
+
+/**
+ * The public policy plus Stripe's embedded Checkout — served only on the
+ * booking route (`/:locale/reservar` and below, see `next.config.ts`), because
+ * that is the only page that takes a card on the site's own pages.
+ *
+ * Derived from {@link PUBLIC_DIRECTIVES} rather than written out again, so the
+ * two can only ever differ by the Stripe origins: a directive tightened on the
+ * public policy is tightened here by the same edit. `frame-src 'none'` is the
+ * one value *replaced* rather than extended — `'none'` next to a source is
+ * invalid, and the whole point of this policy is that the page frames Stripe.
+ *
+ * Still no nonce: the booking page is prerendered like every public page (ISR,
+ * `AGENTS.md`), so the reasoning in the module note holds here unchanged.
+ */
+export const PAYMENT_CSP = policy(
+  Object.fromEntries(
+    Object.entries(PUBLIC_DIRECTIVES).map(([name, values]): [string, string[] | null] => {
+      const extra = STRIPE_EMBEDDED_CHECKOUT[name];
+      if (!extra || values === null) return [name, values];
+      const base = values.filter((value) => value !== "'none'");
+      return [name, [...base, ...extra]];
+    }),
+  ),
+);
 
 /**
  * CSP for `/admin`, given the per-request nonce minted by `proxy.ts`.
@@ -147,8 +199,33 @@ export const BASELINE_SECURITY_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // Belt and braces with `frame-ancestors`, for anything that predates CSP3.
   { key: "X-Frame-Options", value: "DENY" },
-  {
-    key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
-  },
+  { key: "Permissions-Policy", value: permissionsPolicy("payment=()") },
+] as const;
+
+/** The site's feature policy, with only the `payment` entry left to the caller. */
+function permissionsPolicy(payment: string): string {
+  return `camera=(), microphone=(), geolocation=(), ${payment}, usb=()`;
+}
+
+/**
+ * The booking route's feature policy: the baseline, except that the Payment
+ * Request API may be used by the page and delegated to Stripe's frames — which
+ * is what lets Apple Pay and Google Pay appear inside embedded Checkout. Every
+ * other feature stays off. Served by `next.config.ts` on the same paths as
+ * {@link PAYMENT_CSP}, after the baseline, so it is the value that survives.
+ */
+export const PAYMENT_PERMISSIONS_POLICY = permissionsPolicy(
+  'payment=(self "https://js.stripe.com" "https://checkout.stripe.com")',
+);
+
+/**
+ * The paths that serve {@link PAYMENT_CSP} and
+ * {@link PAYMENT_PERMISSIONS_POLICY}: the booking page in each locale, and
+ * everything below it (the confirmation page). One source of truth for
+ * `next.config.ts` and for the booking form's check that the document it runs
+ * in was loaded under this policy (`lib/payment-route.ts`).
+ */
+export const PAYMENT_ROUTE_SOURCES = [
+  "/:locale(pt|en)/reservar",
+  "/:locale(pt|en)/reservar/:path*",
 ] as const;

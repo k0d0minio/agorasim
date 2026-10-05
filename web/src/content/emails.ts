@@ -1024,6 +1024,15 @@ export const bookingEmails = {
       pt: "O seu evento de {date} foi cancelado. O reembolso de {totalRefunded} já foi feito — enviámos-lhe os detalhes num email anterior.",
       en: "Your event on {date} has been cancelled. The refund of {totalRefunded} has already been made — we sent you its details in an earlier email.",
     } as Localized,
+    /**
+     * The same lead when no `quote-refunded` email ever went out for the quote
+     * (the send failed, or email was unconfigured at the time): it states the
+     * refund plainly instead of pointing at an email the couple never got.
+     */
+    leadNoEarlierEmail: {
+      pt: "O seu evento de {date} foi cancelado. O reembolso de {totalRefunded} já foi feito.",
+      en: "Your event on {date} has been cancelled. The refund of {totalRefunded} has already been made.",
+    } as Localized,
     detailsHeading: { pt: "O seu evento", en: "Your event" } as Localized,
   },
 
