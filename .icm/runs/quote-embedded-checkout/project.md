@@ -13,9 +13,14 @@ not copies: the spec stays the spec, the scope stays the scope. Seeded when the 
 
 ## Constraints
 
-- <what must stay true while this run is built — from the spec's Out of scope, the `D-n`
-  decisions in `decisions.md`, and `_shared/project-rules.md`>
+- The never-two-payable-sessions rule in `lib/quote-checkout.ts` holds on every branch (reuse, older terms, hosted, race, completed, delayed-failed).
+- The token rides only in the `return_url` Stripe already holds — never logged, never in metadata, never in a new URL.
+- Connect fee, `QUOTE_SESSION_TTL_MINUTES`, `recordQuotePayment`, `reconcileQuoteReturn`, the webhook and the receipts are unchanged.
+- No redirect to stripe.com on any path, including a missing publishable key (D-15) and a failed form load.
+- Headers change only on `/:locale/orcamento/**`; admin and every other public route byte-identical.
+- Privacy PT/EN and the data-protection Stripe row change in the same PR. No new third party.
+- Out of scope: refunds, admin quote tools, the UAT payment error (D-4), Payment Element, dashboard branding and methods.
 
 ## Context budget
 
-- <what was loaded beyond the stage's Inputs, and why — the stage's overrun note lives here>
+- Define read `web/src/lib/quote-checkout.ts`, `quote-pay-form.tsx`, `orcamento/actions.ts`, `orcamento/[token]/page.tsx`, `embedded-checkout.tsx`, `payment-route.ts` and excerpts of `security-headers.ts`, `stripe.ts`, `privacy.ts` beyond the Inputs — the open placement/landing/key questions and `touches:` needed them.

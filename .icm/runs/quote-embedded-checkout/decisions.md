@@ -15,5 +15,8 @@ decision made mid-run has one home.
 
 ## Made in this run
 
-- <D-n (the next free id) — the decision, why, which stage made it. A decision Build had to
-  make is a spec gap: say so in `notes.md` → Notes for Release>
+- D-12 — The quote payment step replaces the pay-button block in place (button, conditions notice, secure line), under a line naming the instalment and amount; the quote, payments and terms above are untouched. Define, operator's answer.
+- D-13 — "Back" on the quote payment step returns to the pay button with no server call; the open session is reused on the next tap. A quote holds no car, so nothing is released. Define, operator's answer.
+- D-14 — After paying, Stripe navigates the tab to the quote page with `?session_id=` (the session's `return_url`, today's `success_url`), where `reconcileQuoteReturn` runs as today. No result-in-place, no new URL carrying the token. Define, operator's answer.
+- D-15 — A missing or mode-mismatched publishable key makes a quote pay tap answer the existing "unavailable" refusal and report once (`isEmbeddedCheckoutConfigured`); never a fallback to the hosted redirect. Define, operator's answer.
+- D-16 — An open hosted session minted before the switch is expired and replaced by an embedded one, like an older-terms session: it has no client secret and its URL is stripe.com. Define.

@@ -48,7 +48,7 @@ own reporting — never a redirect to stripe.com (D-15). On success it returns
 `isEmbeddedCheckoutConfigured`'s doc comment, which today names the quote page as needing only
 the secret key, is corrected.
 
-**The payment step (`quote-pay-form.tsx`, D-12, D-13).** On a `payment` answer the pay-button
+**The payment step (`quote-pay-form.tsx`, D-12, D-13).** D-3 settled the in-place step for `/reservar` only; the quote page follows the same shape. On a `payment` answer the pay-button
 block (button, conditions notice, "secure payment" line) is replaced in place by the payment
 step: one line naming what is being paid ("Sinal — 576 €" / "Deposit — €576", from the button's
 own instalment and amount), `EmbeddedCheckout` with the returned secret, key and account, and a
