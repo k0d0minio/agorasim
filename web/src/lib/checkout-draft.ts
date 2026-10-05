@@ -7,6 +7,15 @@
  * the add-ons and everything they had typed. On a phone, at the last step,
  * with their card already out. Nobody types all that twice.
  *
+ * **Since the payment moved into `/reservar`, no new session sends anyone
+ * back this way.** Embedded Checkout has no `cancel_url`: going back from the
+ * payment step simply shows the form again, still holding what the guest
+ * typed (`components/booking-checkout-form.tsx`). The draft is still saved on
+ * every submit and still restored on a return carrying the flag, which is what
+ * a hosted session opened before the switch — alive for up to half an hour —
+ * would bring a guest back with. Retiring the flag is safe once that window
+ * has passed and nothing else produces it.
+ *
  * **It lives in `sessionStorage`, not in the URL.** The obvious implementation
  * is to hang the whole basket off `cancel_url` as query params, and it would
  * put the guest's name and email into a URL — which is logged by every proxy

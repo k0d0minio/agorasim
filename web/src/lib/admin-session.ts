@@ -21,6 +21,8 @@
  * fails closed. See `.env.example`.
  */
 
+import { base64UrlEncode } from "@/lib/crypto-encoding";
+
 export const ADMIN_SESSION_COOKIE = "agorasim_admin_session";
 
 /** Session lifetime: 7 days. */
@@ -73,13 +75,8 @@ function sessionSecret(): string {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-function base64UrlEncode(bytes: ArrayBuffer): string {
-  const binary = String.fromCharCode(...new Uint8Array(bytes));
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
 function base64UrlEncodeText(value: string): string {
-  return base64UrlEncode(encoder.encode(value).buffer as ArrayBuffer);
+  return base64UrlEncode(encoder.encode(value));
 }
 
 function base64UrlDecodeText(value: string): string | null {
@@ -230,7 +227,7 @@ function isSessionPayload(value: unknown): value is SessionPayload {
 function randomSessionId(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
-  return base64UrlEncode(bytes.buffer as ArrayBuffer);
+  return base64UrlEncode(bytes);
 }
 
 function nowSeconds(): number {

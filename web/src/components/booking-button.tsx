@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import type { Locale } from "@/i18n/config";
@@ -25,6 +24,11 @@ type Props = {
 /**
  * Booking CTA — a link to the site's own booking form (`/reservar`), which
  * captures the enquiry into the database for the Sales board to triage.
+ *
+ * A plain `<a>`, not `next/link`: `/reservar` takes the card on its own page,
+ * under a security policy only a document *loaded* there carries
+ * (`lib/payment-route.ts`). A client-side navigation would keep the policy of
+ * the page the guest came from, which frames nothing and refuses Stripe.
  */
 export function BookingButton({
   locale,
@@ -36,11 +40,11 @@ export function BookingButton({
 }: Props) {
   const to = href(locale, "reservar");
   return (
-    <Link
+    <a
       href={tour ? `${to}?tour=${encodeURIComponent(tour)}` : to}
       className={cn(buttonVariants({ variant, size }), className)}
     >
       {label}
-    </Link>
+    </a>
   );
 }

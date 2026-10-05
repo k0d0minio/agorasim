@@ -38,18 +38,13 @@ vi.mock("@/lib/bookings", async () => {
   };
 });
 
-vi.mock("@/lib/email-opt-out", () => ({
-  isAddressHashOptedOut: async (addressHash: string) => {
-    const { optOutAddressHash } = await import("@/lib/email-opt-out-token");
-    for (const email of optedOut) {
-      if ((await optOutAddressHash(email)) === addressHash) return true;
-    }
-    return false;
-  },
-}));
-
 vi.mock("@/lib/message-log", () => ({
   sendLoggedEmail: async (subject: MessageSubject, message: EmailMessage): Promise<LoggedSend> => {
+    // The suppression list lives in the real `sendLoggedEmail`; the fake answers
+    // as it does — before the claim, `skipped` / `opted-out`.
+    if (optedOut.has(message.to[0].toLowerCase())) {
+      return { status: "skipped", reason: "opted-out" };
+    }
     const key = claimKey(subject);
     if (claims.has(key)) return { status: "duplicate" };
     if (failNext.has(String(subject.bookingId))) {

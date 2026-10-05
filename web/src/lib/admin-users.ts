@@ -19,6 +19,7 @@ import "server-only";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import { db, adminUsers, type AdminRole, type AdminUser } from "@/db";
+import { normalizeEmail } from "@/lib/normalize-email";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 
@@ -46,10 +47,7 @@ const summaryColumns = {
   createdAt: adminUsers.createdAt,
 } as const;
 
-/** Fold an email to its canonical stored form. */
-export function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
+export { normalizeEmail };
 
 /** Every account, active first, then alphabetically. For the users screen. */
 export async function listAdminUsers(): Promise<AdminUserSummary[]> {

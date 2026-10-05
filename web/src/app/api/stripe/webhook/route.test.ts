@@ -172,9 +172,20 @@ function chargeObject(overrides: Partial<Stripe.Charge> = {}) {
   } as unknown as Stripe.Charge;
 }
 
-/** A request the route will accept, with an event queued behind the signature. */
-async function post(event: Record<string, unknown>): Promise<Response> {
+/**
+ * A request the route will accept, with an event queued behind the signature.
+ * The route re-reads the charge for either refund event: `current` is what
+ * Stripe returns for it, by default the very charge the event carried.
+ */
+async function post(
+  event: Record<string, unknown>,
+  current?: Stripe.Charge | Error,
+): Promise<Response> {
   constructEventAsync.mockResolvedValueOnce(event);
+  if (event.type === "charge.refunded") {
+    if (current instanceof Error) chargesRetrieve.mockRejectedValueOnce(current);
+    else chargesRetrieve.mockResolvedValueOnce(current ?? (event.data as { object: unknown }).object);
+  }
   return POST(
     new Request("https://agorasim.pt/api/stripe/webhook", {
       method: "POST",
@@ -202,6 +213,9 @@ beforeEach(() => {
   calls = [];
   results = [];
   vi.clearAllMocks();
+  // clearAllMocks keeps queued once-answers: a charge queued for an event the route drops
+  // before reading it (a foreign account's) would answer the next test's retrieve.
+  chargesRetrieve.mockReset();
   // The route logs the cases it cannot fix; the suite provokes several of them.
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -482,6 +496,55 @@ describe("POST /api/stripe/webhook — charge.refunded", () => {
         extra: expect.objectContaining({ account: "acct_somebody_else" }),
       }),
     );
+  });
+});
+
+describe("POST /api/stripe/webhook — a stale charge.refunded", () => {
+  it("reconciles from Stripe's current figure, not the event's snapshot", async () => {
+    // €170 was refunded first and €340 after; the €170 event arrives last, and
+    // the row already says €340. Following the snapshot down would leave the
+    // booking below what has really gone back.
+    queueResult([
+      bookingRow({ status: "refunded", refundedAmountCents: 34_000, refundedFeeCents: 1_360 }),
+    ]);
+
+    const response = await post(
+      {
+        id: "evt_late",
+        type: "charge.refunded",
+        account: null,
+        data: { object: chargeObject({ amount_refunded: 17_000, refunded: false }) },
+      },
+      chargeObject({ amount_refunded: 34_000, refunded: true }),
+    );
+
+    expect(chargesRetrieve).toHaveBeenCalledWith(
+      "ch_test_1",
+      { expand: ["refunds"] },
+      undefined,
+    );
+    await expect(response.json()).resolves.toEqual({
+      received: true,
+      outcome: "already-synced",
+    });
+    // The row is left where Stripe says it is: nothing written, no commission moved.
+    expect(updateSets()).toHaveLength(0);
+    expect(applicationFeesCreateRefund).not.toHaveBeenCalled();
+  });
+
+  it("acknowledges a charge.refunded whose charge cannot be read", async () => {
+    const response = await post(
+      {
+        id: "evt_unreadable",
+        type: "charge.refunded",
+        account: null,
+        data: { object: chargeObject() },
+      },
+      new Error("no such charge"),
+    );
+
+    await expect(response.json()).resolves.toEqual({ received: true, ignored: "no charge" });
+    expect(calls).toHaveLength(0);
   });
 });
 

@@ -21,17 +21,13 @@ import {
   isCancellationTokenConfigured,
   looksLikeCancellationToken,
 } from "@/lib/cancellation-token";
+import { base64UrlEncode } from "@/lib/crypto-encoding";
 
 /** Separates a quote link's digest from a cancel link's under the same key. */
 const DOMAIN = "quote:";
 
 /** A freshly minted link: the secret to email, and the digest to store. */
 export type IssuedQuoteToken = { token: string; digest: string };
-
-function base64UrlEncode(bytes: Uint8Array): string {
-  const binary = String.fromCharCode(...bytes);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
 
 /** Whether links can be minted at all on this deployment — the secret is set. */
 export function isQuoteTokenConfigured(): boolean {

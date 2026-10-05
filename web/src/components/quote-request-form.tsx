@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
@@ -64,17 +64,31 @@ export function QuoteRequestForm({
     {},
   );
   const shared = quoteRequestShared;
+  // The form (and the focused submit button) unmounts on success; without a
+  // focus move a keyboard / screen-reader user lands on <body> (WCAG 2.4.3).
+  const successRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (state.ok) successRef.current?.focus();
+  }, [state.ok]);
   const optional = t(shared.labels.optional, locale);
 
   if (state.ok) {
     return (
-      <Card>
+      // role="status" announces the outcome (WCAG 4.1.3); the focus move above is
+      // the reliable path, since a region mounted with its text is often skipped.
+      <Card role="status">
         <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
           <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <CheckCircle2 className="size-5" />
           </div>
           <div className="max-w-sm space-y-1">
-            <p className="font-heading text-lg font-medium">{t(shared.success.title, locale)}</p>
+            <p
+              ref={successRef}
+              tabIndex={-1}
+              className="font-heading text-lg font-medium outline-none"
+            >
+              {t(shared.success.title, locale)}
+            </p>
             <p className="text-sm text-muted-foreground">{t(shared.success.body, locale)}</p>
           </div>
         </CardContent>

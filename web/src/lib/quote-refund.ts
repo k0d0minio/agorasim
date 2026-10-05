@@ -54,17 +54,25 @@ import "server-only";
 import type Stripe from "stripe";
 import { eq } from "drizzle-orm";
 
+import type { Locale } from "@/i18n/config";
 import { db, tourRequests, type Quote, type QuotePayment } from "@/db";
 import { formatDay } from "@/lib/availability";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { guestQuoteEventCancelledEmail, guestQuoteRefundEmail } from "@/lib/booking-emails";
 import {
+  chargeRefundState,
   latestRefundId,
   proportionalFeeRefundCents,
+  refundPaymentIntent,
   topUpApplicationFee,
 } from "@/lib/booking-refund";
 import { isEmailConfigured } from "@/lib/email";
-import { sendLoggedEmail } from "@/lib/message-log";
+import {
+  hasSentQuoteRefundNotice,
+  isRefundNoticeClaimed,
+  sendLoggedEmail,
+  type LoggedSend,
+} from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import { expireSession } from "@/lib/quote-checkout";
 import {
@@ -288,49 +296,28 @@ async function issueInstalmentRefund(
   amountCents: number,
   attemptId: string,
 ): Promise<IssuedInstalmentRefund> {
-  const client = stripe();
-  const paymentIntentId = payment.stripePaymentIntentId!;
-
-  return onOwningAccount(async (account) => {
-    const intent = await client.paymentIntents.retrieve(
-      paymentIntentId,
-      { expand: ["latest_charge"] },
-      account,
-    );
-    const charge =
-      intent.latest_charge && typeof intent.latest_charge !== "string"
-        ? intent.latest_charge
-        : null;
-    const hasApplicationFee = Boolean(charge?.application_fee_amount);
-
-    const refund = await client.refunds.create(
-      {
-        payment_intent: paymentIntentId,
-        amount: amountCents,
-        reason: "requested_by_customer",
-        // Stripe returns the fee in proportion to the amount refunded — §6.
-        // The reconciler tops up any cent its rounding leaves behind.
-        ...(hasApplicationFee ? { refund_application_fee: true } : {}),
-        metadata: {
-          quotePaymentId: payment.id,
-          ref: quoteRef(quote.id),
-          instalment: payment.kind,
-          via: "admin",
-        },
-      },
-      {
-        ...account,
-        idempotencyKey: `quote-refund:${payment.id}:${attemptId}`,
-      },
-    );
-
-    const after = await readChargeAfterRefund(client, charge?.id ?? chargeIdOf(refund), account);
-    return {
-      refund,
-      charge: after ?? charge,
-      totalRefundedCents: after ? after.amount_refunded : null,
-    };
+  // Stripe returns the fee in proportion to the amount refunded — §6. The
+  // reconciler tops up any cent its rounding leaves behind.
+  const { refund, charge, account } = await refundPaymentIntent({
+    paymentIntentId: payment.stripePaymentIntentId!,
+    amountCents,
+    metadata: {
+      quotePaymentId: payment.id,
+      ref: quoteRef(quote.id),
+      instalment: payment.kind,
+      via: "admin",
+    },
+    idempotencyKey: `quote-refund:${payment.id}:${attemptId}`,
   });
+
+  // On the account the refund went out on, and outside its retry: the money
+  // has gone back by now, so nothing here may re-issue it on the platform.
+  const after = await readChargeAfterRefund(stripe(), charge?.id ?? chargeIdOf(refund), account);
+  return {
+    refund,
+    charge: after ?? charge,
+    totalRefundedCents: after ? after.amount_refunded : null,
+  };
 }
 
 /**
@@ -398,22 +385,12 @@ export async function syncQuotePaymentRefundFromStripe(options: {
   now?: Date;
 }): Promise<QuoteRefundSyncOutcome> {
   const { charge, now = new Date() } = options;
-
-  const paymentIntentId =
-    typeof charge.payment_intent === "string"
-      ? charge.payment_intent
-      : (charge.payment_intent?.id ?? null);
+  const { paymentIntentId, refundedAmountCents, feeTargetCents: feeTarget } =
+    chargeRefundState(charge);
 
   const found = await getPaymentByCharge(charge.id, paymentIntentId);
   if (!found) return { status: "unknown-charge" };
   const { payment } = found;
-
-  const refundedAmountCents = charge.amount_refunded;
-  const feeTarget = proportionalFeeRefundCents({
-    feeCents: charge.application_fee_amount ?? 0,
-    chargeCents: charge.amount,
-    refundedCents: refundedAmountCents,
-  });
 
   // The common case by a distance: every retry, and every event our own
   // refund action caused.
@@ -435,23 +412,26 @@ export async function syncQuotePaymentRefundFromStripe(options: {
     );
   }
 
-  // Money newly went back: if the quote card sent it and has not written it
-  // yet, the quote card claims it.
-  const refund =
+  // Money newly went back: if the quote card sent any of it and has not written
+  // it yet, the quote card claims it. Every refund the row has not recorded
+  // counts, not only the newest — the total this door would write includes
+  // them all.
+  const unrecorded =
     refundedAmountCents > payment.refundedAmountCents
-      ? await refundBehind(charge, options.refund ?? null)
-      : null;
-  if (issuedByQuoteCard(refund, payment) && payment.stripeRefundId !== refund.id) {
-    if (now.getTime() - refund.created * 1000 < ADMIN_REFUND_SETTLE_WINDOW_MS) {
+      ? await unrecordedRefunds(charge, options.refund ?? null, payment, refundedAmountCents)
+      : [];
+  const awaitingCard = unrecorded.find((refund) => issuedByQuoteCard(refund, payment));
+  if (awaitingCard) {
+    if (now.getTime() - awaitingCard.created * 1000 < ADMIN_REFUND_SETTLE_WINDOW_MS) {
       return { status: "deferred", payment };
     }
     console.warn(
-      `[quote-refund] ${quoteRef(found.quote.id)}: ${refund.id} came from the quote card but ` +
-        `was never settled there — recording it from Stripe, without the actor`,
+      `[quote-refund] ${quoteRef(found.quote.id)}: ${awaitingCard.id} came from the quote card ` +
+        `but was never settled there — recording it from Stripe, without the actor`,
     );
   }
 
-  const refundId = options.refundId ?? refund?.id ?? (await latestRefundId(charge));
+  const refundId = options.refundId ?? unrecorded[0]?.id ?? (await latestRefundId(charge));
 
   const settled = await settleInstalmentRefund({
     quote: found.quote,
@@ -486,35 +466,54 @@ export async function syncQuotePaymentRefundFromStripe(options: {
 export const ADMIN_REFUND_SETTLE_WINDOW_MS = 10 * 60 * 1000;
 
 /**
- * The refund an event is about: the one it carried (`refund.updated`), else
- * the charge's latest. `null` when Stripe cannot say — and then nothing is
- * deferred, because a refund we cannot read is not one we can attribute.
+ * The refunds behind the money this row has not recorded yet, newest first.
+ *
+ * A `charge.refunded` event carries no refund, and two refunds close together
+ * on one instalment can each be somebody else's — so the newest alone says
+ * nothing about the one that fired this event. Instead: Stripe added
+ * `charge.amount_refunded - payment.refundedAmountCents` since the row was
+ * written, so walk the charge's refunds from the newest back until that much
+ * is accounted for, stopping early at the refund the row already carries (it
+ * and everything older is written). The refund a `refund.updated` event
+ * carried is always one of them.
+ *
+ * Empty when Stripe cannot say — and then nothing is deferred, because a
+ * refund we cannot read is not one we can attribute.
  */
-async function refundBehind(
+async function unrecordedRefunds(
   charge: Stripe.Charge,
   carried: Stripe.Refund | null,
-): Promise<Stripe.Refund | null> {
-  if (carried) return carried;
-  if (!isStripeConfigured()) return null;
+  payment: QuotePayment,
+  chargeRefundedCents: number,
+): Promise<Stripe.Refund[]> {
+  const behind: Stripe.Refund[] = [];
+  if (carried && carried.id !== payment.stripeRefundId) behind.push(carried);
+  if (!isStripeConfigured()) return behind;
 
   try {
-    return await onOwningAccount(async (account) => {
-      const latest = await stripe().refunds.list({ charge: charge.id, limit: 1 }, account);
-      return latest.data[0] ?? null;
+    const listed = await onOwningAccount(async (account) => {
+      const recent = await stripe().refunds.list({ charge: charge.id, limit: 10 }, account);
+      return recent.data;
     });
+
+    let uncovered = chargeRefundedCents - payment.refundedAmountCents;
+    for (const refund of listed) {
+      if (uncovered <= 0 || refund.id === payment.stripeRefundId) break;
+      // A refund that did not go through added nothing to the charge.
+      if (refund.status === "failed" || refund.status === "canceled") continue;
+      uncovered -= refund.amount;
+      if (!behind.some((known) => known.id === refund.id)) behind.push(refund);
+    }
   } catch (err) {
-    console.warn(`[quote-refund] couldn't read the refund behind ${charge.id}`, err);
-    return null;
+    console.warn(`[quote-refund] couldn't read the refunds behind ${charge.id}`, err);
   }
+  return behind.sort((a, b) => b.created - a.created);
 }
 
 /** Whether `refund` is one {@link issueInstalmentRefund} made for this instalment. */
-function issuedByQuoteCard(
-  refund: Stripe.Refund | null,
-  payment: QuotePayment,
-): refund is Stripe.Refund {
-  const metadata = refund?.metadata;
-  if (!refund || !metadata || metadata.via !== "admin") return false;
+function issuedByQuoteCard(refund: Stripe.Refund, payment: QuotePayment): boolean {
+  const metadata = refund.metadata;
+  if (!metadata || metadata.via !== "admin") return false;
   if (metadata.quotePaymentId && metadata.quotePaymentId !== payment.id) return false;
   // A refund that did not go through is the admin door's refusal, not its claim.
   return refund.status !== "failed" && refund.status !== "canceled";
@@ -561,7 +560,20 @@ async function settleInstalmentRefund(options: {
     const cancelled = options.cancelEvent
       ? await cancelEvent(quote, actorUserId, "refund", now)
       : null;
-    if (cancelled) await sendEventCancelledNotice(quote.id);
+    // Only once the winner's refund notice is claimed: it builds its text after
+    // taking the claim, so before that it still reads the quote as cancelled
+    // and says so — and "Evento cancelado … see the earlier email" would reach
+    // the couple ahead of the email it points to.
+    if (
+      cancelled &&
+      (await isRefundNoticeClaimed({
+        quoteId: quote.id,
+        quotePaymentId: payment.id,
+        refundedTotalCents: refundedAmountCents,
+      }))
+    ) {
+      await sendEventCancelledNotice(quote.id);
+    }
 
     const fresh = await getPayment(payment.id);
     return {
@@ -650,13 +662,18 @@ async function settleInstalmentRefund(options: {
   // moved only the fee, or followed a failed refund down, says nothing.
   if (refundedAmountCents > payment.refundedAmountCents) {
     await sendRefundNotice({
+      quoteId: quote.id,
       paymentId: settled.id,
       refundedTotalCents: refundedAmountCents,
       refundedNowCents: refundedAmountCents - payment.refundedAmountCents,
     });
   }
 
-  return { claimed: true, quote: cancelled ?? quote, payment: settled };
+  // `cancelled` is null when the other door's cancellation got there first
+  // (a double submit, with the lost claim above); the quote is then read fresh,
+  // so the caller reports it cancelled and the calendar is revalidated.
+  const current = cancelled ?? (options.cancelEvent ? await getQuote(quote.id) : null);
+  return { claimed: true, quote: current ?? quote, payment: settled };
 }
 
 // ---------------------------------------------------------------------------
@@ -767,6 +784,59 @@ async function expireWrittenOffSessions(writtenOff: readonly QuotePayment[]): Pr
 // The couple's notice
 // ---------------------------------------------------------------------------
 
+type QuoteNoticeContext = {
+  quote: NonNullable<Awaited<ReturnType<typeof getQuote>>>;
+  lead: typeof tourRequests.$inferSelect;
+  locale: Locale;
+  money: (cents: number) => string;
+  totalRefunded: number;
+};
+
+/**
+ * What both couple's notices read fresh: the quote, its lead, the quote's
+ * language and what has gone back on it so far. `null` when there is nobody to
+ * write to (the quote or lead is gone, or the quote has no lead — warned as
+ * `<what> was not sent`), so each notice just returns.
+ */
+async function loadQuoteNoticeContext(
+  quoteId: string,
+  what: string,
+  accept: (quote: QuoteNoticeContext["quote"]) => boolean = () => true,
+): Promise<QuoteNoticeContext | null> {
+  const quote = await getQuote(quoteId);
+  if (!quote || !accept(quote)) return null;
+  if (!quote.tourRequestId) {
+    console.warn(`[quote-refund] ${quoteRef(quote.id)} has no lead — no ${what} sent`);
+    return null;
+  }
+  const [lead] = await db
+    .select()
+    .from(tourRequests)
+    .where(eq(tourRequests.id, quote.tourRequestId))
+    .limit(1);
+  if (!lead) return null;
+
+  const locale = quote.locale;
+  return {
+    quote,
+    lead,
+    locale,
+    money: (cents) => formatPrice(cents, locale, quote.currency),
+    totalRefunded: quote.payments.reduce((sum, payment) => sum + payment.refundedAmountCents, 0),
+  };
+}
+
+/** Logs a notice that was not sent; sending itself never throws past the caller. */
+function warnIfUnsent(
+  quote: QuoteNoticeContext["quote"],
+  what: string,
+  result: LoggedSend,
+): void {
+  if (result.status === "failed" || result.status === "skipped") {
+    console.error(`[quote-refund] ${quoteRef(quote.id)} ${what} was not sent (${result.reason})`);
+  }
+}
+
 /**
  * One `quote-refunded` email to the couple, claimed in the message log under
  * the instalment and its refunded total. Read fresh, after the write and any
@@ -774,6 +844,7 @@ async function expireWrittenOffSessions(writtenOff: readonly QuotePayment[]): Pr
  * Never throws: the money is recorded whatever the mail does.
  */
 async function sendRefundNotice(options: {
+  quoteId: string;
   paymentId: string;
   refundedTotalCents: number;
   refundedNowCents: number;
@@ -781,57 +852,50 @@ async function sendRefundNotice(options: {
   if (!isEmailConfigured()) return;
 
   try {
-    const found = await getPayment(options.paymentId);
-    if (!found) return;
-    const quote = await getQuote(found.quote.id);
-    if (!quote) return;
-    if (!quote.tourRequestId) {
-      console.warn(`[quote-refund] ${quoteRef(quote.id)} has no lead — no refund notice sent`);
-      return;
-    }
-    const [lead] = await db
-      .select()
-      .from(tourRequests)
-      .where(eq(tourRequests.id, quote.tourRequestId))
-      .limit(1);
-    if (!lead) return;
-
-    const locale = quote.locale;
-    const money = (cents: number) => formatPrice(cents, locale, quote.currency);
-    const totalRefunded = quote.payments.reduce(
-      (sum, payment) => sum + payment.refundedAmountCents,
-      0,
+    // The instalment is found among the quote's own payments, with no read of
+    // its own. Checked before the lead, so a vanished instalment returns as
+    // quietly as before.
+    const isThisPayment = (candidate: QuotePayment) => candidate.id === options.paymentId;
+    const context = await loadQuoteNoticeContext(options.quoteId, "refund notice", (quote) =>
+      quote.payments.some(isThisPayment),
     );
+    if (!context) return;
+    const { quote, lead } = context;
+    const payment = quote.payments.find(isThisPayment)!;
 
     const result = await sendLoggedEmail(
       {
         kind: "quote-refunded",
         recipient: "guest",
         quoteId: quote.id,
-        quotePaymentId: found.payment.id,
+        quotePaymentId: payment.id,
         refundedTotalCents: options.refundedTotalCents,
         tourRequestId: lead.id,
       },
-      guestQuoteRefundEmail({
-        instalment: found.payment.kind,
-        ref: quoteRef(quote.id),
-        guestName: lead.name,
-        guestEmail: lead.email,
-        locale,
-        date: formatDay(quote.eventDate, locale),
-        venue: quote.venue,
-        paid: money(found.payment.amountCents),
-        amount: money(options.refundedNowCents),
-        totalRefunded: money(totalRefunded),
-        eventCancelled: quote.status === "cancelled",
-      }),
+      // Built under the claim, from a read taken after it: a lost-claim
+      // cancellation that finds this claim absent stands down on the promise
+      // that this text will say the event is off.
+      async () => {
+        const latest = await loadQuoteNoticeContext(quote.id, "refund notice");
+        if (!latest) return null;
+
+        return guestQuoteRefundEmail({
+          instalment: payment.kind,
+          ref: quoteRef(latest.quote.id),
+          guestName: lead.name,
+          guestEmail: lead.email,
+          locale: latest.locale,
+          date: formatDay(latest.quote.eventDate, latest.locale),
+          venue: latest.quote.venue,
+          paid: latest.money(payment.amountCents),
+          amount: latest.money(options.refundedNowCents),
+          totalRefunded: latest.money(latest.totalRefunded),
+          eventCancelled: latest.quote.status === "cancelled",
+        });
+      },
     );
 
-    if (result.status === "failed" || result.status === "skipped") {
-      console.error(
-        `[quote-refund] ${quoteRef(quote.id)} refund notice was not sent (${result.reason})`,
-      );
-    }
+    warnIfUnsent(quote, "refund notice", result);
   } catch (err) {
     console.error(`[quote-refund] couldn't send the refund notice for ${options.paymentId}`, err);
   }
@@ -848,24 +912,16 @@ async function sendEventCancelledNotice(quoteId: string): Promise<void> {
   if (!isEmailConfigured()) return;
 
   try {
-    const quote = await getQuote(quoteId);
-    if (!quote || quote.status !== "cancelled") return;
-    if (!quote.tourRequestId) {
-      console.warn(`[quote-refund] ${quoteRef(quote.id)} has no lead — no cancellation notice sent`);
-      return;
-    }
-    const [lead] = await db
-      .select()
-      .from(tourRequests)
-      .where(eq(tourRequests.id, quote.tourRequestId))
-      .limit(1);
-    if (!lead) return;
-
-    const locale = quote.locale;
-    const totalRefunded = quote.payments.reduce(
-      (sum, payment) => sum + payment.refundedAmountCents,
-      0,
+    const context = await loadQuoteNoticeContext(
+      quoteId,
+      "cancellation notice",
+      (quote) => quote.status === "cancelled",
     );
+    if (!context) return;
+    const { quote, lead, locale, money, totalRefunded } = context;
+
+    // A failed or skipped refund notice leaves nothing earlier to point at.
+    const refundNoticeSent = await hasSentQuoteRefundNotice(quote.id);
 
     const result = await sendLoggedEmail(
       {
@@ -881,15 +937,12 @@ async function sendEventCancelledNotice(quoteId: string): Promise<void> {
         locale,
         date: formatDay(quote.eventDate, locale),
         venue: quote.venue,
-        totalRefunded: formatPrice(totalRefunded, locale, quote.currency),
+        totalRefunded: money(totalRefunded),
+        refundNoticeSent,
       }),
     );
 
-    if (result.status === "failed" || result.status === "skipped") {
-      console.error(
-        `[quote-refund] ${quoteRef(quote.id)} cancellation notice was not sent (${result.reason})`,
-      );
-    }
+    warnIfUnsent(quote, "cancellation notice", result);
   } catch (err) {
     console.error(`[quote-refund] couldn't send the cancellation notice for ${quoteId}`, err);
   }

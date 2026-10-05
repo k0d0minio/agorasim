@@ -126,7 +126,13 @@ identity. Everything specific to Agorasim lives in the project-owned files the s
   before every lane's push (template-owned; the one local check that is a gate). Not wired as a
   git pre-commit hook — there is no Husky here, by choice — so the stages call it. gitleaks is
   not installed on Jamie's machine; the built-in patterns are the floor. `security.audit_command`
-  is empty: the pnpm lockfile is audited automatically.
+  is `pnpm audit --audit-level=high`, judged on its exit code, so the root `package.json` →
+  `pnpm.auditConfig.ignoreGhsas` list binds the gate. That list is a waiver, Jamie's alone (decided
+  2026-10-05, chore `braces-advisory-eslint-chain`): it holds `GHSA-vfj7-8cjw-p6xm` — `braces`
+  <=3.0.3, no patched version, reached only through dev tooling (`eslint-config-next`, `shadcn`,
+  `ts-morph` → `fast-glob` → `micromatch`). Drop the entry once `braces` ships a fix or the chain
+  stops pulling it; add one only on Jamie's word. Without the override the gate reads pnpm's
+  `metadata` counts, which still count an ignored advisory.
 - **The run's database** — `database.isolation: neon` in `.icm/project.json` (decided
   2026-09-23, the day the template gained the engine — estate decision D32): every run gets a
   Neon branch of its own, `run/<slug>`, made at `db-branch.sh <slug> up` with a 7-day expiry —
@@ -318,3 +324,14 @@ the repo's own, never synced — and delete a line that reads as a slip rather t
 - Before a spec changes what a Stripe call is keyed on, grep the repo's tests for every caller of that function (action suites, webhook route tests) and list them in `touches:` — not only the module's own test file. (`FAILURE.md` — refund-idempotency-cached-declines)
 <!-- Retrospective Learned Rule [2026-10-01] -->
 - When a new rule can take away something the guest already chose (a day, a slot, an add-on), give that drop its own sentence naming its own cause — never reuse an existing drop message written for another cause, and never drop silently. (`FAILURE.md` — guest-calendar-polish)
+
+<!-- Retrospective Learned Rule [2026-10-02] -->
+- A vitest file that imports `web/src/lib/booking-checkout.ts` (or anything reaching `content/site.ts`) must mock `@/lib/site-origin` partially — spread `importOriginal()` — because `content/site.ts` calls `canonicalOrigin()` at module load. (`error: [vitest] no "canonicalorigin" export is defined on the "@" mock. `, seen 1× — reservar-embedded-checkout; root, web, web/src)
+<!-- Retrospective Learned Rule [2026-10-02] -->
+- A security header scoped to some routes (`next.config.ts` `headers()` by `source`) only binds a document *loaded* on that route: spec how guests navigate in (full loads, or a reload guard) whenever a route-scoped CSP is what lets a page work. (`FAILURE.md` — reservar-embedded-checkout)
+<!-- Retrospective Learned Rule [2026-10-02] -->
+- Pin `@stripe/stripe-js` to the major whose release train matches `API_VERSION` in `web/src/lib/stripe.ts` (read `RELEASE_TRAIN` in the package's `dist/pure.mjs`), never to the newest major. (`FAILURE.md` — reservar-embedded-checkout)
+<!-- Retrospective Learned Rule [2026-10-02] -->
+- When a run adds an env key, name every Vercel target it is declared for — Production included — as an operator act in the Build stop report, not only the ones the preview smoke needs: Release's `env.sh audit --changed` holds all of them. (`FAILURE.md` — reservar-embedded-checkout)
+<!-- Retrospective Learned Rule [2026-10-05] -->
+- In a spec, name the call that must go (`no getPayment in sendRefundNotice`), never a total of reads or calls in a function other open runs can also change — a sibling's correctness fix can add one legitimately before this run merges. (`FAILURE.md` — refund-paths-dedupe)

@@ -1,4 +1,5 @@
 import { t, type Locale, type Localized } from "@/i18n/config";
+import { fillTemplate } from "@/lib/fill-template";
 import { formatPrice } from "@/lib/money";
 import { fromPrice, type AdultTier, type ExperiencePricing } from "@/lib/pricing";
 
@@ -136,9 +137,9 @@ export function fill(
   locale: Locale,
   values: Record<string, string | number>,
 ): string {
-  return Object.entries(values).reduce(
-    (text, [key, value]) => text.replaceAll(`{${key}}`, String(value)),
+  return fillTemplate(
     t(template, locale),
+    Object.fromEntries(Object.entries(values).map(([key, value]) => [key, String(value)])),
   );
 }
 

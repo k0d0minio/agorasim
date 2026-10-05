@@ -1,0 +1,10 @@
+## 2026-10-05T12:28:33Z security-check.sh — dependency-audit
+scope=branch head=dcc2af8 branch=claude/amazing-cori-0e2qjo — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 1 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+(unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+- resolved: not this run's — the advisory is `braces` <=3.0.3 (GHSA-vfj7-8cjw-p6xm, no patched version) via eslint-config-next's dev-only glob chain, already on `main`; this branch changes no manifest or lockfile. Parked as triage/braces-advisory-eslint-chain.md and handed to Release, whose `--audit` read needs the operator's waiver or that chore merged first.
+## 2026-10-05T12:34:09Z security-check.sh — dependency-audit
+scope=branch head=7c9d641 branch=claude/amazing-cori-0e2qjo — BLOCKED 1 (redacted trace; the secret itself is never written)
+dependency-audit  pnpm reports 1 high/critical advisor(y|ies) — run: pnpm audit --audit-level=high
+(unresolved until the session adds a `- resolved:` line: remove the secret from the change, have the operator rotate it, re-run the gate, then write what was wrong and what is true now)
+- resolved: not this run's — the same `braces` <=3.0.3 high advisory (GHSA-vfj7-8cjw-p6xm, dev-only via eslint-config-next, no patched version) that `main` carries; Release is held on the operator's waiver or the triage/braces-advisory-eslint-chain.md chore merging first, then re-reads with `--branch --no-audit` (waiver) or `--branch --audit` (fix).
