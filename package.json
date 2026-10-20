@@ -2,6 +2,7 @@
   "name": "agorasim-toolkit",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.31.0",
   "description": "Toolkit for operating the Agorasim business: the website (web/) and ICM operations workspaces (workspaces/).",
   "scripts": {
     "dev": "pnpm --filter web dev",
