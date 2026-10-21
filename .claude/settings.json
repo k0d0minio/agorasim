@@ -28,15 +28,5 @@
         ]
       }
     ]
-  },
-  "permissions": {
-    "deny": [
-      "Read(./**/.env)",
-      "Read(./**/.env.*)",
-      "Read(./**/*.pem)",
-      "Read(./**/*.key)",
-      "Read(./desk/app/dist/**/*)",
-      "Read(./desk/app/node_modules/**/*)"
-    ]
   }
 }
