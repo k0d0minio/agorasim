@@ -17,6 +17,15 @@ identity and routing only.
 | change what CI checks or how a release is cut | `legible-consulting/.github` (`check-client.yml`, `release.yml`). `ci.yml` here only calls them |
 | change a file the blueprint renders | the blueprint, then `copier update` here |
 
+## Release
+
+Every merge to `main` deploys UAT at `uat.agorasim.pt` and builds a production deployment that stays
+staged. Production moves on a promotion: the client says yes on UAT, Jamie records it with
+`.icm/scripts/promote.sh approve --by "<who>"`, which drafts the Release at that commit, and
+Jamie publishes the Release on GitHub. `release.yaml` then migrates, promotes the staged build
+and announces. The rule is `.icm/_shared/promotion.md`. The release-please pull request from
+`ci.yml` keeps the changelog and the tag and moves nothing.
+
 ## Rules
 
 - Client-facing text in `pt-PT`, with the `en` version kept in sync (the site is bilingual).
