@@ -55,6 +55,5 @@ transfer, live Stripe Connect, the sending domain, the €1 test) is
 
 ## How work ships
 
-Through the delivery pipeline in [`.icm/`](.icm/CONTEXT.md): four gated stages (Scope → Define
-→ Build → Release) plus bug / tweak / chore lanes, one `/pipeline` router, human checkboxes at
-every gate. [AGENTS.md](AGENTS.md) § How work ships has the short form.
+Work flows through tickets in `.icm/intake/` and one pull request per ticket. The loop,
+the formats and the two scripts that start and finish a ticket are in `.icm/intake/CONTEXT.md`.

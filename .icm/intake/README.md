@@ -1,8 +1,8 @@
 # Intake — Agorasim tickets
 
-Open work for this repo lives here as **epics and stubs**; the working contract is the
-`ticket-craft` skill (`.claude/skills/ticket-craft/SKILL.md`), canonical spec
-`_system/contracts/TICKETS.md` in icm-board. This file is its micro-copy.
+Open work for this repo lives here as **epics and stubs**. The formats, the writing rules and
+the loop from stub to merge are in `CONTEXT.md`, the blueprint's contract. This file is what is
+true of this backlog.
 
 ## Shape
 
@@ -14,18 +14,15 @@ Open work for this repo lives here as **epics and stubs**; the working contract 
 - **Identity is the path** (`<epic>/<slug>`); H1 is `# Stub: <title>`. No numbers.
 - Optional dash-lines: `- priority: P0|P1|P2`, `- size:`, `- blocked: <reason>`,
   `- sources:`.
-- **`## Prompt` is the pick-up contract**: it must stand alone pasted into a fresh Claude
+- **`## Prompt` is optional**: the stub is its own brief.
   session at the repo root and tell that session to read the stub file.
 
-## Profile: pipeline (2026-09-18)
+## The loop
 
-This repo is on the estate's **pipeline** profile. The authoritative formats — breakdown, stub,
-the triage stub, the archive rules — are in the template-owned `intake/CONTEXT.md`; this file
-stays the short micro-copy. What changes for a stub here: `/pipeline new` consumes it into
-`_done/` and opens the run's draft PR, so `## Prompt` is optional; `validate-intake.sh <epic>`
-checks the bookkeeping; `close-out.sh` archives the epic when its last run merges. The `go-live/`
-stubs are the exception — human ops checklists (DNS, Stripe, Resend), never spun into a run;
-they move to `_done/` by hand when Jamie confirms the box.
+`.icm/scripts/new-run.sh <epic>/<slug>` starts a stub: it moves the stub into `_done/` and opens
+the draft pull request. `.icm/scripts/close-out.sh` moves a finished epic into `_done/`. The
+`go-live/` stubs are the exception: human ops checklists (DNS, Stripe, Resend), never started by
+the script. They move to `_done/` by hand when Jamie confirms the box.
 
 ## Status is positional
 
