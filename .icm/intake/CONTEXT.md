@@ -58,6 +58,7 @@ Rules of the folder:
 
 - feature-slug: <kebab, equal to the file name>
 - epic: <epic-slug>
+- story: <n>                   # when the epic comes from a user story
 - sequence: <n> of <m>
 - depends-on: <feature-slug, or none>
 - complexity: low | medium | high | research
@@ -97,11 +98,24 @@ is built. Edit it and re-cut the stubs to steer.
 # Breakdown: <epic title>
 
 - epic-slug: <slug>
-- source: <where the work came from: the proposal's scope, a call, a review>
+- story: <n>                   # when the epic comes from a user story
+- source: <where the work came from: the proposal's scope, a call, a review, a user
+  story: its number, its title, its author, its date and its link>
 
 ## What I understood
 
 <Three to six sentences. A misread is caught here, before any cut.>
+
+## Criteria → stubs
+
+<Only when the epic comes from a user story. One row per acceptance criterion of the story,
+in the story's order.>
+
+| # | The story's criterion | Carried by |
+|---|---|---|
+| 1 | <the criterion, in the story's words> | `<feature-slug>` |
+| 2 | <the criterion> | rule: README |
+| 3 | <the criterion> | not built: <reason> |
 
 ## Build order
 
@@ -148,6 +162,37 @@ No breakdown, no `sequence`, no `depends-on`. The acceptance criteria are requir
 `new-run.sh` copies them into the pull request, and a stub without them gets one placeholder
 line to fill by hand. The folder is a backlog, not a batch. Jamie prunes it. A session only
 adds to it and consumes from it.
+
+### A user story
+
+A client's document that asks for work, a user story most often, follows one path from the
+client's words to the stubs:
+
+- **The story is the client's.** It lives in the client's Drive folder. It is never committed
+  to the repo (why: the repo holds the work, the client holds their words, and a copy drifts
+  · 2026-10-23).
+- **One story becomes one epic.** The breakdown's `source:` line names the story: its number,
+  its title in the client's language, its author, its date and its link. A `story:` line
+  after `epic-slug:` carries the number (why: the client's list and the backlog read the
+  same, and a reader goes from a stub to the story in one step · 2026-10-23).
+- **`## What I understood` restates the story** in the session's words. Then it names what
+  exists in the repo that the story replaces or reuses. Then it lists the questions, numbered,
+  each with a default, under `### Questions for <the client>` and `### Questions for Jamie`
+  (why: a misread is caught before any cut, and the client answers in one reply ·
+  2026-10-23).
+- **A table `## Criteria → stubs` lists every acceptance criterion of the story**, once, in
+  the story's order, with the stub that carries it, or `rule: README` for a rule that binds the
+  whole product, or `not built: <reason>`. Nothing the client wrote is lost silently (why: the
+  client checks their own list against the table in one read · 2026-10-23).
+- **Every stub of the epic carries `- story: <n>`** after `- epic:`. The line is absent when
+  the epic has no story (why: the pull request, the stub and the story stay linked without a
+  ticket number · 2026-10-23).
+- **A story that only states rules for the whole product** becomes decisions of record in
+  `README.md`, not an epic. The breakdowns name the decisions they rest on (why: a rule that
+  binds every epic has one home, and an epic for it would never close · 2026-10-23).
+- **`README.md` lists the stories in order** with their epic slug and state, so the client's
+  list and the backlog read the same (why: the client asks "where is my story 12?" and the
+  answer is one row · 2026-10-23).
 
 ## Writing rules
 
@@ -212,6 +257,7 @@ no model turn, and the judgement stays with Jamie · 2026-10-21).
    Jamie.
 7. **Jamie tests the preview**, ticks **Ready to merge**, and merges. A session never merges
    and never ticks a gate (why: the gate is where Jamie's judgement enters ·
-   2026-10-21).
+   2026-10-21). Where `.icm/uat/CONTEXT.md` exists, the merge reaches the UAT environment,
+   and production moves on the promotion that contract describes.
 
 Gates are human checkboxes. Read them. Never tick them.

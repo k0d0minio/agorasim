@@ -42,9 +42,10 @@ pnpm db:migrate    # apply pending migrations (schema + seed)
 pnpm db:studio     # browse the database
 ```
 
-In CI, the **DB migrate** GitHub workflow (`.github/workflows/db-migrate.yml`)
-runs `pnpm db:migrate` on pushes to `main` using the `DATABASE_URL` repository
-secret, keeping the database provisioned with the current schema and seed data.
+Production is migrated by `promote.yml` on Jamie's dispatch of a release tag, with the
+`DATABASE_URL` repository secret, before the staged build is promoted. UAT and every
+preview migrate their own database at build (`scripts/vercel-build.sh`,
+`.icm/uat/CONTEXT.md`).
 
 ## Admin accounts
 

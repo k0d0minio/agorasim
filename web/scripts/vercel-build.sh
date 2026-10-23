@@ -2,17 +2,17 @@
 # vercel-build.sh — what Vercel runs to build `web/`: the `vercel-build` script in package.json,
 # which Vercel prefers over `build`.
 #
-# Every non-production deployment runs against the UAT database `uat-agorasim` (estate decision
-# D41; .icm/_shared/project-rules.md → The environments' databases): a PR's preview against its own
+# Every non-production deployment runs against the UAT database `uat-agorasim` (.icm/uat/CONTEXT.md
+# → The database): a PR's preview against its own
 # Neon branch `preview/<git-branch>`, cut by the Vercel integration at deploy time, and the `uat`
 # custom environment — where VERCEL_ENV is also `preview` — against that database's default
 # branch. Neither carries this commit's schema, so before `next build` a preview applies the
 # Drizzle journal to its own database and verifies that every entry landed (scripts/verify-migrations.ts: drizzle-kit
 # reports success even when it skipped one).
 #
-# Production is untouched here. Its migrations reach the database through
-# .github/workflows/db-migrate.yml, called by release.yaml when a promotion Release is published
-# (D39) — the one production migrator — so the two never run against the same database at once. When Vercel does not expose VERCEL_ENV at all
+# Production is untouched here. Its migrations run in
+# .github/workflows/promote.yml, on Jamie's dispatch of a release tag — the one production
+# migrator — so the two never run against the same database at once. When Vercel does not expose VERCEL_ENV at all
 # (Settings → Environment Variables → "Automatically expose System Environment Variables" off)
 # this script cannot tell a preview from production and migrates nothing, and says so.
 #
@@ -35,7 +35,7 @@ case "${VERCEL_ENV:-}" in
       DATABASE_URL="${DATABASE_URL_UNPOOLED:-$DATABASE_URL}" pnpm db:verify
     fi ;;
   production)
-    echo "[vercel-build] production — migrations are db-migrate.yml's, at promotion; building only" ;;
+    echo "[vercel-build] production — migrations are promote.yml's, at promotion; building only" ;;
   *)
     echo "[vercel-build] VERCEL_ENV is '${VERCEL_ENV:-unset}' — cannot tell a preview from production, so migrating nothing (expose the system environment variables in Vercel to enable it)" ;;
 esac

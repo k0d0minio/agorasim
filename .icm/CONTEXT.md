@@ -14,10 +14,11 @@ blueprint's contract.
   scripts/
     new-run.sh      start a ticket: branch, stub into _done/, draft pull request
     close-out.sh    after the last stub: the epic folder into _done/
-    promote.sh      the promotion: approve --by "<who>" drafts the Release at the signed-off commit
-    deploy-status.sh, rollback.sh, report.sh, lib/   what release.yaml and promote.sh read
-  project.json      the names release.yaml, promote.sh and the Neon workflows read (no values)
-  _shared/promotion.md   the promotion rule: UAT, the batch, the published Release
+    promote.sh      status: the batch and what waits on Jamie. approve --by "<who>": the client's word
+    uat-db.sh       the Neon branch `uat`, with one Neon project. Not used here: UAT is `uat-agorasim`
+    rollback.sh     names the previous production deployment, prints the command, runs nothing
+    lib/            vercel.sh and neon.sh, the transports the scripts and the workflows share
+  uat/CONTEXT.md    the UAT contract: the environments, the database, the batch, the promotion
   docs/             the research and the client's words behind the engagement
 ```
 

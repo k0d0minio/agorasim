@@ -10,7 +10,9 @@
     "start": "pnpm --filter web start",
     "lint": "pnpm --filter web lint",
     "test": "pnpm --filter web test",
-    "typecheck": "pnpm --filter web typecheck"
+    "typecheck": "pnpm --filter web typecheck",
+    "db:migrate": "pnpm --filter web db:migrate",
+    "db:verify": "pnpm --filter web db:verify"
   },
   "pnpm": {
     "overrides": {
