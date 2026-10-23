@@ -21,8 +21,8 @@ true of this backlog.
 
 `.icm/scripts/new-run.sh <epic>/<slug>` starts a stub: it moves the stub into `_done/` and opens
 the draft pull request. `.icm/scripts/close-out.sh` moves a finished epic into `_done/`. The
-`go-live/` stubs are the exception: human ops checklists (DNS, Stripe, Resend), never started by
-the script. They move to `_done/` by hand when Jamie confirms the box.
+go-live choreography (DNS, Stripe, Resend, the switch) is not a ticket. It is the runbook at
+`.icm/docs/launch-runbook.md`, and Jamie drives it.
 
 ## Status is positional
 
@@ -34,4 +34,6 @@ the script. They move to `_done/` by hand when Jamie confirms the box.
 ## History
 
 The tree was purged on 2026-09-11 (every earlier epic, triage stub and `_done/` archive)
-to leave only the go-live work; `git log -- .icm/intake` holds the rest.
+to leave only the go-live work; `git log -- .icm/intake` holds the rest. On 2026-10-23 the
+`go-live/` epic was deleted (Jamie's decision) and the backlog was cut again from the client's
+feedback round 1 of 2026-10-12 (Drive, `feedback-round-1.pdf`): five epics and six triage stubs.
