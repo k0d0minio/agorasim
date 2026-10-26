@@ -1,205 +1,143 @@
 #!/usr/bin/env bash
-# lib/vercel.sh — the one Vercel transport for the pipeline scripts. Sourced, not run (except --check).
+# lib/vercel.sh — the Vercel transport the UAT scripts and promote.yml share. Sourced, not run.
 #
-# What lib/gh.sh is to GitHub, this is to Vercel: curl + the token named by the repo's own deploy
-# block (`.icm/project.json` → deploy.token_env — lib/project.sh), falling back to plain
-# VERCEL_TOKEN exactly as the cloud hydrate hook does. Every Vercel READ a template-owned script
-# makes — deploy-status.sh, env.sh audit, rollback.sh's lookup of the previous deployment,
-# setup.sh's route check — goes through here. NO WRITE VERB LIVES IN THIS FILE: the two Vercel
-# writes the pipeline knows about (`vercel env add`, the rollback endpoint) are made by the
-# Vercel CLI from a human's stdin (env.sh add) or printed for a human to run (rollback.sh). A
-# script that needs to change Vercel does not get a helper for it here.
+# Reads from the environment: VERCEL_TOKEN (required before any call), VERCEL_TEAM (the team's
+# slug; unset means the personal scope), VERCEL_PROJECT (the project's name; the repository's
+# name when unset), UAT_ENVIRONMENT (the custom environment's slug; `uat` when unset). The token
+# never reaches a command line: curl reads its configuration from a file only this process can
+# read. No function here prints a variable value. The contract is .icm/uat/CONTEXT.md.
 #
-# Nothing outside the repo is read: no registry, no icm-board, no `~/Apps`. The projects, the
-# team and the token's NAME come from the deploy block; the token's VALUE comes from the
-# process environment and never reaches argv (curl reads its config from stdin) or stdout.
-#
-# Contract for callers (source after die() is defined and lib/project.sh is sourced):
-#   source "$(dirname "${BASH_SOURCE[0]}")/lib/vercel.sh"
-#     → sets VERCEL_API (default https://api.vercel.com), vercel_team (deploy.team_slug),
-#       vercel_token_name (deploy.token_env, else VERCEL_TOKEN) and vercel_token (its value, or
-#       empty). Nothing is fetched at source time.
-#   vercel_declared                  returns 0 when deploy.projects has at least one entry.
-#   vercel_require "<why>"           die NOW when no token is set — before any side effect.
-#   vercel_get <path> [<query>]      GET <path> (relative to VERCEL_API); the team is appended as
-#                                    `teamId=<slug>` when declared. Prints "<body>\n<http_code>".
-#                                    A 429, a 5xx or no answer is retried (VERCEL_RETRIES attempts,
-#                                    default 4, backing off VERCEL_RETRY_DELAY × n seconds, default
-#                                    2) — a burst of per-project reads is exactly what Vercel rate-
-#                                    limits, and a GET is safe to repeat.
-#   vercel_get_all <path> <array-key> [<query>] [<jq-projection>]
-#                                    every page of a list: follows `.pagination.next` as `until=`
-#                                    until it is null, and prints ONE JSON array of the items, each
-#                                    passed through the projection (default `.`) — so a caller that
-#                                    asks for names never holds a value. Returns 1 (the HTTP code
-#                                    on stderr) when ANY page fails: a partial list is never
-#                                    returned as if it were whole.
-#   vercel_project <name>            GET /v9/projects/<name> → the project JSON (dies on non-200).
-#   vercel_deployments <name> [--target production|preview] [--sha <sha>] [--limit n]
-#                                    GET /v6/deployments filtered to the project (by its id),
-#                                    newest first → the `deployments` array as JSON.
-#   vercel_deployment <id>           GET /v13/deployments/<id> → one deployment's JSON.
-#   vercel_env_list <name>           GET /v9/projects/<name>/env, every page → one line per variable,
-#                                    sorted: key<TAB>type<TAB>targets(csv, sorted). Names, targets,
-#                                    kinds — never a decrypted value; `decrypt=false` is not even
-#                                    asked. Dies (non-zero, in the caller's subshell) on a failed read.
-#   vercel_project_id <name>         the project's id (cached per call in this shell).
-#
-# Standalone check:
-#   .icm/scripts/lib/vercel.sh --check   GET /v9/projects for the team, every page, through the
-#                                        same logic; prints how many projects the token sees and
-#                                        how many of deploy.projects[] are among them.
-#                                        RESULT: OK (exit 0) · MISMATCH n — n declared projects the
-#                                        token cannot see, each named (exit 1) · SKIP (no deploy
-#                                        block) · the die message (exit 1).
+# Functions (the caller defines `die`, or the default below applies):
+#   vercel_require "<why>"                  stop now when VERCEL_TOKEN is empty.
+#   vercel_call <METHOD> <path> [<file>]    one request. Prints the body, then the HTTP code on its own line.
+#   vercel_get <path>                       GET. Prints the body. Dies on a code outside 2xx.
+#   vercel_project_name                     VERCEL_PROJECT, or the repository's name.
+#   vercel_project                          the project's JSON (GET /v9/projects/<name>).
+#   vercel_project_id                       the project's id.
+#   vercel_custom_env                       the custom environment whose slug is UAT_ENVIRONMENT, or nothing.
+#   vercel_deployments <target>             the 20 newest deployments for <target>: production, or a custom environment's slug.
+#   vercel_deployment <target> <sha>        the newest deployment of <sha> for <target>, or nothing.
+#   vercel_production_current               the id of the deployment production serves now.
+#   vercel_production_domains               the project's production domains, one per line.
+#   vercel_promote <deployment id>          POST promote. Prints the HTTP code.
+#   vercel_env_find <key> <custom env id>   the id of that variable on that environment, or nothing.
+#   vercel_env_upsert <key> <file> <custom env id>   create or replace the variable with the file's content, encrypted.
+#   vercel_env_delete <variable id>         delete one variable.
 
-declare -F die >/dev/null 2>&1 || die() { echo "error: $*" >&2; exit 1; }
-
-_vercel_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=project.sh
-declare -F project_field >/dev/null 2>&1 || source "$_vercel_here/project.sh"
-
-VERCEL_API="${VERCEL_API_URL:-https://api.vercel.com}"
-vercel_team="$(deploy_team)"
-vercel_token_name="$(deploy_token_env)"
-vercel_token="${!vercel_token_name:-}"
-if [ -z "$vercel_token" ] && [ "$vercel_token_name" != "VERCEL_TOKEN" ]; then
-  # The hydrate hook's rule: plain VERCEL_TOKEN is what a cloud panel sets.
-  vercel_token="${VERCEL_TOKEN:-}"
-  [ -z "$vercel_token" ] || vercel_token_name="VERCEL_TOKEN"
+VERCEL_API="${VERCEL_API:-https://api.vercel.com}"
+if ! declare -F die >/dev/null 2>&1; then
+  die() { echo "error: $*" >&2; exit 1; }
 fi
-
-vercel_declared() { project_has '.deploy.projects'; }
 
 vercel_require() { # <why>
-  vercel_declared || die "no deploy block in .icm/project.json — declare deploy.projects before ${1:-this call} (setup.sh asks for it)"
-  [ -n "$vercel_token" ] || die "no Vercel token in this environment for ${1:-this call}: set ${vercel_token_name} (the name the deploy block names — or plain VERCEL_TOKEN); never pass it as an argument"
+  [ -n "${VERCEL_TOKEN:-}" ] || die "VERCEL_TOKEN is not set: $1 needs it"
+  command -v curl >/dev/null 2>&1 || die "curl is not installed"
+  command -v jq >/dev/null 2>&1 || die "jq is not installed"
 }
 
-# curl reads its configuration from stdin so the token never appears in argv (`ps`) — the same
-# idiom as the hydrate hook and icm-board's vercel-env.sh.
-vercel_get() { # <path> [<query>]
-  local path="$1" query="${2:-}" url out code attempt=0
+vercel_call() { # <METHOD> <path> [<json file>]
+  local method="$1" path="$2" body="${3:-}" url sep cfg rc
   url="${VERCEL_API}${path}"
-  if [ -n "$vercel_team" ]; then
-    query="${query:+$query&}teamId=${vercel_team}"
+  case "$path" in *\?*) sep='&' ;; *) sep='?' ;; esac
+  [ -z "${VERCEL_TEAM:-}" ] || url="${url}${sep}slug=${VERCEL_TEAM}"
+  cfg="$(mktemp)"
+  {
+    printf 'url = "%s"\n' "$url"
+    printf 'request = "%s"\n' "$method"
+    printf 'header = "Authorization: Bearer %s"\n' "$VERCEL_TOKEN"
+    printf 'header = "Content-Type: application/json"\n'
+    [ -z "$body" ] || printf 'data = "@%s"\n' "$body"
+    printf 'write-out = "\\n%%{http_code}"\nmax-time = 60\nsilent\nshow-error\n'
+  } > "$cfg"
+  curl --config "$cfg"
+  rc=$?
+  rm -f "$cfg"
+  return "$rc"
+}
+
+vercel_body() { printf '%s\n' "$1" | sed '$d'; }
+vercel_code() { printf '%s\n' "$1" | tail -n1; }
+
+vercel_get() { # <path>
+  local resp
+  resp="$(vercel_call GET "$1")" || die "GET $1: curl failed"
+  case "$(vercel_code "$resp")" in
+    2??) vercel_body "$resp" ;;
+    *) die "GET $1 answered HTTP $(vercel_code "$resp")" ;;
+  esac
+}
+
+vercel_project_name() {
+  if [ -n "${VERCEL_PROJECT:-}" ]; then
+    printf '%s' "$VERCEL_PROJECT"
+  else
+    basename -s .git "$(git config --get remote.origin.url 2>/dev/null || pwd)"
   fi
-  [ -z "$query" ] || url="${url}?${query}"
-  while :; do
-    out="$(printf 'url = "%s"\nheader = "Authorization: Bearer %s"\nwrite-out = "\\n%%{http_code}"\nmax-time = 30\nsilent\nshow-error\n' \
-      "$url" "$vercel_token" | curl --config - 2>/dev/null)"
-    code="$(printf '%s' "$out" | tail -n1)"
-    case "$code" in
-      429|5??|000|"") attempt=$((attempt + 1))
-                      [ "$attempt" -lt "${VERCEL_RETRIES:-4}" ] || break
-                      sleep $(( ${VERCEL_RETRY_DELAY:-2} * attempt )) ;;
-      *) break ;;
-    esac
-  done
-  printf '%s\n' "$out"
-  case "$code" in 000|"") return 1 ;; esac
 }
 
-vercel_get_all() { # <path> <array-key> [<query>] [<jq-projection>]
-  local path="$1" key="$2" query="${3:-}" proj="${4:-.}" acc='[]' next="" prev="" resp http body pages=0
-  while :; do
-    resp="$(vercel_get "$path" "${query}${next:+${query:+&}until=${next}}")"
-    http="$(_vercel_code "$resp")"
-    [ "$http" = "200" ] || { echo "GET ${path} answered HTTP ${http:-000}" >&2; return 1; }
-    body="$(_vercel_body "$resp")"
-    acc="$(printf '%s\n%s\n' "$acc" "$body" | jq -cs --arg k "$key" "(.[0]) + ((.[1][\$k] // []) | map($proj))")" || return 1
-    next="$(printf '%s' "$body" | jq -r '.pagination.next // empty' 2>/dev/null)"
-    pages=$((pages + 1))
-    # Stop on the last page — and on a cursor that does not move, so a misbehaving API cannot loop us.
-    if [ -z "$next" ] || [ "$next" = "$prev" ] || [ "$pages" -ge 100 ]; then break; fi
-    prev="$next"
-  done
-  printf '%s\n' "$acc"
+vercel_project() { vercel_get "/v9/projects/$(vercel_project_name)"; }
+
+vercel_project_id() {
+  [ -n "${_vercel_project_id:-}" ] || _vercel_project_id="$(vercel_project | jq -r '.id')"
+  printf '%s' "$_vercel_project_id"
 }
 
-_vercel_body() { printf '%s' "$1" | sed '$d'; }
-_vercel_code() { printf '%s' "$1" | tail -n1; }
-
-vercel_project() { # <name>
-  local resp http
-  resp="$(vercel_get "/v9/projects/$1")" || die "could not reach ${VERCEL_API} for project '$1'"
-  http="$(_vercel_code "$resp")"
-  [ "$http" = "200" ] || die "GET /v9/projects/$1 answered HTTP $http via ${vercel_token_name}${vercel_team:+ (team $vercel_team)}: $(_vercel_body "$resp" | jq -r '.error.message // empty' 2>/dev/null)"
-  _vercel_body "$resp"
+vercel_custom_env() {
+  vercel_get "/v9/projects/$(vercel_project_id)/custom-environments" \
+    | jq -c --arg s "${UAT_ENVIRONMENT:-uat}" '[.environments[] | select(.slug == $s)] | first // empty'
 }
 
-vercel_project_id() { # <name>
-  vercel_project "$1" | jq -r '.id // empty'
+vercel_deployments() { # <target>
+  vercel_get "/v6/deployments?projectId=$(vercel_project_id)&target=$1&limit=20" | jq -c '.deployments'
 }
 
-vercel_deployments() { # <name> [--target t] [--sha s] [--limit n]
-  local name="$1"; shift
-  local target="" sha="" limit=20 id q resp http
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --target) target="${2:-}"; shift 2 ;;
-      --sha)    sha="${2:-}"; shift 2 ;;
-      --limit)  limit="${2:-20}"; shift 2 ;;
-      *) die "vercel_deployments: unknown flag $1" ;;
-    esac
-  done
-  id="$(vercel_project_id "$name")"
-  [ -n "$id" ] || die "project '$name' has no id in Vercel's answer"
-  q="projectId=${id}&limit=${limit}"
-  [ -z "$target" ] || q="${q}&target=${target}"
-  [ -z "$sha" ]    || q="${q}&sha=${sha}"
-  resp="$(vercel_get "/v6/deployments" "$q")" || die "could not list deployments for '$name'"
-  http="$(_vercel_code "$resp")"
-  [ "$http" = "200" ] || die "GET /v6/deployments for '$name' answered HTTP $http: $(_vercel_body "$resp" | jq -r '.error.message // empty' 2>/dev/null)"
-  _vercel_body "$resp" | jq -c '.deployments // []'
+vercel_deployment() { # <target> <sha>
+  local q
+  q="projectId=$(vercel_project_id)&target=$1&limit=20"
+  # Vercel's sha filter matches the full 40-character SHA only. A shorter one is matched here.
+  [ "${#2}" -ne 40 ] || q="${q}&sha=$2"
+  vercel_get "/v6/deployments?${q}" \
+    | jq -c --arg s "$2" '[.deployments[] | select((.meta.githubCommitSha // "") | startswith($s))] | sort_by(-.created) | first // empty'
 }
 
-vercel_deployment() { # <id>
-  local resp http
-  resp="$(vercel_get "/v13/deployments/$1")" || die "could not read deployment $1"
-  http="$(_vercel_code "$resp")"
-  [ "$http" = "200" ] || die "GET /v13/deployments/$1 answered HTTP $http"
-  _vercel_body "$resp"
+vercel_production_current() { vercel_project | jq -r '.targets.production.id // empty'; }
+
+vercel_production_domains() {
+  vercel_get "/v9/projects/$(vercel_project_id)/domains?limit=100" \
+    | jq -r '.domains[] | select(.gitBranch == null and .customEnvironmentId == null and .redirect == null) | .name'
 }
 
-vercel_env_list() { # <name>  → key \t type \t targets, sorted
-  local all
-  # The endpoint takes the name as readily as the id — one request per project, not two, which
-  # is half the burst a many-project repo sends. `.envs[]` carries key, type (plain|encrypted|
-  # sensitive|secret|system) and target[] — and a `value` field the projection drops at the page.
-  all="$(vercel_get_all "/v9/projects/$1/env" envs "" '{key, type: (.type // ""), target: ((.target // []) | sort)}')" \
-    || die "GET /v9/projects/<name>/env for '$1' failed"
-  printf '%s\n' "$all" | jq -r '.[] | [.key, .type, (.target | join(","))] | @tsv' | LC_ALL=C sort
+vercel_promote() { # <deployment id>
+  local resp
+  resp="$(vercel_call POST "/v10/projects/$(vercel_project_id)/promote/$1")" || die "POST promote: curl failed"
+  vercel_code "$resp"
 }
 
-# --- standalone: `lib/vercel.sh --check` --------------------------------------------------------------
+vercel_env_find() { # <key> <custom env id>
+  vercel_get "/v9/projects/$(vercel_project_id)/env" \
+    | jq -r --arg k "$1" --arg e "$2" '[.envs[] | select(.key == $k and ((.customEnvironmentIds // []) | index($e) != null))] | first | .id // empty'
+}
 
-if [ "${BASH_SOURCE[0]}" = "$0" ]; then
-  set -euo pipefail
-  [ "${1:-}" = "--check" ] || die "usage: .icm/scripts/lib/vercel.sh --check   (this file is otherwise sourced by the pipeline scripts)"
-  command -v curl >/dev/null || die "curl not found"
-  command -v jq >/dev/null || die "jq not found"
-  if ! vercel_declared; then
-    echo "deploy not declared in .icm/project.json — nothing to check"
-    echo "RESULT: SKIP"; exit 0
-  fi
-  vercel_require "the route check"
-  echo "token: ${vercel_token_name} set; team: ${vercel_team:-<none>}; api: $VERCEL_API" >&2
-  errf="$(mktemp)"; trap 'rm -f "$errf"' EXIT
-  all="$(vercel_get_all "/v9/projects" projects "limit=100" '{name, id}' 2>"$errf")" \
-    || die "$(cat "$errf" 2>/dev/null || echo 'GET /v9/projects failed') via ${vercel_token_name}"
-  n="$(printf '%s' "$all" | jq 'length')"
-  echo "GET /v9/projects → 200 ($n project(s) visible to this token${vercel_team:+ on $vercel_team}, every page)"
-  declared=0; missing=()
-  while IFS= read -r pj; do
-    [ -n "$pj" ] || continue
-    name="$(printf '%s' "$pj" | jq -r '.name')"; declared=$((declared + 1))
-    printf '%s' "$all" | jq -e --arg n "$name" 'any(.[]; .name == $n or .id == $n)' >/dev/null || missing+=("$name")
-  done < <(deploy_projects)
-  echo "deploy.projects: $declared declared, $((declared - ${#missing[@]})) visible to this token"
-  if [ "${#missing[@]}" -gt 0 ]; then
-    echo "not visible: ${missing[*]} — the token is not scoped to them, or deploy.team_slug names another team"
-    echo "RESULT: MISMATCH ${#missing[@]}"; exit 1
-  fi
-  echo "RESULT: OK"
-fi
+vercel_env_upsert() { # <key> <file holding the value> <custom env id>
+  local body resp code
+  body="$(mktemp)"
+  jq -n --arg k "$1" --rawfile v "$2" --arg e "$3" \
+    '{key: $k, value: ($v | rtrimstr("\n")), type: "encrypted", customEnvironmentIds: [$e]}' > "$body"
+  resp="$(vercel_call POST "/v10/projects/$(vercel_project_id)/env?upsert=true" "$body")" || { rm -f "$body"; die "POST env $1: curl failed"; }
+  rm -f "$body"
+  code="$(vercel_code "$resp")"
+  case "$code" in
+    2??) echo "$1 set on the environment (HTTP $code)" ;;
+    *) die "POST env $1 answered HTTP $code: $(vercel_body "$resp" | jq -r '.error.message // empty' 2>/dev/null)" ;;
+  esac
+}
+
+vercel_env_delete() { # <variable id>
+  local resp code
+  resp="$(vercel_call DELETE "/v9/projects/$(vercel_project_id)/env/$1")" || die "DELETE env $1: curl failed"
+  code="$(vercel_code "$resp")"
+  case "$code" in
+    2??) echo "variable $1 removed (HTTP $code)" ;;
+    *) die "DELETE env $1 answered HTTP $code" ;;
+  esac
+}

@@ -16,15 +16,18 @@ identity and routing only.
 | understand the app, its stack and its data | `README.md` and `web/AGENTS.md` |
 | change what CI checks or how a release is cut | `legible-consulting/.github` (`check-client.yml`, `release.yml`). `ci.yml` here only calls them |
 | change a file the blueprint renders | the blueprint, then `copier update` here |
+| read the UAT batch, record the client's sign-off, promote, roll back | `.icm/uat/CONTEXT.md` (the whole UAT contract), then its scripts |
 
 ## Release
 
 Every merge to `main` deploys UAT at `uat.agorasim.pt` and builds a production deployment that stays
-staged. Production moves on a promotion: the client says yes on UAT, Jamie records it with
-`.icm/scripts/promote.sh approve --by "<who>"`, which drafts the Release at that commit, and
-Jamie publishes the Release on GitHub. `release.yaml` then migrates, promotes the staged build
-and announces. The rule is `.icm/_shared/promotion.md`. The release-please pull request from
-`ci.yml` keeps the changelog and the tag and moves nothing.
+staged. The release-please pull request from `ci.yml` is the batch. Production moves on a
+promotion: the client says yes on UAT, Jamie records it with
+`.icm/scripts/promote.sh approve --by "<who>"`, merges the release pull request, which makes the
+tag and the changelog and moves nothing, then dispatches `promote.yml` with that tag. That run
+migrates production and promotes the staged build. The rule is `.icm/uat/CONTEXT.md`. The UAT
+database is the default branch of the Neon project `uat-agorasim`, the second Neon project the
+contract allows.
 
 ## Rules
 
@@ -39,3 +42,7 @@ and announces. The rule is `.icm/_shared/promotion.md`. The release-please pull 
 - One ticket is one branch and one pull request. The pull request moves the stub to `_done/`.
   Gates are human checkboxes: read them, never tick them.
 - `main` changes by PR. The merge is a human's.
+- A ticket's merge reaches the UAT environment, where the client tests the batch. The merge of
+  the release pull request makes the release tag and moves nothing. Production moves when Jamie
+  dispatches `promote.yml` with that tag, after the client's sign-off is recorded. A session
+  never merges it and never dispatches it (`.icm/uat/CONTEXT.md`).

@@ -1,0 +1,47 @@
+# neon-cleanup: a pull request closes, and the Neon branch its preview used, preview/<branch>,
+# is deleted (CI is truth; never run locally). The Vercel Neon integration makes that branch
+# and deletes it only when the deployment expires, which can be months away. Nothing else is
+# named: not the default branch, not the UAT branch. The contract is .icm/uat/CONTEXT.md.
+name: neon-cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neon-cleanup-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      HEAD_REF: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Delete preview/<branch> when it exists
+        run: |
+          # shellcheck source=/dev/null
+          source .icm/scripts/lib/neon.sh
+          neon_require "deleting the pull request's preview branch"
+          name="preview/${HEAD_REF}"
+          id="$(neon_branch "$name" | jq -r '.id // empty')"
+          if [ -z "$id" ]; then
+            echo "$name is not in the project: nothing to delete. A pull request with no preview makes no branch."
+            exit 0
+          fi
+          neon_delete_branch "$id" "$name"
+          echo "deleted $name ($id)"
+          echo "Neon cleanup: deleted $name" >> "$GITHUB_STEP_SUMMARY"
