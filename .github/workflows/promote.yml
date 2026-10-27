@@ -1,7 +1,8 @@
 # promote: the promotion to production (CI is truth; never run locally). The contract is
-# .icm/uat/CONTEXT.md. Nothing starts this workflow but Jamie: it runs on workflow_dispatch with
-# the release tag, after the client's sign-off is recorded and the release pull request is
-# merged. The tag must be a `v*` tag in the repository that points at a commit on main.
+# .icm/uat/CONTEXT.md. Nothing starts this workflow but promote.sh run: `promote.sh run --tag
+# <tag>` dispatches it on workflow_dispatch with the release tag, on Jamie's word, after the
+# client's sign-off is recorded and the release pull request is merged. The tag must be a `v*`
+# tag in the repository that points at a commit on main.
 # Production is migrated, then the staged production build of that commit is promoted, then
 # production is read once. Each job needs the one before it, so a failure leaves production
 # untouched. No push, merge, tag or schedule promotes.
@@ -56,8 +57,9 @@ jobs:
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
   migrate:
-    # db:migrate, then db:verify, against production. A repository without the scripts skips
-    # them (--if-present). A missing DATABASE_URL fails here, before anything is promoted.
+    # db:migrate, then db:verify, against production, on any database. A repository without the
+    # scripts skips them (--if-present). With db:migrate, a missing DATABASE_URL fails here,
+    # before anything is promoted.
     needs: release
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -71,8 +73,12 @@ jobs:
         with:
           ref: ${{ needs.release.outputs.sha }}
           persist-credentials: false
-      - name: The connection string is set
+      - name: The connection string is set when the build migrates
         run: |
+          if [ ! -f package.json ] || ! jq -e '.scripts["db:migrate"]' package.json >/dev/null; then
+            echo "package.json names no db:migrate: production is not migrated here"
+            exit 0
+          fi
           [ -n "$DATABASE_URL" ] || { echo "::error::the repository secret DATABASE_URL is not set: production cannot be migrated, nothing is promoted"; exit 1; }
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: hashFiles('package.json') != ''

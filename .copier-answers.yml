@@ -1,8 +1,11 @@
-_commit: v0.8.0
+_commit: v1.0.0
 _src_path: gh:legible-consulting/blueprint
 client_name: Agorasim
+database: neon
 language: pt-PT
+migrations_path: web/drizzle
 monorepo: true
 release: true
 slug: agorasim
 uat: true
+workspace: false
