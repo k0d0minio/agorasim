@@ -56,10 +56,9 @@ ICM workspaces — plain folders of markdown that drive human-reviewed content p
 
 ## Where things stand
 
-The register — [`.icm/project.md`](.icm/project.md) — is the source of truth for what this
-project is for, what has shipped and what is still to build; its Features table points at the
-epics under [`.icm/intake/`](.icm/intake/). It is written by `/project agorasim` in icm-board,
-never by hand, and this README does not restate it. The go-live choreography (registrar
+The open work is the stubs under [`.icm/intake/`](.icm/intake/). The project register
+(`.icm/project.md`) was removed on 2026-10-27. Its last version is in the git history. The
+go-live choreography (registrar
 transfer, live Stripe Connect, the sending domain, the €1 test) is
 [`.icm/docs/launch-runbook.md`](.icm/docs/launch-runbook.md).
 
