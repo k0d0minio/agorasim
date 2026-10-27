@@ -17,6 +17,17 @@ true of this backlog.
 - **`## Prompt` is optional**: the stub is its own brief.
   session at the repo root and tell that session to read the stub file.
 
+## Order
+
+Set by Jamie on 2026-10-27.
+
+1. triage
+2. bookings-and-payment-links
+3. wedding-quotes
+4. open-and-private-tours
+5. add-ons-on-the-site
+6. site-copy-and-photos
+
 ## The loop
 
 `.icm/scripts/new-run.sh <epic>/<slug>` starts a stub: it moves the stub into `_done/` and opens
