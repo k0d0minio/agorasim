@@ -3,22 +3,30 @@
 #
 # Usage: .icm/scripts/promote.sh [status]
 #        .icm/scripts/promote.sh approve --by "<who>" [--note "<their words>"]
+#        .icm/scripts/promote.sh run --tag <tag>
 #
 #   status   the last release tag, the batch since it (git log <tag>..origin/main), the open
 #            release pull request, `ci` on main's head, the UAT deployment of that head, the
-#            staged production build of it, the setup acts this script can read, and the dispatch
-#            command when the last release tag is not promoted yet. Reads only.
+#            staged production build of it, the setup acts this script can read, and the
+#            `promote.sh run` command when the last release tag is not promoted yet. Reads only.
 #   approve  THE RECORD OF THE CLIENT'S WORD. Jamie, in this session, says the client approved
 #            and names who. The script posts the record on the open release pull request, names
 #            the batch and the UAT deployment, and stops. It refuses without --by, without an
 #            open release pull request, and when the UAT deployment of main's head is not READY.
-#            It ticks nothing, merges nothing and dispatches nothing: the merge of the release
-#            pull request and the dispatch of promote.yml are Jamie's.
+#            It ticks nothing, merges nothing and dispatches nothing. On Jamie's word `release`,
+#            the session runs release.sh. On Jamie's word `promote`, the session runs `run`.
+#   run      THE DISPATCH OF promote.yml. Jamie, in this session, says `promote`. The script reads
+#            the merged release pull request of <tag> and the tag's commit. It refuses when the
+#            pull request has no record from `approve`, when the record's commit is not the parent
+#            of the release commit (a merge joined the batch after the sign-off), when main is
+#            ahead of the tag, or when `ci`, the UAT deployment or the staged production build of
+#            the tag's commit is not READY. Then `gh workflow run promote.yml -f tag=<tag>`, and it
+#            prints the run's URL. It does not wait for the run to finish.
 #
 # Reads: gh (signed in), git, jq, curl, VERCEL_TOKEN, and VERCEL_TEAM, VERCEL_PROJECT,
-# UAT_ENVIRONMENT when set. Without VERCEL_TOKEN, status prints what git and GitHub know and
-# approve refuses. The contract is .icm/uat/CONTEXT.md.
-# Exit: 0 reported or recorded · 1 an error · 3 a refusal, named on stderr, RESULT: STOP.
+# UAT_ENVIRONMENT when set. Without VERCEL_TOKEN, status prints what git and GitHub know, and
+# approve and run refuse. The contract is .icm/uat/CONTEXT.md.
+# Exit: 0 reported, recorded or dispatched · 1 an error · 3 a refusal, named on stderr, RESULT: STOP.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,14 +36,15 @@ die() { echo "error: $*" >&2; exit 1; }
 stop() { echo "$*" >&2; echo "RESULT: STOP"; exit 3; }
 for t in gh git jq curl; do command -v "$t" >/dev/null 2>&1 || die "$t is not installed"; done
 
-verb=status; by=""; note=""
+verb=status; by=""; note=""; tag=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    status|approve) verb="$1"; shift ;;
+    status|approve|run) verb="$1"; shift ;;
     --by) by="${2:-}"; shift 2 ;;
     --note) note="${2:-}"; shift 2 ;;
-    -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}"; exit 0 ;;
-    *) die "unknown argument: $1 (usage: promote.sh [status] | approve --by \"<who>\" [--note \"<text>\"])" ;;
+    --tag) tag="${2:-}"; shift 2 ;;
+    -h|--help) sed -n '2,30p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    *) die "unknown argument: $1 (usage: promote.sh [status] | approve --by \"<who>\" [--note \"<text>\"] | run --tag <tag>)" ;;
   esac
 done
 
@@ -55,8 +64,74 @@ fi
 batch="$(git log --oneline --no-decorate "$range")"
 n="$(printf '%s\n' "$batch" | grep -c . || true)"
 
+# --- run: the dispatch of promote.yml, on Jamie's word `promote` -----------------------------------
+if [ "$verb" = run ]; then
+  [ -n "$tag" ] || die "run needs --tag <v*>"
+  case "$tag" in v*) ;; *) stop "the tag $tag is not a v* tag" ;; esac
+  git rev-parse -q --verify "refs/tags/${tag}" >/dev/null \
+    || stop "the tag $tag is not in the repository. release.sh makes it, on Jamie's word release"
+  sha="$(git rev-parse "${tag}^{commit}")"
+  tshort="${sha:0:7}"
+  git merge-base --is-ancestor "$sha" "$head" || stop "the tag $tag at $tshort is not on main"
+  [ "$sha" = "$head" ] \
+    || stop "main at $short is ahead of $tag at $tshort. Merge nothing between the sign-off and the promotion. A new release and a new sign-off follow"
+  [ -n "${VERCEL_TOKEN:-}" ] || stop "VERCEL_TOKEN is not set: the UAT deployment and the staged production build cannot be read"
+  vercel_require "reading UAT and production"
+
+  # The merged release pull request whose title names the version, as release-please writes it.
+  version="${tag#v}"
+  rel="$(gh pr list --state merged --limit 20 --search "release ${version} in:title" --json number,url,title,headRefName,mergeCommit \
+    | jq -c --arg v "$version" '[.[] | select(.headRefName == "release-please--branches--main" or (.title | startswith("chore(main): release")))
+        | select(.title | split(" ") | index($v))] | first // empty')"
+  [ -n "$rel" ] || stop "no merged release pull request names $version. release.sh merges it, on Jamie's word release"
+  rel_n="$(jq -r '.number' <<<"$rel")"
+  rel_url="$(jq -r '.url' <<<"$rel")"
+  [ "$(jq -r '.mergeCommit.oid // empty' <<<"$rel")" = "$sha" ] \
+    || stop "the tag $tag at $tshort is not the merge commit of #$rel_n"
+
+  # The sign-off: the last record that approve posted, and the commit its batch line names.
+  record="$(gh pr view "$rel_n" --json comments --jq '[.comments[] | select(.body | startswith("**UAT sign-off**"))] | last | .body // empty')"
+  [ -n "$record" ] \
+    || stop "#$rel_n has no UAT sign-off record. On Jamie's word that the client approved: .icm/scripts/promote.sh approve --by \"<who>\""
+  signed="$(printf '%s\n' "$record" | sed -nE 's/^- batch: `[^`]*\.\.([0-9a-f]+)`.*/\1/p' | head -n1)"
+  [ -n "$signed" ] || stop "the sign-off record on #$rel_n names no batch"
+  parent="$(git rev-parse "${sha}^")"
+  [ "${parent:0:${#signed}}" = "$signed" ] \
+    || stop "the client signed off on $signed, but the release commit $tshort follows ${parent:0:7}: a merge joined the batch after the sign-off. The client signs off again"
+
+  # The three reads of status, on the tag's commit.
+  rci="$(gh run list --workflow ci --branch main --commit "$sha" --limit 1 --json status,conclusion \
+    --jq 'first | if . == null then "" else "\(.status) \(.conclusion // "")" end')"
+  [ "$rci" = "completed success" ] || stop "ci on $tshort is ${rci:-not found}, not success"
+  slug="${UAT_ENVIRONMENT:-uat}"
+  udep="$(vercel_deployment "$slug" "$sha")"
+  ustate="$(printf '%s' "$udep" | jq -r '.state // .readyState // empty' 2>/dev/null || true)"
+  [ "$ustate" = READY ] || stop "the '$slug' deployment of $tshort is ${ustate:-missing}, not READY"
+  pdep="$(vercel_deployment production "$sha")"
+  pstate="$(printf '%s' "$pdep" | jq -r '.state // .readyState // empty' 2>/dev/null || true)"
+  [ "$pstate" = READY ] || stop "the staged production build of $tshort is ${pstate:-missing}, not READY"
+
+  # The dispatch, then one read of the run's URL: a run newer than the newest run before it.
+  before="$(gh run list --workflow promote.yml --limit 1 --json databaseId --jq 'first.databaseId // 0')"
+  gh workflow run promote.yml -f tag="$tag" >/dev/null
+  run_url=""
+  for _ in 1 2 3 4 5; do
+    sleep 2
+    run_url="$(gh run list --workflow promote.yml --event workflow_dispatch --limit 5 --json databaseId,url \
+      | jq -r --argjson b "$before" '[.[] | select(.databaseId > $b)] | first | .url // empty')"
+    [ -z "$run_url" ] || break
+  done
+  echo "dispatched promote.yml with $tag (#$rel_n $rel_url)"
+  if [ -n "$run_url" ]; then
+    echo "run: $run_url"
+  else
+    echo "the run is not listed yet. Read it with: gh run list --workflow promote.yml --limit 1"
+  fi
+  echo "RESULT: DISPATCHED $tag"
+  exit 0
+fi
+
 # --- GitHub: the release pull request and ci on main's head ----------------------------------------
-repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || echo '<owner/name>')"
 release_pr="$(gh pr list --state open --label 'autorelease: pending' --json number,url,title --jq 'first // empty' 2>/dev/null || true)"
 pr_number="$(printf '%s' "$release_pr" | jq -r '.number // empty' 2>/dev/null || true)"
 pr_url="$(printf '%s' "$release_pr" | jq -r '.url // empty' 2>/dev/null || true)"
@@ -113,7 +188,7 @@ if [ -n "${VERCEL_TOKEN:-}" ]; then
     if [ -n "$tid" ] && [ "$tid" = "$current" ]; then
       promote_line="$last_tag is promoted ($tid)"
     else
-      promote_line="$last_tag is not promoted. Jamie runs: gh workflow run promote.yml --repo $repo -f tag=$last_tag"
+      promote_line="$last_tag is not promoted. On Jamie's word promote: .icm/scripts/promote.sh run --tag $last_tag"
     fi
   fi
 fi
@@ -151,10 +226,11 @@ trap 'rm -f "$tmp"' EXIT
   echo "- uat: ${uat_domain:+https://$uat_domain · }deployment ${uat_id} of ${short}"
   echo "- recorded by \`.icm/scripts/promote.sh approve\`"
   echo
-  echo "Jamie merges this pull request, then dispatches \`promote.yml\` with its tag. Both acts are Jamie's. Merge nothing else before it."
+  echo "On Jamie's word \`release\`, the session merges this pull request with \`.icm/scripts/release.sh\`. On Jamie's word \`promote\`, the session runs \`.icm/scripts/promote.sh run --tag <tag>\`. Merge nothing else before it."
 } > "$tmp"
 gh pr comment "$pr_number" --body-file "$tmp" >/dev/null
 echo "recorded on $pr_url"
-echo "next: Jamie merges the release pull request, then runs: gh workflow run promote.yml --repo $repo -f tag=v${pr_version:-<version>}"
+echo "next: on Jamie's word release: .icm/scripts/release.sh"
+echo "      then on Jamie's word promote: .icm/scripts/promote.sh run --tag v${pr_version:-<version>}"
 echo "      promote.yml then migrates production and promotes the staged build of the release commit."
 echo "RESULT: RECORDED $pr_url"

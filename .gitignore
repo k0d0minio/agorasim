@@ -1,4 +1,9 @@
 node_modules
+.pnpm-store/
+.turbo/
+dist/
+.next/
+*.tsbuildinfo
 
 # Diogo & Rita reference PDFs — agorasim-info.pdf holds credentials/IBAN, never commit
 .icm/docs/agorasim-info.pdf

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# lib/neon.sh — the Neon transport uat-db.sh and neon-cleanup.yml share. Sourced, not run.
+# lib/neon.sh — the Neon transport preview-db.sh uses. Sourced, not run.
 #
-# Reads from the environment: NEON_API_KEY and NEON_PROJECT_ID (both required before any call),
-# UAT_DB_BRANCH (the UAT branch's name; `uat` when unset). The key never reaches a command line:
-# curl reads its configuration from a file only this process can read. The project's default
-# branch is production's database: no function here writes it or deletes it, whatever a caller
-# asks, and a delete refuses every name outside UAT_DB_BRANCH and preview/*. A connection string
-# is printed by one function only, neon_connection_uri, and a caller writes it to a file, never
-# to a terminal. The contract is .icm/uat/CONTEXT.md.
+# Reads from the environment: NEON_API_KEY and NEON_PROJECT_ID (both required before any call).
+# The key never reaches a command line: curl reads its configuration from a file only this
+# process can read. The project's default branch is the base: UAT's database with UAT,
+# production's without. No function here writes it or deletes it, whatever a caller asks, and a
+# delete refuses every name outside preview/*. A connection string is printed by one function
+# only, neon_connection_uri, and a caller writes it to a file, never to a terminal. The contract
+# is .icm/database/CONTEXT.md.
 #
 # Functions (the caller defines `die`, or the default below applies):
 #   neon_require "<why>"                     stop now when the key or the project id is missing.
@@ -19,8 +19,8 @@
 #   neon_branch_state <id>                   the branch's current_state, read live.
 #   neon_wait_ready <id> [<seconds>]         poll until current_state is ready. 1 on timeout (default 180 s).
 #   neon_branch_database <id>               "<database name>\t<owner role>" of the branch's first database.
-#   neon_create_schema_only <name> <parent id>   create a schema-only branch with a read-write compute. Prints its JSON.
-#   neon_delete_branch <id> <name>           DELETE. Refuses the default branch and a name outside the two shapes.
+#   neon_create_branch <name> <parent id>   create a branch with the parent's data and a read-write compute. Prints its JSON.
+#   neon_delete_branch <id> <name>           DELETE. Refuses the default branch and a name outside preview/*.
 #   neon_connection_uri <id> <database> <role> <pooled: true|false>   prints the connection string.
 
 NEON_API="${NEON_API:-https://console.neon.tech/api/v2}"
@@ -86,11 +86,11 @@ neon_branch_database() { # <id>
     | jq -r '.databases | first | "\(.name)\t\(.owner_name)"'
 }
 
-neon_create_schema_only() { # <name> <parent id>
+neon_create_branch() { # <name> <parent id>
   local body resp code
   body="$(mktemp)"
   jq -n --arg n "$1" --arg p "$2" \
-    '{branch: {name: $n, parent_id: $p, init_source: "schema-only"}, endpoints: [{type: "read_write"}]}' > "$body"
+    '{branch: {name: $n, parent_id: $p}, endpoints: [{type: "read_write"}]}' > "$body"
   resp="$(neon_call POST "/projects/${NEON_PROJECT_ID}/branches" "$body")" || { rm -f "$body"; die "POST branches: curl failed"; }
   rm -f "$body"
   code="$(neon_code "$resp")"
@@ -103,11 +103,11 @@ neon_create_schema_only() { # <name> <parent id>
 neon_delete_branch() { # <id> <name>
   local default_id resp code
   case "$2" in
-    "${UAT_DB_BRANCH:-uat}"|preview/*) ;;
-    *) die "refusing to delete '$2': only ${UAT_DB_BRANCH:-uat} and preview/* are this repo's to delete" ;;
+    preview/*) ;;
+    *) die "refusing to delete '$2': only preview/* is this repo's to delete" ;;
   esac
   default_id="$(neon_default_branch | jq -r '.id // empty')"
-  [ "$1" != "$default_id" ] || die "refusing to delete the default branch: it is production's database"
+  [ "$1" != "$default_id" ] || die "refusing to delete the default branch: it is the base"
   resp="$(neon_call DELETE "/projects/${NEON_PROJECT_ID}/branches/$1")" || die "DELETE branch $2: curl failed"
   code="$(neon_code "$resp")"
   case "$code" in
