@@ -19,7 +19,8 @@ import { site } from "@/content/site";
  *   reschedule in bad weather, refund in extreme conditions, self-serve link;
  * - seller identity is {@link controller} from `privacy.ts` — one place for the
  *   trading name, NIF and address;
- * - the weddings deposit terms are decision D9 (`.icm/project.md`): 30%
+ * - the weddings deposit terms are decision D9 of the project register (removed
+ *   2026-10-27; see the git history of `.icm/project.md`): 30%
  *   deposit, non-refundable inside 30 days, free date change subject to
  *   availability — the default until the client confirms.
  *
@@ -312,7 +313,8 @@ export const termsContent = {
  *
  * TODO(legal): the "sinal" wording (Código Civil arts. 440–442) and an
  * our-side cancellation rule for events are open `[LAWYER]` questions
- * (`.icm/project.md` → Open questions); the events section states today's
+ * (the register's Open questions, removed 2026-10-27; see the git history of
+ * `.icm/project.md`); the events section states today's
  * default (D9) and nothing more until they are answered.
  */
 export function termsSection(id: TermsSectionId, locale: Locale): Section {
