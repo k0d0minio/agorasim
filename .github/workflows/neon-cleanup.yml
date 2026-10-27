@@ -1,7 +1,8 @@
-# neon-cleanup: a pull request closes, and the Neon branch its preview used, preview/<branch>,
-# is deleted (CI is truth; never run locally). The Vercel Neon integration makes that branch
-# and deletes it only when the deployment expires, which can be months away. Nothing else is
-# named: not the default branch, not the UAT branch. The contract is .icm/uat/CONTEXT.md.
+# neon-cleanup: a pull request closes, and its own database, the Neon branch preview/<branch>,
+# is deleted with its three variables on Vercel Preview (CI is truth; never run locally).
+# preview-db.yml made the branch when the pull request changed a migration. A pull request that
+# made no branch: nothing is deleted. Nothing else is named: never the base. The contract is
+# .icm/database/CONTEXT.md.
 name: neon-cleanup
 
 on:
@@ -26,22 +27,15 @@ jobs:
     env:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
-      HEAD_REF: ${{ github.head_ref }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TEAM: ${{ vars.VERCEL_TEAM }}
+      VERCEL_PROJECT: ${{ vars.VERCEL_PROJECT || github.event.repository.name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Delete preview/<branch> when it exists
+      - name: Delete preview/<branch> and its variables when they exist
         run: |
-          # shellcheck source=/dev/null
-          source .icm/scripts/lib/neon.sh
-          neon_require "deleting the pull request's preview branch"
-          name="preview/${HEAD_REF}"
-          id="$(neon_branch "$name" | jq -r '.id // empty')"
-          if [ -z "$id" ]; then
-            echo "$name is not in the project: nothing to delete. A pull request with no preview makes no branch."
-            exit 0
-          fi
-          neon_delete_branch "$id" "$name"
-          echo "deleted $name ($id)"
-          echo "Neon cleanup: deleted $name" >> "$GITHUB_STEP_SUMMARY"
+          out="$(bash .icm/scripts/preview-db.sh delete "$GITHUB_HEAD_REF")"
+          echo "$out"
+          echo "Neon cleanup: $(tail -n1 <<<"$out")" >> "$GITHUB_STEP_SUMMARY"

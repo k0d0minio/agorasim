@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# lib/vercel.sh — the Vercel transport the UAT scripts and promote.yml share. Sourced, not run.
+# lib/vercel.sh — the Vercel transport the UAT scripts, preview-db.sh and the workflows share.
+# Sourced, not run.
 #
 # Reads from the environment: VERCEL_TOKEN (required before any call), VERCEL_TEAM (the team's
 # slug; unset means the personal scope), VERCEL_PROJECT (the project's name; the repository's
 # name when unset), UAT_ENVIRONMENT (the custom environment's slug; `uat` when unset). The token
 # never reaches a command line: curl reads its configuration from a file only this process can
-# read. No function here prints a variable value. The contract is .icm/uat/CONTEXT.md.
+# read. No function here prints a variable value. The contracts are .icm/uat/CONTEXT.md and
+# .icm/database/CONTEXT.md.
 #
 # Functions (the caller defines `die`, or the default below applies):
 #   vercel_require "<why>"                  stop now when VERCEL_TOKEN is empty.
@@ -23,6 +25,10 @@
 #   vercel_env_find <key> <custom env id>   the id of that variable on that environment, or nothing.
 #   vercel_env_upsert <key> <file> <custom env id>   create or replace the variable with the file's content, encrypted.
 #   vercel_env_delete <variable id>         delete one variable.
+#   vercel_branch_env_find <key> <git branch>   the id of that Preview variable scoped to the git branch, or nothing.
+#   vercel_branch_env_upsert <key> <file> <git branch>   create or replace that Preview variable, encrypted.
+#   vercel_branch_deployment <git branch>   the newest preview deployment of the git branch, or nothing.
+#   vercel_redeploy <deployment id>         build that deployment's git source again. Prints the new deployment's URL.
 
 VERCEL_API="${VERCEL_API:-https://api.vercel.com}"
 if ! declare -F die >/dev/null 2>&1; then
@@ -139,5 +145,47 @@ vercel_env_delete() { # <variable id>
   case "$code" in
     2??) echo "variable $1 removed (HTTP $code)" ;;
     *) die "DELETE env $1 answered HTTP $code" ;;
+  esac
+}
+
+vercel_branch_env_find() { # <key> <git branch>
+  local b
+  b="$(jq -rn --arg b "$2" '$b | @uri')"
+  vercel_get "/v9/projects/$(vercel_project_id)/env?gitBranch=${b}" \
+    | jq -r --arg k "$1" --arg b "$2" '[.envs[] | select(.key == $k and .gitBranch == $b and ((.target // []) | index("preview") != null))] | first | .id // empty'
+}
+
+vercel_branch_env_upsert() { # <key> <file holding the value> <git branch>
+  local body resp code
+  body="$(mktemp)"
+  jq -n --arg k "$1" --rawfile v "$2" --arg b "$3" \
+    '{key: $k, value: ($v | rtrimstr("\n")), type: "encrypted", target: ["preview"], gitBranch: $b}' > "$body"
+  resp="$(vercel_call POST "/v10/projects/$(vercel_project_id)/env?upsert=true" "$body")" || { rm -f "$body"; die "POST env $1: curl failed"; }
+  rm -f "$body"
+  code="$(vercel_code "$resp")"
+  case "$code" in
+    2??) echo "$1 set on Preview for $3 (HTTP $code)" ;;
+    *) die "POST env $1 answered HTTP $code: $(vercel_body "$resp" | jq -r '.error.message // empty' 2>/dev/null)" ;;
+  esac
+}
+
+vercel_branch_deployment() { # <git branch>
+  vercel_get "/v6/deployments?projectId=$(vercel_project_id)&limit=100" \
+    | jq -c --arg b "$1" '[.deployments[] | select((.meta.githubCommitRef // "") == $b and (.target // "preview") == "preview")] | sort_by(-.created) | first // empty'
+}
+
+vercel_redeploy() { # <deployment id>
+  local src body resp code
+  src="$(vercel_get "/v13/deployments/$1" | jq -c '.gitSource // empty | {type, repoId, ref, sha}')"
+  [ -n "$src" ] || die "deployment $1 has no git source to build again"
+  body="$(mktemp)"
+  jq -n --arg n "$(vercel_project_name)" --arg p "$(vercel_project_id)" --argjson g "$src" \
+    '{name: $n, project: $p, gitSource: $g}' > "$body"
+  resp="$(vercel_call POST "/v13/deployments?forceNew=1" "$body")" || { rm -f "$body"; die "POST deployments: curl failed"; }
+  rm -f "$body"
+  code="$(vercel_code "$resp")"
+  case "$code" in
+    2??) echo "https://$(vercel_body "$resp" | jq -r '.url // empty')" ;;
+    *) die "POST deployments answered HTTP $code: $(vercel_body "$resp" | jq -r '.error.message // empty' 2>/dev/null)" ;;
   esac
 }
