@@ -2,9 +2,17 @@
 
 Agorasim's site and booking platform, built by Legible Consulting: guided classic-car tours of
 the Saloia region (Sintra, Mafra, Ericeira), a bilingual PT/EN site with booking through Stripe
-Checkout and a phone-first admin console. The product is in `web/`. The repo tracks
-`legible-consulting/blueprint` through `.copier-answers.yml`. This file is
-identity and routing only.
+Checkout and a phone-first admin console. One repository of several apps and shared packages,
+rendered from `legible-consulting/blueprint` and tracked through `.copier-answers.yml`. This
+file is identity and routing only. Copier writes it once: `copier update` never overwrites it,
+so the build's own rows go below.
+
+## Apps and packages
+
+| Path | Is | Deploys as |
+|---|---|---|
+| `web/` | the site, the booking flow and the admin console (Next.js, bilingual PT/EN) | the Vercel project `agorasim` (root `web`) |
+| `workspaces/` | the ICM content pipelines that write into `web/src/content/generated/` | — |
 
 ## Routing
 
@@ -21,8 +29,8 @@ identity and routing only.
 | understand the app, its stack and its data | `README.md` and `web/AGENTS.md` |
 | change what CI checks or how a release is cut | `legible-consulting/.github` (`check-client.yml`, `release.yml`). `ci.yml` here only calls them |
 | change a file the blueprint renders | the blueprint, then `copier update` here |
-| change the database, or read where a preview's database comes from | `.icm/database/CONTEXT.md`, then `preview-db.sh` |
 | read the UAT batch, record the client's sign-off, roll back | `.icm/uat/CONTEXT.md` (the whole UAT contract), then its scripts |
+| change the database, or read where a preview's database comes from | `.icm/database/CONTEXT.md`, then `preview-db.sh` |
 
 ## Release
 
@@ -42,10 +50,11 @@ project `uat-agorasim`, the base of every preview (`.icm/database/CONTEXT.md`).
   Code, commits and notes in English.
 - Technical text (stubs, pull request bodies, commits, questions) in Simplified Technical
   English: short active sentences, one instruction each, no semicolons. A question for Jamie
-  is numbered and carries a default answer.
+  has a number and a default answer.
 - CI is truth: never run build, lint, typecheck, test, format or dev locally. Push, then read
-  the `ci` run.
-- Secrets never in git: names only, values in GitHub or Vercel settings.
+  the `ci` run and the previews.
+- Secrets never in git: names only, values in GitHub or Vercel settings. Flag any plaintext
+  credential found.
 - One ticket is one branch and one pull request. The pull request moves the stub to `_done/`.
 - `main` changes by pull request. Gates are human checkboxes: read them, never tick them.
   Jamie ticks Ready to merge, and the session merges with `.icm/scripts/merge.sh`.

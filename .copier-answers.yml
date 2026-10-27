@@ -4,7 +4,7 @@ client_name: Agorasim
 database: neon
 language: pt-PT
 migrations_path: web/drizzle
-monorepo: false
+monorepo: true
 release: true
 slug: agorasim
 uat: true
