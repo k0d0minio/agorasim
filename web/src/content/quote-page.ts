@@ -195,9 +195,13 @@ export const quotePageContent = {
     pt: "Condições aceites com o pagamento do sinal: versão de {version}",
     en: "Conditions accepted with the deposit: version of {version}",
   } as Localized,
-  fullTermsLink: {
-    pt: "Ler os termos de venda completos",
-    en: "Read the full terms of sale",
+  /**
+   * The seller line at the end of the conditions: the trading name, then this
+   * link to the terms page, which carries the full "Quem vende" block.
+   */
+  sellerLink: {
+    pt: "Condições e identificação do vendedor",
+    en: "Terms and seller details",
   } as Localized,
 
   contactsHeading: { pt: "Alguma dúvida?", en: "Any questions?" } as Localized,
