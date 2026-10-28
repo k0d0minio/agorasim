@@ -27,7 +27,6 @@ type Dict = {
     highlights: string;
     complement: string;
     faq: string;
-    getInTouch: string;
     openMenu: string;
     closeMenu: string;
     switchLanguage: string;
@@ -77,7 +76,6 @@ const dictionaries: Record<Locale, Dict> = {
       highlights: "Destaques",
       complement: "Complemente a sua experiência",
       faq: "Perguntas frequentes",
-      getInTouch: "Entre em contacto",
       openMenu: "Abrir menu",
       closeMenu: "Fechar menu",
       switchLanguage: "Mudar idioma",
@@ -119,7 +117,6 @@ const dictionaries: Record<Locale, Dict> = {
       highlights: "Highlights",
       complement: "Complement your experience",
       faq: "Frequently asked questions",
-      getInTouch: "Get in touch",
       openMenu: "Open menu",
       closeMenu: "Close menu",
       switchLanguage: "Switch language",
