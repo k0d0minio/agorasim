@@ -72,7 +72,7 @@ import { sendLoggedEmail } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import { captureAlert } from "@/lib/observability";
 import {
-  BALANCE_DUE_DAYS_BEFORE,
+  BALANCE_REQUEST_DAYS_BEFORE,
   dueInstalment,
   getPayment,
   getPaymentBySessionId,
@@ -193,8 +193,8 @@ export type QuoteCheckoutOutcome =
   | { status: "paid" }
   /** The session completed on a delayed method; the money is on its way. */
   | { status: "awaiting" }
-  /** Nothing to pay today: the balance is not due yet. */
-  | { status: "not-due" }
+  /** Nothing to pay online: the balance's due date has passed (the event day or later). */
+  | { status: "closed" }
   /** A tour quote whose departure has no car of its class left. Call us. */
   | { status: "no-car" }
   /** Nothing to pay at all. */
@@ -237,7 +237,7 @@ async function checkoutFor(
 ): Promise<QuoteCheckoutOutcome> {
   const due = dueInstalment(quote, context.now);
   if (due.kind === "settled") return { status: "settled" };
-  if (due.kind === "not-yet") return { status: "not-due" };
+  if (due.kind === "closed") return { status: "closed" };
   if (due.kind === "not-live") return { status: "not-found" };
 
   const payment = due.payment;
@@ -784,7 +784,7 @@ export function receiptFacts(
     paidOn: formatDay(todayKey(paidAt), locale),
     total: money(quote.totalCents),
     remaining,
-    balanceDueDaysBefore: BALANCE_DUE_DAYS_BEFORE,
+    balanceRequestDaysBefore: BALANCE_REQUEST_DAYS_BEFORE,
     fee: paid.applicationFeeCents !== null ? money(paid.applicationFeeCents) : null,
     adminUrl: `${siteUrl()}/admin/sales/${lead.id}`,
     tour: isTourQuote(quote),

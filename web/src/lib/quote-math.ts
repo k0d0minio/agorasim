@@ -16,15 +16,24 @@ import type { QuotePayment } from "@/db";
 export const DEFAULT_DEPOSIT_PERCENT = 30;
 
 /**
- * How many days before the event the balance falls due — the proposal's
- * "collected by a second automatic payment link 14 days before".
+ * How many days before the event the balance falls due: the day before, 24
+ * hours ahead of the event (Diogo, feedback round 1, 2026-10-12). The balance
+ * is payable from the moment the deposit is paid up to the end of that day
+ * in Lisbon (`dueInstalment` in `lib/quotes.ts`).
  */
-export const BALANCE_DUE_DAYS_BEFORE = 14;
+export const BALANCE_DUE_DAYS_BEFORE = 1;
+
+/**
+ * How many days before the event the daily job sends the balance request with
+ * its link: T−15 (Diogo, feedback round 1). The couple may pay earlier from the
+ * quote page; this is only when the email goes out unasked.
+ */
+export const BALANCE_REQUEST_DAYS_BEFORE = 15;
 
 /**
  * The balance's chaser and the team's flag, counted like the due date in
  * calendar days before the event (`lib/balance-schedule.ts` has the rules):
- * one reminder from T−7, only if the request reached the couple at least three
+ * one reminder from T−7, only if a request reached the couple at least three
  * days earlier; the Sales board's "Saldo por pagar" from T−3.
  */
 export const BALANCE_REMINDER_DAYS_BEFORE = 7;
@@ -97,7 +106,7 @@ export function lineItemsTotal(items: readonly QuoteLine[]): number {
 const DATE_KEY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /**
- * When the balance falls due for an event on this day — T−14, as a
+ * When the balance falls due for an event on this day — T−1, as a
  * `YYYY-MM-DD` key — or `null` for anything that is not a calendar day.
  *
  * UTC midnight arithmetic, the same as `shiftDays` in `lib/date-keys.ts`, so a

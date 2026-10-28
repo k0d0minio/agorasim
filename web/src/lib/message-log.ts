@@ -120,8 +120,8 @@ export const QUOTE_RECEIPT_KINDS = ["deposit-received", "balance-paid"] as const
 export type QuoteReceiptKind = (typeof QUOTE_RECEIPT_KINDS)[number];
 
 /**
- * The kinds that ask a couple for their balance — the T−14 request and the
- * T−7 reminder (`lib/cron/balance-scheduler.ts`).
+ * The kinds the daily job sends to ask a couple for their balance — the T−15
+ * request and the T−7 reminder (`lib/cron/balance-scheduler.ts`).
  *
  * Once each per quote, like a receipt, so they share the receipt's shape and
  * its index (`message_log_quote_receipt_key` — kind, recipient, quote): the
@@ -132,6 +132,19 @@ export const QUOTE_BALANCE_KINDS = ["balance-request", "balance-reminder"] as co
 
 /** A kind from {@link QUOTE_BALANCE_KINDS}. */
 export type QuoteBalanceKind = (typeof QUOTE_BALANCE_KINDS)[number];
+
+/**
+ * The balance request the team sends by hand — "Enviar pedido do restante" on
+ * the lead's quote card (`lib/balance-request.ts`). The team may send it as
+ * often as it needs, so it cannot share the daily job's once-per-quote key:
+ * like {@link QUOTE_SEND_KINDS} it is keyed on the quote and on the instant
+ * of the send (`message_log_quote_kind_key`), which names the link the mail
+ * carries. One email per tap, never two for one tap.
+ */
+export const QUOTE_BALANCE_SEND_KINDS = ["balance-request-manual"] as const;
+
+/** A kind from {@link QUOTE_BALANCE_SEND_KINDS}. */
+export type QuoteBalanceSendKind = (typeof QUOTE_BALANCE_SEND_KINDS)[number];
 
 /**
  * The kinds that tell a couple their event was called off after the last word
@@ -206,10 +219,13 @@ export type MessageSubject =
       linkSentAt?: never;
     })
   | (SubjectRows & {
-      kind: QuoteSendKind;
+      kind: QuoteSendKind | QuoteBalanceSendKind;
       /** The quote this send is of. */
       quoteId: string;
-      /** The quote's `sent_at` as this send stamped it — which link the mail carries. */
+      /**
+       * Which link the mail carries: the quote's `sent_at` as this send stamped
+       * it, or for a balance request sent by hand the instant of that send.
+       */
       quoteSentAt: Date;
       bookingId?: never;
       subjectDate?: never;
@@ -264,6 +280,7 @@ export type MessageSubject =
         | QuoteSendKind
         | QuoteReceiptKind
         | QuoteBalanceKind
+        | QuoteBalanceSendKind
         | QuoteRefundKind
         | QuoteCancellationKind
         | PaymentLinkKind
@@ -553,7 +570,7 @@ export async function isRefundNoticeClaimed(subject: {
 
 /** One balance message as the log holds it — what the scheduler and the Sales board read back. */
 export type QuoteBalanceMessage = {
-  kind: QuoteBalanceKind;
+  kind: QuoteBalanceKind | QuoteBalanceSendKind;
   status: "sending" | "sent" | "failed";
   /** When the provider accepted it; null until then. */
   sentAt: Date | null;
@@ -585,7 +602,7 @@ export async function listQuoteBalanceMessages(
     .where(
       and(
         inArray(messageLog.quoteId, [...quoteIds]),
-        inArray(messageLog.kind, [...QUOTE_BALANCE_KINDS]),
+        inArray(messageLog.kind, [...QUOTE_BALANCE_KINDS, ...QUOTE_BALANCE_SEND_KINDS]),
         eq(messageLog.recipient, "guest"),
         isNull(messageLog.bookingId),
       ),
@@ -594,7 +611,11 @@ export async function listQuoteBalanceMessages(
   for (const row of rows) {
     if (!row.quoteId) continue;
     const list = byQuote.get(row.quoteId) ?? [];
-    list.push({ kind: row.kind as QuoteBalanceKind, status: row.status, sentAt: row.sentAt });
+    list.push({
+      kind: row.kind as QuoteBalanceMessage["kind"],
+      status: row.status,
+      sentAt: row.sentAt,
+    });
     byQuote.set(row.quoteId, list);
   }
   return byQuote;

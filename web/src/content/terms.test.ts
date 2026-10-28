@@ -39,12 +39,16 @@ describe("termsSection", () => {
     }
   });
 
-  it("states the balance by link and no withdrawal right for a dated event", () => {
+  it("states when the balance is due and no withdrawal right for a dated event", () => {
     const pt = termsSection("events", "pt").body.join(" ");
     const en = termsSection("events", "en").body.join(" ");
-    expect(pt).toContain("14 dias antes do evento");
+    expect(pt).toContain("a qualquer momento depois do sinal");
+    expect(pt).toContain("até à véspera do evento");
+    expect(pt).toContain("15 dias antes do evento");
     expect(pt).toContain("não se aplica a casamentos e eventos");
-    expect(en).toContain("14 days before the event");
+    expect(en).toContain("at any time after the deposit");
+    expect(en).toContain("due by the day before the event");
+    expect(en).toContain("15 days before the event");
     expect(en).toContain("does not apply to weddings and events");
   });
 });

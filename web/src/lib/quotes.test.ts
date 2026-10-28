@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BALANCE_DUE_DAYS_BEFORE,
+  BALANCE_REQUEST_DAYS_BEFORE,
   balanceDueDate,
   canCopyAsNewVersion,
   canStartQuote,
@@ -107,12 +108,15 @@ describe("shiftDays and balanceDueDate", () => {
     expect(shiftDays("2028-03-01", -1)).toBe("2028-02-29");
   });
 
-  it("does not lose a day to the clocks changing", () => {
-    // Portugal leaves summer time on 2026-10-25; a local-midnight calculation
-    // would land on the 25th here and quietly make the window 13 days.
-    expect(balanceDueDate("2026-11-07")).toBe("2026-10-24");
-    expect(balanceDueDate("2026-04-10")).toBe("2026-03-27");
-    expect(BALANCE_DUE_DAYS_BEFORE).toBe(14);
+  it("falls due the day before the event, and loses no day to the clocks changing", () => {
+    // Portugal leaves summer time on 2026-10-25 and enters it on 2026-03-29; a
+    // local-midnight calculation would land on the wrong side of either.
+    expect(balanceDueDate("2026-10-26")).toBe("2026-10-25");
+    expect(balanceDueDate("2026-03-30")).toBe("2026-03-29");
+    expect(balanceDueDate("2026-03-01")).toBe("2026-02-28");
+    expect(balanceDueDate("2027-01-01")).toBe("2026-12-31");
+    expect(BALANCE_DUE_DAYS_BEFORE).toBe(1);
+    expect(BALANCE_REQUEST_DAYS_BEFORE).toBe(15);
   });
 
   it("refuses a date that is not a calendar day", () => {
@@ -368,9 +372,11 @@ describe("dueInstalment — what the quote page offers to pay", () => {
       ...overrides,
     }) as QuotePayment;
 
-  // Europe/Lisbon: 23:30 UTC on 31 July is already 1 August there (UTC+1).
-  const BEFORE_DUE = new Date("2026-07-20T10:00:00Z");
-  const ON_DUE_DAY_LISBON = new Date("2026-07-31T23:30:00Z");
+  // The balance falls due on 1 August, so the event is on the 2nd.
+  // Europe/Lisbon: 23:30 UTC on 1 August is already 2 August there (UTC+1).
+  const BEFORE_DUE = new Date("2026-07-13T10:00:00Z");
+  const ON_DUE_DAY = new Date("2026-08-01T21:00:00Z");
+  const ON_EVENT_DAY_LISBON = new Date("2026-08-01T23:30:00Z");
   const AFTER_DUE = new Date("2026-08-05T10:00:00Z");
 
   it("offers the deposit first, whatever the date", () => {
@@ -389,26 +395,29 @@ describe("dueInstalment — what the quote page offers to pay", () => {
     expect(due).toMatchObject({ kind: "due", payment: { kind: "deposit" } });
   });
 
-  it("holds the balance back until its due date, and says which day", () => {
-    const due = dueInstalment(
-      { status: "deposit_paid", payments: [row("deposit", "paid"), row("balance", "pending")] },
-      BEFORE_DUE,
-    );
-    expect(due).toEqual({
-      kind: "not-yet",
-      payment: expect.objectContaining({ kind: "balance" }),
-      dueDate: "2026-08-01",
-    });
-  });
-
-  it("offers the balance from its due day in Lisbon on", () => {
-    for (const now of [ON_DUE_DAY_LISBON, AFTER_DUE]) {
+  it("offers the balance as soon as the deposit is paid, up to the end of its due day", () => {
+    for (const now of [BEFORE_DUE, ON_DUE_DAY]) {
       expect(
         dueInstalment(
           { status: "deposit_paid", payments: [row("deposit", "paid"), row("balance", "issued")] },
           now,
         ),
       ).toMatchObject({ kind: "due", payment: { kind: "balance" } });
+    }
+  });
+
+  it("closes the balance from the event day in Lisbon on, and says which day it was due", () => {
+    for (const now of [ON_EVENT_DAY_LISBON, AFTER_DUE]) {
+      expect(
+        dueInstalment(
+          { status: "deposit_paid", payments: [row("deposit", "paid"), row("balance", "pending")] },
+          now,
+        ),
+      ).toEqual({
+        kind: "closed",
+        payment: expect.objectContaining({ kind: "balance" }),
+        dueDate: "2026-08-01",
+      });
     }
   });
 
@@ -419,7 +428,7 @@ describe("dueInstalment — what the quote page offers to pay", () => {
           status: "deposit_paid",
           payments: [row("deposit", "cancelled"), row("balance", "pending")],
         },
-        AFTER_DUE,
+        BEFORE_DUE,
       ),
     ).toMatchObject({ kind: "due", payment: { kind: "balance" } });
   });

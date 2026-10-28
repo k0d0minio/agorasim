@@ -49,7 +49,7 @@ import { isEmailConfigured } from "@/lib/email";
 import { sendLoggedEmail, type LoggedSend } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import {
-  BALANCE_DUE_DAYS_BEFORE,
+  BALANCE_REQUEST_DAYS_BEFORE,
   QuoteDraftConflictError,
   QuoteError,
   balanceDueDate,
@@ -589,7 +589,7 @@ async function emailQuote(
           dueDate: formatDay(balance.dueDate ?? balanceDueDate(quote.eventDate), locale),
         }
       : null,
-    balanceDueDaysBefore: BALANCE_DUE_DAYS_BEFORE,
+    balanceRequestDaysBefore: BALANCE_REQUEST_DAYS_BEFORE,
     termsWindowDays: quote.termsWindowDays,
     quoteUrl: `${siteUrl()}${quotePath(locale, token)}`,
     tourDeparture: hold ? t(quotePageContent.tour.departures[hold.slot], locale) : null,

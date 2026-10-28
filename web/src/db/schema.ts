@@ -228,7 +228,9 @@ export const commissionBoundEnum = pgEnum("commission_bound", ["rate", "floor", 
  * {@link messageLog.quotePaymentId} and {@link messageLog.refundedTotalCents}.
  * `quote-event-cancelled` tells the couple their event was called off when the
  * last thing they heard was that it was still on — once per quote, on
- * `message_log_quote_receipt_key`.
+ * `message_log_quote_receipt_key`. `balance-request-manual` is the balance
+ * request the team sends by hand from the quote card — any number per quote,
+ * one per send, on `message_log_quote_kind_key` (`lib/balance-request.ts`).
  *
  * New values go on the **end** of this list, because that is where
  * `ALTER TYPE … ADD VALUE` puts them in Postgres and the two orderings have to
@@ -249,6 +251,7 @@ export const messageKindEnum = pgEnum("message_kind", [
   "quote-refunded",
   "quote-event-cancelled",
   "booking-payment-link",
+  "balance-request-manual",
 ]);
 
 /**
@@ -283,11 +286,11 @@ export const messageStatusEnum = pgEnum("message_status", [
  * which is quoted per job rather than sold off a price list (info PDF §2.3).
  *
  * The order is the flow: Rita builds a `draft`, sends it, the guest pays the
- * deposit that holds the date (`deposit_paid`), the balance lands 14 days
+ * deposit that holds the date (`deposit_paid`), the balance lands by the day
  * before the event (`paid`). `cancelled` can follow any of them.
  *
  * `deposit_paid` is a state and not a derived count for one reason: it is what
- * the date being *held* means, and the T−14 balance scheduler selects on it.
+ * the date being *held* means, and the T−15 balance scheduler selects on it.
  * Deriving it from the payment rows on every scan would put the same predicate
  * in two places and make an index impossible.
  */
@@ -319,7 +322,7 @@ export const quotePaymentKindEnum = pgEnum("quote_payment_kind", [
  *
  * `pending` is the row a quote is created with: an amount and a due date that
  * nobody has been asked for yet. `issued` means a Stripe Checkout Session
- * exists and the link has gone to the guest — the flag the T−14 scheduler is
+ * exists and the link has gone to the guest — the flag the T−15 scheduler is
  * idempotent on, so a dispatcher that runs twice in a day does not email the
  * same balance link twice.
  *
@@ -1578,7 +1581,7 @@ export const quotes = pgTable("quotes", {
     onDelete: "set null",
   }),
 
-  /** The day of the event, `YYYY-MM-DD`. What T−14 is computed against. */
+  /** The day of the event, `YYYY-MM-DD`. What T−15 is computed against. */
   eventDate: date("event_date").notNull(),
   /** Where it is, in the team's own words — "Quinta do Hespanhol, Mafra". */
   venue: text("venue"),
@@ -1676,7 +1679,7 @@ export const quotes = pgTable("quotes", {
 }, (table) => [
   // The lead's own page lists the quotes built from it.
   index("quotes_tour_request_idx").on(table.tourRequestId),
-  // The T−14 scan: "deposit-paid quotes whose event is on this date". Status
+  // The T−15 scan: "deposit-paid quotes whose event is on this date". Status
   // first, because it is the selective half — most rows are never deposit-paid
   // on any given morning.
   index("quotes_status_event_date_idx").on(table.status, table.eventDate),
@@ -1741,7 +1744,7 @@ export const quotePayments = pgTable("quote_payments", {
   /**
    * When it is owed, `YYYY-MM-DD`. Null for the deposit, which is due on
    * acceptance rather than on a date; the balance carries the event date minus
-   * 14 days (proposal §5).
+   * one day (Diogo, feedback round 1; it was 14 days in proposal §5).
    */
   dueDate: date("due_date"),
 
@@ -1780,7 +1783,7 @@ export const quotePayments = pgTable("quote_payments", {
   /**
    * When the payment link last went to the guest.
    *
-   * The T−14 scheduler's idempotency, and the reason it is a timestamp on the
+   * The T−15 scheduler's idempotency, and the reason it is a timestamp on the
    * row rather than a job-side ledger: "has this balance been asked for?" has
    * to be answerable from the payment itself, or a dispatcher that runs twice
    * in a morning emails the same link twice.

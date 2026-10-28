@@ -1172,8 +1172,8 @@ describe("guestQuoteSentEmail", () => {
       total: "1620 €",
       deposit: "486 €",
       depositPercent: 30,
-      balance: { amount: "1134 €", dueDate: "sábado, 1 de agosto de 2026" },
-      balanceDueDaysBefore: 14,
+      balance: { amount: "1134 €", dueDate: "sexta-feira, 14 de agosto de 2026" },
+      balanceRequestDaysBefore: 15,
       termsWindowDays: 30,
       quoteUrl: QUOTE_URL,
       ...overrides,
@@ -1197,9 +1197,11 @@ describe("guestQuoteSentEmail", () => {
       expect(part).toContain("1620 €");
       expect(part).toContain("486 €");
       expect(part).toContain("1134 €");
-      expect(part).toContain("sábado, 1 de agosto de 2026");
+      expect(part).toContain("sexta-feira, 14 de agosto de 2026");
       expect(part).toContain(QUOTE_URL);
     }
+    expect(mail.text).toContain("pode pagar o restante na mesma página a qualquer momento, até à véspera do evento");
+    expect(mail.text).toContain("15 dias antes do evento");
     expect(mail.text).toContain("2 × Carro clássico com motorista, 6 horas: 1500 €");
     expect(mail.text).toContain("Deslocação Ericeira: 120 €");
     expect(mail.text).toContain("Sinal (30%): 486 €");
@@ -1215,13 +1217,13 @@ describe("guestQuoteSentEmail", () => {
         date: "Saturday, 15 August 2026",
         total: "€1,620",
         deposit: "€486",
-        balance: { amount: "€1,134", dueDate: "Saturday, 1 August 2026" },
+        balance: { amount: "€1,134", dueDate: "Friday, 14 August 2026" },
       }),
     );
 
     expect(mail.subject).toBe("Your Agorasim quote — Saturday, 15 August 2026");
     expect(mail.text).toContain("Deposit (30%): €486");
-    expect(mail.text).toContain("Balance: €1,134 · due Saturday, 1 August 2026");
+    expect(mail.text).toContain("Balance: €1,134 · due Friday, 14 August 2026");
     expect(mail.text).toContain("View your quote: " + QUOTE_URL);
     expect(mail.text).not.toContain("orçamento à medida");
     expect(mail.html).toContain('lang="en"');
@@ -1249,7 +1251,7 @@ describe("guestQuoteSentEmail", () => {
 
     for (const part of [mail.text, mail.html ?? ""]) {
       expect(part).toContain("Nada — o sinal cobre o valor total");
-      expect(part).not.toContain("restante é pedido automaticamente");
+      expect(part).not.toContain("pode pagar o restante");
     }
     expect(mail.text).toContain("A data fica reservada com o pagamento do sinal, na página do orçamento.");
   });
@@ -1269,8 +1271,8 @@ describe("the quote receipts — deposit-received and balance-paid", () => {
       amount: "486 €",
       paidOn: "segunda, 1 de junho de 2026",
       total: "1620 €",
-      remaining: { amount: "1134 €", dueDate: "sábado, 1 de agosto de 2026" },
-      balanceDueDaysBefore: 14,
+      remaining: { amount: "1134 €", dueDate: "sexta-feira, 14 de agosto de 2026" },
+      balanceRequestDaysBefore: 15,
       fee: "29,16 €",
       adminUrl: "https://agorasim.pt/admin/sales/abc",
       ...overrides,
@@ -1296,7 +1298,12 @@ describe("the quote receipts — deposit-received and balance-paid", () => {
     const pt = guestQuoteReceiptEmail(receiptFacts());
     expect(pt.subject).toBe("Sinal recebido — a data de sábado, 15 de agosto de 2026 está reservada");
     expect(pt.text).toContain("Sinal pago: 486 €");
-    expect(pt.text).toContain("Por pagar: 1134 € · até sábado, 1 de agosto de 2026");
+    expect(pt.text).toContain("Por pagar: 1134 € · até sexta-feira, 14 de agosto de 2026");
+    // The balance can be paid now, and is due the day before the event.
+    expect(pt.text).toContain("Pode pagar já o restante");
+    expect(pt.text).toContain("O prazo é sexta-feira, 14 de agosto de 2026, a véspera do evento.");
+    expect(pt.text).toContain("15 dias antes do evento");
+    expect(pt.text).not.toMatch(/\{\w+\}/);
     expect(pt.to).toEqual(["ines@example.com"]);
     expect(pt.replyTo).toBe(site.email);
 
@@ -1307,7 +1314,7 @@ describe("the quote receipts — deposit-received and balance-paid", () => {
     expect(en.text).toContain("Balance paid: 486 €");
     expect(en.text).toContain("Nothing — everything is paid");
     // Nothing left to pay: no "what happens next" about a balance.
-    expect(en.text).not.toContain("We will send you the link");
+    expect(en.text).not.toContain("We also send you a new link");
   });
 
   it("links the full terms and never a quote link — the webhook has no token", () => {
@@ -1500,7 +1507,7 @@ describe("guestBalanceEmail", () => {
       date: "sábado, 15 de agosto de 2026",
       venue: "Quinta do Hespanhol, Mafra",
       amount: "1134 €",
-      dueDate: "sábado, 1 de agosto de 2026",
+      dueDate: "sexta-feira, 14 de agosto de 2026",
       quoteUrl: QUOTE_URL,
       ...overrides,
     };
@@ -1522,7 +1529,7 @@ describe("guestBalanceEmail", () => {
       expect(part).toContain("sábado, 15 de agosto de 2026");
       expect(part).toContain("Quinta do Hespanhol, Mafra");
       expect(part).toContain("1134 €");
-      expect(part).toContain("sábado, 1 de agosto de 2026");
+      expect(part).toContain("sexta-feira, 14 de agosto de 2026");
       expect(part).toContain(QUOTE_URL);
       expect(part).toContain("Este link substitui os dos emails anteriores");
     }
@@ -1540,12 +1547,12 @@ describe("guestBalanceEmail", () => {
 
   it("writes in English for an English quote, request and reminder", () => {
     const request = guestBalanceEmail(
-      balanceFacts({ locale: "en", date: "Saturday, 15 August 2026", dueDate: "Saturday, 1 August 2026" }),
+      balanceFacts({ locale: "en", date: "Saturday, 15 August 2026", dueDate: "Friday, 14 August 2026" }),
     );
     expect(request.subject).toBe("The balance for your event — Saturday, 15 August 2026");
     expect(request.text).toContain("Pay the balance:");
     expect(request.text).toContain("This link replaces the ones in our earlier emails");
-    expect(request.text).toContain("Due by: Saturday, 1 August 2026");
+    expect(request.text).toContain("Due by: Friday, 14 August 2026");
 
     const reminder = guestBalanceEmail(balanceFacts({ locale: "en", stage: "reminder" }));
     expect(reminder.subject).toMatch(/^Reminder: the balance for your event/);

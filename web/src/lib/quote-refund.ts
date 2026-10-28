@@ -689,7 +689,7 @@ export type CancelHeldQuoteOutcome =
 /**
  * "Cancelar evento" — call off a quote whose deposit has gone back in full but
  * which is still held: a dashboard refund, or a refund whose dialog left the
- * event on. Left alone it would still have its balance asked for at T−14.
+ * event on. Left alone it would still have its balance asked for at T−15.
  *
  * Only in that state, on purpose: cancelling a paid event with its money still
  * held is a refund decision, and belongs in the refund dialog.

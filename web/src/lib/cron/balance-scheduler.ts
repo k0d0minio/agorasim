@@ -1,19 +1,23 @@
 /**
- * The wedding and event balance — asked for at T−14 and chased once at T−7,
+ * The wedding and event balance — asked for at T−15 and chased once at T−7,
  * by the daily dispatcher (`quote-flow/balance-scheduler`; proposal §5, "the
- * balance request goes out automatically").
+ * balance request goes out automatically"; the days from Diogo, feedback
+ * round 1). The couple may pay sooner: the quote page takes the balance from
+ * the deposit on, and the team may send the request by hand at any time
+ * (`lib/balance-request.ts`), which this job neither waits for nor skips.
  *
  * **Two passes per run**, at 06:00 UTC (`vercel.json`), in Lisbon days:
  *
  * 1. **The request** — every quote `listQuotesDueForBalance` returns: deposit
  *    paid (by Stripe, or by transfer and written off — `statusAfterPayment`),
- *    the balance still `pending`, the event fourteen days away or fewer and
- *    at least one day off (the query's floor; `isRequestInWindow` says it
+ *    the balance still open, the event fifteen days away or fewer and at
+ *    least one day off (the query's floor; `isRequestInWindow` says it
  *    again). `<=` rather than `=`, so a missed morning and a deposit paid
- *    inside T−14 are caught on the next run — up to the day before the event.
+ *    inside T−15 are caught on the next run — up to the day before the event.
  * 2. **The reminder** — every deposit-paid quote with the event seven days
- *    away or fewer but not today, the balance still open, and a request that
- *    reached the couple at least three days before (`lib/balance-schedule.ts`).
+ *    away or fewer but not today, the balance still open, and a request —
+ *    the job's or the team's — that reached the couple at least three days
+ *    before (`lib/balance-schedule.ts`).
  *
  * Neither goes out on the event's own day: each would rotate the quote link
  * on the morning itself. An event-day balance is the team's, on the board.
@@ -23,10 +27,9 @@
  * happens to a balance still unpaid on the day is the client's open question;
  * this job asks and chases, and does nothing else.
  *
- * **The link.** Only a digest of a quote's token is stored, so no later email
- * can repeat a link that already went out. Each balance email mints its own —
- * a fresh token, its digest swapped onto the quote (`rotateQuoteLink`) — and
- * the email says it replaces the earlier ones.
+ * **The link.** Each balance email mints its own and retires the earlier ones
+ * (`buildBalanceEmail` in `lib/balance-request.ts`, which the team's manual
+ * send shares).
  *
  * **Once per quote, and never a new link without its email.** The log claim
  * (`balance-request` / `balance-reminder`, keyed on the quote) is taken
@@ -45,14 +48,15 @@
  */
 import "server-only";
 
-import { formatDay, todayKey, type DateKey } from "@/lib/availability";
+import { todayKey, type DateKey } from "@/lib/availability";
+import { buildBalanceEmail, type DueBalance } from "@/lib/balance-request";
 import {
-  balanceMessageSentAt,
   holdsBalanceClaim,
   isReminderDue,
   isRequestInWindow,
+  lastRequestSentAt,
 } from "@/lib/balance-schedule";
-import { guestBalanceEmail, type BalanceEmailStage } from "@/lib/booking-emails";
+import type { BalanceEmailStage } from "@/lib/booking-emails";
 import { register, type CronJobResult } from "@/lib/cron/jobs";
 import { isEmailConfigured } from "@/lib/email";
 import {
@@ -61,29 +65,21 @@ import {
   type QuoteBalanceKind,
   type QuoteBalanceMessage,
 } from "@/lib/message-log";
-import { formatPrice } from "@/lib/money";
 import { captureAlert, captureError } from "@/lib/observability";
 import { isOpenInstalment } from "@/lib/quote-math";
 import {
-  balanceDueDate,
   listBalanceRecipients,
   listQuotesDueForBalance,
   listQuotesForBalanceReminder,
   quoteRef,
-  rotateQuoteLink,
-  type BalanceRecipient,
 } from "@/lib/quotes";
-import { isQuoteTokenConfigured, issueQuoteToken, quotePath } from "@/lib/quote-token";
-import { siteUrl } from "@/lib/site-origin";
-import type { Quote, QuotePayment } from "@/db";
+import { isQuoteTokenConfigured } from "@/lib/quote-token";
 
 /** The job's stable name in the dispatcher's audit row. */
 export const BALANCE_SCHEDULER_JOB = "balance-scheduler";
 
 /** What one pass did. `already` is a quote a previous send (or a racing run) had claimed. */
 export type BalanceTally = { sent: number; already: number; skipped: number; failed: number };
-
-type DueBalance = { quote: Quote; payment: QuotePayment };
 
 const KIND: Record<BalanceEmailStage, QuoteBalanceKind> = {
   request: "balance-request",
@@ -96,49 +92,6 @@ function emptyTally(): BalanceTally {
 
 function summarise(stage: BalanceEmailStage, tally: BalanceTally): string {
   return `${stage}: ${tally.sent} sent, ${tally.already} already, ${tally.skipped} skipped, ${tally.failed} failed`;
-}
-
-/**
- * The message for one quote, built once its claim is won: mint a link, write
- * the email around it, and only then swap the link's digest onto the quote —
- * the last step, so nothing that can throw runs after the old link has been
- * retired. `null` — the claim is given back — when another run changed the
- * link first.
- */
-function buildBalanceEmail(
-  stage: BalanceEmailStage,
-  { quote, payment }: DueBalance,
-  recipient: BalanceRecipient,
-  today: DateKey,
-  now: Date,
-) {
-  return async () => {
-    const link = await issueQuoteToken();
-    const locale = quote.locale;
-    const due = payment.dueDate ?? balanceDueDate(quote.eventDate);
-
-    const message = guestBalanceEmail({
-      stage,
-      ref: quoteRef(quote.id),
-      guestName: recipient.name,
-      guestEmail: recipient.email,
-      locale,
-      date: formatDay(quote.eventDate, locale),
-      venue: quote.venue,
-      amount: formatPrice(payment.amountCents, locale, payment.currency),
-      // A due date already behind them (the reminder, a late deposit's
-      // request) reads as "overdue" or as a mistake; the event date says when.
-      dueDate: due >= today ? formatDay(due, locale) : null,
-      quoteUrl: `${siteUrl()}${quotePath(locale, link.token)}`,
-    });
-
-    const rotated = await rotateQuoteLink(quote.id, {
-      expectedDigest: quote.accessTokenHash,
-      digest: link.digest,
-      now,
-    });
-    return rotated ? message : null;
-  };
 }
 
 /** Ask one pass's quotes for their balance, each claimed once. */
@@ -206,7 +159,7 @@ async function sendPass(
   return tally;
 }
 
-/** T−14: the quotes due a request today, the event at least a day away. */
+/** T−15: the quotes due a request today, the event at least a day away. */
 async function requestPass(now: Date, today: DateKey): Promise<BalanceTally> {
   const due = (await listQuotesDueForBalance({ now })).filter(
     ({ quote, payment }) => isOpenInstalment(payment) && isRequestInWindow(quote.eventDate, today),
@@ -225,7 +178,7 @@ async function reminderPass(now: Date, today: DateKey): Promise<BalanceTally> {
     isReminderDue({
       eventDate: quote.eventDate,
       today,
-      requestSentAt: balanceMessageSentAt(messages.get(quote.id), "balance-request"),
+      requestSentAt: lastRequestSentAt(messages.get(quote.id)),
     }),
   );
   return sendPass("reminder", due, messages, today, now);
@@ -256,7 +209,7 @@ async function runPass(
 export async function balanceScheduler(now: Date = new Date()): Promise<CronJobResult> {
   if (!isQuoteTokenConfigured()) {
     // Unlike a missing mail key, which every mailing job shares and reports,
-    // this one stops only the contracted T−14 collection — so it is said
+    // this one stops only the contracted T−15 collection — so it is said
     // somewhere a person reads, not only in the dispatcher's audit row.
     console.error("[balance] BOOKING_TOKEN_SECRET is not set — no balance asked for");
     captureAlert("BOOKING_TOKEN_SECRET is not set — the balance job sent nothing", {

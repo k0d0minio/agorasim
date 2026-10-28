@@ -288,6 +288,13 @@
       "when": 1793218261001,
       "tag": "0040_quotes_tour_hold",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793223388981,
+      "tag": "0041_balance_payable_from_deposit",
+      "breakpoints": true
     }
   ]
 }

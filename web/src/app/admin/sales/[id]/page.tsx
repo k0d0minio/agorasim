@@ -23,7 +23,9 @@ import { formatPrice } from "@/lib/money";
 import { canMarkNoShow } from "@/lib/booking-no-show";
 import { refundableCents } from "@/lib/booking-refund";
 import { formatDay, isDateKey, todayKey } from "@/lib/availability";
-import { isBalanceFlagged } from "@/lib/balance-schedule";
+import { balanceMessagesLabel, balanceOf, isBalanceFlagged } from "@/lib/balance-schedule";
+import { listQuoteBalanceMessages, type QuoteBalanceMessage } from "@/lib/message-log";
+import { isOpenInstalment } from "@/lib/quote-math";
 import { groupMoveTargets, listMoveTargets } from "@/lib/booking-move";
 import {
   listOpenDepartures,
@@ -36,6 +38,7 @@ import {
   canCopyAsNewVersion,
   canStartQuote,
   depositRefundedInFull,
+  dueInstalment,
   instalmentRefundableCents,
   listQuotesForLead,
   quoteRef,
@@ -105,11 +108,19 @@ export default async function AdminLeadPage({
       ? listQuotesForLead(lead.id)
       : Promise.resolve<QuoteWithPayments[]>([]),
   ]);
-  const [emailStates, clashes] = await Promise.all([
+  const [emailStates, clashes, balanceMessages] = await Promise.all([
     quoteEmailStates(leadQuotes.filter((quote) => quote.status === "sent")),
     // Tours already sold on a draft's event day — the builder warns before
     // "Enviar", because a paid deposit takes the whole day but cannot un-sell them.
     bookingClashesForDrafts(leadQuotes),
+    // What went to the couple about the balance — the line above "Enviar
+    // pedido do restante".
+    listQuoteBalanceMessages(
+      leadQuotes.filter((quote) => quote.status === "deposit_paid").map((quote) => quote.id),
+    ).catch((err) => {
+      console.error("[sales] balance messages could not be read", err);
+      return new Map<string, QuoteBalanceMessage[]>();
+    }),
   ]);
 
   const today = todayKey();
@@ -137,6 +148,14 @@ export default async function AdminLeadPage({
     bookingClash: clashes.get(quote.id) ?? null,
     depositRefundedInFull: depositRefundedInFull(quote.payments),
     balanceUnpaid: isBalanceFlagged(quote, today),
+    balanceRequest: (() => {
+      const balance = balanceOf(quote.payments);
+      if (quote.status !== "deposit_paid" || !balance || !isOpenInstalment(balance)) return null;
+      return {
+        lastSentLabel: balanceMessagesLabel(balanceMessages.get(quote.id)),
+        canSend: dueInstalment(quote).kind !== "closed",
+      };
+    })(),
     payments: quote.payments.map((payment) => {
       // What is still returnable — the ceiling the refund dialog offers and
       // validates against, computed once here.

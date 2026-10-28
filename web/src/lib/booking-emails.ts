@@ -1399,8 +1399,8 @@ export type QuoteSentEmailFacts = {
   depositPercent: number;
   /** What is left after the deposit and when it falls due, or `null` at a 100% deposit. */
   balance: { amount: string; dueDate: string } | null;
-  /** How many days before the event the balance is asked for. */
-  balanceDueDaysBefore: number;
+  /** How many days before the event the balance request is sent. */
+  balanceRequestDaysBefore: number;
   /** The non-refundable window the quote was written under (D9). */
   termsWindowDays: number;
   /**
@@ -1447,7 +1447,7 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
   const nextBody = tour
     ? t(c.tour.next.body, l)
     : facts.balance
-      ? fillTemplate(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) })
+      ? fillTemplate(t(c.next.body, l), { days: String(facts.balanceRequestDaysBefore) })
       : t(c.next.bodyFull, l);
   const termsNote = tour
     ? t(c.tour.termsNote, l)
@@ -1666,7 +1666,7 @@ export function guestPaymentLinkEmail(facts: PaymentLinkEmailFacts): EmailMessag
   };
 }
 
-/** Which of the two balance emails — the T−14 request or the T−7 reminder. */
+/** Which of the two balance emails — the request (T−15 or sent by hand) or the T−7 reminder. */
 export type BalanceEmailStage = "request" | "reminder";
 
 /**
@@ -1700,7 +1700,7 @@ export type BalanceEmailFacts = {
 };
 
 /**
- * The balance, asked for: the T−14 request, or the one T−7 reminder.
+ * The balance, asked for: the request (T−15, or sent by hand), or the one T−7 reminder.
  *
  * Shaped like the quote email it follows — the facts table, one button, the
  * phone numbers — and short, because it is a request for money the couple
@@ -1818,8 +1818,8 @@ export type QuoteReceiptEmailFacts = {
   total: string;
   /** What is still owed and by when, or `null` when nothing is. */
   remaining: { amount: string; dueDate: string } | null;
-  /** How many days before the event the balance link is sent. */
-  balanceDueDaysBefore: number;
+  /** How many days before the event the balance request is sent. */
+  balanceRequestDaysBefore: number;
   /** The fee Stripe routed, formatted — `null` on a platform-only charge. Team copy only. */
   fee: string | null;
   /** Deep link to the lead on the Sales board, for the team's copy. */
@@ -1870,7 +1870,10 @@ export function guestQuoteReceiptEmail(facts: QuoteReceiptEmailFacts): EmailMess
   const termsHeading = fillTemplate(t(tour ? c.tour.termsHeading : c.termsHeading, l), {
     version: t(termsContent.lastUpdated, l),
   });
-  const nextBody = fillTemplate(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) });
+  const nextBody = fillTemplate(t(c.next.body, l), {
+    days: String(facts.balanceRequestDaysBefore),
+    due: facts.remaining?.dueDate ?? "",
+  });
   const fullTermsUrl = termsUrl(l);
 
   const rows: DetailRow[] = [
