@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { about } from "@/content/pages";
-import { Section, Container } from "@/components/section";
+import { classicCars } from "@/content/site";
+import { Section, SectionHeading, Container } from "@/components/section";
 import { Media } from "@/components/media";
 import { Card, CardContent } from "@/components/ui/card";
 import { JsonLd } from "@/components/json-ld";
@@ -27,6 +28,8 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const l: Locale = locale;
+  /** The car biographies, keyed the way the fleet tiles ask. */
+  const carById = new Map(classicCars.map((car) => [car.id, car]));
 
   return (
     <>
@@ -48,6 +51,38 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
           {t(about.body, l).map((p, i) => (
             <p key={i}>{p}</p>
           ))}
+        </div>
+      </Section>
+
+      <Section className="pt-0 sm:pt-0">
+        <SectionHeading title={t(about.fleet.title, l)} />
+        <div className="mt-8 grid gap-6 sm:grid-cols-2">
+          {about.fleet.cars.map((tile) => {
+            const car = carById.get(tile.id);
+            if (!car) return null;
+            return (
+              <div
+                key={tile.id}
+                className="overflow-hidden rounded-2xl border border-border bg-card"
+              >
+                <Media
+                  src={tile.image}
+                  label={t(tile.alt, l)}
+                  position={tile.position}
+                  rounded={false}
+                  sizes="(max-width: 640px) 100vw, 480px"
+                  className="aspect-4/3 w-full"
+                />
+                <div className="p-5">
+                  <h3 className="font-heading text-lg font-semibold">{car.name}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {car.model} · {car.year}
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">{t(car.story, l)}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </Section>
 
