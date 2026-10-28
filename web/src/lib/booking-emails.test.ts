@@ -592,13 +592,13 @@ describe("guestThankYouEmail", () => {
     expect(pt.subject).toBe("Muito obrigado, Sofia Almeida");
     expect(pt.html).toContain('lang="pt"');
     expect(pt.text).toContain("Olá Sofia Almeida,");
-    expect(pt.text).toContain("pela zona rural onde crescemos");
+    expect(pt.text).toContain("Esperamos que tenha gostado mesmo desta experiência.");
     expect(pt.text).toContain("viva o momento presente");
 
     const en = guestThankYouEmail(thankYou({ locale: "en" }));
     expect(en.subject).toBe("Thank you so much, Sofia Almeida");
     expect(en.html).toContain('lang="en"');
-    expect(en.text).toContain("around the rural area where we grew up");
+    expect(en.text).toContain("We hope you really enjoyed this experience!");
     expect(en.text).toContain("reach more souls like you");
     expect(en.text).toContain("live in the present moment");
   });

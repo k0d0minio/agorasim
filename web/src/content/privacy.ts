@@ -81,14 +81,14 @@ export const privacyContent = {
   } as Localized,
 
   lastUpdatedLabel: { pt: "Última atualização", en: "Last updated" } as Localized,
-  lastUpdated: { pt: "5 de outubro de 2026", en: "5 October 2026" } as Localized,
+  lastUpdated: { pt: "28 de outubro de 2026", en: "28 October 2026" } as Localized,
 
   sections: {
     pt: [
       {
         heading: "Quem somos (responsável pelo tratamento)",
         body: [
-          "A Agorasim organiza passeios guiados em carros clássicos pela região Saloia (Sintra, Mafra e Ericeira), em Portugal. Somos o responsável pelo tratamento dos dados pessoais descritos nesta política.",
+          "A Agorasim organiza experiências rurais Saloias em carros clássicos, entre Sintra e a Ericeira, e o passeio a Óbidos com partida de Lisboa, em Portugal. Somos o responsável pelo tratamento dos dados pessoais descritos nesta política.",
           "O responsável pelo tratamento é Agorasim Vintage — Diogo Santos Trajano (trabalhador independente), NIF 234840919, com morada na Rua dos Lavadouros 33, Ramilo, 2640-372 Mafra, Portugal.",
           "Para qualquer questão sobre privacidade, contacte-nos por email para info@agorasim.pt.",
         ],
@@ -156,7 +156,7 @@ export const privacyContent = {
       {
         heading: "Who we are (the data controller)",
         body: [
-          "Agorasim runs guided classic-car tours through the Saloia region (Sintra, Mafra and Ericeira) in Portugal. We are the controller for the personal data described in this policy.",
+          "Agorasim runs rural Saloia experiences in classic cars, between Sintra and Ericeira, and the Óbidos tour from Lisbon, in Portugal. We are the controller for the personal data described in this policy.",
           "The controller is Agorasim Vintage — Diogo Santos Trajano (sole trader), Portuguese tax number (NIF) 234840919, of Rua dos Lavadouros 33, Ramilo, 2640-372 Mafra, Portugal.",
           "For any privacy question, email us at info@agorasim.pt.",
         ],

@@ -28,6 +28,9 @@ the Saloia region, and the Óbidos tour from Lisbon. Sentences about Rural Saloi
 - [ ] `public/llms.txt`, the terms and the privacy policy use the same description.
 - [ ] The welcome email no longer says "onde crescemos" to an Óbidos guest, or the sentence is true for both tours.
 - [ ] The Rural Saloia tagline and summary are unchanged.
+- [ ] The home hero eyebrow reads "Sintra · Mafra · Ericeira · Óbidos", in PT and EN.
+- [ ] The blog lead and the blog empty state no longer place the whole business between Sintra and Ericeira.
+- [ ] The post-tour thank-you email no longer says "onde crescemos" to every guest.
 
 ## Out of scope
 

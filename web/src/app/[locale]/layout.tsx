@@ -47,8 +47,8 @@ export async function generateMetadata({
   if (!isLocale(locale)) return {};
   const description =
     locale === "pt"
-      ? "Passeios guiados em carros clássicos pela região Saloia, entre Sintra, Mafra e a Ericeira. Vinhas, gastronomia, aldeias e costa atlântica."
-      : "Guided classic-car tours through the Saloia region, between Sintra, Mafra and Ericeira. Vineyards, food, villages and the Atlantic coast.";
+      ? "Experiências rurais Saloias em carros clássicos, entre Sintra e a Ericeira, e o passeio a Óbidos com partida de Lisboa. Vinhas, gastronomia, aldeias e história."
+      : "Rural Saloia experiences in classic cars, between Sintra and Ericeira, and the Óbidos tour from Lisbon. Vineyards, food, villages and history.";
 
   return {
     metadataBase: new URL(site.domain),
