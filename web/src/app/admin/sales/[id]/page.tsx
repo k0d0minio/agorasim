@@ -56,6 +56,7 @@ import {
 import { LeadEditForm, type CatalogueOption } from "@/components/admin/lead-edit-form";
 import { LeadManualBooking } from "@/components/admin/lead-manual-booking";
 import { LeadQuoteCard, type QuoteCardItem } from "@/components/admin/lead-quote-card";
+import { isQuotedKind, tourHoldOf } from "@/lib/tour-quote";
 import { ArchiveLeadButton, LogContactButton } from "@/components/admin/lead-quick-actions";
 import { MarketingConsent, Received } from "@/components/admin/record-meta";
 import { RequestStatusSelect } from "@/components/admin/request-status-select";
@@ -98,10 +99,11 @@ export default async function AdminLeadPage({
     // The "Registar reserva" picker: every departure still on sale between now
     // and the horizon, so a booking taken on the phone never needs the Calendar.
     listOpenDepartures(),
-    // Weddings and events only — a tour is sold, never quoted.
-    lead.kind === "tour"
-      ? Promise.resolve<QuoteWithPayments[]>([])
-      : listQuotesForLead(lead.id),
+    // Weddings and events — a tour is sold, never quoted, unless the team
+    // raised it from "Novo orçamento" (`lib/tour-quote.ts`).
+    isQuotedKind(lead)
+      ? listQuotesForLead(lead.id)
+      : Promise.resolve<QuoteWithPayments[]>([]),
   ]);
   const [emailStates, clashes] = await Promise.all([
     quoteEmailStates(leadQuotes.filter((quote) => quote.status === "sent")),
@@ -121,6 +123,7 @@ export default async function AdminLeadPage({
     eventDate: quote.eventDate,
     eventDateLabel: formatDay(quote.eventDate, "pt"),
     venue: quote.venue,
+    hold: tourHoldOf(quote),
     lineItems: quote.lineItems,
     totalCents: quote.totalCents,
     currency: quote.currency,
@@ -203,7 +206,12 @@ export default async function AdminLeadPage({
   const tel = toTelHref(lead.phone);
   const whatsAppNumber = toWhatsAppNumber(lead.phone);
 
-  /** Weddings and events are quoted by hand; tours are not quoted at all. */
+  /**
+   * Weddings and events are quoted by hand. Tours are sold, not quoted — but
+   * the one the team raised from "Novo orçamento" is.
+   */
+  const hasQuotes = isQuotedKind(lead);
+  /** The enquiry's own words: an event's date and venue, a tour's preferences. */
   const isQuote = lead.kind !== "tour";
   const preferredCarId = lead.preferredCar;
   const preferredCarName = preferredCarId
@@ -453,7 +461,7 @@ export default async function AdminLeadPage({
           while the person is still on file: an anonymised lead has nobody to
           send an offer to.
         */}
-        {isQuote && !lead.anonymisedAt ? (
+        {hasQuotes && !lead.anonymisedAt ? (
           <LeadQuoteCard
             leadId={lead.id}
             guestEmail={lead.email}
@@ -466,6 +474,7 @@ export default async function AdminLeadPage({
             }}
             canStart={canStartQuote(leadQuotes)}
             quotes={quoteItems}
+            tourLead={lead.kind === "tour"}
           />
         ) : null}
 

@@ -41,7 +41,10 @@
  * **The fee is the agreement's 6% of this instalment** (§5), as an application
  * fee on a direct charge to the connected account — or no fee at all while
  * Connect is unconfigured, exactly as the tour checkout behaves, so a preview
- * without a connected account can still take a test payment.
+ * without a connected account can still take a test payment. A tour quote
+ * takes the tour fee instead (§4: 4%, €10 floor, €50 cap) on its one payment
+ * (`lib/tour-quote.ts`), and is re-checked for its car before Stripe opens: a
+ * sent tour quote holds nothing until it is paid.
  *
  * **The token.** The plaintext reaches this module from the page's own URL and
  * leaves it inside the one return URL Stripe sends the couple back to. It is
@@ -52,7 +55,7 @@ import "server-only";
 import type Stripe from "stripe";
 import { eq } from "drizzle-orm";
 
-import { db, tourRequests, type QuotePayment, type TourRequest } from "@/db";
+import { db, tourRequests, type Quote, type QuotePayment, type TourRequest } from "@/db";
 import { TERMS_VERSION } from "@/content/terms";
 import { quotePageContent } from "@/content/quote-page";
 import { t, type Locale } from "@/i18n/config";
@@ -89,6 +92,8 @@ import {
   quoteTokenDigest,
 } from "@/lib/quote-token";
 import { siteUrl } from "@/lib/site-origin";
+import { commissionKindOf, isTourQuote, tourHoldOf } from "@/lib/tour-quote";
+import { checkTourHold } from "@/lib/tour-quote-hold";
 import {
   connectedAccountId,
   isStripeConfigured,
@@ -181,6 +186,8 @@ export type QuoteCheckoutOutcome =
       clientSecret: string;
       stripeAccount: string | null;
       instalment: { kind: QuoteReceiptInstalment; amountCents: number; currency: string };
+      /** A tour quote's one payment, which the page names "Pagamento", not "Sinal". */
+      tour: boolean;
     }
   /** The session completed and is paid; the page now shows the receipt. */
   | { status: "paid" }
@@ -188,6 +195,8 @@ export type QuoteCheckoutOutcome =
   | { status: "awaiting" }
   /** Nothing to pay today: the balance is not due yet. */
   | { status: "not-due" }
+  /** A tour quote whose departure has no car of its class left. Call us. */
+  | { status: "no-car" }
   /** Nothing to pay at all. */
   | { status: "settled" }
   /** No live quote behind this link. */
@@ -256,6 +265,7 @@ async function checkoutFor(
           clientSecret: existing.client_secret,
           stripeAccount: owned?.stripeAccount ?? null,
           instalment,
+          tour: isTourQuote(quote),
         };
       }
       // Minted under older terms, or as a hosted page before the form moved
@@ -276,10 +286,18 @@ async function checkoutFor(
     // Expired, failed, or unknown to Stripe: mint a new one below.
   }
 
+  // A tour quote holds its car only once paid, so the departure may have
+  // filled since the quote went out. No session for a car that is gone.
+  const hold = tourHoldOf(quote);
+  if (hold) {
+    const car = await checkTourHold({ date: quote.eventDate, hold, now: context.now });
+    if (!car.ok) return car.reason === "unreadable" ? { status: "failed" } : { status: "no-car" };
+  }
+
   const lead = quote.tourRequestId ? await readQuoteLead(quote.tourRequestId) : null;
   const kind = instalment.kind;
   const connected = connectedAccountId();
-  const fee = connected ? commissionOn("event", payment.amountCents) : null;
+  const fee = connected ? commissionOn(commissionKindOf(quote), payment.amountCents) : null;
   const metadata: QuoteSessionMetadata = {
     quoteId: quote.id,
     paymentId: payment.id,
@@ -302,7 +320,10 @@ async function checkoutFor(
             currency: payment.currency,
             unit_amount: payment.amountCents,
             product_data: {
-              name: `${t(quotePageContent.instalmentNames[kind], context.locale)} — ${metadata.ref}`,
+              name: `${t(
+                hold ? quotePageContent.tour.payment : quotePageContent.instalmentNames[kind],
+                context.locale,
+              )} — ${metadata.ref}`,
             },
           },
         },
@@ -355,6 +376,7 @@ async function checkoutFor(
       clientSecret: session.client_secret,
       stripeAccount: connected,
       instalment,
+      tour: isTourQuote(quote),
     };
   }
 
@@ -542,7 +564,7 @@ export async function recordQuotePayment(
       ? session.payment_intent
       : (session.payment_intent?.id ?? null);
 
-  const settlement = await readQuoteSettlement(paymentIntentId, found.payment, found.quote.id);
+  const settlement = await readQuoteSettlement(paymentIntentId, found.payment, found.quote);
   const marked = await markPaymentPaid(
     found.payment.id,
     {
@@ -639,8 +661,9 @@ export async function reconcileQuoteReturn(
 async function readQuoteSettlement(
   paymentIntentId: string | null,
   payment: Pick<QuotePayment, "amountCents">,
-  quoteId: string,
+  quote: Pick<Quote, "id" | "holdSlot" | "holdVehicleClass">,
 ): Promise<PaymentSettlement> {
+  const quoteId = quote.id;
   if (!paymentIntentId || !isStripeConfigured()) return {};
 
   try {
@@ -667,11 +690,11 @@ async function readQuoteSettlement(
     const feeCents = charge.application_fee_amount ?? null;
     if (feeCents === null) return settlement;
 
-    const expected = commissionOn("event", payment.amountCents);
+    const expected = commissionOn(commissionKindOf(quote), payment.amountCents);
     if (expected.feeCents !== feeCents) {
       console.error(
         `[quote-checkout] ${quoteRef(quoteId)}: Stripe took ${feeCents} in commission, ` +
-          `the agreement's 6% of ${payment.amountCents} is ${expected.feeCents} — recording what Stripe took`,
+          `the agreement's ${expected.kind} fee on ${payment.amountCents} is ${expected.feeCents} — recording what Stripe took`,
       );
     }
     return { ...settlement, applicationFeeCents: feeCents, commissionRateBps: expected.rateBps };
@@ -764,6 +787,7 @@ export function receiptFacts(
     balanceDueDaysBefore: BALANCE_DUE_DAYS_BEFORE,
     fee: paid.applicationFeeCents !== null ? money(paid.applicationFeeCents) : null,
     adminUrl: `${siteUrl()}/admin/sales/${lead.id}`,
+    tour: isTourQuote(quote),
   };
 }
 

@@ -9,6 +9,7 @@ import {
   dayRosterSchema,
   quoteRequestSchema,
   refundQuotePaymentSchema,
+  scratchQuoteSchema,
 } from "@/lib/form-schemas";
 import { REFUND_CONFIRMATION } from "@/lib/admin-format";
 import { DEFAULT_DRIVERS, MAX_DRIVERS, todayKey } from "@/lib/availability";
@@ -437,6 +438,109 @@ describe("quoteDraftSchema", () => {
         form([["Carro", "1", "750"]], { eventDate: shiftDays(todayKey(), 7) }),
       ).success,
     ).toBe(true);
+  });
+
+  it("reads no hold from a wedding form, which never posts the two fields", () => {
+    expect(quoteDraftSchema.parse(form([["Carro", "1", "750"]])).hold).toBeUndefined();
+  });
+
+  it("reads a tour draft's departure and car", () => {
+    const parsed = quoteDraftSchema.parse(
+      form([["Passeio", "1", "300"]], { holdSlot: "full_day", holdVehicleClass: "classic-van" }),
+    );
+
+    expect(parsed.hold).toEqual({ slot: "full_day", vehicleClass: "classic-van" });
+  });
+
+  it("refuses a departure or a car it does not know rather than drop the hold", () => {
+    const badSlot = quoteDraftSchema.safeParse(
+      form([["Passeio", "1", "300"]], { holdSlot: "night", holdVehicleClass: "classic-van" }),
+    );
+    const badCar = quoteDraftSchema.safeParse(
+      form([["Passeio", "1", "300"]], { holdSlot: "morning", holdVehicleClass: "bus" }),
+    );
+
+    expect(badSlot.error?.issues[0]?.message).toBe("Escolha a partida do passeio.");
+    expect(badCar.error?.issues[0]?.message).toBe("Escolha o carro do passeio.");
+  });
+});
+
+/**
+ * "Novo orçamento" — the customer, the kind and the quote in one form. A tour
+ * takes one payment and needs its departure and car; a wedding or event keeps
+ * the deposit share and holds no car.
+ */
+describe("scratchQuoteSchema", () => {
+  const FUTURE = "2099-08-15";
+
+  function form(extra: Record<string, string> = {}) {
+    const data = new FormData();
+    data.set("name", "Marta Silva");
+    data.set("email", "Marta@Example.com");
+    data.set("phone", "");
+    data.set("locale", "en");
+    data.set("kind", "tour");
+    data.set("eventDate", FUTURE);
+    data.set("venue", "");
+    data.set("depositPercent", "30");
+    data.set("holdSlot", "morning");
+    data.set("holdVehicleClass", "classic-small");
+    data.append("lineLabel", "Passeio personalizado, 4 horas");
+    data.append("lineQuantity", "1");
+    data.append("lineUnit", "320");
+    for (const [key, value] of Object.entries(extra)) data.set(key, value);
+    return formValues(data);
+  }
+
+  it("reads a tour: one payment, its departure and car, the customer's language", () => {
+    const parsed = scratchQuoteSchema.parse(form());
+
+    expect(parsed.customer).toEqual({
+      name: "Marta Silva",
+      email: "marta@example.com",
+      phone: null,
+      locale: "en",
+    });
+    expect(parsed.kind).toBe("tour");
+    expect(parsed.input).toMatchObject({
+      eventDate: FUTURE,
+      venue: null,
+      // The form's 30 is ignored: a tour quote is paid in one payment.
+      depositPercent: 100,
+      hold: { slot: "morning", vehicleClass: "classic-small" },
+      lineItems: [{ label: "Passeio personalizado, 4 horas", unitCents: 32_000, quantity: 1 }],
+    });
+  });
+
+  it("refuses a tour with no departure", () => {
+    const data = form();
+    delete data.holdSlot;
+
+    expect(scratchQuoteSchema.safeParse(data).error?.issues[0]?.message).toBe(
+      "Escolha a partida do passeio.",
+    );
+  });
+
+  it("reads a wedding with its deposit share and no car", () => {
+    const parsed = scratchQuoteSchema.parse(form({ kind: "wedding", depositPercent: "40" }));
+
+    expect(parsed.input.depositPercent).toBe(40);
+    expect(parsed.input.hold).toBeNull();
+  });
+
+  it("refuses a wedding with a deposit outside 1–100", () => {
+    expect(scratchQuoteSchema.safeParse(form({ kind: "event", depositPercent: "0" })).success).toBe(
+      false,
+    );
+  });
+
+  it("refuses a customer with no name or a malformed email", () => {
+    expect(scratchQuoteSchema.safeParse(form({ name: "" })).error?.issues[0]?.message).toBe(
+      "Diga o nome do cliente.",
+    );
+    expect(scratchQuoteSchema.safeParse(form({ email: "marta" })).error?.issues[0]?.message).toBe(
+      "Escreva um endereço de email válido.",
+    );
   });
 });
 

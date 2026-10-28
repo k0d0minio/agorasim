@@ -139,6 +139,42 @@ export const quotePageContent = {
       pt: "Este orçamento já está pago na totalidade.",
       en: "This quote is already paid in full.",
     } as Localized,
+    /** A tour quote whose departure filled before the payment (`lib/tour-quote.ts`). */
+    noCar: {
+      pt: "A partida deste passeio já não tem carro disponível. Ligue-nos ou escreva-nos e combinamos outra data consigo.",
+      en: "This tour's departure no longer has a car available. Call or write to us and we will arrange another date with you.",
+    } as Localized,
+  },
+
+  /**
+   * A tour quote (`lib/tour-quote.ts`): one payment, one car, the tour's
+   * terms. Each key replaces the event wording above on such a quote.
+   */
+  tour: {
+    lead: {
+      sent: {
+        pt: "Aqui está o passeio que preparámos para si. Leia as condições abaixo e, quando estiver pronto, pague para o confirmar.",
+        en: "Here is the tour we prepared for you. Read the conditions below and, when you are ready, pay to confirm it.",
+      } as Localized,
+      paid: {
+        pt: "O seu passeio está pago e confirmado. Obrigado — até breve!",
+        en: "Your tour is paid and confirmed. Thank you — see you soon!",
+      } as Localized,
+    },
+    date: { pt: "Data do passeio", en: "Tour date" } as Localized,
+    departure: { pt: "Partida", en: "Departure" } as Localized,
+    departures: {
+      morning: { pt: "Manhã (10:00)", en: "Morning (10:00)" } as Localized,
+      afternoon: { pt: "Tarde (14:00)", en: "Afternoon (14:00)" } as Localized,
+      full_day: { pt: "Dia inteiro", en: "Full day" } as Localized,
+    },
+    /** The one instalment's name — on this page and on Stripe's. */
+    payment: { pt: "Pagamento", en: "Payment" } as Localized,
+    pay: { pt: "Pagar {amount}", en: "Pay {amount}" } as Localized,
+    acceptedVersion: {
+      pt: "Condições aceites com o pagamento: versão de {version}",
+      en: "Conditions accepted with the payment: version of {version}",
+    } as Localized,
   },
 
   termsHeading: { pt: "As condições", en: "The conditions" } as Localized,

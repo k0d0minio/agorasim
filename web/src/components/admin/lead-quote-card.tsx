@@ -6,6 +6,7 @@ import { useFormStatus } from "react-dom";
 import { Copy, Pencil, Plus, RotateCw, Send, Trash2, X } from "lucide-react";
 
 import {
+  createScratchQuote,
   discardQuote,
   newQuoteVersion,
   resendLeadQuote,
@@ -14,10 +15,20 @@ import {
   type QuoteActionState,
 } from "@/app/admin/sales/actions";
 import {
+  ENQUIRY_KINDS,
+  enquiryKindMeta,
   quotePaymentKindLabel,
   quotePaymentStatusMeta,
   quoteStatusMeta,
 } from "@/lib/admin-format";
+import { VEHICLE_CLASSES, type VehicleClass } from "@/lib/fleet";
+import {
+  TOUR_HOLD_SLOT_LABELS,
+  TOUR_HOLD_SLOTS,
+  TOUR_QUOTE_DEPOSIT_PERCENT,
+  VEHICLE_CLASS_LABELS,
+  type TourHoldSlot,
+} from "@/lib/tour-quote";
 import { formatPrice, parseAmountInput, priceInputValue } from "@/lib/money";
 import {
   DEFAULT_DEPOSIT_PERCENT,
@@ -25,7 +36,7 @@ import {
   splitTotal,
   type QuoteLine,
 } from "@/lib/quote-math";
-import type { QuotePaymentKind, QuotePaymentStatus, QuoteStatus } from "@/db/schema";
+import type { EnquiryKind, QuotePaymentKind, QuotePaymentStatus, QuoteStatus } from "@/db/schema";
 import {
   CancelHeldQuoteDialog,
   RefundQuotePaymentDialog,
@@ -43,6 +54,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 
 /**
  * One quote as the card shows it — plain data, formatted on the server where
@@ -57,6 +69,11 @@ export type QuoteCardItem = {
   eventDate: string;
   eventDateLabel: string;
   venue: string | null;
+  /**
+   * A tour quote's departure and car (`lib/tour-quote.ts`), or `null` for a
+   * wedding or event. A tour quote is one payment and holds one car once paid.
+   */
+  hold: { slot: TourHoldSlot; vehicleClass: VehicleClass } | null;
   lineItems: QuoteLine[];
   totalCents: number;
   currency: string;
@@ -121,6 +138,7 @@ export function LeadQuoteCard({
   prefill,
   canStart,
   quotes,
+  tourLead = false,
 }: {
   leadId: string;
   guestEmail: string;
@@ -128,6 +146,8 @@ export function LeadQuoteCard({
   prefill: { eventDate: string; venue: string };
   canStart: boolean;
   quotes: QuoteCardItem[];
+  /** A tour lead from "Novo orçamento": its quotes hold a car and take one payment. */
+  tourLead?: boolean;
 }) {
   // The number of quotes when "Criar orçamento" was pressed. A saved draft
   // makes it stale, and that — not an effect — is what closes the form.
@@ -163,6 +183,7 @@ export function LeadQuoteCard({
                 venue: prefill.venue,
                 depositPercent: String(DEFAULT_DEPOSIT_PERCENT),
                 lines: [],
+                hold: tourLead ? DEFAULT_HOLD : null,
               }}
               onCancel={() => setCreatingAt(null)}
             />
@@ -231,6 +252,7 @@ function QuoteEntry({
               quantity: String(line.quantity),
               unit: priceInputValue(line.unitCents) || "0",
             })),
+            hold: quote.hold,
           }}
           onCancel={() => setEditingAt(null)}
         />
@@ -253,6 +275,14 @@ function QuoteEntry({
       </div>
 
       <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+        {quote.hold ? (
+          <div>
+            <dt className="text-muted-foreground">Partida e carro</dt>
+            <dd>
+              {TOUR_HOLD_SLOT_LABELS[quote.hold.slot]} · {VEHICLE_CLASS_LABELS[quote.hold.vehicleClass]}
+            </dd>
+          </div>
+        ) : null}
         <div>
           <dt className="text-muted-foreground">Local</dt>
           <dd>{quote.venue ?? "—"}</dd>
@@ -292,8 +322,11 @@ function QuoteEntry({
           return (
             <li key={payment.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="font-medium">
-                {quotePaymentKindLabel[payment.kind]}
-                {payment.kind === "deposit" ? ` (${quote.depositPercent}%)` : ""}
+                {quote.hold
+                  ? "Pagamento"
+                  : `${quotePaymentKindLabel[payment.kind]}${
+                      payment.kind === "deposit" ? ` (${quote.depositPercent}%)` : ""
+                    }`}
               </span>
               <span className="tabular-nums">{money(payment.amountCents)}</span>
               {payment.dueDateLabel ? (
@@ -384,7 +417,7 @@ function QuoteEntry({
             fields={{ quoteId: quote.id }}
             trigger={{ label: "Enviar orçamento", icon: <Send className="size-4" /> }}
             title={`Enviar o orçamento ${quote.ref}?`}
-            description={`O cliente recebe por email, em ${guestEmail}, o orçamento de ${money(quote.totalCents)} com o link para a página onde paga o sinal. Depois de enviado já não pode ser editado — só substituído por uma nova versão.${
+            description={`O cliente recebe por email, em ${guestEmail}, o orçamento de ${money(quote.totalCents)} com o link para a página onde ${quote.hold ? "paga o passeio. O carro só fica reservado com o pagamento" : "paga o sinal"}. Depois de enviado já não pode ser editado — só substituído por uma nova versão.${
               quote.bookingClash
                 ? ` Atenção: já há ${clashWords(quote.bookingClash)}; o sinal pago fecha o dia a novos passeios, mas não cancela estas.`
                 : ""
@@ -536,6 +569,12 @@ type LineDraft = { label: string; quantity: string; unit: string };
 
 const EMPTY_LINE: LineDraft = { label: "", quantity: "1", unit: "" };
 
+/** A tour quote's departure and car, as the form holds them. */
+type HoldDraft = { slot: TourHoldSlot; vehicleClass: VehicleClass };
+
+/** What a new tour quote's form starts on: the morning, a small classic. */
+const DEFAULT_HOLD: HoldDraft = { slot: "morning", vehicleClass: "classic-small" };
+
 /** "2026-08-01" → "1 de agosto de 2026", for the live preview. */
 function dayLabel(key: string): string {
   return new Intl.DateTimeFormat("pt-PT", {
@@ -547,34 +586,54 @@ function dayLabel(key: string): string {
 }
 
 /**
- * The builder's form — create a draft, or edit one.
+ * The builder's form — create a draft, edit one, or ("Novo orçamento") create
+ * the customer and the draft together.
  *
  * The total is not typed: it is the sum of the lines, shown live with the
  * deposit and the balance it splits into and the day the balance falls due, so
  * Rita sees the figures the couple will see before she saves. A line that does
  * not parse yet simply does not count towards the preview; the server says
  * which line is wrong when she saves.
+ *
+ * A tour quote (`lib/tour-quote.ts`) asks its departure and car instead of the
+ * deposit share: it is one payment, and it holds one car once paid.
  */
 function QuoteForm({
   mode,
   initial,
   onCancel,
 }: {
-  mode: { kind: "create"; leadId: string } | { kind: "edit"; quoteId: string };
-  initial: { eventDate: string; venue: string; depositPercent: string; lines: LineDraft[] };
+  mode: { kind: "create"; leadId: string } | { kind: "edit"; quoteId: string } | { kind: "new" };
+  initial: {
+    eventDate: string;
+    venue: string;
+    depositPercent: string;
+    lines: LineDraft[];
+    /** A tour quote's departure and car; `null` for a wedding or event. */
+    hold: HoldDraft | null;
+  };
   /** "Voltar". A successful save closes the form through the refresh instead. */
   onCancel: () => void;
 }) {
   const router = useRouter();
-  const [state, formAction] = useActionState<QuoteActionState, FormData>(saveQuoteDraft, {});
+  // A mode never changes for one mounted form, so the hook order is stable.
+  const [state, formAction] = useActionState<QuoteActionState, FormData>(
+    mode.kind === "new" ? createScratchQuote : saveQuoteDraft,
+    {},
+  );
+  const [kind, setKind] = useState<EnquiryKind>(initial.hold ? "tour" : "wedding");
   const [eventDate, setEventDate] = useState(initial.eventDate);
   const [depositPercent, setDepositPercent] = useState(initial.depositPercent);
+  const [hold, setHold] = useState<HoldDraft>(initial.hold ?? DEFAULT_HOLD);
   const [lines, setLines] = useState<LineDraft[]>(
     initial.lines.length > 0 ? initial.lines : [EMPTY_LINE],
   );
+  // "Novo orçamento" picks the kind; an existing lead's form is what its lead is.
+  const tour = mode.kind === "new" ? kind === "tour" : initial.hold !== null;
 
   // The refreshed render carries the saved quote, and the parent closes this
-  // form from it (see `creatingAt` / `editingAt`).
+  // form from it (see `creatingAt` / `editingAt`). "Novo orçamento" leaves
+  // through the action's redirect instead.
   useEffect(() => {
     if (state.ok) router.refresh();
   }, [state, router]);
@@ -586,7 +645,7 @@ function QuoteForm({
       ? sum + unit * quantity
       : sum;
   }, 0);
-  const percent = Number(depositPercent);
+  const percent = tour ? TOUR_QUOTE_DEPOSIT_PERCENT : Number(depositPercent);
   const split =
     totalCents > 0 && Number.isInteger(percent) && percent >= 1 && percent <= 100
       ? splitTotal(totalCents, percent)
@@ -603,19 +662,69 @@ function QuoteForm({
   const update = (index: number, patch: Partial<LineDraft>) =>
     setLines((current) => current.map((line, i) => (i === index ? { ...line, ...patch } : line)));
 
-  const id = mode.kind === "create" ? `new-${mode.leadId}` : mode.quoteId;
+  const id =
+    mode.kind === "create" ? `new-${mode.leadId}` : mode.kind === "edit" ? mode.quoteId : "scratch";
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
       {mode.kind === "create" ? (
         <input type="hidden" name="leadId" value={mode.leadId} />
-      ) : (
+      ) : mode.kind === "edit" ? (
         <input type="hidden" name="quoteId" value={mode.quoteId} />
-      )}
+      ) : null}
+
+      {mode.kind === "new" ? (
+        <fieldset className="flex flex-col gap-4">
+          <legend className="mb-1 text-sm font-medium">Cliente</legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`${id}-name`}>Nome</Label>
+              <Input id={`${id}-name`} name="name" autoComplete="off" required />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`${id}-email`}>Email</Label>
+              <Input
+                id={`${id}-email`}
+                name="email"
+                type="email"
+                inputMode="email"
+                autoComplete="off"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`${id}-phone`}>Telefone (opcional)</Label>
+              <Input id={`${id}-phone`} name="phone" type="tel" inputMode="tel" autoComplete="off" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`${id}-locale`}>Idioma do orçamento</Label>
+              <Select id={`${id}-locale`} name="locale" defaultValue="pt">
+                <option value="pt">Português</option>
+                <option value="en">Inglês</option>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`${id}-kind`}>Tipo</Label>
+              <Select
+                id={`${id}-kind`}
+                name="kind"
+                value={kind}
+                onChange={(event) => setKind(event.target.value as EnquiryKind)}
+              >
+                {ENQUIRY_KINDS.map((option) => (
+                  <option key={option} value={option}>
+                    {enquiryKindMeta[option].label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+        </fieldset>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${id}-date`}>Data do evento</Label>
+          <Label htmlFor={`${id}-date`}>{tour ? "Data do passeio" : "Data do evento"}</Label>
           <Input
             id={`${id}-date`}
             name="eventDate"
@@ -627,7 +736,7 @@ function QuoteForm({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${id}-venue`}>Local</Label>
+          <Label htmlFor={`${id}-venue`}>{tour ? "Ponto de encontro (opcional)" : "Local"}</Label>
           <Input
             id={`${id}-venue`}
             name="venue"
@@ -636,6 +745,51 @@ function QuoteForm({
           />
         </div>
       </div>
+
+      {tour ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`${id}-slot`}>Partida</Label>
+            <Select
+              id={`${id}-slot`}
+              name="holdSlot"
+              value={hold.slot}
+              onChange={(event) =>
+                setHold((current) => ({ ...current, slot: event.target.value as TourHoldSlot }))
+              }
+            >
+              {TOUR_HOLD_SLOTS.map((slot) => (
+                <option key={slot} value={slot}>
+                  {TOUR_HOLD_SLOT_LABELS[slot]}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`${id}-car`}>Carro</Label>
+            <Select
+              id={`${id}-car`}
+              name="holdVehicleClass"
+              value={hold.vehicleClass}
+              onChange={(event) =>
+                setHold((current) => ({
+                  ...current,
+                  vehicleClass: event.target.value as VehicleClass,
+                }))
+              }
+            >
+              {VEHICLE_CLASSES.map((vehicleClass) => (
+                <option key={vehicleClass} value={vehicleClass}>
+                  {VEHICLE_CLASS_LABELS[vehicleClass]}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <p className="text-xs text-muted-foreground sm:col-span-2">
+            Pago de uma vez. O carro só fica reservado quando o cliente paga.
+          </p>
+        </div>
+      ) : null}
 
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-1 text-sm font-medium">Linhas do orçamento</legend>
@@ -647,7 +801,9 @@ function QuoteForm({
                 id={`${id}-label-${index}`}
                 name="lineLabel"
                 autoComplete="off"
-                placeholder="Carro clássico com motorista, 6 horas"
+                placeholder={
+                  tour ? "Passeio personalizado, 4 horas" : "Carro clássico com motorista, 6 horas"
+                }
                 value={line.label}
                 onChange={(event) => update(index, { label: event.target.value })}
               />
@@ -703,33 +859,46 @@ function QuoteForm({
         </div>
       </fieldset>
 
-      <div className="flex w-32 flex-col gap-1.5">
-        <Label htmlFor={`${id}-deposit`}>Sinal (%)</Label>
-        <Input
-          id={`${id}-deposit`}
-          name="depositPercent"
-          type="number"
-          inputMode="numeric"
-          min={1}
-          max={100}
-          step={1}
-          value={depositPercent}
-          onChange={(event) => setDepositPercent(event.target.value)}
-        />
-      </div>
+      {tour ? (
+        <input type="hidden" name="depositPercent" value={String(TOUR_QUOTE_DEPOSIT_PERCENT)} />
+      ) : (
+        <div className="flex w-32 flex-col gap-1.5">
+          <Label htmlFor={`${id}-deposit`}>Sinal (%)</Label>
+          <Input
+            id={`${id}-deposit`}
+            name="depositPercent"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={100}
+            step={1}
+            value={depositPercent}
+            onChange={(event) => setDepositPercent(event.target.value)}
+          />
+        </div>
+      )}
 
       <dl className="grid grid-cols-2 gap-x-6 gap-y-2 rounded-lg bg-muted/60 px-3 py-2 text-sm" aria-live="polite">
         <dt className="text-muted-foreground">Total</dt>
         <dd className="text-right font-medium tabular-nums">{money(totalCents)}</dd>
-        <dt className="text-muted-foreground">Sinal</dt>
-        <dd className="text-right tabular-nums">{split ? money(split.depositCents) : "—"}</dd>
-        <dt className="text-muted-foreground">Saldo</dt>
-        <dd className="text-right tabular-nums">
-          {split ? money(split.balanceCents) : "—"}
-          {hasBalance && due ? (
-            <span className="block text-xs text-muted-foreground">até {dayLabel(due)}</span>
-          ) : null}
-        </dd>
+        {tour ? (
+          <>
+            <dt className="text-muted-foreground">Pagamento</dt>
+            <dd className="text-right tabular-nums">{split ? money(split.depositCents) : "—"}</dd>
+          </>
+        ) : (
+          <>
+            <dt className="text-muted-foreground">Sinal</dt>
+            <dd className="text-right tabular-nums">{split ? money(split.depositCents) : "—"}</dd>
+            <dt className="text-muted-foreground">Saldo</dt>
+            <dd className="text-right tabular-nums">
+              {split ? money(split.balanceCents) : "—"}
+              {hasBalance && due ? (
+                <span className="block text-xs text-muted-foreground">até {dayLabel(due)}</span>
+              ) : null}
+            </dd>
+          </>
+        )}
       </dl>
 
       {balanceAlreadyDue ? (
@@ -747,7 +916,13 @@ function QuoteForm({
 
       <div className="flex flex-wrap gap-2">
         <SubmitButton
-          label={mode.kind === "create" ? "Criar rascunho" : "Guardar rascunho"}
+          label={
+            mode.kind === "new"
+              ? "Criar orçamento"
+              : mode.kind === "create"
+                ? "Criar rascunho"
+                : "Guardar rascunho"
+          }
           pending="A guardar…"
         />
         <Button type="button" variant="outline" onClick={onCancel}>
@@ -755,5 +930,27 @@ function QuoteForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * "Novo orçamento" — the builder's form on its own page, with the customer's
+ * fields above it. A tour is the first kind offered, as Diogo asked for it
+ * first; the kind select switches the form to a wedding or an event.
+ */
+export function ScratchQuoteForm() {
+  const router = useRouter();
+  return (
+    <QuoteForm
+      mode={{ kind: "new" }}
+      initial={{
+        eventDate: "",
+        venue: "",
+        depositPercent: String(DEFAULT_DEPOSIT_PERCENT),
+        lines: [],
+        hold: DEFAULT_HOLD,
+      }}
+      onCancel={() => router.push("/admin/sales")}
+    />
   );
 }

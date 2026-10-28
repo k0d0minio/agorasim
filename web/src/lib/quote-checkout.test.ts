@@ -114,6 +114,12 @@ vi.mock("@/lib/email", () => ({
 }));
 vi.mock("@/lib/observability", () => ({ captureAlert: vi.fn(), captureError: vi.fn() }));
 
+/** A tour quote's car check before Stripe opens — the occupancy's own SQL is tested there. */
+const checkTourHold = vi.fn();
+vi.mock("@/lib/tour-quote-hold", () => ({
+  checkTourHold: (...args: unknown[]) => checkTourHold(...args),
+}));
+
 const { reconcileQuoteReturn, recordQuotePayment, startQuoteCheckout, quoteSessionMetadata } =
   await import("./quote-checkout");
 const { issueQuoteToken } = await import("@/lib/quote-token");
@@ -242,6 +248,74 @@ beforeEach(async () => {
 // The tap
 // ---------------------------------------------------------------------------
 
+/**
+ * A tour quote from "Novo orçamento" (`lib/tour-quote.ts`): one payment of the
+ * whole total, the tour fee (§4), and a car check before any session exists.
+ */
+describe("startQuoteCheckout — a tour quote", () => {
+  const TOUR_TOTAL = 32_000;
+  const tourQuote = () =>
+    quote([instalment("deposit", "pending", { amountCents: TOUR_TOTAL })], {
+      totalCents: TOUR_TOTAL,
+      depositPercent: 100,
+      holdSlot: "morning",
+      holdVehicleClass: "classic-small",
+    });
+
+  beforeEach(() => {
+    getQuoteByAccessTokenHash.mockResolvedValue(tourQuote());
+    markPaymentIssued.mockResolvedValue(instalment("deposit", "issued"));
+    checkTourHold.mockResolvedValue({ ok: true });
+  });
+
+  it("charges the whole total with the tour fee, named as one payment", async () => {
+    const outcome = await startQuoteCheckout({ token, locale: "pt", now: NOW });
+
+    expect(outcome).toMatchObject({ status: "embedded", tour: true });
+    expect(checkTourHold).toHaveBeenCalledWith({
+      date: "2026-08-15",
+      hold: { slot: "morning", vehicleClass: "classic-small" },
+      now: NOW,
+    });
+    const [params] = sessionsCreate.mock.calls[0];
+    expect(params.line_items[0].price_data.unit_amount).toBe(TOUR_TOTAL);
+    expect(params.line_items[0].price_data.product_data.name).toMatch(/^Pagamento — /);
+    // 4% of €320 is €12.80 — inside the €10 floor and the €50 cap.
+    expect(params.payment_intent_data.application_fee_amount).toBe(
+      commissionOn("tour", TOUR_TOTAL).feeCents,
+    );
+    expect(commissionOn("tour", TOUR_TOTAL).feeCents).toBe(1_280);
+  });
+
+  it("opens no session when the departure has no car left", async () => {
+    checkTourHold.mockResolvedValue({ ok: false, reason: "unavailable" });
+
+    expect(await startQuoteCheckout({ token, locale: "pt", now: NOW })).toEqual({
+      status: "no-car",
+    });
+    expect(sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("says try again when the car count could not be read", async () => {
+    checkTourHold.mockResolvedValue({ ok: false, reason: "unreadable" });
+
+    expect(await startQuoteCheckout({ token, locale: "pt", now: NOW })).toEqual({
+      status: "failed",
+    });
+    expect(sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("checks no car for a wedding", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue(
+      quote([instalment("deposit", "pending"), instalment("balance", "pending")]),
+    );
+
+    await startQuoteCheckout({ token, locale: "pt", now: NOW });
+
+    expect(checkTourHold).not.toHaveBeenCalled();
+  });
+});
+
 describe("startQuoteCheckout — the first tap on the deposit", () => {
   beforeEach(() => {
     getQuoteByAccessTokenHash.mockResolvedValue(
@@ -258,6 +332,7 @@ describe("startQuoteCheckout — the first tap on the deposit", () => {
       clientSecret: secretOf("cs_test_new"),
       stripeAccount: "acct_test_agorasim",
       instalment: DEPOSIT_DUE,
+      tour: false,
     });
     const [params, options] = sessionsCreate.mock.calls[0];
     expect(params.line_items[0].price_data.unit_amount).toBe(57_600);
@@ -351,6 +426,7 @@ describe("startQuoteCheckout — an instalment that already has a session", () =
       clientSecret: secretOf("cs_test_open"),
       stripeAccount: "acct_test_agorasim",
       instalment: DEPOSIT_DUE,
+      tour: false,
     });
     expect(sessionsCreate).not.toHaveBeenCalled();
     expect(sessionsExpire).not.toHaveBeenCalled();
@@ -530,6 +606,7 @@ describe("startQuoteCheckout — an instalment that already has a session", () =
       clientSecret: secretOf("cs_test_winner"),
       stripeAccount: "acct_test_agorasim",
       instalment: DEPOSIT_DUE,
+      tour: false,
     });
   });
 });

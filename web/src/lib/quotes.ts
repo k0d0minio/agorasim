@@ -59,6 +59,7 @@ import {
 import { recordAuditOrWarn } from "@/lib/audit";
 import { isDateKey, shiftDays, todayKey, type DateKey } from "@/lib/availability";
 import { BOOKING_CURRENCY } from "@/lib/money";
+import { TOUR_QUOTE_DEPOSIT_PERCENT, tourHoldOf, type TourHold } from "@/lib/tour-quote";
 import {
   BALANCE_DUE_DAYS_BEFORE,
   BALANCE_FLAG_DAYS_BEFORE,
@@ -836,6 +837,11 @@ export type NewQuoteInput = {
   depositPercent?: number;
   termsWindowDays?: number;
   currency?: string;
+  /**
+   * What a tour quote holds once paid: the departure and the car class. Set
+   * on a tour quote and only there; null or absent for a wedding or event.
+   */
+  hold?: TourHold | null;
 };
 
 /** What a caller got wrong. Thrown rather than returned — see {@link createQuote}. */
@@ -898,6 +904,12 @@ export function validateQuoteInput(input: NewQuoteInput): string[] {
   const termsWindowDays = input.termsWindowDays ?? DEFAULT_TERMS_WINDOW_DAYS;
   if (!Number.isInteger(termsWindowDays) || termsWindowDays < 0) {
     problems.push(`termsWindowDays ${termsWindowDays} is not a whole number of days`);
+  }
+
+  // A tour quote is paid in one payment (`lib/tour-quote.ts`): a deposit of
+  // anything less would write a balance row the tour has no rule for.
+  if (input.hold && depositPercent !== TOUR_QUOTE_DEPOSIT_PERCENT) {
+    problems.push(`a tour quote takes one payment, not a ${depositPercent}% deposit`);
   }
 
   const lineItems = input.lineItems ?? [];
@@ -968,6 +980,8 @@ export async function createQuote(input: NewQuoteInput): Promise<QuoteWithPaymen
         currency,
         depositPercent,
         termsWindowDays: input.termsWindowDays ?? DEFAULT_TERMS_WINDOW_DAYS,
+        holdSlot: input.hold?.slot ?? null,
+        holdVehicleClass: input.hold?.vehicleClass ?? null,
       })
       .returning();
   } catch (err) {
@@ -1005,7 +1019,10 @@ export async function createQuote(input: NewQuoteInput): Promise<QuoteWithPaymen
 
 /** The parts of an offer a draft may still change. */
 export type QuoteDraftPatch = Partial<
-  Pick<NewQuoteInput, "eventDate" | "venue" | "totalCents" | "lineItems" | "depositPercent" | "termsWindowDays">
+  Pick<
+    NewQuoteInput,
+    "eventDate" | "venue" | "totalCents" | "lineItems" | "depositPercent" | "termsWindowDays" | "hold"
+  >
 >;
 
 /**
@@ -1029,6 +1046,17 @@ export async function updateQuoteDraft(
   const existing = await getQuote(id);
   if (!existing || !isEditable(existing)) return null;
 
+  // A draft stays what it was born as. A tour quote keeps a hold, and a
+  // wedding never gains one: the edit changes the hold, not the kind of job.
+  const existingHold = tourHoldOf(existing);
+  if (patch.hold !== undefined && (patch.hold === null) !== (existingHold === null)) {
+    throw new QuoteError(
+      existingHold
+        ? "updateQuoteDraft: a tour quote needs its departure and car"
+        : "updateQuoteDraft: a wedding or event quote holds no car",
+    );
+  }
+
   const merged: NewQuoteInput = {
     tourRequestId: existing.tourRequestId,
     eventDate: patch.eventDate ?? existing.eventDate,
@@ -1037,6 +1065,7 @@ export async function updateQuoteDraft(
     lineItems: patch.lineItems ?? existing.lineItems,
     depositPercent: patch.depositPercent ?? existing.depositPercent,
     termsWindowDays: patch.termsWindowDays ?? existing.termsWindowDays,
+    hold: patch.hold !== undefined ? patch.hold : existingHold,
   };
 
   const problems = validateQuoteInput(merged);
@@ -1055,6 +1084,8 @@ export async function updateQuoteDraft(
       lineItems: merged.lineItems ?? [],
       depositPercent: merged.depositPercent,
       termsWindowDays: merged.termsWindowDays,
+      holdSlot: merged.hold?.slot ?? null,
+      holdVehicleClass: merged.hold?.vehicleClass ?? null,
       updatedAt: now,
     })
     .where(and(eq(quotes.id, id), eq(quotes.status, "draft")))
@@ -1352,6 +1383,7 @@ export async function copyQuoteAsDraft(
     depositPercent: source.depositPercent,
     termsWindowDays: source.termsWindowDays,
     currency: source.currency,
+    hold: tourHoldOf(source),
   });
 }
 

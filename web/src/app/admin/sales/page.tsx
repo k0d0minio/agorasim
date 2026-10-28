@@ -1,4 +1,5 @@
-import { Inbox, Search } from "lucide-react";
+import Link from "next/link";
+import { Inbox, Plus, Search } from "lucide-react";
 import { requireAdmin } from "@/lib/admin-auth";
 import { lastAuditByEntity } from "@/lib/audit";
 import { formatDay, todayKey } from "@/lib/availability";
@@ -16,6 +17,7 @@ import {
 import { countPendingRetention, retentionDays } from "@/lib/retention";
 import { listSalesBoard } from "@/lib/sales";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlaceholderPanel } from "@/components/admin/placeholder-panel";
 import { SalesBoard } from "@/components/admin/sales-board";
@@ -119,25 +121,33 @@ export default async function AdminSalesPage({
         Lead lookup — "where is that couple's enquiry?". No query shows the
         board; any query searches every lead, reaching past the per-stage cap.
       */}
-      <form method="get" className="mb-6">
-        <label htmlFor="sales-search" className="text-sm font-medium">
-          Procurar pedidos
-        </label>
-        <div className="relative mt-1.5 max-w-md">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            id="sales-search"
-            name="q"
-            type="search"
-            defaultValue={query}
-            placeholder="Nome, e-mail ou telefone"
-            className="pl-9"
-          />
-        </div>
-      </form>
+      <div className="mb-6 flex flex-wrap items-end gap-3">
+        <form method="get" className="min-w-0 flex-1">
+          <label htmlFor="sales-search" className="text-sm font-medium">
+            Procurar pedidos
+          </label>
+          <div className="relative mt-1.5 max-w-md">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              id="sales-search"
+              name="q"
+              type="search"
+              defaultValue={query}
+              placeholder="Nome, e-mail ou telefone"
+              className="pl-9"
+            />
+          </div>
+        </form>
+        {/* A quote with no enquiry behind it — a personalised tour, a wedding or
+            an event agreed on the phone (`createQuoteFromScratch`). */}
+        <Link href="/admin/sales/new" className={buttonVariants()}>
+          <Plus className="size-4" />
+          Novo orçamento
+        </Link>
+      </div>
 
       {query ? null : (
         <UnpaidBalancesPanel

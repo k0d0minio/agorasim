@@ -31,10 +31,42 @@ function makeQuery(): unknown {
   return proxy;
 }
 
+/** What "Novo orçamento" wrote to `tour_requests`, and whether it was removed. */
+const leadWrites: { inserted: unknown[]; deleted: number } = { inserted: [], deleted: 0 };
+const NEW_LEAD_ID = "cccccccc-3333-4333-8333-333333333333";
+
+/** `insert(...).values(...).returning(...)` — records the values, answers the new id. */
+function makeInsert(): unknown {
+  return {
+    values: (values: unknown) => {
+      leadWrites.inserted.push(values);
+      return { returning: () => Promise.resolve([{ id: NEW_LEAD_ID }]) };
+    },
+  };
+}
+
 vi.mock("@/db", async () => {
   const schema = await vi.importActual<typeof import("@/db/schema")>("@/db/schema");
-  return { ...schema, db: { select: () => makeQuery() } };
+  return {
+    ...schema,
+    db: {
+      select: () => makeQuery(),
+      insert: () => makeInsert(),
+      delete: () => ({
+        where: () => {
+          leadWrites.deleted += 1;
+          return Promise.resolve([]);
+        },
+      }),
+    },
+  };
 });
+
+/** The tour quote's car check — its own SQL is the occupancy's, tested there. */
+const checkTourHold = vi.fn();
+vi.mock("@/lib/tour-quote-hold", () => ({
+  checkTourHold: (...args: unknown[]) => checkTourHold(...args),
+}));
 
 const quotesMock = {
   getQuote: vi.fn(),
@@ -71,6 +103,7 @@ vi.mock("@/lib/message-log", () => ({
 
 const {
   createDraftForLead,
+  createQuoteFromScratch,
   discardQuoteDraft,
   resendQuote,
   saveDraft,
@@ -78,7 +111,7 @@ const {
   startNewVersion,
   summariseClash,
 } = await import("./quote-builder");
-const { QuoteDraftConflictError } = await import("./quotes");
+const { QuoteDraftConflictError, QuoteError } = await import("./quotes");
 const { quoteTokenDigest } = await import("./quote-token");
 const { TERMS_VERSION } = await import("@/content/terms");
 
@@ -151,6 +184,10 @@ beforeEach(() => {
   sendLoggedEmail.mockResolvedValue({ status: "sent", providerMessageId: "re_1" });
   quotesMock.listQuotesForLead.mockResolvedValue([]);
   quotesMock.supersedeSentQuotes.mockResolvedValue({ quotes: [], writtenOff: [] });
+  checkTourHold.mockReset();
+  checkTourHold.mockResolvedValue({ ok: true });
+  leadWrites.inserted = [];
+  leadWrites.deleted = 0;
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
@@ -261,6 +298,167 @@ describe("createDraftForLead — Criar orçamento", () => {
       }),
     ).toEqual({ status: "invalid", problems: ["zero-total"] });
     expect(quotesMock.createQuote).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A tour the team raised from "Novo orçamento" is quoted (`lib/tour-quote.ts`):
+ * one payment, one car, and a car check before the draft is written.
+ */
+describe("createDraftForLead — a tour from Novo orçamento", () => {
+  const HOLD = { slot: "afternoon", vehicleClass: "classic-van" } as const;
+  const tourLead = () => weddingLead({ kind: "tour", source: "admin-quote" });
+
+  it("writes one payment and the hold, after the car check", async () => {
+    lead = tourLead();
+    quotesMock.createQuote.mockResolvedValue(quote());
+
+    const outcome = await createDraftForLead({
+      leadId: LEAD_ID,
+      input: { ...INPUT, depositPercent: 30, hold: HOLD },
+      actorUserId: OPERATOR_ID,
+    });
+
+    expect(outcome.status).toBe("saved");
+    expect(checkTourHold).toHaveBeenCalledWith({ date: "2026-08-15", hold: HOLD });
+    expect(quotesMock.createQuote).toHaveBeenCalledWith(
+      expect.objectContaining({ depositPercent: 100, hold: HOLD }),
+    );
+  });
+
+  it("refuses a tour draft without its departure and car", async () => {
+    lead = tourLead();
+
+    expect(
+      await createDraftForLead({ leadId: LEAD_ID, input: INPUT, actorUserId: OPERATOR_ID }),
+    ).toEqual({ status: "invalid", problems: ["no-hold"] });
+    expect(quotesMock.createQuote).not.toHaveBeenCalled();
+  });
+
+  it("refuses a departure with no car of the class left", async () => {
+    lead = tourLead();
+    checkTourHold.mockResolvedValue({ ok: false, reason: "unavailable" });
+
+    expect(
+      await createDraftForLead({
+        leadId: LEAD_ID,
+        input: { ...INPUT, hold: HOLD },
+        actorUserId: OPERATOR_ID,
+      }),
+    ).toEqual({ status: "no-car", reason: "unavailable" });
+    expect(quotesMock.createQuote).not.toHaveBeenCalled();
+  });
+
+  it("refuses a tour total Stripe cannot charge", async () => {
+    lead = tourLead();
+
+    expect(
+      await createDraftForLead({
+        leadId: LEAD_ID,
+        input: { ...INPUT, lineItems: [{ label: "Oferta", unitCents: 40, quantity: 1 }], hold: HOLD },
+        actorUserId: OPERATOR_ID,
+      }),
+    ).toEqual({ status: "invalid", problems: ["too-small"] });
+  });
+
+  it("drops a hold posted on a wedding lead — a wedding holds the day, not a car", async () => {
+    quotesMock.createQuote.mockResolvedValue(quote());
+
+    await createDraftForLead({
+      leadId: LEAD_ID,
+      input: { ...INPUT, hold: HOLD },
+      actorUserId: OPERATOR_ID,
+    });
+
+    expect(checkTourHold).not.toHaveBeenCalled();
+    expect(quotesMock.createQuote).toHaveBeenCalledWith(
+      expect.objectContaining({ depositPercent: 30, hold: null }),
+    );
+  });
+});
+
+describe("createQuoteFromScratch — Novo orçamento", () => {
+  const CUSTOMER = { name: "Marta Silva", email: "marta@example.com", phone: null, locale: "en" } as const;
+  const HOLD = { slot: "morning", vehicleClass: "classic-small" } as const;
+
+  it("writes the lead in Contactado, then the draft on it", async () => {
+    quotesMock.createQuote.mockResolvedValue(quote({ tourRequestId: NEW_LEAD_ID, locale: "en" }));
+
+    const outcome = await createQuoteFromScratch({
+      customer: CUSTOMER,
+      kind: "tour",
+      input: { ...INPUT, hold: HOLD },
+      actorUserId: OPERATOR_ID,
+    });
+
+    expect(outcome).toMatchObject({ status: "saved", leadId: NEW_LEAD_ID });
+    expect(leadWrites.inserted).toEqual([
+      expect.objectContaining({
+        name: "Marta Silva",
+        email: "marta@example.com",
+        locale: "en",
+        kind: "tour",
+        preferredDate: "2026-08-15",
+        // The send moves it to `quoted`, as for any quote.
+        status: "contacted",
+        source: "admin-quote",
+      }),
+    ]);
+    expect(quotesMock.createQuote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tourRequestId: NEW_LEAD_ID,
+        locale: "en",
+        depositPercent: 100,
+        hold: HOLD,
+      }),
+    );
+    expect(recordAuditOrWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "quote.created", entityId: NEW_LEAD_ID }),
+    );
+  });
+
+  it("writes a wedding with its deposit share and no hold", async () => {
+    quotesMock.createQuote.mockResolvedValue(quote({ tourRequestId: NEW_LEAD_ID }));
+
+    await createQuoteFromScratch({
+      customer: CUSTOMER,
+      kind: "wedding",
+      input: INPUT,
+      actorUserId: OPERATOR_ID,
+    });
+
+    expect(checkTourHold).not.toHaveBeenCalled();
+    expect(quotesMock.createQuote).toHaveBeenCalledWith(
+      expect.objectContaining({ depositPercent: 30, hold: null }),
+    );
+  });
+
+  it("writes nothing when the departure has no car", async () => {
+    checkTourHold.mockResolvedValue({ ok: false, reason: "unavailable" });
+
+    expect(
+      await createQuoteFromScratch({
+        customer: CUSTOMER,
+        kind: "tour",
+        input: { ...INPUT, hold: HOLD },
+        actorUserId: OPERATOR_ID,
+      }),
+    ).toEqual({ status: "no-car", reason: "unavailable" });
+    expect(leadWrites.inserted).toEqual([]);
+  });
+
+  it("removes the lead again when the draft is refused", async () => {
+    quotesMock.createQuote.mockRejectedValue(new QuoteError("createQuote: bad"));
+
+    expect(
+      await createQuoteFromScratch({
+        customer: CUSTOMER,
+        kind: "event",
+        input: INPUT,
+        actorUserId: OPERATOR_ID,
+      }),
+    ).toEqual({ status: "invalid", problems: ["createQuote: bad"] });
+    expect(leadWrites.deleted).toBe(1);
   });
 });
 
