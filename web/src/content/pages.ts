@@ -3,8 +3,8 @@ import type { Localized } from "@/i18n/config";
 /** Home page copy. */
 export const home = {
   heroEyebrow: {
-    pt: "Sintra · Mafra · Ericeira",
-    en: "Sintra · Mafra · Ericeira",
+    pt: "Sintra · Mafra · Ericeira · Óbidos",
+    en: "Sintra · Mafra · Ericeira · Óbidos",
   } as Localized,
   heroTitle: {
     pt: "Descubra a região Saloia num carro clássico",
@@ -21,11 +21,11 @@ export const home = {
   } as Localized,
   intro: {
     pt: [
-      "A Agorasim leva-o a conhecer a região Saloia — o campo entre Sintra, Mafra e a Ericeira — a bordo de carros clássicos como o Citroën 2CV, o Renault 4L, o Fiat 600 e a Volkswagen T3.",
+      "A Agorasim leva-o a conhecer a região Saloia — o campo entre Sintra, Mafra e a Ericeira — a bordo de carros clássicos como o Citroën 2CV, o Renault 4L, o Fiat 600 e a Volkswagen T3. Com partida de Lisboa, o passeio a Óbidos leva-o à vila amuralhada e às aldeias medievais à sua volta.",
       "Cada saída combina paisagem, gastronomia e cultura local num ambiente calmo, pensado para pequenos grupos que procuram uma experiência autêntica e sem multidões.",
     ],
     en: [
-      "Agorasim takes you through the Saloia region — the countryside between Sintra, Mafra and Ericeira — aboard classic cars such as the Citroën 2CV, Renault 4L, Fiat 600 and Volkswagen T3.",
+      "Agorasim takes you through the Saloia region — the countryside between Sintra, Mafra and Ericeira — aboard classic cars such as the Citroën 2CV, Renault 4L, Fiat 600 and Volkswagen T3. From Lisbon, the Óbidos tour takes you to the walled town and the medieval villages around it.",
       "Every departure blends landscape, food and local culture in a calm atmosphere, designed for small groups looking for an authentic, crowd-free experience.",
     ],
   } as Localized<string[]>,
@@ -54,12 +54,12 @@ export const home = {
 export const experiences = {
   title: { pt: "Experiências", en: "Experiences" } as Localized,
   lead: {
-    pt: "Passeios guiados em carro clássico pela região Saloia, entre Sintra, Mafra e a Ericeira — escolha o Rural Saloia ou o Óbidos & Aldeias Medievais e componha o seu dia com os nossos complementos.",
-    en: "Guided classic-car tours through the Saloia region, between Sintra, Mafra and Ericeira — choose Rural Saloia or Óbidos & Medieval Villages and compose your day with our add-ons.",
+    pt: "Passeios guiados em carro clássico pela região Saloia, entre Sintra, Mafra e a Ericeira, e o passeio a Óbidos com partida de Lisboa — escolha o Rural Saloia ou o Óbidos & Aldeias Medievais e componha o seu dia com os nossos complementos.",
+    en: "Guided classic-car tours through the Saloia region, between Sintra, Mafra and Ericeira, and the Óbidos tour from Lisbon — choose Rural Saloia or Óbidos & Medieval Villages and compose your day with our add-ons.",
   } as Localized,
   metaDescription: {
-    pt: "Passeios guiados em carro clássico pela região Saloia: Rural Saloia e Óbidos & Aldeias Medievais, com complementos de gastronomia e vinho.",
-    en: "Guided classic-car tours through the Saloia region: Rural Saloia and Óbidos & Medieval Villages, with food and wine add-ons.",
+    pt: "Experiências guiadas: Rural Saloia, em carro clássico pela região Saloia, e Óbidos & Aldeias Medievais, com partida de Lisboa. Complementos de gastronomia e vinho.",
+    en: "Guided experiences: Rural Saloia, by classic car through the Saloia region, and Óbidos & Medieval Villages, from Lisbon. Food and wine add-ons.",
   } as Localized,
 } as const;
 
@@ -67,17 +67,17 @@ export const experiences = {
 export const about = {
   title: { pt: "Sobre a Agorasim", en: "About Agorasim" } as Localized,
   lead: {
-    pt: "A Agorasim nasceu da vontade de mostrar a região Saloia como ela é: genuína, tranquila e cheia de histórias. Fazemo-lo ao ritmo de carros clássicos, com anfitriões locais que conhecem cada estrada, cada vinha e cada sabor.",
-    en: "Agorasim was born from a desire to show the Saloia region as it truly is: genuine, calm and full of stories. We do it at the pace of classic cars, with local hosts who know every road, every vineyard and every flavour.",
+    pt: "A Agorasim nasceu da vontade de mostrar a região Saloia como ela é: genuína, tranquila e cheia de histórias. Fazemo-lo sem pressa, quase sempre ao ritmo de carros clássicos, com anfitriões locais que conhecem cada estrada, cada vinha e cada sabor.",
+    en: "Agorasim was born from a desire to show the Saloia region as it truly is: genuine, calm and full of stories. We do it unhurried, mostly at the pace of classic cars, with local hosts who know every road, every vineyard and every flavour.",
   } as Localized,
   body: {
     pt: [
       "Acreditamos que viajar devagar é a melhor forma de conhecer um lugar. Por isso os nossos passeios evitam as rotas mais turísticas e privilegiam o contacto com pessoas, produtores e paisagens da região.",
-      "Trabalhamos com parceiros locais — produtores de vinho, artesãos e famílias — para que cada experiência apoie a comunidade e revele o melhor do território entre Sintra, Mafra e a Ericeira.",
+      "Trabalhamos com parceiros locais — produtores de vinho, artesãos e famílias — para que cada experiência apoie a comunidade e revele o melhor do território, da região Saloia a Óbidos.",
     ],
     en: [
       "We believe travelling slowly is the best way to get to know a place. That is why our tours avoid the busiest routes and favour real contact with the people, producers and landscapes of the region.",
-      "We work with local partners — winemakers, artisans and families — so that each experience supports the community and reveals the best of the land between Sintra, Mafra and Ericeira.",
+      "We work with local partners — winemakers, artisans and families — so that each experience supports the community and reveals the best of the land, from the Saloia region to Óbidos.",
     ],
   } as Localized<string[]>,
   values: {

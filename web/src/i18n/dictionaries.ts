@@ -83,7 +83,7 @@ const dictionaries: Record<Locale, Dict> = {
       switchLanguage: "Mudar idioma",
     },
     footer: {
-      tagline: "Experiências rurais Saloias em carros clássicos, entre Sintra e a Ericeira.",
+      tagline: "Experiências rurais Saloias em carros clássicos, entre Sintra e a Ericeira, e o passeio a Óbidos com partida de Lisboa.",
       contacts: "Contactos",
       explore: "Explorar",
       rights: "Todos os direitos reservados.",
@@ -125,7 +125,7 @@ const dictionaries: Record<Locale, Dict> = {
       switchLanguage: "Switch language",
     },
     footer: {
-      tagline: "Rural Saloia experiences in classic cars, between Sintra and Ericeira.",
+      tagline: "Rural Saloia experiences in classic cars, between Sintra and Ericeira, and the Óbidos tour from Lisbon.",
       contacts: "Contact",
       explore: "Explore",
       rights: "All rights reserved.",

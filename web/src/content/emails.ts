@@ -53,8 +53,8 @@ export const bookingEmails = {
      * anywhere in `lib/booking-emails.ts`, by design.
      */
     lead: {
-      pt: "Boas-vindas à região do campo onde crescemos. Será um prazer conhecermo-nos.\n\nA sua reserva está confirmada.",
-      en: "Welcome to the countryside where we grew up. It will be a pleasure to meet you.\n\nYour booking is confirmed.",
+      pt: "Boas-vindas! Será um prazer conhecermo-nos.\n\nA sua reserva está confirmada.",
+      en: "Welcome! It will be a pleasure to meet you.\n\nYour booking is confirmed.",
     } as Localized,
     detailsHeading: {
       pt: "Detalhes da reserva",
@@ -447,8 +447,8 @@ export const bookingEmails = {
       en: "Olá,",
     } as Localized,
     lead: {
-      pt: "Muito obrigado! Esperamos que tenha gostado mesmo desta experiência pela zona rural onde crescemos.",
-      en: "Thank you so much. We hope you really enjoyed this experience around the rural area where we grew up!",
+      pt: "Muito obrigado! Esperamos que tenha gostado mesmo desta experiência.",
+      en: "Thank you so much. We hope you really enjoyed this experience!",
     } as Localized,
     reviewAsk: {
       pt: "Deixe a sua avaliação para que outras pessoas saibam como se sentiu — ajuda-nos a chegar a mais almas como a sua.",
@@ -581,8 +581,8 @@ export const bookingEmails = {
     } as Localized,
     /** Same §2.6 welcome as the confirmation, ungendered for the same reason. */
     lead: {
-      pt: "Boas-vindas à região do campo onde crescemos. Será um prazer conhecermo-nos.\n\nRecebemos o seu pedido e a equipa entra em contacto brevemente para combinar os detalhes.",
-      en: "Welcome to the countryside where we grew up. It will be a pleasure to meet you.\n\nWe have received your enquiry and the team will be in touch shortly to arrange the details.",
+      pt: "Boas-vindas! Será um prazer conhecermo-nos.\n\nRecebemos o seu pedido e a equipa entra em contacto brevemente para combinar os detalhes.",
+      en: "Welcome! It will be a pleasure to meet you.\n\nWe have received your enquiry and the team will be in touch shortly to arrange the details.",
     } as Localized,
     note: {
       title: { pt: "Próximos passos", en: "Next steps" } as Localized,

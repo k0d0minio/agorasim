@@ -12,8 +12,8 @@ import type { Localized } from "@/i18n/config";
 export const blogContent = {
   title: { pt: "Histórias da região Saloia", en: "Stories from the Saloia region" } as Localized,
   lead: {
-    pt: "Guias, segredos locais e ideias para o seu dia entre Sintra, Mafra e a Ericeira — escritos por quem cá vive.",
-    en: "Guides, local secrets and ideas for your day between Sintra, Mafra and Ericeira — written by the people who live here.",
+    pt: "Guias, segredos locais e ideias para o seu dia na região Saloia e em Óbidos — escritos por quem cá vive.",
+    en: "Guides, local secrets and ideas for your day in the Saloia region and Óbidos — written by the people who live here.",
   } as Localized,
 
   /**
@@ -22,8 +22,8 @@ export const blogContent = {
    * the page says so and points at the thing there *is* to do.
    */
   empty: {
-    pt: "As primeiras histórias estão a ser escritas. Enquanto não chegam, o melhor da região vê-se ao vivo — de carro clássico, entre Sintra, Mafra e a Ericeira.",
-    en: "The first stories are being written. Until they arrive, the best of the region is seen in person — by classic car, between Sintra, Mafra and Ericeira.",
+    pt: "As primeiras histórias estão a ser escritas. Enquanto não chegam, o melhor da região vê-se ao vivo — de carro clássico pela região Saloia, ou a caminho de Óbidos.",
+    en: "The first stories are being written. Until they arrive, the best of the region is seen in person — by classic car through the Saloia region, or on the way to Óbidos.",
   } as Localized,
 
   labels: {

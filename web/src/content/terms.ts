@@ -59,7 +59,7 @@ export const seller = {
  * page prints (`terms.test.ts`): change the terms, change both, or the test
  * says the version and the page have come apart.
  */
-export const TERMS_VERSION = "2026-09-24";
+export const TERMS_VERSION = "2026-10-28";
 
 /**
  * One section of the terms. `id` names the few sections something other than
@@ -90,7 +90,7 @@ export const termsContent = {
   } as Localized,
 
   lastUpdatedLabel: { pt: "Última atualização", en: "Last updated" } as Localized,
-  lastUpdated: { pt: "24 de setembro de 2026", en: "24 September 2026" } as Localized,
+  lastUpdated: { pt: "28 de outubro de 2026", en: "28 October 2026" } as Localized,
 
   /**
    * The seller block, rendered as a definition list under its own heading so
@@ -122,7 +122,7 @@ export const termsContent = {
         heading: "A quem se aplicam estes termos",
         body: [
           "Estes termos aplicam-se a todas as reservas de experiências feitas através do site da Agorasim e pagas online. Ao concluir o pagamento, aceita estes termos. A versão que se aplica à sua reserva é a que estava publicada no momento em que pagou.",
-          "As experiências são passeios guiados em carros clássicos pela região Saloia (Sintra, Mafra e Ericeira), operados pela Agorasim Vintage, identificada acima.",
+          "As experiências são passeios guiados: experiências rurais Saloias em carros clássicos, entre Sintra e a Ericeira, e o passeio a Óbidos com partida de Lisboa. São operadas pela Agorasim Vintage, identificada acima.",
         ],
       },
       {
@@ -208,7 +208,7 @@ export const termsContent = {
         heading: "Who these terms apply to",
         body: [
           "These terms apply to every experience booked through the Agorasim website and paid for online. By completing payment you accept them. The version that applies to your booking is the one published at the moment you paid.",
-          "The experiences are guided classic-car tours through the Saloia region (Sintra, Mafra and Ericeira), run by Agorasim Vintage, identified above.",
+          "The experiences are guided tours: rural Saloia experiences in classic cars, between Sintra and Ericeira, and the Óbidos tour from Lisbon. They are run by Agorasim Vintage, identified above.",
         ],
       },
       {

@@ -33,8 +33,8 @@ export const site = {
 } as const;
 
 export const taglines: Localized = {
-  pt: "Experiências rurais Saloias em carros clássicos",
-  en: "Rural Saloia experiences in classic cars",
+  pt: "Experiências Saloias em carros clássicos e o passeio a Óbidos",
+  en: "Saloia classic-car experiences and the Óbidos tour",
 };
 
 /**

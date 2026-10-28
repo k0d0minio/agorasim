@@ -52,8 +52,8 @@ export function organizationJsonLd(locale: Locale): Json {
     email: site.email,
     description:
       locale === "pt"
-        ? "Experiências rurais guiadas em carros clássicos na região Saloia, entre Sintra, Mafra e a Ericeira."
-        : "Guided rural experiences in classic cars in the Saloia region, between Sintra, Mafra and Ericeira.",
+        ? "Experiências rurais Saloias em carros clássicos, entre Sintra e a Ericeira, e o passeio a Óbidos com partida de Lisboa."
+        : "Rural Saloia experiences in classic cars, between Sintra and Ericeira, and the Óbidos tour from Lisbon.",
     areaServed: site.region,
     telephone: site.contacts[0].phone,
     geo: {
