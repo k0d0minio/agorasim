@@ -107,6 +107,7 @@ export async function submitQuoteRequest(
       experience: null,
       venue: request.venue,
       serviceHours: request.serviceHours,
+      ceremonyTime: request.ceremonyTime,
       preferredCar: request.preferredCar,
       adminUrl: `${siteUrl()}/admin/sales/${inserted.id}`,
     };

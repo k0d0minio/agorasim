@@ -191,19 +191,35 @@ export function QuoteRequestForm({
           />
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="serviceHours">
-            {t(copy.labels.hours, locale)} {optional}
-          </Label>
-          <Select id="serviceHours" name="serviceHours" defaultValue="">
-            <option value="">—</option>
-            {SERVICE_HOURS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {t(option.label, locale)}
-              </option>
-            ))}
-          </Select>
-        </div>
+        {/*
+          A page asks one of the two. `/casamentos` asks when the ceremony
+          starts, because a wedding is priced per event. `/eventos` asks how
+          long the cars are wanted for.
+        */}
+        {copy.labels.ceremonyTime ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ceremonyTime">
+              {t(copy.labels.ceremonyTime, locale)} {optional}
+            </Label>
+            <Input id="ceremonyTime" name="ceremonyTime" type="time" />
+          </div>
+        ) : null}
+
+        {copy.labels.hours ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="serviceHours">
+              {t(copy.labels.hours, locale)} {optional}
+            </Label>
+            <Select id="serviceHours" name="serviceHours" defaultValue="">
+              <option value="">—</option>
+              {SERVICE_HOURS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {t(option.label, locale)}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ) : null}
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="preferredCar">

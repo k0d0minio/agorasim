@@ -1129,6 +1129,7 @@ export const bookingEmails = {
       labels: {
         venue: "Local",
         hours: "Horas de serviço",
+        ceremonyTime: "Hora da cerimónia",
         car: "Carro preferido",
       },
     },

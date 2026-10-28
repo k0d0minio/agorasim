@@ -230,7 +230,7 @@ function quote(overrides: Record<string, unknown> = {}) {
     phone: "+351912345678",
     preferredDate: "2027-06-12",
     venue: "Igreja de São Pedro, Mafra",
-    serviceHours: "full-day",
+    ceremonyTime: "15:30",
     preferredCar: "citroen-2cv",
     partySize: "80",
     message: "Queremos chegar de 2CV.",
@@ -250,7 +250,9 @@ describe("quoteRequestSchema", () => {
       phone: "+351912345678",
       preferredDate: "2027-06-12",
       venue: "Igreja de São Pedro, Mafra",
-      serviceHours: "full-day",
+      // The wedding form asks no hours of service.
+      serviceHours: null,
+      ceremonyTime: "15:30",
       preferredCar: "citroen-2cv",
       partySize: 80,
       message: "Queremos chegar de 2CV.",
@@ -270,6 +272,7 @@ describe("quoteRequestSchema", () => {
       venue: null,
       preferredDate: null,
       serviceHours: null,
+      ceremonyTime: null,
       preferredCar: null,
       partySize: null,
       message: null,
@@ -295,6 +298,29 @@ describe("quoteRequestSchema", () => {
     // Dropped, never rejected: a stale tab is still a lead worth having.
     expect(parsed.success).toBe(true);
     expect(parsed.data).toMatchObject({ serviceHours: null, preferredCar: null });
+  });
+
+  it("keeps the hours of service the event form posts", () => {
+    const parsed = quoteRequestSchema.safeParse(
+      quote({ kind: "event", ceremonyTime: undefined, serviceHours: "full-day" }),
+    );
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toMatchObject({ serviceHours: "full-day", ceremonyTime: null });
+  });
+
+  it("stores a ceremony time as HH:MM, seconds dropped", () => {
+    const parsed = quoteRequestSchema.safeParse(quote({ ceremonyTime: "09:05:00" }));
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toMatchObject({ ceremonyTime: "09:05" });
+  });
+
+  it("drops a ceremony time no time field could post", () => {
+    for (const ceremonyTime of ["25:00", "3pm", "15h30", "9:05"]) {
+      const parsed = quoteRequestSchema.safeParse(quote({ ceremonyTime }));
+      // Dropped, never rejected, like an unknown service-hours option.
+      expect(parsed.success).toBe(true);
+      expect(parsed.data).toMatchObject({ ceremonyTime: null });
+    }
   });
 
   it("files a forged or missing kind as an event rather than losing the lead", () => {

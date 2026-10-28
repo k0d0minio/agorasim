@@ -23,7 +23,7 @@ import {
   departureTimeFollowsByEmail,
   meetingPoints,
 } from "@/content/logistics";
-import { serviceHoursLabel } from "@/content/quote-request";
+import { ceremonyTimeLabel, serviceHoursLabel } from "@/content/quote-request";
 import { termsContent, termsSection } from "@/content/terms";
 import type { Booking, EnquiryKind } from "@/db/schema";
 import { t, type Locale, type Localized } from "@/i18n/config";
@@ -1154,8 +1154,10 @@ export type EnquiryEmailFacts = {
   experience: string | null;
   /** Wedding and event enquiries only — null on a tour. */
   venue?: string | null;
-  /** A {@link SERVICE_HOURS} key, resolved to a sentence here. */
+  /** A {@link SERVICE_HOURS} key, resolved to a sentence here. Events only. */
   serviceHours?: string | null;
+  /** `HH:MM`, when the ceremony starts. Weddings only. */
+  ceremonyTime?: string | null;
   /** A `classicCars` id, resolved to the car's name here. */
   preferredCar?: string | null;
   adminUrl: string;
@@ -1282,9 +1284,20 @@ export function teamEnquiryEmail(
   /*
    * What the team reads first. A quote enquiry drops the `Experiência` row —
    * it names none, by definition — for the three facts the price is worked out
-   * from: where it is, how long for, and which car. The `Pessoas` row shows
-   * only when there is a head count: the wedding form does not ask one.
+   * from: where it is, when (a wedding) or how long for (an event), and which
+   * car. The `Pessoas` row shows only when there is a head count: the wedding
+   * form does not ask one.
    */
+  const whenRow: DetailRow =
+    facts.kind === "wedding"
+      ? {
+          label: c.quote.labels.ceremonyTime,
+          value: facts.ceremonyTime ? ceremonyTimeLabel(facts.ceremonyTime) : "—",
+        }
+      : {
+          label: c.quote.labels.hours,
+          value: facts.serviceHours ? serviceHoursLabel(facts.serviceHours, "pt") : "—",
+        };
   const partyRows: DetailRow[] = facts.partySize
     ? [{ label: c.labels.party, value: values.party }]
     : [];
@@ -1292,10 +1305,7 @@ export function teamEnquiryEmail(
     ? [
         { label: c.labels.date, value: facts.preferredDate || "—" },
         { label: c.quote.labels.venue, value: facts.venue || "—" },
-        {
-          label: c.quote.labels.hours,
-          value: facts.serviceHours ? serviceHoursLabel(facts.serviceHours, "pt") : "—",
-        },
+        whenRow,
         { label: c.quote.labels.car, value: carLabel(facts.preferredCar) ?? "—" },
         ...partyRows,
       ]
