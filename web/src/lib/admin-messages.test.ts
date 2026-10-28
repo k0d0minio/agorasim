@@ -53,11 +53,12 @@ describe("messageKindLabel", () => {
 });
 
 describe("MESSAGE_CARDS", () => {
-  it("has one card for each of the fourteen kinds with a sender, the balance kinds included", () => {
+  it("has one card for each of the fifteen kinds with a sender, the balance kinds included", () => {
     const kinds = MESSAGE_CARDS.map((card) => card.kind);
-    expect(kinds).toHaveLength(14);
-    expect(new Set(kinds).size).toBe(14);
+    expect(kinds).toHaveLength(15);
+    expect(new Set(kinds).size).toBe(15);
     expect(kinds).toContain("balance-request");
+    expect(kinds).toContain("balance-request-manual");
     expect(kinds).toContain("balance-reminder");
     expect(kinds).toContain("booking-payment-link");
   });

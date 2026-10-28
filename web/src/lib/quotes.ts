@@ -60,9 +60,9 @@ import { recordAuditOrWarn } from "@/lib/audit";
 import { isDateKey, shiftDays, todayKey, type DateKey } from "@/lib/availability";
 import { BOOKING_CURRENCY } from "@/lib/money";
 import {
-  BALANCE_DUE_DAYS_BEFORE,
   BALANCE_FLAG_DAYS_BEFORE,
   BALANCE_REMINDER_DAYS_BEFORE,
+  BALANCE_REQUEST_DAYS_BEFORE,
   DEFAULT_DEPOSIT_PERCENT,
   OPEN_INSTALMENT_STATUSES,
   balanceDueKey,
@@ -99,6 +99,7 @@ export function quoteRef(id: string): string {
 // imports the quote's arithmetic from here.
 export {
   BALANCE_DUE_DAYS_BEFORE,
+  BALANCE_REQUEST_DAYS_BEFORE,
   DEFAULT_DEPOSIT_PERCENT,
   lineItemsTotal,
   splitTotal,
@@ -109,7 +110,7 @@ export {
 export { shiftDays };
 
 /**
- * When the balance falls due for an event on this day: T−14.
+ * When the balance falls due for an event on this day: T−1, the day before.
  *
  * Delegates to `balanceDueKey` in `lib/quote-math.ts`, which the builder's
  * live preview uses in the browser — one computation, so the date Rita sees
@@ -145,10 +146,12 @@ export function isInsideNonRefundableWindow(
  * What the quote page offers to pay, today.
  *
  * - `due` — one instalment the couple can pay now: the deposit while it is
- *   unsettled, then the balance from its due date (T−14) on.
- * - `not-yet` — the deposit is settled and the balance is not due until
- *   `dueDate`; the page says so rather than taking it early (the proposal's
- *   terms are the balance 14 days before, and nothing more).
+ *   unsettled, then the balance from the moment the deposit is settled up to
+ *   the end of its due date (T−1) in Lisbon.
+ * - `closed` — the balance is still open but its due date has passed: the
+ *   event day or later. The page takes no payment and points the couple at
+ *   the team, who see the balance flagged on the Sales board. What happens to
+ *   the date then is the client's open question, so nothing else follows.
  * - `settled` — nothing is left to pay.
  * - `not-live` — a draft or a cancelled quote, which the page does not show.
  *
@@ -160,7 +163,7 @@ export function isInsideNonRefundableWindow(
  */
 export type DueInstalment =
   | { kind: "due"; payment: QuotePayment }
-  | { kind: "not-yet"; payment: QuotePayment; dueDate: DateKey }
+  | { kind: "closed"; payment: QuotePayment; dueDate: DateKey }
   | { kind: "settled" }
   | { kind: "not-live" };
 
@@ -179,9 +182,10 @@ export function dueInstalment(
   if (!balance || !isOpenInstalment(balance)) return { kind: "settled" };
 
   // Whole days in Europe/Lisbon, like the non-refundable window above: the
-  // due date is a day the couple read, not an instant a server keeps.
-  if (balance.dueDate && todayKey(now) < balance.dueDate) {
-    return { kind: "not-yet", payment: balance, dueDate: balance.dueDate };
+  // due date is a day the couple read, not an instant a server keeps. Payable
+  // through the whole of that day; the event day itself is the team's.
+  if (balance.dueDate && todayKey(now) > balance.dueDate) {
+    return { kind: "closed", payment: balance, dueDate: balance.dueDate };
   }
   return { kind: "due", payment: balance };
 }
@@ -523,7 +527,7 @@ export async function listUpcomingQuotes(options: {
 }
 
 /**
- * The balances the T−14 job should be issuing today.
+ * The balances the T−15 request should be issuing today.
  *
  * The whole reason `event_date` is a real `date` column: this is one indexed
  * comparison over `(status, event_date)`, where the same question against the
@@ -539,8 +543,12 @@ export async function listUpcomingQuotes(options: {
  * The date only brings a row into view; it does not make the send once-only.
  * That is the message log's claim (`balance-request`, keyed on the quote —
  * `lib/cron/balance-scheduler.ts`), because the scheduler never stamps
- * `issued_at`: the quote page does, when it mints the session (D25). A row
- * with `issued_at` set is a couple already paying, and is left alone.
+ * `issued_at`: the quote page does, when it mints the session (D25).
+ *
+ * `issued` is in view, as for the reminder below. The page takes the balance
+ * from the deposit on, so a couple may open Checkout weeks before T−15 and walk
+ * away: an open session is not money, and without the request they would get
+ * no reminder either (the reminder waits on a request).
  */
 export async function listQuotesDueForBalance(options: {
   now?: Date;
@@ -548,8 +556,8 @@ export async function listQuotesDueForBalance(options: {
 } = {}): Promise<{ quote: Quote; payment: QuotePayment }[]> {
   const { now = new Date(), limit = 100 } = options;
   const today = todayKey(now);
-  // Events at or inside T−14 but not today — between tomorrow and today + 14 days.
-  const horizon = shiftDays(today, BALANCE_DUE_DAYS_BEFORE);
+  // Events at or inside T−15 but not today — between tomorrow and today + 15 days.
+  const horizon = shiftDays(today, BALANCE_REQUEST_DAYS_BEFORE);
 
   const rows = await db
     .select({ quote: quotes, payment: quotePayments })
@@ -559,8 +567,7 @@ export async function listQuotesDueForBalance(options: {
       and(
         eq(quotes.status, "deposit_paid"),
         eq(quotePayments.kind, "balance"),
-        eq(quotePayments.status, "pending"),
-        isNull(quotePayments.issuedAt),
+        inArray(quotePayments.status, OPEN_INSTALMENT_STATUSES),
         gte(quotes.eventDate, shiftDays(today, 1)),
         lte(quotes.eventDate, horizon),
       ),
@@ -930,11 +937,11 @@ export function validateQuoteInput(input: NewQuoteInput): string[] {
  *
  * Both payment rows exist from the start, `pending` and unissued: the balance
  * is a thing that is owed on a date from the moment the offer is made, and the
- * T−14 job's query is "the balance rows that are due and not yet issued" — a
+ * T−15 request's query is "the balance rows that are due and not yet issued" — a
  * row that only appears when the job first runs would make that query mean
  * something else. The one exception is a 100% deposit: {@link splitTotal}
  * leaves nothing for the balance, and a balance row of `0` is not a real
- * instalment — it is a row the T−14 job would still try to issue a link for,
+ * instalment — it is a row the T−15 request would still try to issue a link for,
  * to no one's benefit. No row is written for it, and the quote reaches `paid`
  * the moment the deposit does ({@link statusAfterPayment}).
  *
@@ -1399,7 +1406,7 @@ export async function cancelQuoteAndOpenInstalments(
 /**
  * Record that an instalment's payment link has gone out.
  *
- * The idempotency the T−14 dispatcher rides on: the write only lands on a row
+ * The idempotency the T−15 request rides on: the write only lands on a row
  * that is still `pending`, so a job running twice in a morning issues one link
  * and the second call returns `null` rather than a second email. A deliberate
  * re-issue — the link expired, the couple lost the mail — goes through

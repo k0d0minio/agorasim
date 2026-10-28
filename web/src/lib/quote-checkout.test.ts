@@ -535,20 +535,49 @@ describe("startQuoteCheckout — an instalment that already has a session", () =
 });
 
 describe("startQuoteCheckout — refusals", () => {
-  it("does not offer the balance before its due date", async () => {
+  it("offers the balance as soon as the deposit is paid — T−20, with the 6% fee", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue(
+      quote([instalment("deposit", "paid"), instalment("balance", "pending")], {
+        status: "deposit_paid",
+      }),
+    );
+    markPaymentIssued.mockResolvedValue(instalment("balance", "issued"));
+
+    // The fixture's balance falls due on 1 August, so the event is on the 2nd:
+    // 13 July is twenty days before it.
+    const outcome = await startQuoteCheckout({
+      token,
+      locale: "pt",
+      now: new Date("2026-07-13T10:00:00Z"),
+    });
+
+    expect(outcome).toMatchObject({
+      status: "embedded",
+      instalment: { kind: "balance", amountCents: 134_400, currency: "eur" },
+    });
+    const [params] = sessionsCreate.mock.calls[0];
+    expect(params.payment_intent_data.application_fee_amount).toBe(
+      commissionOn("event", 134_400).feeCents,
+    );
+  });
+
+  it("refuses the balance from the event day on — its due date has passed", async () => {
     getQuoteByAccessTokenHash.mockResolvedValue(
       quote([instalment("deposit", "paid"), instalment("balance", "pending")], {
         status: "deposit_paid",
       }),
     );
 
-    expect(await startQuoteCheckout({ token, locale: "pt", now: NOW })).toEqual({
-      status: "not-due",
-    });
+    // Europe/Lisbon: 23:30 UTC on 1 August is already 2 August there (UTC+1).
+    for (const now of [new Date("2026-08-01T23:30:00Z"), new Date("2026-08-05T10:00:00Z")]) {
+      expect(await startQuoteCheckout({ token, locale: "pt", now })).toEqual({
+        status: "closed",
+      });
+    }
     expect(sessionsCreate).not.toHaveBeenCalled();
   });
 
-  it("offers the balance from its due date on", async () => {
+  it("still offers the balance on its due date, the day before the event", async () => {
     getQuoteByAccessTokenHash.mockResolvedValue(
       quote([instalment("deposit", "paid"), instalment("balance", "pending")], {
         status: "deposit_paid",

@@ -51,6 +51,11 @@ export const quotePageContent = {
   instalmentState: {
     toPay: { pt: "Por pagar", en: "To pay" } as Localized,
     dueBy: { pt: "Por pagar até {date}", en: "Due by {date}" } as Localized,
+    /** The balance while the page takes it: from the deposit to its due date. */
+    dueByPayNow: {
+      pt: "Por pagar até {date} — pode pagar já",
+      en: "Due by {date} — you can pay now",
+    } as Localized,
     paidOn: { pt: "Pago a {date}", en: "Paid on {date}" } as Localized,
     // Written off by the team: it arrived another way (a transfer).
     settled: { pt: "Liquidado", en: "Settled" } as Localized,
@@ -93,14 +98,15 @@ export const quotePageContent = {
     } as Localized,
   },
 
-  notYet: {
+  /** The balance's due date has passed (the event day or later): the team takes it from here. */
+  closed: {
     title: {
-      pt: "O restante é pago a partir de {date}",
-      en: "The balance is paid from {date}",
+      pt: "O prazo do restante terminou a {date}",
+      en: "The balance was due by {date}",
     } as Localized,
     body: {
-      pt: "Enviamos-lhe o link {days} dias antes do evento, e a partir desse dia também o pode pagar aqui.",
-      en: "We send you the link {days} days before the event, and from that day you can also pay it here.",
+      pt: "Já não é possível pagar o restante nesta página. Fale connosco — os contactos estão abaixo.",
+      en: "The balance can no longer be paid on this page. Please talk to us — our contacts are below.",
     } as Localized,
   },
 
@@ -131,9 +137,9 @@ export const quotePageContent = {
       pt: "Não foi possível abrir o pagamento. Tente outra vez dentro de momentos, ou fale connosco.",
       en: "We could not open the payment. Please try again in a moment, or talk to us.",
     } as Localized,
-    notDue: {
-      pt: "O restante ainda não está a pagamento — a data em que fica está indicada acima.",
-      en: "The balance is not payable yet — the day it becomes payable is shown above.",
+    closed: {
+      pt: "O prazo do restante terminou — fale connosco para o pagar.",
+      en: "The balance is past its due date — please talk to us to pay it.",
     } as Localized,
     settled: {
       pt: "Este orçamento já está pago na totalidade.",

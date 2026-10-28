@@ -112,7 +112,7 @@ describe("payQuote — paying on the quote page", () => {
     for (const [outcome, state] of [
       [{ status: "paid" }, { status: "paid" }],
       [{ status: "awaiting" }, { status: "awaiting" }],
-      [{ status: "not-due" }, { status: "refused", reason: "notDue" }],
+      [{ status: "closed" }, { status: "refused", reason: "closed" }],
       [{ status: "settled" }, { status: "refused", reason: "settled" }],
       [{ status: "failed" }, { status: "refused", reason: "failed" }],
       [{ status: "not-found" }, { status: "invalid" }],

@@ -10,6 +10,7 @@ import {
   newQuoteVersion,
   resendLeadQuote,
   saveQuoteDraft,
+  sendBalanceRequest,
   sendLeadQuote,
   type QuoteActionState,
 } from "@/app/admin/sales/actions";
@@ -89,6 +90,12 @@ export type QuoteCardItem = {
    * rule the Sales board's "Saldo por pagar" panel shows too.
    */
   balanceUnpaid: boolean;
+  /**
+   * For a deposit-paid quote with its balance still open: what last went to
+   * the couple about it (`balanceMessagesLabel`), and whether "Enviar pedido do
+   * restante" is offered — not once the due date has passed. `null` otherwise.
+   */
+  balanceRequest: { lastSentLabel: string; canSend: boolean } | null;
   payments: {
     id: string;
     kind: QuotePaymentKind;
@@ -331,6 +338,32 @@ function QuoteEntry({
           );
         })}
       </ul>
+
+      {quote.status === "deposit_paid" && quote.balanceRequest ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted-foreground" role="status">
+            {quote.balanceRequest.lastSentLabel}
+          </p>
+          {quote.balanceRequest.canSend ? (
+            <div>
+              <ConfirmedQuoteAction
+                action={sendBalanceRequest}
+                onNotice={onNotice}
+                fields={{ quoteId: quote.id }}
+                trigger={{ label: "Enviar pedido do restante", icon: <Send className="size-4" />, variant: "outline" }}
+                title={`Enviar o pedido do restante do orçamento ${quote.ref}?`}
+                description={`O cliente recebe agora, em ${guestEmail}, o pedido do restante com um link novo para pagar. Os links anteriores deixam de funcionar. O pedido automático 15 dias antes do evento continua a ser enviado.`}
+                confirm={{ label: "Enviar", pending: "A enviar…" }}
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-destructive" role="status">
+              O prazo do restante terminou. A página do orçamento já não aceita o pagamento — trate
+              dele com o cliente.
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {quote.depositRefundedInFull && quote.status !== "cancelled" ? (
         <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 p-3">
@@ -734,7 +767,7 @@ function QuoteForm({
 
       {balanceAlreadyDue ? (
         <p className="text-xs text-primary" role="status">
-          A menos de 14 dias do evento, o saldo ficaria devido de imediato — confirme o prazo com o
+          O saldo vence na véspera do evento, e esse dia já chegou — confirme o pagamento com o
           cliente antes de enviar.
         </p>
       ) : null}

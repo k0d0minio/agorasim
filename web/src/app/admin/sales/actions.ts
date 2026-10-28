@@ -7,6 +7,7 @@ import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import { EVENT_CANCEL_CONFIRMATION, REFUND_CONFIRMATION } from "@/lib/admin-format";
 import { formatDay } from "@/lib/availability";
+import { sendBalanceRequestNow } from "@/lib/balance-request";
 import { moveBookingToDeparture } from "@/lib/booking-move";
 import { setNoShow } from "@/lib/booking-no-show";
 import { cancelAndRefundBooking } from "@/lib/booking-refund";
@@ -562,6 +563,55 @@ export async function resendLeadQuote(
     actorUserId: actor.id,
   });
   return sendMessage(outcome, "Orçamento reenviado com um novo link. O link anterior deixou de funcionar.");
+}
+
+/**
+ * "Enviar pedido do restante" — the balance request, now, with a new link
+ * (`lib/balance-request.ts`). The daily job still sends its own at T−15.
+ */
+export async function sendBalanceRequest(
+  _prevState: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = quoteIdSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Pedido inválido." };
+
+  const outcome = await sendBalanceRequestNow({
+    quoteId: parsed.data.quoteId,
+    actorUserId: actor.id,
+  });
+  switch (outcome.status) {
+    case "sent":
+      return {
+        ok: true,
+        message: "Pedido do restante enviado com um novo link. Os links anteriores deixaram de funcionar.",
+      };
+    case "not-found":
+      return { error: "Esse orçamento já não existe." };
+    case "not-open":
+      return { error: "O restante deste orçamento já não está por pagar. Recarregue a página." };
+    case "closed":
+      return {
+        error: "O prazo do restante já terminou e a página do orçamento já não o aceita. Fale com o cliente.",
+      };
+    case "no-recipient":
+      return { error: "Este pedido não tem o email do cliente — não é possível enviar." };
+    case "unconfigured":
+      return {
+        error:
+          "O envio de emails ou de links não está configurado neste ambiente. Nada foi enviado.",
+      };
+    case "duplicate":
+      return {
+        error: "Outro envio mudou o link no mesmo momento. Recarregue a página antes de enviar outra vez.",
+      };
+    case "failed":
+      return {
+        error: "O email não saiu, e o link anterior pode já não funcionar. Tente outra vez.",
+      };
+  }
 }
 
 /**

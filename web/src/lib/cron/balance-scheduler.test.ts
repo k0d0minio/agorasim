@@ -61,12 +61,11 @@ vi.mock("@/lib/quotes", async () => {
     ...actual,
     listQuotesDueForBalance: async ({ now = new Date() }: { now?: Date } = {}) => {
       if (unreadable) throw new Error("connection timeout");
-      const horizon = shift(lisbonDay(now), 14);
+      const horizon = shift(lisbonDay(now), 15);
       return [...store.values()].filter(
         ({ quote, payment }) =>
           quote.status === "deposit_paid" &&
-          payment.status === "pending" &&
-          payment.issuedAt === null &&
+          (payment.status === "pending" || payment.status === "issued") &&
           quote.eventDate <= horizon,
       );
     },
@@ -202,7 +201,7 @@ function seedQuote(
     kind: "balance",
     amountCents: 113_400,
     currency: "eur",
-    dueDate: shift(EVENT, -14),
+    dueDate: shift(EVENT, -1),
     status: "pending",
     issuedAt: null,
     ...overrides.payment,
@@ -248,11 +247,11 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
-describe("the T−14 request", () => {
-  it("goes out once on the T−14 morning, with a link that is the one stored", async () => {
+describe("the T−15 request", () => {
+  it("goes out once on the T−15 morning, with a link that is the one stored", async () => {
     const id = seedQuote();
 
-    const result = await runAt(morning(14));
+    const result = await runAt(morning(15));
 
     expect(result.name).toBe(BALANCE_SCHEDULER_JOB);
     expect(sentKinds()).toEqual([`balance-request:${id}`]);
@@ -267,9 +266,9 @@ describe("the T−14 request", () => {
 
   it("sends nothing and keeps the link on a rerun that morning and on later mornings", async () => {
     const id = seedQuote();
-    await runAt(morning(14));
+    await runAt(morning(15));
 
-    await runAt(morning(14));
+    await runAt(morning(15));
     await runAt(morning(13));
     await runAt(morning(10));
 
@@ -278,15 +277,40 @@ describe("the T−14 request", () => {
     expect(minted).toBe(1);
   });
 
-  it("asks nothing at T−15", async () => {
+  it("asks nothing at T−16", async () => {
     seedQuote();
 
-    await runAt(morning(15));
+    await runAt(morning(16));
 
     expect(delivered).toEqual([]);
   });
 
-  it("asks the morning after a deposit paid inside T−14", async () => {
+  it("asks a couple who opened Checkout early and walked away — issued is not paid", async () => {
+    const id = seedQuote({
+      payment: { status: "issued", issuedAt: new Date(`${shift(EVENT, -30)}T10:00:00Z`) },
+    });
+
+    await runAt(morning(15));
+
+    expect(sentKinds()).toEqual([`balance-request:${id}`]);
+  });
+
+  it("still goes out once when the team already sent the request by hand", async () => {
+    const id = seedQuote();
+    log.push({
+      quoteId: id,
+      kind: "balance-request-manual",
+      status: "sent",
+      sentAt: new Date(`${shift(EVENT, -20)}T10:00:00Z`),
+    });
+
+    await runAt(morning(15));
+    await runAt(morning(14));
+
+    expect(sentKinds()).toEqual([`balance-request:${id}`]);
+  });
+
+  it("asks the morning after a deposit paid inside T−15", async () => {
     const id = seedQuote({ quote: { eventDate: shift(EVENT, 0) } });
 
     await runAt(morning(10));
@@ -299,7 +323,7 @@ describe("the T−14 request", () => {
     // `deposit_paid`; the job reads the status, not how the deposit was paid.
     const id = seedQuote();
 
-    await runAt(morning(14));
+    await runAt(morning(15));
 
     expect(sentKinds()).toEqual([`balance-request:${id}`]);
   });
@@ -339,7 +363,7 @@ describe("the T−14 request", () => {
     seedQuote({ payment: { status: "paid" } });
     seedQuote({ payment: { status: "cancelled" } });
 
-    await runAt(morning(14));
+    await runAt(morning(15));
 
     expect(delivered).toEqual([]);
   });
@@ -347,7 +371,7 @@ describe("the T−14 request", () => {
   it("writes in the quote's language", async () => {
     seedQuote({ quote: { locale: "en" } });
 
-    await runAt(morning(14));
+    await runAt(morning(15));
 
     expect(delivered[0].message.subject).toContain("The balance for your event");
     expect(delivered[0].message.text).toContain("/en/orcamento/token-1");
@@ -357,7 +381,7 @@ describe("the T−14 request", () => {
 describe("the T−7 reminder", () => {
   it("chases once at T−7 with a new link, which replaces the request's", async () => {
     const id = seedQuote();
-    await runAt(morning(14));
+    await runAt(morning(15));
 
     await runAt(morning(7));
     await runAt(morning(7));
@@ -367,14 +391,14 @@ describe("the T−7 reminder", () => {
     expect(linkIn(delivered[1].message)).toBe("token-2");
     expect(digestOf(id)).toBe("digest-2");
     expect(delivered[1].message.subject).toMatch(/^Lembrete: /);
-    // The request states the T−14 due date; the reminder, a week past it, does not.
+    // Both state the due date, the day before the event, still ahead of them.
     expect(delivered[0].message.text).toContain("Pagar até:");
-    expect(delivered[1].message.text).not.toContain("Pagar até");
+    expect(delivered[1].message.text).toContain("Pagar até:");
   });
 
   it("chases a couple who opened Checkout and left — the balance is issued, not paid", async () => {
     const id = seedQuote();
-    await runAt(morning(14));
+    await runAt(morning(15));
     store.get(id)!.payment = { ...store.get(id)!.payment, status: "issued" };
 
     await runAt(morning(7));
@@ -416,9 +440,28 @@ describe("the T−7 reminder", () => {
     expect(digestOf(id)).toBe("digest-1");
   });
 
+  it("counts the gap from the latest request — one the team sent by hand included", async () => {
+    const id = seedQuote();
+    await runAt(morning(15));
+    // The team sends the request again at T−8: the T−7 reminder waits three days.
+    log.push({
+      quoteId: id,
+      kind: "balance-request-manual",
+      status: "sent",
+      sentAt: new Date(`${shift(EVENT, -8)}T10:00:00Z`),
+    });
+
+    await runAt(morning(7));
+    await runAt(morning(6));
+    expect(sentKinds()).toEqual([`balance-request:${id}`]);
+
+    await runAt(morning(5));
+    expect(sentKinds()).toEqual([`balance-request:${id}`, `balance-reminder:${id}`]);
+  });
+
   it("does not chase a balance paid before T−7", async () => {
     const id = seedQuote();
-    await runAt(morning(14));
+    await runAt(morning(15));
     store.get(id)!.payment = { ...store.get(id)!.payment, status: "paid" };
 
     await runAt(morning(7));
@@ -428,9 +471,9 @@ describe("the T−7 reminder", () => {
 
   it("does not chase a request that only reached the couple on the T−7 morning", async () => {
     const id = seedQuote();
-    // The provider refuses every morning from T−14 to T−8; each retries the
+    // The provider refuses every morning from T−15 to T−8; each retries the
     // request with a fresh link, and none is a reason to remind anybody.
-    for (let daysBefore = 14; daysBefore >= 8; daysBefore -= 1) {
+    for (let daysBefore = 15; daysBefore >= 8; daysBefore -= 1) {
       failNext.add(id);
       await runAt(morning(daysBefore));
     }
@@ -447,7 +490,7 @@ describe("the link and the claim", () => {
     const id = seedQuote();
     raceOn.add(id);
 
-    const result = await runAt(morning(14));
+    const result = await runAt(morning(15));
 
     expect(delivered).toEqual([]);
     expect(digestOf(id)).toBe("digest-from-another-run");
@@ -458,7 +501,7 @@ describe("the link and the claim", () => {
   it("retries a failed send the next morning with a fresh link", async () => {
     const id = seedQuote();
     failNext.add(id);
-    await runAt(morning(14));
+    await runAt(morning(15));
     expect(delivered).toEqual([]);
 
     await runAt(morning(13));
@@ -473,7 +516,7 @@ describe("the link and the claim", () => {
     const noEmail = seedQuote({ lead: { email: "" } });
     const erased = seedQuote({ lead: { anonymisedAt: new Date("2026-07-01T00:00:00Z") } });
 
-    const result = await runAt(morning(14));
+    const result = await runAt(morning(15));
 
     expect(delivered).toEqual([]);
     expect(log).toEqual([]);
@@ -488,11 +531,11 @@ describe("the link and the claim", () => {
     const id = seedQuote();
 
     emailConfigured = false;
-    expect((await runAt(morning(14))).summary).toMatch(/^not run/);
+    expect((await runAt(morning(15))).summary).toMatch(/^not run/);
     expect(captureAlert).not.toHaveBeenCalled();
     emailConfigured = true;
     tokensConfigured = false;
-    expect((await runAt(morning(14))).summary).toMatch(/^not run/);
+    expect((await runAt(morning(15))).summary).toMatch(/^not run/);
     // A missing token secret stops only this job's contracted collection, so it alerts.
     expect(captureAlert).toHaveBeenCalledOnce();
 
@@ -503,7 +546,7 @@ describe("the link and the claim", () => {
 
   it("releases, cancels and re-states nothing for a balance still unpaid after the event", async () => {
     const id = seedQuote();
-    await runAt(morning(14));
+    await runAt(morning(15));
     await runAt(morning(7));
     const before = structuredClone(store.get(id));
 
@@ -520,7 +563,7 @@ describe("the dispatcher's view", () => {
   it("registers itself and summarises both passes", async () => {
     seedQuote();
 
-    const result = await runAt(morning(14));
+    const result = await runAt(morning(15));
 
     expect(register).toHaveBeenCalledWith(balanceScheduler);
     expect(result.summary).toBe(
@@ -531,7 +574,7 @@ describe("the dispatcher's view", () => {
   it("reports a pass whose quotes cannot be read, and still runs the other", async () => {
     unreadable = true;
 
-    const result = await runAt(morning(14));
+    const result = await runAt(morning(15));
 
     expect(result.summary).toMatch(/^request: not run — quotes could not be read · reminder: /);
     expect(captureError).toHaveBeenCalledOnce();

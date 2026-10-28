@@ -676,8 +676,8 @@ export const bookingEmails = {
     next: {
       title: { pt: "Como reservar a data", en: "How to hold the date" } as Localized,
       body: {
-        pt: "A data fica reservada com o pagamento do sinal, na página do orçamento. O restante é pedido automaticamente {days} dias antes do evento.",
-        en: "The date is held once the deposit is paid, on the quote page. The balance is requested automatically {days} days before the event.",
+        pt: "A data fica reservada com o pagamento do sinal, na página do orçamento. Depois do sinal, pode pagar o restante na mesma página a qualquer momento, até à véspera do evento. Enviamos-lhe também o link {days} dias antes do evento.",
+        en: "The date is held once the deposit is paid, on the quote page. After the deposit, you can pay the balance on the same page at any time, up to the day before the event. We also send you the link {days} days before the event.",
       } as Localized,
       /** A 100% deposit: nothing is collected automatically later. */
       bodyFull: {
@@ -759,13 +759,15 @@ export const bookingEmails = {
   },
 
   /**
-   * The balance, asked for — `balance-request` at T−14 and, if it is still
-   * unpaid, one `balance-reminder` at T−7 (`lib/cron/balance-scheduler.ts`).
+   * The balance, asked for — `balance-request` at T−15, `balance-request-manual`
+   * when the team sends it from the quote card, and, if it is still unpaid, one
+   * `balance-reminder` at T−7 (`lib/cron/balance-scheduler.ts`,
+   * `lib/balance-request.ts`). The manual send is the request's own text.
    *
    * Each carries a fresh link to the quote page — the only way an email sent
    * later can carry one, since only a digest of the token is kept — so each
    * says that it replaces the earlier ones. The page takes the balance from
-   * its due date; the mail's job is to say how much, by when, and where.
+   * the deposit on; the mail's job is to say how much, by when, and where.
    *
    * Ungendered Portuguese, as every guest line: see `guest.lead`.
    */
@@ -791,8 +793,8 @@ export const bookingEmails = {
     greeting: { pt: "Olá {name},", en: "Hello {name}," } as Localized,
     lead: {
       request: {
-        pt: "O seu evento está quase a chegar. Como combinado, o restante do valor é pago agora — pode fazê-lo na página do seu orçamento.",
-        en: "Your event is getting close. As agreed, the balance is paid now — you can pay it on your quote page.",
+        pt: "O seu evento está a aproximar-se. Pode pagar já o restante do valor, na página do seu orçamento, até à véspera do evento.",
+        en: "Your event is getting close. You can pay the balance now on your quote page, up to the day before the event.",
       } as Localized,
       reminder: {
         pt: "Ainda não recebemos o pagamento do restante do seu evento. Pode pagá-lo na página do seu orçamento.",
@@ -856,8 +858,8 @@ export const bookingEmails = {
     },
     preheader: {
       deposit: {
-        pt: "Recebemos {amount} · o restante é pedido até {due}",
-        en: "We received {amount} · the balance is due by {due}",
+        pt: "Recebemos {amount} · pode pagar já o restante, até {due}",
+        en: "We received {amount} · you can pay the balance now, by {due}",
       } as Localized,
       balance: {
         pt: "Recebemos {amount} · está tudo pago",
@@ -898,8 +900,8 @@ export const bookingEmails = {
     next: {
       title: { pt: "O que acontece a seguir", en: "What happens next" } as Localized,
       body: {
-        pt: "Enviamos-lhe o link para pagar o restante {days} dias antes do evento. Até lá, o seu orçamento continua disponível no link do email em que o recebeu.",
-        en: "We will send you the link to pay the balance {days} days before the event. Until then, your quote stays available at the link in the email you received it with.",
+        pt: "Pode pagar já o restante, na página do seu orçamento — o link está no email em que o recebeu. O prazo é {due}, a véspera do evento. Enviamos-lhe também um novo link {days} dias antes do evento.",
+        en: "You can pay the balance now on your quote page — the link is in the email you received it with. It is due by {due}, the day before the event. We also send you a new link {days} days before the event.",
       } as Localized,
     },
     /** Heading over the events terms, reproduced verbatim below it. */

@@ -18,7 +18,6 @@ import {
 } from "@/lib/quote-checkout";
 import { DEAD_QUOTE_TOKEN } from "@/lib/quote-token";
 import {
-  BALANCE_DUE_DAYS_BEFORE,
   dueInstalment,
   getQuote,
   quoteRef,
@@ -235,6 +234,7 @@ function QuoteView({
                   label={t(c.instalmentNames.balance, locale)}
                   amount={money(balance.amountCents)}
                   payment={balance}
+                  payNow={due.kind === "due" && due.payment.id === balance.id}
                 />
               ) : null}
             </ul>
@@ -296,11 +296,11 @@ function QuoteView({
                 { amount: money(due.payment.amountCents) },
               )}
             />
-          ) : due.kind === "not-yet" ? (
+          ) : due.kind === "closed" ? (
             <QuoteNotice
               icon={<Clock className="size-5" />}
-              title={fillTemplate(t(c.notYet.title, locale), { date: formatDay(due.dueDate, locale) })}
-              body={fillTemplate(t(c.notYet.body, locale), { days: String(BALANCE_DUE_DAYS_BEFORE) })}
+              title={fillTemplate(t(c.closed.title, locale), { date: formatDay(due.dueDate, locale) })}
+              body={t(c.closed.body, locale)}
             />
           ) : null}
         </div>
@@ -316,11 +316,14 @@ function Instalment({
   label,
   amount,
   payment,
+  payNow = false,
 }: {
   locale: Locale;
   label: string;
   amount: string;
   payment: QuotePayment;
+  /** The page takes this instalment now — the balance between the deposit and its due date. */
+  payNow?: boolean;
 }) {
   const s = quotePageContent.instalmentState;
   const state =
@@ -333,7 +336,9 @@ function Instalment({
         : payment.status === "refunded"
           ? t(s.refunded, locale)
           : payment.dueDate
-            ? fillTemplate(t(s.dueBy, locale), { date: formatDay(payment.dueDate, locale) })
+            ? fillTemplate(t(payNow ? s.dueByPayNow : s.dueBy, locale), {
+                date: formatDay(payment.dueDate, locale),
+              })
             : t(s.toPay, locale);
 
   return (

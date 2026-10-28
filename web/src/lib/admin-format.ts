@@ -248,6 +248,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "quote.discarded": "descartou um rascunho de orçamento",
   "quote.sent": "enviou um orçamento",
   "quote.resent": "reenviou um orçamento com um novo link",
+  "quote.balance_requested": "enviou o pedido do restante",
   "quote.superseded": "substituiu um orçamento por uma nova versão",
   "quote.payment_refunded": "reembolsou um pagamento de um orçamento",
   "quote.cancelled": "cancelou um evento",

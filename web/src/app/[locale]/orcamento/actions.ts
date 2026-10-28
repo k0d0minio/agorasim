@@ -48,7 +48,7 @@ export type QuotePayState =
   /** Paid a moment ago, or on its way by a delayed method — reload to see it. */
   | { status: "paid" | "awaiting" }
   /** Keyed to `quotePageContent.refused`. */
-  | { status: "refused"; reason: "unconfigured" | "failed" | "notDue" | "settled" }
+  | { status: "refused"; reason: "unconfigured" | "failed" | "closed" | "settled" }
   /** The link stopped working between the render and the tap. */
   | { status: "invalid" };
 
@@ -93,8 +93,8 @@ export async function payQuote(
     case "paid":
     case "awaiting":
       return { status: outcome.status };
-    case "not-due":
-      return { status: "refused", reason: "notDue" };
+    case "closed":
+      return { status: "refused", reason: "closed" };
     case "settled":
       return { status: "refused", reason: "settled" };
     case "unconfigured":
