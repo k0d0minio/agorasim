@@ -1,13 +1,11 @@
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   addMonths,
-  DEFAULT_DRIVERS,
   formatDay,
   formatMonth,
   isMonthInWindow,
   isDateKey,
   isMonthKey,
-  MAX_DRIVERS,
   monthBounds,
   monthGrid,
   monthOf,
@@ -170,8 +168,6 @@ export default async function AdminCalendarPage({
         days={calendarDays}
         previousMonth={previousMonth}
         nextMonth={nextMonth}
-        defaultDrivers={DEFAULT_DRIVERS}
-        maxDrivers={MAX_DRIVERS}
         fleet={FLEET.map((vehicle) => ({ name: vehicle.name, seats: vehicle.seats }))}
         bookingsByDate={bookingsByDate}
         eventsByDate={eventsByDate}

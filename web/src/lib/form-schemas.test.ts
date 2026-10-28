@@ -6,13 +6,15 @@ import {
   formValues,
   quoteDraftSchema,
   blockDaysSchema,
-  dayRosterSchema,
+  DAY_BLOCK_EFFECTS,
+  DAY_BLOCKS,
+  dayNoteSchema,
   quoteRequestSchema,
   refundQuotePaymentSchema,
   scratchQuoteSchema,
 } from "@/lib/form-schemas";
 import { REFUND_CONFIRMATION } from "@/lib/admin-format";
-import { DEFAULT_DRIVERS, MAX_DRIVERS, todayKey } from "@/lib/availability";
+import { DEFAULT_DRIVERS, todayKey } from "@/lib/availability";
 import { shiftDays } from "@/lib/quotes";
 
 /**
@@ -150,8 +152,16 @@ describe("blockDaysSchema", () => {
     expect(parsed.data).toMatchObject({ from: "2026-12-28", to: "2027-01-03" });
   });
 
-  it("knows the four buttons and nothing else", () => {
-    for (const block of ["day", "morning", "afternoon", "none"]) {
+  it("knows the seven buttons and nothing else", () => {
+    for (const block of [
+      "day",
+      "morning",
+      "afternoon",
+      "none",
+      "one-driver-day",
+      "one-driver-morning",
+      "one-driver-afternoon",
+    ]) {
       expect(blockDaysSchema.safeParse({ from: "2026-08-15", block }).success).toBe(true);
     }
     expect(blockDaysSchema.safeParse({ from: "2026-08-15", block: "open" }).success).toBe(
@@ -182,33 +192,78 @@ describe("blockDaysSchema", () => {
   });
 });
 
-describe("dayRosterSchema", () => {
-  const roster = (overrides: Record<string, unknown> = {}) => ({
+/**
+ * What each bar button writes — "Só um condutor" and the "Desbloquear" that
+ * undoes it (`one-driver-off-per-departure`).
+ */
+describe("DAY_BLOCK_EFFECTS", () => {
+  it("has one write for every button", () => {
+    expect(Object.keys(DAY_BLOCK_EFFECTS).sort()).toEqual([...DAY_BLOCKS].sort());
+  });
+
+  it("puts the morning on sale with one driver and leaves the afternoon alone", () => {
+    expect(DAY_BLOCK_EFFECTS["one-driver-morning"]).toEqual({
+      closed: [],
+      open: ["morning"],
+      drivers: 1,
+    });
+    expect(DAY_BLOCK_EFFECTS["one-driver-afternoon"]).toEqual({
+      closed: [],
+      open: ["afternoon"],
+      drivers: 1,
+    });
+  });
+
+  it("takes one driver off both departures for the whole day", () => {
+    expect(DAY_BLOCK_EFFECTS["one-driver-day"]).toEqual({
+      closed: [],
+      open: ["morning", "afternoon"],
+      drivers: 1,
+    });
+  });
+
+  it("never sets zero drivers — zero is a block", () => {
+    for (const effect of Object.values(DAY_BLOCK_EFFECTS)) {
+      if (effect.drivers !== undefined) expect(effect.drivers).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("puts both departures back on sale with two drivers on Desbloquear", () => {
+    expect(DAY_BLOCK_EFFECTS.none).toEqual({
+      closed: [],
+      open: ["morning", "afternoon"],
+      drivers: DEFAULT_DRIVERS,
+    });
+  });
+
+  /** A block keeps each departure's roster, as it always did (D-8). */
+  it("keeps the roster on a block", () => {
+    for (const block of ["day", "morning", "afternoon"] as const) {
+      expect(DAY_BLOCK_EFFECTS[block].drivers).toBeUndefined();
+    }
+  });
+});
+
+describe("dayNoteSchema", () => {
+  const note = (overrides: Record<string, unknown> = {}) => ({
     date: "2026-08-15",
-    drivers: String(DEFAULT_DRIVERS),
     note: "",
     ...overrides,
   });
 
-  it("clamps the roster to the drivers that exist", () => {
-    // A third driver is AGORA-019's question, not this form's — a crafted
-    // request gets the nearest legal number, not a person who does not exist.
-    expect(dayRosterSchema.parse(roster({ drivers: "9" })).drivers).toBe(MAX_DRIVERS);
-    expect(dayRosterSchema.parse(roster({ drivers: "0" })).drivers).toBe(1);
-    expect(dayRosterSchema.parse(roster({ drivers: "two" })).drivers).toBe(DEFAULT_DRIVERS);
-  });
-
   it("clears the note when the panel posts an empty one", () => {
-    expect(dayRosterSchema.parse(roster({ note: "  " })).note).toBeNull();
+    expect(dayNoteSchema.parse(note({ note: "  " })).note).toBeNull();
   });
 
   it("keeps a note the panel did post", () => {
-    expect(dayRosterSchema.parse(roster({ note: "  Casamento  " })).note).toBe("Casamento");
+    expect(dayNoteSchema.parse(note({ note: "  Casamento  " })).note).toBe("Casamento");
   });
 
-  /** Saving "Mais opções" never changes whether a departure is blocked. */
-  it("carries no status, whatever the form posts", () => {
-    expect(dayRosterSchema.parse(roster({ status: "closed" }))).not.toHaveProperty("status");
+  /** Saving "Mais opções" never changes whether a departure is blocked or its roster. */
+  it("carries no status and no roster, whatever the form posts", () => {
+    const parsed = dayNoteSchema.parse(note({ status: "closed", drivers: "1" }));
+    expect(parsed).not.toHaveProperty("status");
+    expect(parsed).not.toHaveProperty("drivers");
   });
 });
 
