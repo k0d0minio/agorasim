@@ -10,7 +10,7 @@ import {
   expandDateRange,
   isDateKey,
   MAX_RANGE_DAYS,
-  setDayRoster,
+  setDayNote,
   setDepartureStates,
   todayKey,
   TOUR_SLOTS,
@@ -30,7 +30,8 @@ import {
   blockDaysSchema,
   changeCarSchema,
   createManualBookingSchema,
-  dayRosterSchema,
+  DAY_BLOCK_EFFECTS,
+  dayNoteSchema,
   formValues,
   type DayBlock,
   type ManualBookingField,
@@ -52,10 +53,10 @@ import {
  *
  * **Every departure is open unless the team blocks it** (`open-by-default`),
  * so the calendar has two writes and no "open" tool at all: the bar's
- * block/unblock over a day or a stretch ({@link blockDays}), and the day
- * panel's roster and note ({@link saveDayRoster}). Neither touches what the
- * other one owns — blocking a day keeps its roster and its note, and saving
- * the roster keeps the day blocked.
+ * block, unblock and "Só um condutor" over a day or a stretch
+ * ({@link blockDays}), and the day panel's note ({@link saveDayNote}).
+ * Neither touches what the other one owns — no button writes the note, and
+ * saving the note keeps the day's status and roster.
  *
  * **The calendar is not per tour.** A row is one departure of the whole
  * business — see `lib/availability.ts` — so these actions take no experience
@@ -78,17 +79,6 @@ function days(n: number): string {
   return `${n} ${n === 1 ? "dia" : "dias"}`;
 }
 
-/** Which departures each bar button leaves blocked, and which on sale (D-17). */
-const BLOCKS: Record<
-  DayBlock,
-  { closed: ("morning" | "afternoon")[]; open: ("morning" | "afternoon")[] }
-> = {
-  day: { closed: ["morning", "afternoon"], open: [] },
-  morning: { closed: ["morning"], open: ["afternoon"] },
-  afternoon: { closed: ["afternoon"], open: ["morning"] },
-  none: { closed: [], open: ["morning", "afternoon"] },
-};
-
 /** The confirmation line, in the words of the button that was pressed. */
 function blockMessage(block: DayBlock, n: number): string {
   switch (block) {
@@ -99,8 +89,25 @@ function blockMessage(block: DayBlock, n: number): string {
     case "afternoon":
       return `Tarde bloqueada em ${days(n)}; a manhã fica à venda.`;
     case "none":
-      return n === 1 ? "1 dia desbloqueado." : `${n} dias desbloqueados.`;
+      return n === 1
+        ? "1 dia desbloqueado, com dois condutores."
+        : `${n} dias desbloqueados, com dois condutores.`;
+    case "one-driver-day":
+      return `Só um condutor em ${days(n)}, de manhã e de tarde.`;
+    case "one-driver-morning":
+      return `Só um condutor de manhã em ${days(n)}; a tarde fica como estava.`;
+    case "one-driver-afternoon":
+      return `Só um condutor à tarde em ${days(n)}; a manhã fica como estava.`;
   }
+}
+
+/** The audit verb for a button: a block, an unblock, or a roster change. */
+function blockAction(
+  block: DayBlock,
+): "availability.closed" | "availability.opened" | "availability.roster_changed" {
+  const { closed, drivers } = DAY_BLOCK_EFFECTS[block];
+  if (closed.length > 0) return "availability.closed";
+  return drivers === 1 ? "availability.roster_changed" : "availability.opened";
 }
 
 /**
@@ -116,9 +123,15 @@ function blockMessage(block: DayBlock, n: number): string {
  * them is a conversation, not a database change. The confirmation the
  * operator answered before this ran said so, with the count.
  *
- * The form never carries a roster or a note, and `setDepartureStates` writes
- * only the status, so a day's "1 condutor" and its "Casamento" survive a block
- * and an unblock.
+ * The form never carries a roster or a note. The button alone decides the
+ * roster (`DAY_BLOCK_EFFECTS`): "Só um condutor" sets one driver on the
+ * departures it names and leaves the other as it was, a block keeps the
+ * roster, and "Desbloquear" puts both departures back on two drivers. No
+ * button writes the note, so a day's "Casamento" survives all of them.
+ *
+ * **Bookings stay on a one-driver departure too** (D-8). Two tours already
+ * out on a morning cut to one driver keep their drivers; the departure only
+ * stops selling. `describeSlot` never reports fewer than zero drivers left.
  */
 export async function blockDays(
   _prevState: AvailabilityActionState,
@@ -137,10 +150,10 @@ export async function blockDays(
   const dates = expandDateRange(from, to).filter((date) => date >= today);
   if (dates.length === 0) return { error: "Não foi selecionado nenhum dia." };
 
-  const { closed, open } = BLOCKS[block];
+  const { closed, open, drivers } = DAY_BLOCK_EFFECTS[block];
   let changed: { closed: number; opened: number };
   try {
-    changed = await setDepartureStates({ dates, closed, open });
+    changed = await setDepartureStates({ dates, closed, open, drivers });
   } catch (err) {
     console.error("[admin] failed to write availability", err);
     return { error: "Não foi possível guardar — o calendário não mudou." };
@@ -148,7 +161,7 @@ export async function blockDays(
 
   await recordAuditOrWarn({
     actorUserId: actor.id,
-    action: closed.length > 0 ? "availability.closed" : "availability.opened",
+    action: blockAction(block),
     entityType: "availability",
     // A day, not a row id: a stretch touches many rows, and "which days" is
     // the question anyone reading this log back is actually asking.
@@ -158,6 +171,8 @@ export async function blockDays(
       days: dates.length,
       blocked: closed,
       unblocked: open,
+      // Absent when the button kept each departure's roster.
+      ...(drivers === undefined ? {} : { drivers }),
       changed,
     },
   });
@@ -168,32 +183,33 @@ export async function blockDays(
 }
 
 /**
- * Set a day's roster and note — the panel's "Mais opções".
+ * Set a day's note — the panel's "Mais opções".
  *
- * Both departures alike: the panel is about a day, and "Diogo is off on the
- * 14th" is true of the 10:00 and the 14:00. The status is never touched, so a
- * blocked day stays blocked and an untouched one stays on sale.
+ * Both departures alike: the panel is about a day, and "Diogo no médico" is
+ * true of the 10:00 and the 14:00. The status and the roster are never
+ * touched — the bar owns both — so a blocked day stays blocked and a
+ * one-driver morning keeps its one driver.
  */
-export async function saveDayRoster(
+export async function saveDayNote(
   _prevState: AvailabilityActionState,
   formData: FormData,
 ): Promise<AvailabilityActionState> {
   const actor = await requireAdmin();
 
-  const parsed = dayRosterSchema.safeParse(formValues(formData));
+  const parsed = dayNoteSchema.safeParse(formValues(formData));
   if (!parsed.success || !parsed.data.date) {
     return { error: "Não foi possível perceber que dia mudar." };
   }
 
-  const { date, drivers } = parsed.data;
+  const { date } = parsed.data;
   if (date < todayKey()) return { error: "Este dia já passou." };
   // The panel always posts the field, so absent is as good as emptied.
   const note = parsed.data.note ?? null;
 
   try {
-    await setDayRoster({ date, drivers, note });
+    await setDayNote({ date, note });
   } catch (err) {
-    console.error("[admin] failed to write a day's roster", err);
+    console.error("[admin] failed to write a day's note", err);
     return { error: "Não foi possível guardar — o calendário não mudou." };
   }
 
@@ -202,15 +218,12 @@ export async function saveDayRoster(
     action: "availability.roster_changed",
     entityType: "availability",
     entityId: date,
-    after: { date, slots: [...TOUR_SLOTS], drivers, hasNote: note !== null },
+    after: { date, slots: [...TOUR_SLOTS], hasNote: note !== null },
   });
 
   revalidatePublicSite();
 
-  return {
-    ok: true,
-    message: `${drivers} ${drivers === 1 ? "condutor" : "condutores"} em cada partida.`,
-  };
+  return { ok: true, message: note === null ? "Nota apagada." : "Nota guardada." };
 }
 
 /**

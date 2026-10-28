@@ -4,13 +4,13 @@ import { useActionState, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { ChevronLeft, ChevronRight, Minus, Plus, UserRoundPlus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, UserRoundPlus, X } from "lucide-react";
 
 import {
   blockDays,
   changeBookingCar,
   countLiveBookings,
-  saveDayRoster,
+  saveDayNote,
   type AvailabilityActionState,
   type BookingCounts,
 } from "@/app/admin/calendar/actions";
@@ -21,6 +21,7 @@ import { bookingStatusMeta, enquiryKindMeta } from "@/lib/admin-format";
 import {
   CLASS_SEATS,
   carChoices,
+  DRIVERS_PER_SLOT,
   freeSeats,
   VEHICLE_CLASSES,
   type VehicleClass,
@@ -60,10 +61,13 @@ import {
  *   "Bloquear dia inteiro", "Só manhã", "Só tarde", "Desbloquear" — each of
  *   which *sets* every selected day to that state (D-17), behind one
  *   confirmation that warns when bookings sit on what is being blocked
- *   (D-8, D-16). With one day selected it also offers "Ver dia" (D-14).
+ *   (D-8, D-16). A second row, "Só um condutor", puts the day, the morning
+ *   or the afternoon on sale with one driver; "Desbloquear" puts both
+ *   departures back on two. With one day selected it also offers "Ver dia"
+ *   (D-14).
  * - **The day panel** lists the day's events and bookings, sells a seat on
- *   the phone ("Nova reserva", D-6), and keeps the driver count and the
- *   team's note under "Mais opções" (D-7).
+ *   the phone ("Nova reserva", D-6), and keeps the team's note under
+ *   "Mais opções" (D-7).
  *
  * There is no "open" tool any more — no month sweeps, no season window, no
  * range button, no "Limpar" (D-9): they existed because days had to be
@@ -77,8 +81,9 @@ import {
  *   (`admin-calendar-plain-tiles`): a plain tile is free, a gray tile is
  *   blocked, a small slash in the corner means only one departure is
  *   blocked, and each live booking is a dot under the number — an event
- *   holding the day is a dark square among them. No driver counts on the
- *   tile; those are in "Ver dia" (see {@link tileState}).
+ *   holding the day is a dark square among them. A small "1" in the other
+ *   corner means a departure on sale has only one driver. No other driver
+ *   counts on the tile; those are in "Ver dia" (see {@link tileState}).
  * - The bar is sticky and in flow, like {@link FormActionBar}, so the grid
  *   above it stays tappable for the second tap and iOS's keyboard never
  *   covers it.
@@ -276,22 +281,43 @@ function tileState(day: CalendarDay): "blocked" | "partial" | "open" {
 /** Dots drawn on a tile before the rest collapse into "+n". */
 const MAX_DOTS = 4;
 
+/**
+ * A departure on sale with fewer drivers than the roster — "Só um condutor".
+ * A blocked or past departure is not: it sells nothing either way.
+ */
+function shortHanded(slot: SlotAvailability): boolean {
+  return !slot.past && !slot.blocked && slot.drivers < DRIVERS_PER_SLOT;
+}
+
+/**
+ * "1 de 2 condutores livres · 1 de folga" — a departure's drivers in words.
+ *
+ * Counted out of the roster, not out of the departure's own count: "1 de 1"
+ * would hide that a driver is off. "· 1 de folga" then tells a one-driver
+ * departure from a full one with a tour already out, which would otherwise
+ * read the same.
+ */
+function driverWords(slot: SlotAvailability): string {
+  const off = Math.max(0, DRIVERS_PER_SLOT - slot.drivers);
+  const offWords = off > 0 ? ` · ${off} de folga` : "";
+  // "Sem condutores livres" rather than the English's "both drivers out": the
+  // roster can be one, and a sentence that says "both" on a one-driver
+  // departure is telling the operator something that is not true.
+  if (slot.driversLeft === 0) return `sem condutores livres${offWords}`;
+  return `${slot.driversLeft} de ${DRIVERS_PER_SLOT} condutores livres${offWords}`;
+}
+
 /** One departure, spoken for a screen reader and for the day sheet's summary. */
 function slotSentence(slot: SlotAvailability): string {
   const short = SLOT_SHORT[slot.slot] ?? slot.slot;
   if (slot.heldByEvent) return `${short} ocupada por um evento`;
   if (slot.blocked) return `${short} bloqueada`;
-  // "Sem condutores livres" rather than the English's "both drivers out": the
-  // roster can be one, and a sentence that says "both" on a one-driver
-  // departure is telling the operator something that is not true.
   // An open car can still sell a seat with every driver out: say both facts.
   const seats = slot.heldByEvent ? null : openSeatsLeft(slot);
   const withSeats = (sentence: string) => (seats ? `${sentence}, ${seats}` : sentence);
-  if (slot.driversLeft === 0) return withSeats(`${short} sem condutores livres`);
+  if (slot.driversLeft === 0) return withSeats(`${short} ${driverWords(slot)}`);
   if (!slot.hasRoom) return `${short} sem veículos livres`;
-  return withSeats(
-    `${short} ${slot.driversLeft} de ${slot.drivers} condutores livres, ${carsLeft(slot)}`,
-  );
+  return withSeats(`${short} ${driverWords(slot)}, ${carsLeft(slot)}`);
 }
 
 /** The whole cell: gray when blocked, plain otherwise (see {@link tileState}). */
@@ -631,9 +657,9 @@ function ChangeCar({
  * One day's panel — "Ver dia" (D-6, D-7).
  *
  * Who is on the day comes first: its event, its bookings, and "Nova reserva"
- * for the phone call that sells a seat on it. The roster and the note sit
- * under "Mais opções", closed by default, because the main screen is only
- * blocked or not — and saving them never changes which it is.
+ * for the phone call that sells a seat on it. The note sits under "Mais
+ * opções", closed by default. Saving it never changes whether the day is
+ * blocked or how many drivers it has: the bar's buttons own both.
  */
 function DayPanel({
   day,
@@ -641,8 +667,6 @@ function DayPanel({
   events,
   experienceNames,
   tours,
-  defaultDrivers,
-  maxDrivers,
   onDone,
   onOpenChange,
 }: {
@@ -655,17 +679,14 @@ function DayPanel({
   experienceNames: Record<string, string>;
   /** Active signature tours, for the manual-booking sheet. */
   tours: ManualBookingTour[];
-  defaultDrivers: number;
-  maxDrivers: number;
   onDone: () => void;
   onOpenChange: (open: boolean) => void;
 }) {
   const [save, saveAction] = useActionState<AvailabilityActionState, FormData>(
-    saveDayRoster,
+    saveDayNote,
     {},
   );
   const editable = day.slots.filter((slot) => !slot.past);
-  const [drivers, setDrivers] = useState(editable[0]?.drivers || defaultDrivers);
   const [note, setNote] = useState(editable.find((slot) => slot.note)?.note ?? "");
   // Admin spec S7: one modal at a time. The manual-booking sheet needs to
   // outlive this dialog's own DialogContent (so it isn't unmounted along
@@ -695,10 +716,6 @@ function DayPanel({
       (slot): slot is "morning" | "afternoon" =>
         slot === "morning" || slot === "afternoon",
     );
-  // Drivers already out on the busier departure — the floor the stepper warns
-  // about, since one roster now covers both.
-  const driversOut = Math.max(0, ...editable.map((slot) => slot.driversUsed));
-
   return (
     <>
       <Dialog open={!bookingOpen} onOpenChange={onOpenChange}>
@@ -735,55 +752,7 @@ function DayPanel({
 
             <form action={saveAction} className="mt-2 flex flex-col gap-4">
               <input type="hidden" name="date" value={day.date} />
-              <input type="hidden" name="drivers" value={drivers} />
               <input type="hidden" name="note" value={note} />
-
-              <div
-                role="group"
-                aria-labelledby={`${fieldId}-drivers-label`}
-                className="flex flex-col gap-1.5"
-              >
-                <span id={`${fieldId}-drivers-label`} className="text-sm font-medium">
-                  Condutores em cada partida
-                </span>
-                <div className="flex items-center gap-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Menos um condutor"
-                    disabled={drivers <= 1}
-                    onClick={() => setDrivers((n) => Math.max(1, n - 1))}
-                  >
-                    <Minus className="size-4" />
-                  </Button>
-                  <output
-                    aria-live="polite"
-                    className="min-w-10 text-center font-heading text-2xl font-semibold"
-                  >
-                    {drivers}
-                  </output>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Mais um condutor"
-                    disabled={drivers >= maxDrivers}
-                    onClick={() => setDrivers((n) => Math.min(maxDrivers, n + 1))}
-                  >
-                    <Plus className="size-4" />
-                  </Button>
-                  {driversOut > 0 ? (
-                    <span className="text-xs text-muted-foreground">
-                      {driversOut} já ocupado{driversOut === 1 ? "" : "s"}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Quantos passeios podem sair ao mesmo tempo — em todas as rotas. A
-                  escala normal é de dois; baixe para um quando alguém falta.
-                </p>
-              </div>
 
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor={`${fieldId}-note`}>Nota (só a equipa vê)</Label>
@@ -868,24 +837,40 @@ function calendarHref(month: string, selection: Selection | null): string {
   return `/admin/calendar?${params.toString()}`;
 }
 
-/** What each bar button blocks — the warning counts only these (D-8). */
-const BLOCKED_BY: Record<DayBlock, ("morning" | "afternoon")[]> = {
+/**
+ * The departures each bar button stops selling, wholly or in part — the
+ * warning counts the bookings on these only (D-8). A block stops a departure;
+ * "Só um condutor" takes a driver off it.
+ */
+const WARNED_ON: Record<DayBlock, ("morning" | "afternoon")[]> = {
   day: ["morning", "afternoon"],
   morning: ["morning"],
   afternoon: ["afternoon"],
   none: [],
+  "one-driver-day": ["morning", "afternoon"],
+  "one-driver-morning": ["morning"],
+  "one-driver-afternoon": ["afternoon"],
 };
 
-/** The four buttons, in the order the bar shows them. */
-const BAR_ACTIONS: {
+type BarAction = {
   block: DayBlock;
   label: string;
   variant: React.ComponentProps<typeof Button>["variant"];
-}[] = [
+};
+
+/** The first row's four buttons, in the order the bar shows them. */
+const BAR_ACTIONS: BarAction[] = [
   { block: "day", label: "Bloquear dia inteiro", variant: "destructive" },
   { block: "morning", label: "Só manhã", variant: "outline" },
   { block: "afternoon", label: "Só tarde", variant: "outline" },
   { block: "none", label: "Desbloquear", variant: "secondary" },
+];
+
+/** The second row: "Só um condutor" for the day, the morning or the afternoon. */
+const ONE_DRIVER_ACTIONS: BarAction[] = [
+  { block: "one-driver-day", label: "Dia", variant: "outline" },
+  { block: "one-driver-morning", label: "Manhã", variant: "outline" },
+  { block: "one-driver-afternoon", label: "Tarde", variant: "outline" },
 ];
 
 /** The confirmation's title and sentence for one button over one stretch. */
@@ -897,6 +882,7 @@ function confirmationWords(block: DayBlock, stretch: Stretch): {
 } {
   const what = stretchWords(stretch);
   const kept = "Os condutores e a nota de cada dia ficam como estão.";
+  const noteKept = "A nota de cada dia fica como está.";
   switch (block) {
     case "day":
       return {
@@ -922,15 +908,37 @@ function confirmationWords(block: DayBlock, stretch: Stretch): {
     case "none":
       return {
         title: `Desbloquear ${what}?`,
-        description: `As duas partidas voltam a estar à venda. ${kept}`,
+        description: `As duas partidas voltam a estar à venda, com dois condutores cada. ${noteKept}`,
         confirmLabel: "Desbloquear",
         pendingLabel: "A desbloquear…",
+      };
+    case "one-driver-day":
+      return {
+        title: `Só um condutor — ${what}?`,
+        description: `As partidas das 10:00 e das 14:00 ficam à venda só com um condutor. ${noteKept}`,
+        confirmLabel: "Só um condutor",
+        pendingLabel: "A guardar…",
+      };
+    case "one-driver-morning":
+      return {
+        title: `Só um condutor de manhã — ${what}?`,
+        description: `A partida das 10:00 fica à venda só com um condutor; a das 14:00 fica como está. ${noteKept}`,
+        confirmLabel: "Só um condutor",
+        pendingLabel: "A guardar…",
+      };
+    case "one-driver-afternoon":
+      return {
+        title: `Só um condutor à tarde — ${what}?`,
+        description: `A partida das 14:00 fica à venda só com um condutor; a das 10:00 fica como está. ${noteKept}`,
+        confirmLabel: "Só um condutor",
+        pendingLabel: "A guardar…",
       };
   }
 }
 
 /**
- * "1 reserva neste dia — continua marcada" — what blocking leaves standing (D-8).
+ * "1 reserva neste dia — continua marcada" — what a block or "Só um condutor"
+ * leaves standing (D-8).
  *
  * `undefined` counts are still being read; `null` could not be read, and the
  * sentence says the bookings stay rather than claiming there are none.
@@ -940,7 +948,7 @@ function bookingWarning(
   counts: BookingCounts | null | undefined,
   single: boolean,
 ): string | null {
-  const blocked = BLOCKED_BY[block];
+  const blocked = WARNED_ON[block];
   if (blocked.length === 0) return null;
   if (counts === undefined) return "A verificar as reservas…";
   if (counts === null) {
@@ -961,6 +969,9 @@ function bookingWarning(
  */
 type Confirming = { block: DayBlock; after: AvailabilityActionState } | null;
 
+/** The buttons that take a departure off sale: their confirm is red. */
+const DESTRUCTIVE: ReadonlySet<DayBlock> = new Set<DayBlock>(["day", "morning", "afternoon"]);
+
 /**
  * The bar: what is selected, and the four things to do with it.
  *
@@ -977,12 +988,15 @@ type Confirming = { block: DayBlock; after: AvailabilityActionState } | null;
  */
 function BlockBar({
   stretch,
+  day,
   counts,
   onViewDay,
   onClear,
   onDone,
 }: {
   stretch: Stretch;
+  /** The one selected day, when it is on screen — its one-driver departures are named. */
+  day: CalendarDay | undefined;
   /** Live bookings per departure across the stretch; see {@link bookingWarning}. */
   counts: BookingCounts | null | undefined;
   /** Present only when one day is selected and its panel can open. */
@@ -1006,6 +1020,14 @@ function BlockBar({
     ? shortDay(stretch.from)
     : `${readableDay(stretch.from)} a ${readableDay(stretch.to)} · ${dayCount(spanOfDays(stretch.from, stretch.to))}`;
 
+  // "10h 1 de 2 condutores livres · 1 de folga" — the selected day's
+  // one-driver departures, in ink, since the tile only marks them.
+  const shortWords = day
+    ? day.slots
+        .filter(shortHanded)
+        .map((slot) => `${SLOT_SHORT[slot.slot] ?? slot.slot} ${driverWords(slot)}`)
+        .join(" · ")
+    : "";
   const asked = confirming?.block ?? null;
   const words = asked ? confirmationWords(asked, stretch) : null;
   const warning = asked ? bookingWarning(asked, counts, single) : null;
@@ -1014,7 +1036,7 @@ function BlockBar({
   // The warning has to be on screen before anyone confirms a block, so the
   // button waits for the count — but only for a block, and never on a count
   // that failed (that sentence is its own warning).
-  const waitingForCount = asked !== null && BLOCKED_BY[asked].length > 0 && counts === undefined;
+  const waitingForCount = asked !== null && WARNED_ON[asked].length > 0 && counts === undefined;
 
   return (
     <div
@@ -1046,6 +1068,8 @@ function BlockBar({
         </Button>
       </div>
 
+      {shortWords ? <p className="text-xs text-muted-foreground">{shortWords}</p> : null}
+
       <div className="grid grid-cols-2 gap-2">
         {BAR_ACTIONS.map((action) => (
           <Button
@@ -1058,6 +1082,29 @@ function BlockBar({
             {action.label}
           </Button>
         ))}
+      </div>
+
+      {/* "Só um condutor": the label names the row, the three buttons say for
+          what. Three across still leaves each ≥44px tall and wide enough for
+          "Manhã" at the 320px floor (D2). */}
+      <div role="group" aria-labelledby="one-driver-label" className="flex flex-col gap-1.5">
+        <span id="one-driver-label" className="text-xs font-medium text-muted-foreground">
+          Só um condutor
+        </span>
+        <div className="grid grid-cols-3 gap-2">
+          {ONE_DRIVER_ACTIONS.map((action) => (
+            <Button
+              key={action.block}
+              type="button"
+              variant={action.variant}
+              aria-label={`Só um condutor: ${action.label.toLowerCase()}`}
+              className="h-auto min-h-11 whitespace-normal px-2 py-2 leading-tight"
+              onClick={() => setConfirming({ block: action.block, after: state })}
+            >
+              {action.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {words && asked ? (
@@ -1094,7 +1141,7 @@ function BlockBar({
                   Cancelar
                 </Button>
                 <SubmitButton
-                  variant={asked === "none" ? undefined : "destructive"}
+                  variant={DESTRUCTIVE.has(asked) ? "destructive" : undefined}
                   pendingLabel={words.pendingLabel}
                   disabled={waitingForCount}
                 >
@@ -1130,8 +1177,6 @@ export function AvailabilityCalendar({
   days,
   previousMonth,
   nextMonth,
-  defaultDrivers,
-  maxDrivers,
   fleet,
   bookingsByDate,
   eventsByDate,
@@ -1149,8 +1194,6 @@ export function AvailabilityCalendar({
   /** `null` at the ends of the window — the arrow renders disabled. */
   previousMonth: string | null;
   nextMonth: string | null;
-  defaultDrivers: number;
-  maxDrivers: number;
   /** The cars, for the fleet line. */
   fleet: CalendarVehicle[];
   /** Live bookings grouped by date — the count on the tile and the day panel. */
@@ -1341,6 +1384,16 @@ export function AvailabilityCalendar({
                   selection?.anchor === date && selection.end === null && "ring-foreground/70",
                 )}
               >
+                {day.slots.some(shortHanded) ? (
+                  // A departure on sale with one driver: a small "1" in the
+                  // other corner. `aria-hidden`: the label says which.
+                  <span
+                    aria-hidden
+                    className="absolute top-0.5 left-1 text-xs leading-none font-semibold text-muted-foreground"
+                  >
+                    1
+                  </span>
+                ) : null}
                 {state === "partial" ? (
                   // One departure blocked: a small slash in the corner, the
                   // tile otherwise open. `aria-hidden`: the label says which.
@@ -1394,6 +1447,7 @@ export function AvailabilityCalendar({
         <BlockBar
           key={`${stretch.from}/${stretch.to}`}
           stretch={stretch}
+          day={panelDay}
           counts={counts}
           onViewDay={panelDay ? () => setPanelOpen(true) : null}
           onClear={() => select(null)}
@@ -1409,9 +1463,9 @@ export function AvailabilityCalendar({
 
       <p className="text-xs text-muted-foreground">
         Um dia em branco está livre. Cinzento: bloqueado. Um traço no canto: só
-        uma das partidas está bloqueada. Cada ponto é uma reserva; o quadrado
-        escuro é um evento com sinal pago. Toque em «Ver dia» para ver os
-        condutores livres. A frota: {fleet.map((vehicle) => `${vehicle.name} (${vehicle.seats})`).join(" · ")}.
+        uma das partidas está bloqueada. Um «1» no canto: uma partida só tem um
+        condutor. Cada ponto é uma reserva; o quadrado escuro é um evento com
+        sinal pago. Toque em «Ver dia» para ver os condutores livres. A frota: {fleet.map((vehicle) => `${vehicle.name} (${vehicle.seats})`).join(" · ")}.
       </p>
 
       {panelOpen && panelDay ? (
@@ -1422,8 +1476,6 @@ export function AvailabilityCalendar({
           events={eventsOf(panelDay.date)}
           experienceNames={experienceNames}
           tours={tours}
-          defaultDrivers={defaultDrivers}
-          maxDrivers={maxDrivers}
           onDone={finishPanel}
           onOpenChange={setPanelOpen}
         />
