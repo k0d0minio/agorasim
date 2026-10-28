@@ -3,16 +3,21 @@ import { describe, expect, it } from "vitest";
 import {
   anyVehicleFree,
   assignVehicle,
+  carChoices,
   CLASS_SEATS,
   DRIVERS_PER_SLOT,
   FLEET,
   FLEET_SIZE,
+  freeSeats,
+  joinableCar,
   MAX_PARTY_ONLINE,
+  mostOpenSeats,
   noVehicles,
   remainingVehicles,
   routeKindOf,
   slotFitsParty,
   VEHICLE_CLASSES,
+  type OpenCar,
 } from "@/lib/fleet";
 
 /**
@@ -166,5 +171,113 @@ describe("slotFitsParty", () => {
 
   it("says no to a group above the fleet even with everything free", () => {
     expect(slotFitsParty(full, CLASSIC, 9)).toBe(false);
+  });
+});
+
+/**
+ * The open group tour: per-person parties of one tour share a car while it has
+ * the seats. Every case is a car at its seat limit — the line where a wrong
+ * answer puts a fourth guest in a 2CV or sends a second driver out for one.
+ */
+describe("open cars", () => {
+  const car = (overrides: Partial<OpenCar> = {}): OpenCar => ({
+    id: "car-a",
+    experienceSlug: CLASSIC,
+    vehicleClass: "classic-small",
+    seatsTaken: 2,
+    ...overrides,
+  });
+
+  it("counts the seats a car can still sell, never below zero", () => {
+    expect(freeSeats(car())).toBe(1);
+    expect(freeSeats(car({ seatsTaken: 3 }))).toBe(0);
+    expect(freeSeats(car({ vehicleClass: "classic-van", seatsTaken: 4 }))).toBe(4);
+    expect(freeSeats(car({ seatsTaken: 5 }))).toBe(0);
+  });
+
+  it("seats a party in an open car with exactly the seats it needs", () => {
+    expect(joinableCar([car()], CLASSIC, 1)?.id).toBe("car-a");
+  });
+
+  it("never seats a party in a car one seat short, nor splits it", () => {
+    expect(joinableCar([car()], CLASSIC, 2)).toBeNull();
+    expect(joinableCar([car({ seatsTaken: 3 })], CLASSIC, 1)).toBeNull();
+  });
+
+  it("never seats a party in a car on another route", () => {
+    expect(joinableCar([car({ experienceSlug: TOURING })], CLASSIC, 1)).toBeNull();
+  });
+
+  it("fills the tightest car first, and breaks a tie by id", () => {
+    const van = car({ id: "car-van", vehicleClass: "classic-van", seatsTaken: 4 });
+    const twoCv = car({ id: "car-2cv", seatsTaken: 1 });
+    // A couple fits both. The 2CV's two seats go first; the T3 keeps four.
+    expect(joinableCar([van, twoCv], CLASSIC, 2)?.id).toBe("car-2cv");
+    const twin = car({ id: "car-0", seatsTaken: 1 });
+    expect(joinableCar([twoCv, twin], CLASSIC, 2)?.id).toBe("car-0");
+  });
+
+  it("tells the browser the most seats one car of each tour can sell", () => {
+    expect(
+      mostOpenSeats([
+        car({ id: "a", seatsTaken: 2 }),
+        car({ id: "b", seatsTaken: 1 }),
+        car({ id: "c", experienceSlug: TOURING, vehicleClass: "touring", seatsTaken: 8 }),
+      ]),
+    ).toEqual({ [CLASSIC]: 2 });
+  });
+});
+
+describe("slotFitsParty, per person", () => {
+  const out = { driversLeft: 0, vehiclesLeft: noVehicles() };
+
+  it("seats a per-person party in an open car with every driver out", () => {
+    expect(slotFitsParty({ ...out, openSeats: { [CLASSIC]: 1 } }, CLASSIC, 1, "public")).toBe(
+      true,
+    );
+  });
+
+  it("refuses the seat a party is one short of", () => {
+    expect(slotFitsParty({ ...out, openSeats: { [CLASSIC]: 1 } }, CLASSIC, 2, "public")).toBe(
+      false,
+    );
+  });
+
+  it("never seats a private group in an open car", () => {
+    expect(slotFitsParty({ ...out, openSeats: { [CLASSIC]: 3 } }, CLASSIC, 1, "private")).toBe(
+      false,
+    );
+    // Private is the default: a caller that does not say never shares.
+    expect(slotFitsParty({ ...out, openSeats: { [CLASSIC]: 3 } }, CLASSIC, 1)).toBe(false);
+  });
+
+  it("still sends a per-person party to a car of its own when none has room", () => {
+    const free = { driversLeft: 1, vehiclesLeft: FLEET_SIZE, openSeats: { [CLASSIC]: 1 } };
+    expect(slotFitsParty(free, CLASSIC, 4, "public")).toBe(true);
+  });
+});
+
+describe("carChoices", () => {
+  const party = { sharedCarId: "car-a", experienceSlug: CLASSIC, partySize: 1 };
+  const free = { driversLeft: 1, vehiclesLeft: FLEET_SIZE };
+  const cars: OpenCar[] = [
+    { id: "car-a", experienceSlug: CLASSIC, vehicleClass: "classic-small", seatsTaken: 3 },
+    { id: "car-b", experienceSlug: CLASSIC, vehicleClass: "classic-small", seatsTaken: 2 },
+    { id: "car-c", experienceSlug: CLASSIC, vehicleClass: "classic-small", seatsTaken: 3 },
+    { id: "car-d", experienceSlug: TOURING, vehicleClass: "touring", seatsTaken: 2 },
+  ];
+
+  it("offers the other cars of the tour with room, and a new car", () => {
+    const choices = carChoices({ cars, party, free });
+    expect(choices.join.map((car) => car.id)).toEqual(["car-b"]);
+    expect(choices.canOpenNew).toBe(true);
+  });
+
+  it("offers no new car without a free driver, nor to a party alone in its car", () => {
+    expect(carChoices({ cars, party, free: { ...free, driversLeft: 0 } }).canOpenNew).toBe(
+      false,
+    );
+    const alone = { ...party, sharedCarId: "car-b", partySize: 2 };
+    expect(carChoices({ cars, party: alone, free }).canOpenNew).toBe(false);
   });
 });

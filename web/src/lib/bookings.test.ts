@@ -9,7 +9,9 @@ import {
   holdExpiryFrom,
   holdsCapacity,
   remindableOnSql,
+  tallyOccupancy,
   thankableOnSql,
+  type OccupancyGroup,
 } from "@/lib/bookings";
 import type { Booking } from "@/db";
 
@@ -136,5 +138,60 @@ describe("thankableOnSql", () => {
 
   it("leaves out a booking the team marked as a no-show", () => {
     expect(rendered().sql).toContain('"bookings"."no_show_at" is null');
+  });
+});
+
+describe("tallyOccupancy", () => {
+  const group = (overrides: Partial<OccupancyGroup> = {}): OccupancyGroup => ({
+    date: "2026-08-15",
+    slot: "morning",
+    vehicleClass: "classic-small",
+    sharedCarId: null,
+    experienceSlug: "rural-saloia",
+    bookings: 1,
+    seats: 2,
+    ...overrides,
+  });
+
+  it("counts a car of its own per private booking", () => {
+    const entry = tallyOccupancy([group({ bookings: 2, seats: 5 })]).get("2026-08-15#morning");
+    expect(entry).toMatchObject({ drivers: 2, vehicles: { "classic-small": 2 } });
+    expect(entry?.openCars).toBeUndefined();
+  });
+
+  it("counts an open car once, however many parties ride in it", () => {
+    // Two per-person parties, of two and of one, in one 2CV: one driver, one car.
+    const entry = tallyOccupancy([
+      group({ sharedCarId: "car-a", bookings: 2, seats: 3 }),
+    ]).get("2026-08-15#morning");
+    expect(entry).toMatchObject({ drivers: 1, vehicles: { "classic-small": 1 } });
+    expect(entry?.openCars).toEqual([
+      {
+        id: "car-a",
+        experienceSlug: "rural-saloia",
+        vehicleClass: "classic-small",
+        seatsTaken: 3,
+      },
+    ]);
+  });
+
+  it("keeps private and open cars on one departure apart", () => {
+    const entry = tallyOccupancy([
+      group({ vehicleClass: "classic-van", bookings: 1, seats: 6 }),
+      group({ sharedCarId: "car-a", bookings: 1, seats: 2 }),
+    ]).get("2026-08-15#morning");
+    expect(entry).toMatchObject({
+      drivers: 2,
+      vehicles: { "classic-small": 1, "classic-van": 1, touring: 0 },
+    });
+    expect(entry?.openCars).toHaveLength(1);
+  });
+
+  it("takes a driver for a class the fleet no longer knows, and offers no seat in it", () => {
+    const entry = tallyOccupancy([
+      group({ vehicleClass: "landau", sharedCarId: "car-x" }),
+    ]).get("2026-08-15#morning");
+    expect(entry?.drivers).toBe(1);
+    expect(entry?.openCars).toBeUndefined();
   });
 });

@@ -29,7 +29,7 @@ import {
   TOUR_SLOTS,
   weekdayIndex,
 } from "@/lib/availability";
-import { FLEET_SIZE, noVehicles, type VehicleClass } from "@/lib/fleet";
+import { FLEET_SIZE, noVehicles, type OpenCar, type VehicleClass } from "@/lib/fleet";
 import type { SlotOccupancy } from "@/lib/bookings";
 import type { AvailabilityRow } from "@/db";
 
@@ -396,6 +396,7 @@ describe("describeSlot", () => {
       expect(fitsParty(slot, CLASSIC_TOUR, 2)).toEqual({
         ok: true,
         vehicleClass: "classic-small",
+        joins: null,
       });
     });
 
@@ -463,10 +464,12 @@ describe("fitsParty", () => {
     expect(fitsParty(open(), CLASSIC_TOUR, 3)).toEqual({
       ok: true,
       vehicleClass: "classic-small",
+      joins: null,
     });
     expect(fitsParty(open(), CLASSIC_TOUR, 4)).toEqual({
       ok: true,
       vehicleClass: "classic-van",
+      joins: null,
     });
   });
 
@@ -477,6 +480,7 @@ describe("fitsParty", () => {
       expect(fitsParty(open(), TOURING_TOUR, size)).toEqual({
         ok: true,
         vehicleClass: "touring",
+        joins: null,
       });
     }
   });
@@ -610,9 +614,15 @@ describe("toPublicDay", () => {
             ...FLEET_SIZE,
             "classic-small": FLEET_SIZE["classic-small"] - 1,
           },
+          openSeats: {},
         },
         // Never touched, so open with everything free.
-        { slot: "afternoon", driversLeft: DEFAULT_DRIVERS, vehiclesLeft: FLEET_SIZE },
+        {
+          slot: "afternoon",
+          driversLeft: DEFAULT_DRIVERS,
+          vehiclesLeft: FLEET_SIZE,
+          openSeats: {},
+        },
       ],
     });
   });
@@ -788,5 +798,112 @@ describe("a day held by a deposit-paid event", () => {
     expect(publicDay.slots.every((slot) => slot.driversLeft === 0)).toBe(true);
     const payload = JSON.stringify(publicDay);
     expect(payload).not.toMatch(/event|heldByEvent|eventHolds|Casamento|Quinta/i);
+  });
+});
+
+/**
+ * The open group tour on one departure: per-person parties of one tour share a
+ * car up to its seats, and a private group never shares. Each case sits on the
+ * seat limit, where a wrong answer puts a fourth guest in a 2CV or sends a
+ * second driver out for a party that had a seat.
+ */
+describe("the open group tour", () => {
+  const today = "2026-08-10";
+  const openCar = (overrides: Partial<OpenCar> = {}): OpenCar => ({
+    id: "eeeeeeee-0000-4000-8000-000000000001",
+    experienceSlug: CLASSIC_TOUR,
+    vehicleClass: "classic-small",
+    seatsTaken: 2,
+    ...overrides,
+  });
+  /** One open car on the road, plus any cars of their own, one driver each. */
+  const withCars = (cars: OpenCar[], ...own: VehicleClass[]): SlotOccupancy => {
+    const occupancy = committed(...cars.map((car) => car.vehicleClass), ...own);
+    return { ...occupancy, openCars: cars };
+  };
+  const departure = (occupancy: SlotOccupancy, options: { now?: Date; date?: string } = {}) =>
+    describeSlot({
+      date: options.date ?? "2026-08-15",
+      slot: "morning",
+      row: row(),
+      occupancy,
+      today: options.now ? undefined : today,
+      now: options.now,
+      audience: "team",
+    });
+
+  it("seats a per-person party of one in the 2CV a couple opened", () => {
+    const fit = fitsParty(departure(withCars([openCar()])), CLASSIC_TOUR, 1, "public");
+    expect(fit).toEqual({ ok: true, vehicleClass: "classic-small", joins: openCar().id });
+  });
+
+  it("sends a second couple to a second car: a small classic has three seats", () => {
+    const fit = fitsParty(departure(withCars([openCar()])), CLASSIC_TOUR, 2, "public");
+    expect(fit).toEqual({ ok: true, vehicleClass: "classic-small", joins: null });
+  });
+
+  it("sends a per-person party of four to the T3 when the open car has one seat left", () => {
+    const fit = fitsParty(departure(withCars([openCar()])), CLASSIC_TOUR, 4, "public");
+    expect(fit).toEqual({ ok: true, vehicleClass: "classic-van", joins: null });
+  });
+
+  it("never seats a private group in an open car", () => {
+    // Both drivers out, one of them in a 2CV with a free seat.
+    const full = departure(withCars([openCar()], "classic-small"));
+    expect(fitsParty(full, CLASSIC_TOUR, 1, "private")).toEqual({
+      ok: false,
+      reason: "no-driver",
+    });
+    expect(fitsParty(full, CLASSIC_TOUR, 1)).toEqual({ ok: false, reason: "no-driver" });
+  });
+
+  it("stays bookable with every driver out while an open car has a seat", () => {
+    const slot = departure(withCars([openCar()], "classic-small"));
+    expect(slot).toMatchObject({ driversLeft: 0, hasRoom: true, bookable: true });
+    expect(fitsParty(slot, CLASSIC_TOUR, 1, "public").ok).toBe(true);
+    expect(fitsParty(slot, CLASSIC_TOUR, 2, "public")).toEqual({
+      ok: false,
+      reason: "no-driver",
+    });
+  });
+
+  it("is full once the last open car has no seat and no driver is free", () => {
+    const slot = departure(withCars([openCar({ seatsTaken: 3 })], "classic-small"));
+    expect(slot).toMatchObject({ hasRoom: false, bookable: false });
+  });
+
+  it("tells a guest the free seats per tour, and nothing about the cars", () => {
+    const [day] = describeMonth({
+      month: "2026-08",
+      rows: [],
+      occupancy: new Map([
+        [occupancySlotKey("2026-08-15", "morning"), withCars([openCar()], "classic-small")],
+      ]),
+      today,
+      audience: "online",
+    }).filter((entry) => entry.date === "2026-08-15");
+    const morning = toPublicDay(day).slots[0];
+    expect(morning).toEqual({
+      slot: "morning",
+      driversLeft: 0,
+      vehiclesLeft: { ...FLEET_SIZE, "classic-small": FLEET_SIZE["classic-small"] - 2 },
+      openSeats: { [CLASSIC_TOUR]: 1 },
+    });
+  });
+
+  // Lisbon is UTC+1 in summer (10:00 = 09:00Z) and UTC+0 in winter. An open
+  // seat is no seat once its car has left.
+  it.each([
+    ["summer, before", "2026-08-15T08:59:00Z", true],
+    ["summer, after", "2026-08-15T09:01:00Z", false],
+    ["winter, before", "2026-12-15T09:59:00Z", true],
+    ["winter, after", "2026-12-15T10:01:00Z", false],
+  ] as const)("sells the last open seat of today's 10:00 %s it leaves", (_label, iso, sells) => {
+    const now = new Date(iso);
+    const slot = departure(withCars([openCar()], "classic-small"), {
+      now,
+      date: todayKey(now),
+    });
+    expect(fitsParty(slot, CLASSIC_TOUR, 1, "public").ok).toBe(sells);
   });
 });

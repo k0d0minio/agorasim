@@ -18,7 +18,7 @@ import { noVehicles } from "@/lib/fleet";
  * the months it carries were described yesterday — and offer a day that is
  * now tomorrow, which the server will refuse (D-3). This takes every day
  * before the first online day off sale, exactly as `toPublicDay` writes a day
- * that is off sale: no drivers, no cars, not bookable.
+ * that is off sale: no drivers, no cars, no open seats, not bookable.
  *
  * It only ever removes. A browser clock that is wrong can cost the guest a
  * day the server would have sold; it can never offer one the server refuses.
@@ -41,6 +41,7 @@ export function applyOnlineNotice(months: PublicMonth[], today: DateKey): Public
               ...slot,
               driversLeft: 0,
               vehiclesLeft: noVehicles(),
+              openSeats: {},
             })),
           }
         : day,

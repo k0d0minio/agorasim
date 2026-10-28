@@ -1,5 +1,5 @@
 {
-  "id": "3e2746ad-5d2f-4c26-b93f-f50ea354eafb",
+  "id": "5c334f31-9d73-47b2-9224-015510f0c68d",
   "prevId": "11ddee11-d81d-42b3-b83a-b662f4211f1f",
   "version": "7",
   "dialect": "postgresql",
@@ -577,6 +577,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "shared_car_id": {
+          "name": "shared_car_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "amount_cents": {
           "name": "amount_cents",
           "type": "integer",
@@ -1093,13 +1099,6 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
-        },
-        "attaches_to": {
-          "name": "attaches_to",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
         },
         "active": {
           "name": "active",

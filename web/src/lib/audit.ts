@@ -71,6 +71,7 @@ export const AUDIT_ACTIONS = [
   "booking.cancelled",
   "booking.refunded",
   "booking.moved",
+  "booking.car_changed",
   "booking.no_show_marked",
   "booking.no_show_cleared",
   "quote.created",

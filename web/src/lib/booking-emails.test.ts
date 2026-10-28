@@ -1100,6 +1100,15 @@ describe("teamEnquiryEmail", () => {
     expect(message.text).toContain("Carro preferido: —");
   });
 
+  it("drops the Pessoas row when the enquiry carries no head count", () => {
+    const wedding = teamEnquiryEmail(weddingEnquiry({ partySize: null }), recipients);
+    for (const part of [wedding.text, wedding.html!]) {
+      expect(part).not.toContain("Pessoas");
+    }
+    const event = teamEnquiryEmail(weddingEnquiry({ kind: "event" }), recipients);
+    expect(event.text).toContain("Pessoas: 80");
+  });
+
   it("stays Portuguese, and replies to the guest", () => {
     const message = teamEnquiryEmail(weddingEnquiry({ locale: "en" }), recipients);
     expect(message.html).toContain('lang="pt"');

@@ -13,6 +13,7 @@ import {
 const open = () => ({
   driversLeft: 1,
   vehiclesLeft: { "classic-small": 1, "classic-van": 1, touring: 1 },
+  openSeats: {},
 });
 
 /**
@@ -32,6 +33,7 @@ function october(builtOn: string): PublicMonth {
             slot: name,
             driversLeft: 0,
             vehiclesLeft: { "classic-small": 0, "classic-van": 0, touring: 0 },
+            openSeats: {},
           };
     return { date, bookable, slots: [slot("morning"), slot("afternoon")] };
   });

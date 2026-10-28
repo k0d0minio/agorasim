@@ -257,13 +257,15 @@ export async function startCheckout(
    * could be answered yes twice over for the same 10:00. This asks whether a
    * driver is free and whether the class of car *this* party needs on *this*
    * route is free, counting bookings on every route, and it hands back which
-   * car was assigned so the booking row can record it.
+   * car was assigned so the booking row can record it. A per-person party may
+   * instead take seats in an open car of its tour, and is handed that car.
    */
   const check = await checkSlotAvailable({
     experienceSlug: experience.slug,
     date: booking.date,
     slot: booking.slot,
     partySize: priced.seats,
+    mode: booking.mode,
     occupancy: await slotOccupancyOn(booking.date, booking.slot),
     // A guest: the block, two days' notice and the six-month window all bind.
     audience: "online",
@@ -300,6 +302,7 @@ export async function startCheckout(
       mode: booking.mode,
       party,
       vehicleClass: check.vehicleClass,
+      sharedCarId: check.sharedCarId,
       experience,
       addOns: knownAddOns,
       lines: priced.lines,

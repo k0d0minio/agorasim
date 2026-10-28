@@ -25,9 +25,11 @@
  * to ride in even though a driver is free. Both facts fall out of counting
  * pools instead of seats.
  *
- * **Nobody shares a car.** Every booking is private to its vehicle until
- * AGORA-019 answers whether strangers may ride together. The price list still
- * has shared and private tiers, untouched; what waits is the sharing.
+ * **A per-person party shares a car.** A `public` booking joins an open car of
+ * its tour on the same departure when that car has the seats, and needs no
+ * driver or car of its own (`joinableCar` in `lib/fleet.ts`). A `private`
+ * booking takes a car whole. So a departure with both drivers out still sells
+ * the last seat of an open 2CV to a guest on that 2CV's route.
  *
  * **Dates are `YYYY-MM-DD` strings, everywhere.** A tour on the 15th of August
  * happens on the 15th of August in Sintra, and the moment that becomes a
@@ -68,9 +70,14 @@ import {
   assignVehicle,
   DRIVERS_PER_SLOT,
   FLEET_SIZE,
+  freeSeats,
+  joinableCar,
   MAX_DRIVERS_PER_SLOT,
+  mostOpenSeats,
   noVehicles,
   remainingVehicles,
+  type OpenCar,
+  type SeatingMode,
   type VehicleClass,
   type VehicleCounts,
 } from "@/lib/fleet";
@@ -380,6 +387,12 @@ export type SlotAvailability = {
   vehiclesUsed: VehicleCounts;
   /** What is still free to sell, per class. */
   vehiclesLeft: VehicleCounts;
+  /**
+   * The open cars on this departure and the seats their per-person parties
+   * take. Admin-only as it stands: {@link toPublicDay} keeps only the free
+   * seats per tour, never a car id or another party's size.
+   */
+  openCars: OpenCar[];
   /** In the past, relative to the business's today. */
   past: boolean;
   /** Saturday or Sunday — the admin's "open the weekends" sweep selects on it. */
@@ -397,8 +410,9 @@ export type SlotAvailability = {
    */
   heldByEvent: boolean;
   /**
-   * No event holds the day, a driver is free and some car is free — capacity
-   * alone, the same for both audiences. The admin's "esgotada" reads this.
+   * No event holds the day, and a driver and some car are free or an open car
+   * has a seat — capacity alone, the same for both audiences. The admin's
+   * "esgotada" reads this.
    */
   hasRoom: boolean;
   /** Whether *some* party could still be sold this departure, by this audience. */
@@ -412,7 +426,8 @@ export type SlotAvailability = {
  * The whole bookability rule lives in this function: the departure is not in
  * the past (a day before today, or today's departure time gone by); for a guest online, the team has not blocked it and it is inside the
  * online window (two days' notice, six months ahead); no paid event holds the
- * day, a driver is still free, and some vehicle is still free. The team skips
+ * day, and a driver and some vehicle are still free or an open car still has
+ * a seat. The team skips
  * the block and the window, never the capacity (D-4). Which vehicle *this*
  * party needs is a different question — {@link fitsParty} — because a
  * departure with only the T3 left is bookable and is still a no to a couple
@@ -466,7 +481,11 @@ export function describeSlot(options: {
     audience === "team"
       ? !past && date <= bounds.teamEnd
       : !past && !blocked && date >= bounds.online.first && date <= bounds.online.last;
-  const hasRoom = !heldByEvent && driversLeft > 0 && anyVehicleFree(vehiclesLeft);
+  const openCars = occupancy.openCars ?? [];
+  const hasRoom =
+    !heldByEvent &&
+    ((driversLeft > 0 && anyVehicleFree(vehiclesLeft)) ||
+      openCars.some((car) => freeSeats(car) > 0));
 
   return {
     date,
@@ -480,6 +499,7 @@ export function describeSlot(options: {
     vehicles: FLEET_SIZE,
     vehiclesUsed: occupancy.vehicles,
     vehiclesLeft,
+    openCars,
     past,
     weekend: isWeekend(date),
     onSale,
@@ -499,9 +519,14 @@ export function describeSlot(options: {
  * your size is already out", and "groups above eight are a phone call" are
  * three quite different things to be told, and collapsing them into "no" is
  * how a booking page loses a booking it could have taken.
+ *
+ * A `public` party first looks for an open car of its tour with the seats
+ * (`joinableCar` in `lib/fleet.ts`); `joins` names that car. Otherwise it needs
+ * a driver and a car like anyone, and `joins` is null. `mode` defaults to
+ * `private`, so a caller that does not say never seats anybody with strangers.
  */
 export type PartyFit =
-  | { ok: true; vehicleClass: VehicleClass }
+  | { ok: true; vehicleClass: VehicleClass; joins: string | null }
   | {
       ok: false;
       reason: "bad-party" | "unavailable" | "no-driver" | "no-vehicle" | "party-too-large";
@@ -511,6 +536,7 @@ export function fitsParty(
   slot: SlotAvailability,
   experienceSlug: string,
   partySize: number,
+  mode: SeatingMode = "private",
 ): PartyFit {
   const assignment = assignVehicle(experienceSlug, partySize);
   if (!assignment.ok) {
@@ -523,11 +549,15 @@ export function fitsParty(
   // `onSale` already carries the audience — a blocked or too-soon departure is
   // off sale to a guest and on sale to the team.
   if (!slot.onSale || slot.heldByEvent) return { ok: false, reason: "unavailable" };
+  if (mode === "public") {
+    const car = joinableCar(slot.openCars, experienceSlug, partySize);
+    if (car) return { ok: true, vehicleClass: car.vehicleClass, joins: car.id };
+  }
   if (slot.driversLeft < 1) return { ok: false, reason: "no-driver" };
   if (slot.vehiclesLeft[assignment.vehicleClass] < 1) {
     return { ok: false, reason: "no-vehicle" };
   }
-  return { ok: true, vehicleClass: assignment.vehicleClass };
+  return { ok: true, vehicleClass: assignment.vehicleClass, joins: null };
 }
 
 /** One day of the grid: every departure of that day, in {@link TOUR_SLOTS} order. */
@@ -633,11 +663,12 @@ export const PUBLIC_CALENDAR_MONTHS = ONLINE_BOOKING_MONTHS;
 /**
  * One departure, as a guest is allowed to see it.
  *
- * Two numbers, because the browser has to answer a question that depends on
+ * Three numbers, because the browser has to answer a question that depends on
  * the party in front of it: a departure is available to *these four people on
- * this route* if a driver is free and the class of car they need is free. The
- * same `slotFitsParty` the server decides with runs over exactly these fields,
- * so the grid greys out precisely what the checkout would refuse.
+ * this route* if a driver is free and the class of car they need is free — or,
+ * per person, if an open car of the route has four seats left. The same
+ * `slotFitsParty` the server decides with runs over exactly these fields, so
+ * the grid greys out precisely what the checkout would refuse.
  */
 export type PublicSlot = {
   slot: AvailabilitySlot;
@@ -645,6 +676,12 @@ export type PublicSlot = {
   driversLeft: number;
   /** Cars still free, per class. All zero when the departure is off sale. */
   vehiclesLeft: VehicleCounts;
+  /**
+   * Tour slug → the most seats one open car of that tour can still sell
+   * (`mostOpenSeats`). Empty when the departure is off sale. No car id and no
+   * other party's size: only what a guest needs to know whether they fit.
+   */
+  openSeats: Record<string, number>;
 };
 
 /**
@@ -681,6 +718,7 @@ export function toPublicDay(day: DaySlots): PublicDay {
     slot: slot.slot,
     driversLeft: slot.bookable ? slot.driversLeft : 0,
     vehiclesLeft: slot.bookable ? slot.vehiclesLeft : noVehicles(),
+    openSeats: slot.bookable ? mostOpenSeats(slot.openCars) : {},
   }));
   return {
     date: day.date,
@@ -778,11 +816,26 @@ export async function checkSlotAvailable(options: {
   date: string;
   slot: AvailabilitySlot;
   partySize: number;
+  /**
+   * The party's half of the price list. `public` may join an open car;
+   * `private`, the default, takes a car whole.
+   */
+  mode?: SeatingMode;
   occupancy?: SlotOccupancy;
   today?: DateKey;
   audience?: Audience;
 }): Promise<
-  | { ok: true; slot: SlotAvailability; vehicleClass: VehicleClass }
+  | {
+      ok: true;
+      slot: SlotAvailability;
+      vehicleClass: VehicleClass;
+      /**
+       * The open car the booking row writes as `shared_car_id`: the car the
+       * party joins, or a new id when a `public` party opens a car. Null for a
+       * `private` party.
+       */
+      sharedCarId: string | null;
+    }
   | {
       ok: false;
       reason:
@@ -794,7 +847,16 @@ export async function checkSlotAvailable(options: {
         | "unreadable";
     }
 > {
-  const { experienceSlug, date, slot, partySize, occupancy, today, audience } = options;
+  const {
+    experienceSlug,
+    date,
+    slot,
+    partySize,
+    mode = "private",
+    occupancy,
+    today,
+    audience,
+  } = options;
 
   if (!isDateKey(date) || !isTourSlot(slot)) return { ok: false, reason: "invalid" };
 
@@ -807,7 +869,7 @@ export async function checkSlotAvailable(options: {
   }
 
   const described = describeSlot({ date, slot, row, occupancy, today, audience });
-  const fit = fitsParty(described, experienceSlug, partySize);
+  const fit = fitsParty(described, experienceSlug, partySize, mode);
   if (!fit.ok) {
     // "No driver left" is the departure being full, which from the guest's
     // side is the same fact as it being closed: it is not available, and why
@@ -818,7 +880,12 @@ export async function checkSlotAvailable(options: {
     };
   }
 
-  return { ok: true, slot: described, vehicleClass: fit.vehicleClass };
+  return {
+    ok: true,
+    slot: described,
+    vehicleClass: fit.vehicleClass,
+    sharedCarId: mode === "public" ? (fit.joins ?? crypto.randomUUID()) : null,
+  };
 }
 
 /**

@@ -1282,8 +1282,12 @@ export function teamEnquiryEmail(
   /*
    * What the team reads first. A quote enquiry drops the `Experiência` row —
    * it names none, by definition — for the three facts the price is worked out
-   * from: where it is, how long for, and which car.
+   * from: where it is, how long for, and which car. The `Pessoas` row shows
+   * only when there is a head count: the wedding form does not ask one.
    */
+  const partyRows: DetailRow[] = facts.partySize
+    ? [{ label: c.labels.party, value: values.party }]
+    : [];
   const enquiryRows: DetailRow[] = isQuote
     ? [
         { label: c.labels.date, value: facts.preferredDate || "—" },
@@ -1293,12 +1297,12 @@ export function teamEnquiryEmail(
           value: facts.serviceHours ? serviceHoursLabel(facts.serviceHours, "pt") : "—",
         },
         { label: c.quote.labels.car, value: carLabel(facts.preferredCar) ?? "—" },
-        { label: c.labels.party, value: values.party },
+        ...partyRows,
       ]
     : [
         { label: c.labels.date, value: facts.preferredDate || "—" },
         { label: c.labels.experience, value: facts.experience || "—" },
-        { label: c.labels.party, value: values.party },
+        ...partyRows,
       ];
 
   const guestRows: DetailRow[] = [
