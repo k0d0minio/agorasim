@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db, tourRequests } from "@/db";
 import { departureLabel } from "@/content/logistics";
 import { classicCars } from "@/content/site";
-import { serviceHoursLabel } from "@/content/quote-request";
+import { ceremonyTimeLabel, serviceHoursLabel } from "@/content/quote-request";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
@@ -374,12 +374,26 @@ export default async function AdminLeadPage({
                     <dt className="text-muted-foreground">Local</dt>
                     <dd>{lead.venue ?? "—"}</dd>
                   </div>
-                  <div>
-                    <dt className="text-muted-foreground">Horas de serviço</dt>
-                    <dd>
-                      {lead.serviceHours ? serviceHoursLabel(lead.serviceHours, "pt") : "—"}
-                    </dd>
-                  </div>
+                  {/*
+                    A wedding is priced per event, so its form asks when the
+                    ceremony starts. An event still asks how long for. A
+                    wedding lead from before the change keeps its hours row,
+                    so the value the couple gave is never hidden.
+                  */}
+                  {lead.kind === "wedding" ? (
+                    <div>
+                      <dt className="text-muted-foreground">Hora da cerimónia</dt>
+                      <dd>{lead.ceremonyTime ? ceremonyTimeLabel(lead.ceremonyTime) : "—"}</dd>
+                    </div>
+                  ) : null}
+                  {lead.kind !== "wedding" || lead.serviceHours ? (
+                    <div>
+                      <dt className="text-muted-foreground">Horas de serviço</dt>
+                      <dd>
+                        {lead.serviceHours ? serviceHoursLabel(lead.serviceHours, "pt") : "—"}
+                      </dd>
+                    </div>
+                  ) : null}
                   <div>
                     <dt className="text-muted-foreground">Carro preferido</dt>
                     <dd>{preferredCarName ?? "—"}</dd>

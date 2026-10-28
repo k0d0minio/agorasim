@@ -1016,8 +1016,18 @@ function weddingEnquiry(overrides: Partial<EnquiryEmailFacts> = {}): EnquiryEmai
     preferredDate: "2027-06-12",
     experience: null,
     venue: "Igreja de São Pedro, Mafra",
-    serviceHours: "full-day",
+    ceremonyTime: "15:30",
     preferredCar: "citroen-2cv",
+    ...overrides,
+  });
+}
+
+/** An event enquiry. An event asks the hours of service, not a ceremony time. */
+function eventEnquiry(overrides: Partial<EnquiryEmailFacts> = {}): EnquiryEmailFacts {
+  return weddingEnquiry({
+    kind: "event",
+    ceremonyTime: null,
+    serviceHours: "full-day",
     ...overrides,
   });
 }
@@ -1071,7 +1081,7 @@ describe("teamEnquiryEmail", () => {
   });
 
   it("carries the three facts a quote is priced from, by name not by key", () => {
-    const message = teamEnquiryEmail(weddingEnquiry(), recipients);
+    const message = teamEnquiryEmail(eventEnquiry(), recipients);
     for (const part of [message.text, message.html!]) {
       expect(part).toContain("Igreja de São Pedro, Mafra");
       expect(part).toContain("Dia inteiro (até 8h)");
@@ -1080,6 +1090,25 @@ describe("teamEnquiryEmail", () => {
       expect(part).not.toContain("full-day");
       expect(part).not.toContain("citroen-2cv");
     }
+  });
+
+  it("gives a wedding the ceremony time, not the hours of service", () => {
+    const message = teamEnquiryEmail(weddingEnquiry(), recipients);
+    expect(message.text).toContain("Hora da cerimónia: 15:30");
+    expect(message.html).toContain("Hora da cerimónia");
+    expect(message.text).not.toContain("Horas de serviço");
+  });
+
+  it("drops the seconds of a ceremony time read back from the database", () => {
+    const message = teamEnquiryEmail(weddingEnquiry({ ceremonyTime: "15:30:00" }), recipients);
+    expect(message.text).toContain("Hora da cerimónia: 15:30");
+    expect(message.text).not.toContain("15:30:00");
+  });
+
+  it("keeps the hours of service on an event", () => {
+    const message = teamEnquiryEmail(eventEnquiry(), recipients);
+    expect(message.text).toContain("Horas de serviço: Dia inteiro (até 8h)");
+    expect(message.text).not.toContain("Hora da cerimónia");
   });
 
   it("drops the experience row a quote never fills in", () => {
@@ -1092,12 +1121,14 @@ describe("teamEnquiryEmail", () => {
 
   it("says so plainly when a quote enquiry left the fields empty", () => {
     const message = teamEnquiryEmail(
-      weddingEnquiry({ venue: null, serviceHours: null, preferredCar: null }),
+      weddingEnquiry({ venue: null, ceremonyTime: null, preferredCar: null }),
       recipients,
     );
     expect(message.text).toContain("Local: —");
-    expect(message.text).toContain("Horas de serviço: —");
+    expect(message.text).toContain("Hora da cerimónia: —");
     expect(message.text).toContain("Carro preferido: —");
+    const event = teamEnquiryEmail(eventEnquiry({ serviceHours: null }), recipients);
+    expect(event.text).toContain("Horas de serviço: —");
   });
 
   it("drops the Pessoas row when the enquiry carries no head count", () => {

@@ -1,0 +1,1 @@
+ALTER TABLE "tour_requests" ADD COLUMN "ceremony_time" time;

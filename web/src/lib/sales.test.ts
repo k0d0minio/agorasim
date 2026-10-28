@@ -34,6 +34,7 @@ function tourRequest(overrides: Partial<TourRequest> = {}): TourRequest {
     message: "Somos dois.",
     venue: null,
     serviceHours: null,
+    ceremonyTime: null,
     preferredCar: null,
     status: "new",
     source: "website",
