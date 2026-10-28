@@ -27,7 +27,6 @@ type Dict = {
     highlights: string;
     complement: string;
     faq: string;
-    getInTouch: string;
     openMenu: string;
     closeMenu: string;
     switchLanguage: string;
