@@ -246,6 +246,13 @@
       "when": 1790852162622,
       "tag": "0034_quote_event_cancelled_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793191703229,
+      "tag": "0035_experience_attaches_to",
+      "breakpoints": true
     }
   ]
 }

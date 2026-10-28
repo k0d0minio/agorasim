@@ -21,6 +21,7 @@ import type { Experience } from "@/content/experiences";
 import type { PublicMonth } from "@/lib/availability";
 import { MAX_PARTY_ONLINE } from "@/lib/fleet";
 import {
+  addOnsFor,
   isPriced,
   maxAdultsOf,
   priceBooking,
@@ -361,8 +362,10 @@ export function BookingCheckoutForm({
 
   const tour = tours.find((entry) => entry.slug === basket.tour) ?? tours[0];
   const pricing = tour?.pricing?.type === "tour" ? tour.pricing : null;
-  const allowsAddOns = Boolean(pricing?.private?.allowsAddOns);
-  const addOnsOffered = allowsAddOns && complements.length > 0;
+  // Only the add-ons attached to this tour, and only where it sells private
+  // departures — the same rule the server prices by.
+  const tourAddOns = tour ? addOnsFor(complements, tour.slug) : [];
+  const addOnsOffered = Boolean(pricing?.private) && tourAddOns.length > 0;
   // The price list goes higher than the fleet can carry without a third
   // driver, so the smaller of the two wins: a tier nobody can be driven to is
   // not an offer.
@@ -434,7 +437,7 @@ export function BookingCheckoutForm({
     return null;
   };
 
-  const chosenAddOns = complements.filter(
+  const chosenAddOns = tourAddOns.filter(
     (entry) => addOns.includes(entry.slug) && mode === "private" && !addOnBlocked(entry),
   );
 
@@ -447,7 +450,11 @@ export function BookingCheckoutForm({
   const quote = tour
     ? priceBooking({
         tour: { slug: tour.slug, pricing: tour.pricing },
-        addOns: chosenAddOns.map((entry) => ({ slug: entry.slug, pricing: entry.pricing })),
+        addOns: chosenAddOns.map((entry) => ({
+          slug: entry.slug,
+          pricing: entry.pricing,
+          attachesTo: entry.attachesTo,
+        })),
         mode,
         party: { adults, children, infants },
         date: date ?? undefined,
@@ -821,7 +828,7 @@ export function BookingCheckoutForm({
             />
           </section>
 
-          {/* Add-ons — a private countryside privilege, and the form says so. */}
+          {/* Add-ons — a private-departure privilege, and the form says so. */}
           {addOnsOffered ? (
             <section aria-labelledby="bk-extras">
               <h2 id="bk-extras" className="text-xl font-semibold sm:text-2xl">
@@ -834,7 +841,7 @@ export function BookingCheckoutForm({
                 </p>
               ) : null}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {complements.map((entry) => {
+                {tourAddOns.map((entry) => {
                   const blocked = mode !== "private" ? "" : addOnBlocked(entry);
                   const usable = mode === "private" && !blocked;
                   const active = usable && addOns.includes(entry.slug);
@@ -864,7 +871,7 @@ export function BookingCheckoutForm({
                         <span className="mt-1 block text-sm font-medium">
                           +{price(perAdult)}{" "}
                           <span className="font-normal text-muted-foreground">
-                            {t(c.labels.perAdult, l)}
+                            {t(c.labels.perAdult, l)} · {t(entry.duration, l)}
                           </span>
                         </span>
                         {blocked ? (

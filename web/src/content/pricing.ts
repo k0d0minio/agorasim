@@ -115,10 +115,13 @@ export const pricingContent = {
     en: "Closed on Mondays.",
   } as Localized,
 
-  /** On an add-on's own page: what it is, and what it cannot be bought without. */
+  /**
+   * On an add-on's own page: what it is, and what it cannot be bought without.
+   * `{tours}` is every tour it joins, joined by {@link listOfTours}.
+   */
   addOnGatedNamed: {
-    pt: "Vende-se apenas como complemento de uma partida privada da {tour}, nunca à parte.",
-    en: "Sold only as an add-on to a private {tour} departure, never on its own.",
+    pt: "Vende-se apenas como complemento de uma partida privada ({tours}), nunca à parte.",
+    en: "Sold only as an add-on to a private departure ({tours}), never on its own.",
   } as Localized,
   addOnGated: {
     pt: "Vende-se apenas como complemento de uma partida privada, nunca à parte.",
@@ -141,6 +144,16 @@ export function fill(
     t(template, locale),
     Object.fromEntries(Object.entries(values).map(([key, value]) => [key, String(value)])),
   );
+}
+
+/**
+ * Tour names as one phrase: "Rural Saloia ou Óbidos e Aldeias Medievais". An
+ * "or", not an "and": an add-on joins one departure, of any of these tours.
+ */
+export function listOfTours(titles: string[], locale: Locale): string {
+  return new Intl.ListFormat(locale === "pt" ? "pt-PT" : "en", {
+    type: "disjunction",
+  }).format(titles);
 }
 
 /** How one tier's band of adults reads in a table row. */

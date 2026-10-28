@@ -711,6 +711,15 @@ export const experienceCatalogue = pgTable("experiences", {
    */
   pricing: jsonb("pricing").$type<ExperiencePricing>(),
 
+  /**
+   * On an add-on: the slugs of the tours it can join, as a private departure
+   * of each. Empty on a tour, and empty on an add-on nobody has attached yet —
+   * which the booking page reads as "not offered", never as "offered
+   * everywhere". Plain slugs, like `add_ons` on the bookings: a retired tour
+   * leaves its slug behind rather than a broken reference.
+   */
+  attachesTo: jsonb("attaches_to").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+
   /** Archived experiences keep their slug resolvable but leave the website. */
   active: boolean("active").notNull().default(true),
   /** Display order within a kind. Lower first. */

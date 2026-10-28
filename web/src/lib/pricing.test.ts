@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { experiences } from "@/content/experiences";
 import {
+  addOnsFor,
   fromPrice,
   isPriced,
   maxAdultsOf,
@@ -35,9 +36,16 @@ const obidos = {
   slug: "obidos-medieval-villages",
   pricing: pricingOf("obidos-medieval-villages"),
 };
-const galapito = { slug: "tasco-galapito", pricing: pricingOf("tasco-galapito") };
-const manzwine = { slug: "manzwine", pricing: pricingOf("manzwine") };
-const ramilo = { slug: "ramilo-wines", pricing: pricingOf("ramilo-wines") };
+/** An add-on as the catalogue hands it over: its price list and its tours. */
+function addOn(slug: string) {
+  const entry = experiences.find((e) => e.slug === slug);
+  if (!entry) throw new Error(`no shipped entry for "${slug}"`);
+  return { slug, pricing: entry.pricing ?? null, attachesTo: entry.attachesTo ?? [] };
+}
+
+const galapito = addOn("tasco-galapito");
+const manzwine = addOn("manzwine");
+const ramilo = addOn("ramilo-wines");
 
 const party = (adults: number, children = 0, infants = 0): PartyCount => ({
   adults,
@@ -166,14 +174,112 @@ describe("Óbidos & medieval villages", () => {
     ).toMatchObject({ ok: true, totalCents: 44000 });
   });
 
-  it("has no add-ons — every partner stop is on the Saloia route", () => {
-    const result = priceBooking({
-      tour: obidos,
-      addOns: [galapito],
-      mode: "private",
-      party: party(2),
-    });
-    expect(result).toMatchObject({ ok: false, reason: "addons-not-allowed" });
+  it("takes the add-ons attached to it on a private departure", () => {
+    // Group 360 + the table: two adults at 60.
+    expect(
+      priceBooking({
+        tour: obidos,
+        addOns: [galapito],
+        mode: "private",
+        party: party(2),
+        date: A_TUESDAY,
+      }),
+    ).toMatchObject({ ok: true, totalCents: 36000 + 2 * 6000 });
+
+    // Per adult from four, plus Ramilo at 45 for each of the four.
+    expect(
+      priceBooking({
+        tour: obidos,
+        addOns: [ramilo],
+        mode: "private",
+        party: party(4),
+        date: A_TUESDAY,
+      }),
+    ).toMatchObject({ ok: true, totalCents: 4 * 11000 + 4 * 4500 });
+  });
+
+  it("still refuses add-ons on a public departure", () => {
+    expect(
+      priceBooking({
+        tour: obidos,
+        addOns: [galapito],
+        mode: "public",
+        party: party(2),
+        date: A_TUESDAY,
+      }),
+    ).toMatchObject({ ok: false, reason: "addons-not-allowed" });
+  });
+
+  it("keeps Manzwine shut on Mondays", () => {
+    expect(
+      priceBooking({
+        tour: obidos,
+        addOns: [manzwine],
+        mode: "private",
+        party: party(2),
+        date: A_MONDAY,
+      }),
+    ).toMatchObject({ ok: false, reason: "addon-closed-day", slug: "manzwine" });
+  });
+});
+
+describe("which tours an add-on joins", () => {
+  it("refuses an add-on that does not name the chosen tour", () => {
+    const countrysideOnly = { ...galapito, attachesTo: ["rural-saloia"] };
+    expect(
+      priceBooking({
+        tour: obidos,
+        addOns: [countrysideOnly],
+        mode: "private",
+        party: party(2),
+        date: A_TUESDAY,
+      }),
+    ).toMatchObject({ ok: false, reason: "addons-not-allowed" });
+  });
+
+  it("refuses an add-on attached to no tour, whatever the tour's own flag says", () => {
+    // Rural Saloia's stored price list still carries `allowsAddOns: true`.
+    expect(
+      priceBooking({
+        tour: countryside,
+        addOns: [{ slug: "tasco-galapito", pricing: galapito.pricing }],
+        mode: "private",
+        party: party(2),
+        date: A_TUESDAY,
+      }),
+    ).toMatchObject({ ok: false, reason: "addons-not-allowed" });
+  });
+
+  it("refuses the whole basket when one add-on of several does not fit", () => {
+    expect(
+      priceBooking({
+        tour: obidos,
+        addOns: [galapito, { ...ramilo, attachesTo: ["rural-saloia"] }],
+        mode: "private",
+        party: party(3),
+        date: A_TUESDAY,
+      }),
+    ).toMatchObject({ ok: false, reason: "addons-not-allowed" });
+  });
+
+  it("lists an add-on under each tour it names, and under no other", () => {
+    const countrysideOnly = { ...ramilo, attachesTo: ["rural-saloia"] };
+    const detached = { ...manzwine, attachesTo: [] };
+    const all = [galapito, countrysideOnly, detached];
+
+    expect(addOnsFor(all, "rural-saloia").map((a) => a.slug)).toEqual([
+      "tasco-galapito",
+      "ramilo-wines",
+    ]);
+    expect(addOnsFor(all, "obidos-medieval-villages").map((a) => a.slug)).toEqual([
+      "tasco-galapito",
+    ]);
+  });
+
+  it("ships all three partner stops on both tours", () => {
+    for (const stop of [galapito, manzwine, ramilo]) {
+      expect(stop.attachesTo).toEqual(["rural-saloia", "obidos-medieval-villages"]);
+    }
   });
 });
 

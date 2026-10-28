@@ -5,6 +5,7 @@ import { priceInputValue } from "@/lib/money";
 import { describePricing, parseExperiencePricing } from "@/lib/pricing";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
+import { attachesToOf, listCatalogue } from "@/lib/experience-catalogue";
 import { FALLBACK_EXPERIENCE_ICON, isExperienceIconKey } from "@/lib/experience-icons";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { DeleteExperienceDialog } from "@/components/admin/experience-row-actions";
@@ -60,7 +61,14 @@ export default async function EditExperiencePage({
       en: row.highlights.en.join("\n"),
     },
     faqs: row.faqs,
+    attachesTo: attachesToOf(row),
   };
+
+  // Every tour, archived included: an add-on attached to a hidden tour shows
+  // the tick it has rather than losing it on the next save.
+  const tours = (await listCatalogue())
+    .filter((entry) => entry.kind === "signature")
+    .map((entry) => ({ slug: entry.slug, title: t(entry.title, "pt") }));
 
   return (
     <AdminShell>
@@ -71,6 +79,7 @@ export default async function EditExperiencePage({
           edit screen down with it. */}
       <ExperienceForm
         values={values}
+        tours={tours}
         pricingSummary={describePricing(parseExperiencePricing(row.pricing))}
       />
 

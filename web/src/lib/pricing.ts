@@ -9,8 +9,8 @@
  *   free.
  * - **Private** departures are the whole car(s): a flat group price looked up
  *   by adult count — with, on Óbidos, a per-adult rate above three — plus a
- *   per-child amount on top. Add-ons exist only here, and only on the
- *   countryside tour: the wine stops charge per adult and carry partner
+ *   per-child amount on top. Add-ons exist only here, and only on the tours
+ *   each add-on names: the wine stops charge per adult and carry partner
  *   minimums, the Galapito table charges adults and children differently.
  *
  * This module is that whole offer as one data shape ({@link ExperiencePricing},
@@ -82,18 +82,19 @@ export type TourPricing = {
   public?: TourModePricing;
   private?: TourModePricing & {
     /**
-     * Whether add-ons may be attached. True only for the countryside tour:
-     * every add-on is a stop on that route, and none of the partners are on
-     * the road to Óbidos.
+     * Superseded: each add-on now names the tours it joins (`attachesTo` on
+     * the catalogue entry), and {@link priceBooking} reads that instead. Still
+     * parsed, because stored price lists carry it and a build that still
+     * reads it can serve while the column that replaces it is migrated in.
      */
     allowsAddOns?: boolean;
   };
 };
 
 /**
- * An add-on stop. Sold only with a **private** tour that
- * {@link TourPricing.private allowsAddOns} — the partners host one group at a
- * time, which is what makes the stop schedulable at all.
+ * An add-on stop. Sold only with a **private** departure of a tour the add-on
+ * names in its `attachesTo` — the partners host one group at a time, which is
+ * what makes the stop schedulable at all.
  */
 export type AddOnPricing = {
   type: "addon";
@@ -186,7 +187,12 @@ function tierFor(tiers: AdultTier[], adults: number): AdultTier | undefined {
  */
 export function priceBooking(options: {
   tour: { slug: string; pricing: ExperiencePricing | null | undefined };
-  addOns: { slug: string; pricing: ExperiencePricing | null | undefined }[];
+  addOns: {
+    slug: string;
+    pricing: ExperiencePricing | null | undefined;
+    /** The tours this add-on joins. Absent or empty joins none. */
+    attachesTo?: readonly string[];
+  }[];
   mode: BookingMode;
   party: PartyCount;
   date?: string;
@@ -232,7 +238,9 @@ export function priceBooking(options: {
   }
 
   if (addOns.length > 0) {
-    if (mode !== "private" || !tour.pricing.private?.allowsAddOns) {
+    // Every add-on must name this tour: Galapito on Óbidos only because
+    // Diogo attached it there, never because some other add-on was.
+    if (mode !== "private" || !addOns.every((addOn) => addOn.attachesTo?.includes(tour.slug))) {
       return { ok: false, reason: "addons-not-allowed" };
     }
 
@@ -409,6 +417,18 @@ function parseAddOnPricing(value: Record<string, unknown>): AddOnPricing | null 
 // ---------------------------------------------------------------------------
 // Display helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * The add-ons that join one tour, in the order given — the same rule
+ * {@link priceBooking} prices by, so a page never offers a stop the checkout
+ * would refuse.
+ */
+export function addOnsFor<T extends { attachesTo?: readonly string[] }>(
+  addOns: T[],
+  tourSlug: string,
+): T[] {
+  return addOns.filter((addOn) => addOn.attachesTo?.includes(tourSlug));
+}
 
 /**
  * The "from €—" figure a card shows: the cheapest per-adult rate the

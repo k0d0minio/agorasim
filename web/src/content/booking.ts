@@ -116,8 +116,8 @@ export const bookingContent = {
 
     addOns: { pt: "Complete o seu dia", en: "Complete your day" } as Localized,
     addOnsHint: {
-      pt: "Paragens extra de sabores da região — disponíveis nas partidas por grupo da Rural Saloia.",
-      en: "Extra stops for regional flavours — available on per-group Rural Saloia departures.",
+      pt: "Paragens extra de sabores da região — disponíveis nas partidas por grupo deste passeio.",
+      en: "Extra stops for regional flavours — available on per-group departures of this tour.",
     } as Localized,
     addOnsPublicNote: {
       pt: "Os complementos juntam-se apenas ao preço por grupo — mude para \"Preço por grupo\" para os adicionar.",
