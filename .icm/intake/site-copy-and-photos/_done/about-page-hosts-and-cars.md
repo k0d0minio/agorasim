@@ -21,9 +21,8 @@ photo, the model, the year and the one-sentence story the site already holds.
 
 ## Acceptance criteria
 
-- [ ] `/sobre` shows a hosts section with a photo of Diogo and Rita and a short text, in PT and EN.
 - [ ] `/sobre` shows a cars section with four tiles: photo, model, year, story, from `classicCars` in `web/src/content/site.ts`.
-- [ ] The car photos come from the committed files under `public/images/fleet/`.
+- [ ] The car photos come from the committed files under `web/public/images/fleet/`.
 - [ ] Every image has an alt text in PT and EN.
 - [ ] The page holds at 320 px width and no photo is cropped through a face.
 
@@ -39,3 +38,4 @@ photo, the model, the year and the one-sentence story the site already holds.
   2. The hosts text. Default: the two paragraphs already on the page, under the new heading.
 - Ten photos under `public/images/fleet/` are referenced nowhere: `citroen-2cv-agorasim-lettering`, `citroen-2cv-country-road-backlit`, `citroen-2cv-country-road-rear`, `fiat-600-countryside`, `renault-4-and-fiat-600-village-square`, `renault-4-bougainvillea-lane`, `renault-4-village-house`, `vw-t3-van-and-2cv-vineyard-road`, `vw-t3-van-doors-open`, `vw-t3-van-front`.
 - Files: `web/src/app/[locale]/sobre/page.tsx`, `web/src/content/pages.ts` lines 58 to 86, `web/src/content/site.ts` lines 65 to 106.
+- Jamie, 2026-10-28: the defaults hold. The cars section ships here. The hosts section moves to `triage/about-page-hosts-photo`, with its acceptance criterion. Each tile shows the car's name.
