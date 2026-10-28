@@ -39,6 +39,15 @@ export const home = {
     pt: "Comece pelo passeio Rural Saloia e complemente-o com uma refeição de família ou provas de vinho.",
     en: "Start with the Rural Saloia tour and complement it with a family meal or wine tastings.",
   } as Localized,
+  // The add-ons section reads as `/experiencias` does; its eyebrow is `labels.complement`.
+  addOnsTitle: {
+    pt: "Extras à sua medida",
+    en: "Add-ons to make it yours",
+  } as Localized,
+  addOnsIntro: {
+    pt: "Adicione um almoço, uma degustação ou uma visita ao seu passeio.",
+    en: "Add a lunch, a tasting, or a visit to your tour.",
+  } as Localized,
 } as const;
 
 /** Experiences page copy. */
