@@ -82,7 +82,9 @@ export function ExperiencePrices({
             {pricing.private ? (
               <ModePricing
                 mode={pricing.private}
-                title={t(copy.perGroupTitle, locale)}
+                title={fill(copy.perGroupTitle, locale, {
+                  price: formatPrice(privateMinimum(pricing.private), locale),
+                })}
                 hint={t(copy.perGroupHint, locale)}
                 caption={fill(copy.captionPerGroup, locale, { experience: name })}
                 locale={locale}
@@ -151,6 +153,17 @@ function leadFor(experience: Experience, locale: Locale): string {
     );
   }
   return sentences.join(" ");
+}
+
+/**
+ * The least a private group pays: the cheapest tier for its smallest party.
+ * A per-adult tier counts at its own minimum of adults, so the figure is one a
+ * group can really book (220 € on Rural Saloia, 360 € on Óbidos).
+ */
+function privateMinimum(mode: TourModePricing): number {
+  return Math.min(
+    ...mode.tiers.map((tier) => tier.groupCents ?? (tier.perAdultCents ?? 0) * tier.minAdults),
+  );
 }
 
 /** One mode's table: its tiers, then the two age bands that apply to all of them. */

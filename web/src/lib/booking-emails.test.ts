@@ -54,7 +54,7 @@ function facts(overrides: Partial<BookingEmailFacts> = {}): BookingEmailFacts {
     guestPhone: "+351912345678",
     locale: "pt",
     date: "sábado, 15 de agosto de 2026",
-    experience: "Rural Saloia — por grupo",
+    experience: "Rural Saloia — grupo privado",
     departure: "Manhã · 10h00",
     departureTimeFollows: false,
     meetingPoint: {
@@ -299,7 +299,7 @@ function cancelled(
     guestEmail: "sofia@example.com",
     locale: "pt",
     date: "sábado, 15 de agosto de 2026",
-    experience: "Rural Saloia — por grupo",
+    experience: "Rural Saloia — grupo privado",
     partyLabel: "2 adultos",
     total: "€340",
     refund: "€340",
@@ -413,7 +413,7 @@ function reminder(overrides: Partial<ReminderEmailFacts> = {}): ReminderEmailFac
 /** The same guest on Óbidos, whose departures still have no clock time. */
 function obidos(overrides: Partial<ReminderEmailFacts> = {}): ReminderEmailFacts {
   return reminder({
-    experience: "Óbidos & Aldeias Medievais — por pessoa",
+    experience: "Óbidos & Aldeias Medievais — grupo aberto",
     departure: "Partida da manhã — hora exata confirmada por email",
     departureTimeFollows: true,
     meetingPoint: OBIDOS_PIN,
@@ -882,7 +882,7 @@ function guestCancelled(
     guestPhone: "+351912345678",
     locale: "pt",
     date: "sábado, 15 de agosto de 2026",
-    experience: "Rural Saloia — por grupo",
+    experience: "Rural Saloia — grupo privado",
     departure: "Manhã · 10h00",
     partyLabel: "2 adultos",
     total: "€340",

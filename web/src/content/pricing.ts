@@ -11,11 +11,11 @@ import { fromPrice, type AdultTier, type ExperiencePricing } from "@/lib/pricing
  * price the site quotes and a price Stripe takes cannot drift apart. This file
  * is only the words around them.
  *
- * The two modes are named as the booking form names them — "per person" and
- * "per group", not "shared" and "private". Since AGORA-012 nobody is put in a
- * car with strangers, so the difference a guest is choosing between really is
- * how the price is counted, and the page has to say the same thing the form
- * does.
+ * The two modes are named as the booking form names them — "Grupo aberto" and
+ * "Grupo privado". An open group is priced per person and shares the car with
+ * other guests on the same departure; a private group pays one figure and the
+ * car is theirs alone (`lib/fleet.ts`). The page has to say the same thing the
+ * form and the engine do.
  */
 export const pricingContent = {
   heading: { pt: "Preços", en: "Prices" } as Localized,
@@ -31,22 +31,26 @@ export const pricingContent = {
   } as Localized,
   leadPerGroup: {
     pt: "Grupo privado desde {price}.",
-    en: "Private group from {price}.",
+    en: "Private group tour from {price}.",
   } as Localized,
   leadChildren: {
     pt: "Crianças dos 4 aos 12 anos desde {price}; bebés com menos de 4 anos não pagam.",
     en: "Children aged 4–12 from {price}; infants under 4 go free.",
   } as Localized,
 
-  perPersonTitle: { pt: "Preço por pessoa", en: "Per person" } as Localized,
+  perPersonTitle: { pt: "Grupo aberto", en: "Open group tour" } as Localized,
   perPersonHint: {
-    pt: "Paga-se por pessoa. O carro é sempre só do vosso grupo.",
-    en: "Priced per person. The car is still yours alone.",
+    pt: "Paga-se por pessoa. Outras pessoas podem juntar-se ao mesmo carro.",
+    en: "Priced per person. Other guests can join the same car.",
   } as Localized,
-  perGroupTitle: { pt: "Preço por grupo", en: "Per group" } as Localized,
+  /** `{price}` is the cheapest private tier, the minimum a private group pays. */
+  perGroupTitle: {
+    pt: "Grupo privado desde {price}",
+    en: "Private group tour from {price}",
+  } as Localized,
   perGroupHint: {
-    pt: "Um valor único para o grupo — e é aqui que os complementos entram.",
-    en: "One figure for the whole group — and where the add-ons come in.",
+    pt: "Um valor único para o grupo. O carro é só vosso, e é aqui que os complementos entram.",
+    en: "One price for the whole group. The car is yours alone, and this is where the add-ons come in.",
   } as Localized,
 
   /** Column headings, and the caption a screen reader hears instead of them. */

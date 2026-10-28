@@ -62,7 +62,7 @@ export type BookingEmailFacts = {
   locale: Locale;
   /** "Saturday, 15 August 2026" — already in the guest's language. */
   date: string;
-  /** "Rural Saloia — por grupo" — name plus how it was sold. */
+  /** "Rural Saloia — grupo privado" — name plus how it was sold. */
   experience: string;
   /** "Manhã · 10h00" — the departure, in the guest's language. */
   departure: string;
