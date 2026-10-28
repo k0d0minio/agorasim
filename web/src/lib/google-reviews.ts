@@ -15,10 +15,16 @@
  * **Caching.** The fetch revalidates on the same hourly window as the
  * experience pages, so one page render costs at most one billed call per hour.
  *
- * **What Google returns.** At most five reviews, in Google's "most relevant"
- * order: Places API (New) has no "newest" sort. The page sorts the five newest
- * first and says so. Each review keeps the guest's own words (`originalText`),
- * not Google's translation, so the same five read the same on both locales.
+ * **What Google returns.** The average rating, the count of ratings, and at
+ * most five reviews, in Google's "most relevant" order: Places API (New) has
+ * no "newest" sort. The page sorts the five newest first and says so. Each
+ * review keeps the guest's own words (`originalText`), not Google's
+ * translation, so the same five read the same on both locales.
+ *
+ * **No review text is normal for Agorasim.** The listing is a service-area
+ * business (no public address), and Google returns the rating and the count
+ * for it but no review text. The page then keeps its static quotes and still
+ * shows the rating, linked to Google Maps.
  */
 import "server-only";
 
@@ -38,6 +44,17 @@ export type GoogleReview = {
   publishedAt: string;
 };
 
+/** What the page shows from Google: the rating summary and any review text. */
+export type GooglePlaceReviews = {
+  /** The average rating, 1 to 5, or null when Google gives none. */
+  rating: number | null;
+  /** How many ratings the average is over; 0 when Google gives none. */
+  ratingCount: number;
+  reviews: GoogleReview[];
+};
+
+const NONE: GooglePlaceReviews = { rating: null, ratingCount: 0, reviews: [] };
+
 const PLACES_ENDPOINT = "https://places.googleapis.com/v1/places";
 /** Matches the experience pages' `revalidate`. */
 const REVALIDATE_SECONDS = 3600;
@@ -52,24 +69,32 @@ export function googleMapsPlaceUrl(placeId: string = site.reviews.placeId): stri
 }
 
 /**
- * Read the reviews of the business. Empty when unconfigured or on any failure.
+ * Read the rating and the reviews of the business. Nothing when unconfigured or
+ * on any failure.
  *
  * The key travels in a header, never in the URL, so a logged URL never carries
  * it. The Place ID is a parameter for the tests; the page uses the one in
  * `content/site.ts`.
  */
-export async function getGoogleReviews(
+export async function getGooglePlaceReviews(
   placeId: string = site.reviews.placeId,
-): Promise<GoogleReview[]> {
+): Promise<GooglePlaceReviews> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY?.trim();
-  if (!apiKey || !placeId) return [];
+  if (!apiKey) {
+    logOnce("no-key", "GOOGLE_PLACES_API_KEY is not set: the pages show the static testimonials");
+    return NONE;
+  }
+  if (!placeId) {
+    logOnce("no-place", "site.reviews.placeId is empty: the pages show the static testimonials");
+    return NONE;
+  }
 
   try {
     const response = await fetch(`${PLACES_ENDPOINT}/${encodeURIComponent(placeId)}`, {
       headers: {
         "X-Goog-Api-Key": apiKey,
-        // Only the reviews: the field mask sets the billed SKU as well as the payload.
-        "X-Goog-FieldMask": "reviews",
+        // Only these fields: the field mask sets the billed SKU as well as the payload.
+        "X-Goog-FieldMask": "rating,userRatingCount,reviews",
       },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       next: { revalidate: REVALIDATE_SECONDS },
@@ -88,10 +113,19 @@ export async function getGoogleReviews(
         tags: { reason: "refused", status: String(response.status) },
         level: "warning",
       });
-      return [];
+      return NONE;
     }
 
-    return parsePlaceReviews(await response.json());
+    const body: unknown = await response.json();
+    const result = { ...parseRatingSummary(body), reviews: parsePlaceReviews(body) };
+    if (result.reviews.length === 0) {
+      logOnce(
+        "no-text",
+        `Google returned no review text (${result.ratingCount} ratings): ` +
+          "the pages show the static testimonials and the rating",
+      );
+    }
+    return result;
   } catch (err) {
     console.error("[reviews] the Google reviews read failed", err);
     captureError(err, {
@@ -99,8 +133,43 @@ export async function getGoogleReviews(
       tags: { reason: err instanceof Error && err.name === "TimeoutError" ? "timeout" : "network" },
       level: "warning",
     });
-    return [];
+    return NONE;
   }
+}
+
+/**
+ * Each silent fallback says so once per server process. A build renders every
+ * experience page through this, and one line per page would bury the rest of
+ * the build log. `resetReviewLogs` clears it for the tests.
+ */
+const logged = new Set<string>();
+
+function logOnce(reason: string, message: string): void {
+  if (logged.has(reason)) return;
+  logged.add(reason);
+  console.info(`[reviews] ${message}`);
+}
+
+/** For the tests: forget which fallbacks have been logged. */
+export function resetReviewLogs(): void {
+  logged.clear();
+}
+
+/**
+ * The rating and the count, from a Place Details body. A rating outside 1–5 or
+ * a count of 0 is no rating: the page then shows no number.
+ */
+export function parseRatingSummary(body: unknown): Pick<GooglePlaceReviews, "rating" | "ratingCount"> {
+  const place = (body ?? {}) as { rating?: unknown; userRatingCount?: unknown };
+  const count =
+    typeof place.userRatingCount === "number" && place.userRatingCount > 0
+      ? Math.floor(place.userRatingCount)
+      : 0;
+  const rating =
+    typeof place.rating === "number" && place.rating >= 1 && place.rating <= 5 && count > 0
+      ? place.rating
+      : null;
+  return { rating, ratingCount: rating === null ? 0 : count };
 }
 
 type LocalizedText = { text?: unknown };

@@ -1,13 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { captureAlert, captureError } from "@/lib/observability";
-import { getGoogleReviews, googleMapsPlaceUrl, parsePlaceReviews } from "@/lib/google-reviews";
+import {
+  getGooglePlaceReviews,
+  googleMapsPlaceUrl,
+  parsePlaceReviews,
+  parseRatingSummary,
+  resetReviewLogs,
+} from "@/lib/google-reviews";
 
 /**
  * The experience pages show Google reviews only when this read succeeds, and
  * their static testimonials otherwise. So the contract worth pinning is the
- * fallback — every failure is an empty list, never a throw — and the request:
- * the key travels in a header and the field mask asks for the reviews only.
+ * fallback — every failure is "nothing", never a throw, and each silent one
+ * logs one line — and the request: the key travels in a header and the field
+ * mask asks for the rating, the count and the reviews only.
  */
 
 vi.mock("@/lib/observability", () => ({
@@ -16,6 +23,7 @@ vi.mock("@/lib/observability", () => ({
 }));
 
 const PLACE_ID = "ChIJ_test_place";
+const NONE = { rating: null, ratingCount: 0, reviews: [] };
 const fetchMock = vi.fn<typeof fetch>();
 
 function review(overrides: Record<string, unknown> = {}) {
@@ -40,12 +48,19 @@ function reply(body: unknown, status = 200): Response {
   });
 }
 
+/** The `[reviews]` lines logged so far. */
+function infoLines(): string[] {
+  return vi.mocked(console.info).mock.calls.map((call) => String(call[0]));
+}
+
 beforeEach(() => {
   vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-places-key");
   fetchMock.mockReset();
   fetchMock.mockResolvedValue(reply({ reviews: [review()] }));
   vi.stubGlobal("fetch", fetchMock);
   vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "info").mockImplementation(() => {});
+  resetReviewLogs();
   vi.mocked(captureAlert).mockClear();
   vi.mocked(captureError).mockClear();
 });
@@ -116,45 +131,77 @@ describe("parsePlaceReviews", () => {
   });
 });
 
-describe("getGoogleReviews", () => {
-  it("asks Places API (New) for the reviews only, with the key in a header", async () => {
-    const reviews = await getGoogleReviews(PLACE_ID);
+describe("getGooglePlaceReviews", () => {
+  it("asks Places API (New) for the rating, the count and the reviews, with the key in a header", async () => {
+    fetchMock.mockResolvedValue(reply({ rating: 4.9, userRatingCount: 71, reviews: [review()] }));
 
-    expect(reviews).toHaveLength(1);
+    const result = await getGooglePlaceReviews(PLACE_ID);
+
+    expect(result.rating).toBe(4.9);
+    expect(result.ratingCount).toBe(71);
+    expect(result.reviews).toHaveLength(1);
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).toBe(`https://places.googleapis.com/v1/places/${PLACE_ID}`);
     expect(String(url)).not.toContain("test-places-key");
     const headers = init?.headers as Record<string, string>;
     expect(headers["X-Goog-Api-Key"]).toBe("test-places-key");
-    expect(headers["X-Goog-FieldMask"]).toBe("reviews");
+    expect(headers["X-Goog-FieldMask"]).toBe("rating,userRatingCount,reviews");
   });
 
-  it("makes no call without a key", async () => {
+  it("keeps the rating when Google gives no review text, and logs it once", async () => {
+    fetchMock.mockImplementation(async () => reply({ rating: 5, userRatingCount: 71 }));
+
+    expect(await getGooglePlaceReviews(PLACE_ID)).toEqual({
+      rating: 5,
+      ratingCount: 71,
+      reviews: [],
+    });
+    await getGooglePlaceReviews(PLACE_ID);
+    expect(infoLines()).toEqual([expect.stringContaining("no review text (71 ratings)")]);
+  });
+
+  it("makes no call without a key, and logs it once", async () => {
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "");
-    expect(await getGoogleReviews(PLACE_ID)).toEqual([]);
+    expect(await getGooglePlaceReviews(PLACE_ID)).toEqual(NONE);
+    await getGooglePlaceReviews(PLACE_ID);
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(infoLines()).toEqual([expect.stringContaining("GOOGLE_PLACES_API_KEY is not set")]);
   });
 
-  it("makes no call without a Place ID", async () => {
-    expect(await getGoogleReviews("")).toEqual([]);
+  it("makes no call without a Place ID, and logs it once", async () => {
+    expect(await getGooglePlaceReviews("")).toEqual(NONE);
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(infoLines()).toEqual([expect.stringContaining("placeId is empty")]);
   });
 
-  it("returns none and raises an alert when Google refuses", async () => {
+  it("returns nothing and raises an alert when Google refuses", async () => {
     fetchMock.mockResolvedValue(reply({ error: { status: "PERMISSION_DENIED" } }, 403));
-    expect(await getGoogleReviews(PLACE_ID)).toEqual([]);
+    expect(await getGooglePlaceReviews(PLACE_ID)).toEqual(NONE);
     expect(captureAlert).toHaveBeenCalledOnce();
   });
 
-  it("returns none and reports the error when the call fails", async () => {
+  it("returns nothing and reports the error when the call fails", async () => {
     fetchMock.mockRejectedValue(new TypeError("fetch failed"));
-    expect(await getGoogleReviews(PLACE_ID)).toEqual([]);
+    expect(await getGooglePlaceReviews(PLACE_ID)).toEqual(NONE);
     expect(captureError).toHaveBeenCalledOnce();
   });
+});
 
-  it("returns none when Google has no reviews", async () => {
-    fetchMock.mockResolvedValue(reply({}));
-    expect(await getGoogleReviews(PLACE_ID)).toEqual([]);
+describe("parseRatingSummary", () => {
+  it("reads the rating and the count", () => {
+    expect(parseRatingSummary({ rating: 4.8, userRatingCount: 12 })).toEqual({
+      rating: 4.8,
+      ratingCount: 12,
+    });
+  });
+
+  it("gives no rating for a count of 0, a missing count or a rating out of range", () => {
+    const none = { rating: null, ratingCount: 0 };
+    expect(parseRatingSummary({ rating: 5, userRatingCount: 0 })).toEqual(none);
+    expect(parseRatingSummary({ rating: 5 })).toEqual(none);
+    expect(parseRatingSummary({ rating: 0, userRatingCount: 3 })).toEqual(none);
+    expect(parseRatingSummary({ rating: 7, userRatingCount: 3 })).toEqual(none);
+    expect(parseRatingSummary(null)).toEqual(none);
   });
 });
 
