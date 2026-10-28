@@ -289,6 +289,8 @@ export type ManualBookingActionState = {
   ok?: boolean;
   error?: string;
   message?: string;
+  /** The booking landed, but something still needs the operator: the sheet says it. */
+  warning?: string;
   fieldErrors?: Partial<Record<ManualBookingField, string>>;
 };
 
@@ -698,13 +700,16 @@ export async function createManualBooking(
     // No revalidation: the booking holds no car, so the public calendar has
     // nothing new to show.
     const sent = await sendPaymentLink({ bookingId, actorUserId: actor.id, resend: false });
-    return {
-      ok: true,
-      message:
-        sent.status === "sent"
-          ? "Link de pagamento enviado. A reserva fica confirmada quando o cliente pagar."
-          : "Reserva registada, mas o email com o link não saiu. Use «Reenviar link» no pedido.",
-    };
+    return sent.status === "sent"
+      ? {
+          ok: true,
+          message: "Link de pagamento enviado. A reserva fica confirmada quando o cliente pagar.",
+        }
+      : {
+          ok: true,
+          warning:
+            "A reserva ficou registada, mas o email com o link não saiu. Use «Reenviar link» nas Reservas do pedido.",
+        };
   }
 
   revalidatePublicSite();

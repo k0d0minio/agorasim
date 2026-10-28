@@ -345,12 +345,13 @@ function ManualBookingForm({
   // Closing on success is derived, as everywhere in this admin: once `ok`
   // lands the booking exists and the sheet has nothing left to say — refresh
   // the calendar behind it (`onDone`) and turn the dialog off (`onClose`,
-  // which unmounts this very form).
+  // which unmounts this very form). A booking that landed with a warning (the
+  // link email did not go) stays open to say so.
   useEffect(() => {
     if (!state.ok) return;
     onDone();
-    onClose();
-  }, [state.ok, onDone, onClose]);
+    if (!state.warning) onClose();
+  }, [state.ok, state.warning, onDone, onClose]);
 
   const errors = state.fieldErrors ?? {};
 
@@ -368,6 +369,29 @@ function ManualBookingForm({
   // action would otherwise have to refuse with an error nobody asked for — a
   // day picked with no departure yet, and a calendar with nothing open at all.
   const armed = Boolean(date && slot);
+
+  if (state.ok && state.warning) {
+    return (
+      <Dialog
+        open
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reserva registada</DialogTitle>
+            <DialogDescription role="alert">{state.warning}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" onClick={onClose}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog

@@ -489,6 +489,18 @@ describe("createManualBooking with a payment link", () => {
     ).toMatchObject({ paymentMethod: "link" });
   });
 
+  it("keeps the booking and warns when the link email did not go", async () => {
+    await signIn();
+    queueBoardSale();
+    sendPaymentLink.mockResolvedValueOnce({ status: "email-failed" } as never);
+
+    const state = await createManualBooking({}, sale({ leadId: LEAD_ID, payment: "link" }));
+
+    // Not an error: the booking exists, and a second submit would make another.
+    expect(state.ok).toBe(true);
+    expect(state.warning).toMatch(/Reenviar link/);
+  });
+
   it("refuses a link from the Calendar, where no enquiry stands behind it", async () => {
     await signIn();
 
