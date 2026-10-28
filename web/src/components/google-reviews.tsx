@@ -2,7 +2,11 @@ import { Star } from "lucide-react";
 import { Section, SectionHeading } from "@/components/section";
 import { t, type Locale } from "@/i18n/config";
 import { googleReviewsCopy } from "@/content/testimonials";
-import { googleMapsPlaceUrl, type GoogleReview } from "@/lib/google-reviews";
+import {
+  googleMapsPlaceUrl,
+  type GooglePlaceReviews,
+  type GoogleReview,
+} from "@/lib/google-reviews";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,10 +20,12 @@ import { cn } from "@/lib/utils";
 export function GoogleReviews({
   locale,
   reviews,
+  rating,
   muted = false,
 }: {
   locale: Locale;
   reviews: readonly GoogleReview[];
+  rating: Pick<GooglePlaceReviews, "rating" | "ratingCount">;
   muted?: boolean;
 }) {
   if (reviews.length === 0) return null;
@@ -83,16 +89,61 @@ export function GoogleReviews({
           </li>
         ))}
       </ul>
-      <p className="mt-8 text-sm">
-        <a
-          href={googleMapsPlaceUrl()}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-medium text-primary hover:underline"
-        >
-          {t(googleReviewsCopy.more, locale)}
-        </a>
-      </p>
+      <GoogleRatingLink locale={locale} summary={rating} className="mt-8" />
     </Section>
+  );
+}
+
+/**
+ * One link to the business on Google Maps. With a rating it reads
+ * "★★★★★ 5,0 · 71 avaliações no Google"; without one it reads "Ver todas as
+ * avaliações no Google Maps". Visible text only: the rating is Google's own
+ * average, shown as Google's, and no `AggregateRating` JSON-LD carries it.
+ */
+export function GoogleRatingLink({
+  locale,
+  summary,
+  className,
+}: {
+  locale: Locale;
+  summary: Pick<GooglePlaceReviews, "rating" | "ratingCount">;
+  className?: string;
+}) {
+  const tag = locale === "pt" ? "pt-PT" : "en-GB";
+  const label =
+    summary.rating === null
+      ? t(googleReviewsCopy.more, locale)
+      : t(googleReviewsCopy.rating[summary.ratingCount === 1 ? "one" : "other"], locale)
+          .replace(
+            "{rating}",
+            new Intl.NumberFormat(tag, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(
+              summary.rating,
+            ),
+          )
+          .replace("{count}", new Intl.NumberFormat(tag).format(summary.ratingCount));
+  return (
+    <p className={cn("text-sm", className)}>
+      <a
+        href={googleMapsPlaceUrl()}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex flex-wrap items-center gap-2 font-medium text-primary hover:underline"
+      >
+        {summary.rating !== null && (
+          <span className="flex gap-0.5" aria-hidden>
+            {Array.from({ length: 5 }, (_, i) => (
+              <Star
+                key={i}
+                className={cn(
+                  "h-4 w-4",
+                  i < Math.round(summary.rating ?? 0) ? "fill-current" : "opacity-30",
+                )}
+              />
+            ))}
+          </span>
+        )}
+        {label}
+      </a>
+    </p>
   );
 }

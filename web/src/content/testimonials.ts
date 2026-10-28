@@ -118,6 +118,14 @@ export const googleReviewsCopy = {
     pt: "Ver todas as avaliações no Google Maps",
     en: "See all reviews on Google Maps",
   } as Localized,
+  /**
+   * The rating link. `{rating}` is the average with one decimal and `{count}`
+   * the number of ratings, both in the reader's number format.
+   */
+  rating: {
+    one: { pt: "{rating} · {count} avaliação no Google", en: "{rating} · {count} Google review" },
+    other: { pt: "{rating} · {count} avaliações no Google", en: "{rating} · {count} Google reviews" },
+  } as { one: Localized; other: Localized },
   /** Screen-reader text for the stars. `{n}` is the rating. */
   stars: {
     pt: "{n} de 5 estrelas",
