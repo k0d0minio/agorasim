@@ -40,6 +40,7 @@ import {
 } from "@/db";
 import { REQUEST_STATUSES } from "@/lib/admin-format";
 import { bookingRef, holdsCapacity } from "@/lib/bookings";
+import { CLASS_SEATS } from "@/lib/fleet";
 import { formatPrice } from "@/lib/money";
 
 /**
@@ -96,6 +97,11 @@ export type SalesRecord = {
   /** Money, where any is known — from the `bookings` row behind the lead. */
   value: string | null;
   payment: PaymentState | null;
+  /**
+   * The open car the live booking rides in, when it rides in one: the card
+   * says "Carro partilhado" and how full the car is. Null for a car of its own.
+   */
+  sharedCar?: SharedCarSummary | null;
   createdAt: Date;
   lastContactedAt: Date | null;
   marketingConsent: boolean;
@@ -124,6 +130,18 @@ export type BookingSummary = {
   payment: PaymentState;
   /** The day sold, `YYYY-MM-DD`, which beats the guest's free-text guess. */
   date: string;
+  /** The open car it rides in, when it rides in one. */
+  sharedCar?: SharedCarSummary | null;
+};
+
+/** How full an open car is, across every party in it. */
+export type SharedCarSummary = {
+  /** Guests aboard, this party included. */
+  seatsTaken: number;
+  /** Seats the car has. */
+  seats: number;
+  /** Parties riding in it, this one included. */
+  parties: number;
 };
 
 /** A `tour_requests` row as a sales record. */
@@ -151,6 +169,7 @@ export function recordFromRequest(
     bookingRef: booking?.ref ?? null,
     value: booking?.value ?? null,
     payment: booking?.payment ?? null,
+    sharedCar: booking?.sharedCar ?? null,
     createdAt: row.createdAt,
     lastContactedAt: row.lastContactedAt,
     marketingConsent: row.marketingConsent,
@@ -294,17 +313,65 @@ export async function bookingSummaries(
     .orderBy(asc(bookings.createdAt));
 
   const now = new Date();
+  const live = new Map<string, Booking>();
   for (const row of rows) {
     if (!row.tourRequestId || !holdsCapacity(row, now)) continue;
-    summaries.set(row.tourRequestId, {
+    live.set(row.tourRequestId, row);
+  }
+
+  const cars = await sharedCarSummaries(
+    [...live.values()].flatMap((row) => (row.sharedCarId ? [row.sharedCarId] : [])),
+    now,
+  );
+  for (const [leadId, row] of live) {
+    summaries.set(leadId, {
       ref: bookingRef(row.id),
       value: formatPrice(row.amountCents, "en", row.currency),
       payment: row.status === "confirmed" ? "Paid in full" : "Awaiting payment",
       date: row.date,
+      sharedCar: row.sharedCarId ? (cars.get(row.sharedCarId) ?? null) : null,
     });
   }
 
   return summaries;
+}
+
+/**
+ * How full each open car is, in one query: every live party that wears its id.
+ *
+ * "Live" is the occupancy's own rule ({@link holdsCapacity}), so the card
+ * counts the seats the calendar counts.
+ */
+async function sharedCarSummaries(
+  carIds: string[],
+  now: Date,
+): Promise<Map<string, SharedCarSummary>> {
+  const cars = new Map<string, SharedCarSummary>();
+  if (carIds.length === 0) return cars;
+
+  const rows = await db
+    .select({
+      sharedCarId: bookings.sharedCarId,
+      vehicleClass: bookings.vehicleClass,
+      partySize: bookings.partySize,
+      status: bookings.status,
+      holdExpiresAt: bookings.holdExpiresAt,
+    })
+    .from(bookings)
+    .where(inArray(bookings.sharedCarId, [...new Set(carIds)]));
+
+  for (const row of rows) {
+    if (!row.sharedCarId || !holdsCapacity(row, now)) continue;
+    const car = cars.get(row.sharedCarId) ?? {
+      seatsTaken: 0,
+      seats: CLASS_SEATS[row.vehicleClass],
+      parties: 0,
+    };
+    car.seatsTaken += row.partySize;
+    car.parties += 1;
+    cars.set(row.sharedCarId, car);
+  }
+  return cars;
 }
 
 /**

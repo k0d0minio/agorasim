@@ -17,6 +17,7 @@ import {
   type DateKey,
 } from "@/lib/availability";
 import { bookingRef, bookingsBetween, slotOccupancyOn } from "@/lib/bookings";
+import { moveBookingToCar } from "@/lib/booking-move";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { listCatalogue } from "@/lib/experience-catalogue";
 import { BOOKING_CURRENCY } from "@/lib/money";
@@ -25,6 +26,7 @@ import { enquiryRef } from "@/lib/sales";
 import { db, bookings, tourRequests, type BookingLineItem } from "@/db";
 import {
   blockDaysSchema,
+  changeCarSchema,
   createManualBookingSchema,
   dayRosterSchema,
   formValues,
@@ -209,6 +211,43 @@ export async function saveDayRoster(
   };
 }
 
+/**
+ * Move a per-person party to another car on its departure — "Mudar de carro".
+ *
+ * The rule lives in `moveBookingToCar`; this authorizes, parses and words the
+ * outcome for the day sheet. The public site is revalidated too: the seats a
+ * guest can buy on that departure have changed.
+ */
+export async function changeBookingCar(
+  _prevState: AvailabilityActionState,
+  formData: FormData,
+): Promise<AvailabilityActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = changeCarSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Escolha um carro para esta reserva." };
+
+  let outcome: Awaited<ReturnType<typeof moveBookingToCar>>;
+  try {
+    outcome = await moveBookingToCar({ ...parsed.data, actorUserId: actor.id });
+  } catch (err) {
+    console.error("[admin] failed to change a booking's car", err);
+    return { error: "Não foi possível mudar de carro — a reserva não mudou." };
+  }
+
+  switch (outcome.status) {
+    case "moved":
+      revalidatePublicSite();
+      return { ok: true, message: "Reserva mudada de carro." };
+    case "not-found":
+      return { error: "Essa reserva já não existe." };
+    case "not-movable":
+      return { error: "Esta reserva já não pode mudar de carro." };
+    case "no-room":
+      return { error: "Esse carro já não tem lugar para este grupo." };
+  }
+}
+
 /** Live bookings per departure, for the bar and the block confirmation. */
 export type BookingCounts = { morning: number; afternoon: number };
 
@@ -388,6 +427,8 @@ export async function createManualBooking(
     date,
     slot,
     partySize: quoted.seats,
+    // Per person, the phone sale joins an open car the same way a checkout does.
+    mode,
     occupancy: await slotOccupancyOn(date, slot),
     // The phone booking skips the notice, the six-month window and the block;
     // capacity still binds (D-4).
@@ -503,6 +544,7 @@ export async function createManualBooking(
         children,
         infants,
         vehicleClass: fit.vehicleClass,
+        sharedCarId: fit.sharedCarId,
         partySize: quoted.seats,
         amountCents: agreedCents,
         currency: BOOKING_CURRENCY,

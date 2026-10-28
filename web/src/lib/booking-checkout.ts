@@ -135,6 +135,11 @@ export async function startBookingCheckout(options: {
    * second call to the rule is a second chance for the two to disagree.
    */
   vehicleClass: VehicleClass;
+  /**
+   * The open car a per-person party rides in, from the same re-check: the car
+   * it joins, or a fresh id when it opens one. Null for a private group.
+   */
+  sharedCarId: string | null;
   experience: Experience;
   addOns: Experience[];
   lines: PricedLine[];
@@ -148,6 +153,7 @@ export async function startBookingCheckout(options: {
     mode,
     party,
     vehicleClass,
+    sharedCarId,
     experience,
     addOns,
     lines,
@@ -218,8 +224,10 @@ export async function startBookingCheckout(options: {
       children: party.children,
       infants: party.infants,
       // One driver and one car of this class, out of the departure's shared
-      // pool — see the occupancy rule in lib/bookings.ts.
+      // pool — see the occupancy rule in lib/bookings.ts. A per-person party
+      // that joins an open car takes a seat in it and no car of its own.
       vehicleClass,
+      sharedCarId,
       experienceSlug: experience.slug,
       addOns: addOns.map((entry) => entry.slug),
       partySize,

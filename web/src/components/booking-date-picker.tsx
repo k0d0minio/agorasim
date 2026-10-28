@@ -9,7 +9,7 @@ import { departureShortTime } from "@/content/logistics";
 import { tourRequestContent } from "@/content/tour-request";
 import type { PublicMonth, PublicSlot } from "@/lib/availability";
 import { todayKey } from "@/lib/date-keys";
-import { slotFitsParty, type VehicleCounts } from "@/lib/fleet";
+import { slotFitsParty, type SeatingMode, type VehicleCounts } from "@/lib/fleet";
 import { applyOnlineNotice, monthPair, summaryLine } from "@/lib/public-calendar";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -45,9 +45,10 @@ import { Label } from "@/components/ui/label";
  * not "N seats left"; it is a driver and a class of car, shared by every tour.
  * The payload carries those counts and this component runs `slotFitsParty` from
  * `lib/fleet.ts` over them — the very function the checkout action decides
- * with — so a day the browser offers is a day the server would accept. When no
- * party is named (the enquiry form), a day is offered if it could take anyone
- * at all.
+ * with — so a day the browser offers is a day the server would accept. A
+ * per-person party also fits an open car of its tour with the seats left. When
+ * no party is named (the enquiry form), a day is offered if it could take
+ * anyone at all: a free driver and car, or a free seat in an open car.
  *
  * **It re-reads the calendar's date in the browser.** The page is cached for
  * up to an hour, so just after midnight its payload can still offer tomorrow;
@@ -71,15 +72,22 @@ import { Label } from "@/components/ui/label";
  * the two must decide it by the same rule or the grid and the form disagree.
  */
 export function departureUsable(
-  slot: { driversLeft: number; vehiclesLeft: VehicleCounts },
+  slot: {
+    driversLeft: number;
+    vehiclesLeft: VehicleCounts;
+    openSeats?: Readonly<Record<string, number>>;
+  },
   experienceSlug?: string,
   partySize?: number,
+  mode?: SeatingMode,
 ): boolean {
-  if (slot.driversLeft < 1) return false;
   if (!experienceSlug || !partySize) {
-    return Object.values(slot.vehiclesLeft).some((free) => free > 0);
+    const carFree =
+      slot.driversLeft >= 1 && Object.values(slot.vehiclesLeft).some((free) => free > 0);
+    const seatFree = Object.values(slot.openSeats ?? {}).some((free) => free > 0);
+    return carFree || seatFree;
   }
-  return slotFitsParty(slot, experienceSlug, partySize);
+  return slotFitsParty(slot, experienceSlug, partySize, mode);
 }
 
 /** Re-reads the clock once a minute — how a tab left open over midnight catches up. */
@@ -129,6 +137,7 @@ export function BookingDatePicker({
   slotLabels,
   experienceSlug,
   partySize,
+  mode,
   value,
   slotValue,
   dropped = false,
@@ -184,6 +193,12 @@ export function BookingDatePicker({
   /** Everyone coming, infants included. Paired with {@link experienceSlug}. */
   partySize?: number;
   /**
+   * Per person (`public`) or the group's own car (`private`). A per-person
+   * party may take seats in an open car, so more departures fit it. Unset is
+   * `private`, the stricter answer.
+   */
+  mode?: SeatingMode;
+  /**
    * The chosen day, when the caller owns it.
    *
    * Pass it (with {@link onDateChange}) to drive the picker from outside, the
@@ -221,8 +236,8 @@ export function BookingDatePicker({
   const l = locale;
   const months = useOnlineNotice(payload);
 
-  const slotUsable = (slot: { driversLeft: number; vehiclesLeft: VehicleCounts }) =>
-    departureUsable(slot, experienceSlug, partySize);
+  const slotUsable = (slot: PublicSlot) =>
+    departureUsable(slot, experienceSlug, partySize, mode);
 
   const [ownDay, setOwnDay] = useState<string | null>(
     defaultValue && months.some((m) => m.days.some((d) => d.date === defaultValue))
@@ -317,6 +332,8 @@ export function BookingDatePicker({
    */
   const lastCar = (slot: PublicSlot): boolean => {
     if (!experienceSlug || !partySize) return false;
+    // A party that takes seats in an open car takes no car: nothing is last.
+    if (mode === "public" && (slot.openSeats[experienceSlug] ?? 0) >= partySize) return false;
     const free = Object.values(slot.vehiclesLeft).reduce((sum, n) => sum + n, 0);
     return free === 1 && slotFitsParty(slot, experienceSlug, partySize);
   };

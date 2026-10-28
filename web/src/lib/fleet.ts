@@ -26,11 +26,14 @@
  * be guessing a person into existence, so parties above 8 are sent to the
  * enquiry form instead until that answer comes back.
  *
- * **Every booking is private to its vehicle.** Whether two strangers may share
- * a car is the other half of AGORA-019; until it is answered nobody is put in
- * a car with anybody, so a booking takes its vehicle whole. The *price list*
- * still has shared and private tiers and they are untouched — what waits is
- * the sharing, not the pricing.
+ * **A per-person booking shares its car; a group booking does not.** Diogo
+ * sells an *open* group tour — other people can join the same car — and a
+ * private one (feedback round 1, 2026-10-12). So a `public` booking joins a car
+ * of the same tour on the same departure that already carries `public` guests,
+ * when that car has the seats, and takes a car of its own only when none has
+ * room ({@link joinableCar}). A `private` booking takes its car whole, as every
+ * booking did before. One car is still one driver, however many parties ride
+ * in it.
  *
  * **Deliberately pure.** No `server-only`, no imports: the availability engine
  * runs this server-side to decide what may be sold, and the booking form runs
@@ -229,6 +232,87 @@ export function anyVehicleFree(free: VehicleCounts): boolean {
   return VEHICLE_CLASSES.some((vehicleClass) => free[vehicleClass] > 0);
 }
 
+// ---------------------------------------------------------------------------
+// Open cars — the per-person tour, shared
+// ---------------------------------------------------------------------------
+
+/**
+ * Which half of the price list a party buys from, and so whether it shares.
+ *
+ * `public` is the open group tour, priced per person: it rides with other
+ * `public` parties of the same tour. `private` is the group tour: a car of its
+ * own. The same two words as `BookingMode` in `lib/pricing.ts`, restated
+ * because this file imports nothing.
+ */
+export type SeatingMode = "public" | "private";
+
+/**
+ * One open car on a departure: a car that carries `public` parties of one tour.
+ *
+ * Its id is `bookings.shared_car_id`, the label its parties have in common. A
+ * car is not a row of its own, so what it carries is the sum of the parties
+ * that wear its id.
+ */
+export type OpenCar = {
+  id: string;
+  /** The tour it drives. A party on another route never rides in it. */
+  experienceSlug: string;
+  vehicleClass: VehicleClass;
+  /** Guests already aboard, infants included — they take a seat like anyone. */
+  seatsTaken: number;
+};
+
+/** Seats an open car can still sell. Never negative. */
+export function freeSeats(car: Pick<OpenCar, "vehicleClass" | "seatsTaken">): number {
+  return Math.max(0, CLASS_SEATS[car.vehicleClass] - car.seatsTaken);
+}
+
+/**
+ * The open car a `public` party joins, or `null` when no car of its tour has
+ * room for the whole party.
+ *
+ * The tightest fit wins: a couple joins the 2CV with one guest aboard before
+ * the T3 with four, so the T3's seats stay for a party only the T3 can take.
+ * Ties go to the lower id, so the server and a test agree on which car.
+ * A party is never split across two cars.
+ */
+export function joinableCar<Car extends OpenCar>(
+  cars: readonly Car[],
+  experienceSlug: string,
+  partySize: number,
+): Car | null {
+  let best: Car | null = null;
+  for (const car of cars) {
+    if (car.experienceSlug !== experienceSlug) continue;
+    const free = freeSeats(car);
+    if (free < partySize) continue;
+    if (!best) {
+      best = car;
+      continue;
+    }
+    const bestFree = freeSeats(best);
+    if (free < bestFree || (free === bestFree && car.id < best.id)) best = car;
+  }
+  return best;
+}
+
+/**
+ * The most seats one open car of each tour can still sell — what a guest's
+ * browser needs to know about the open cars, and all it is told.
+ *
+ * A party fits an open car when it fits the emptiest one, so the largest
+ * figure per tour answers the browser's question without a car id or a
+ * stranger's party size in the payload. Tours with no free seat are left out.
+ */
+export function mostOpenSeats(cars: readonly OpenCar[]): Record<string, number> {
+  const most: Record<string, number> = {};
+  for (const car of cars) {
+    const free = freeSeats(car);
+    if (free > (most[car.experienceSlug] ?? 0)) most[car.experienceSlug] = free;
+  }
+  return most;
+}
+
 /**
  * Whether a departure with these pools free can take this party on this route.
  *
@@ -236,13 +320,61 @@ export function anyVehicleFree(free: VehicleCounts): boolean {
  * it, and the browser greys out the days that would say no with the very same
  * function, over the very same numbers from the public payload. The two cannot
  * disagree about a Saturday because there is only one rule.
+ *
+ * A `public` party also fits when an open car of its tour has the seats
+ * ({@link mostOpenSeats}) — it rides there and needs no driver or car of its
+ * own. `mode` defaults to `private`, the stricter answer, so a caller that does
+ * not say never sells a seat in a stranger's car.
  */
 export function slotFitsParty(
-  free: { driversLeft: number; vehiclesLeft: VehicleCounts },
+  free: {
+    driversLeft: number;
+    vehiclesLeft: VehicleCounts;
+    openSeats?: Readonly<Record<string, number>>;
+  },
   experienceSlug: string,
   partySize: number,
+  mode: SeatingMode = "private",
 ): boolean {
-  if (free.driversLeft < 1) return false;
   const assignment = assignVehicle(experienceSlug, partySize);
-  return assignment.ok && free.vehiclesLeft[assignment.vehicleClass] > 0;
+  if (!assignment.ok) return false;
+  if (mode === "public" && (free.openSeats?.[experienceSlug] ?? 0) >= partySize) {
+    return true;
+  }
+  return free.driversLeft >= 1 && free.vehiclesLeft[assignment.vehicleClass] > 0;
+}
+
+/**
+ * Where the team may move one `public` party on its own departure — "Mudar de
+ * carro" on the day sheet.
+ *
+ * - `join`: the other open cars of its tour with room for the whole party.
+ * - `canOpenNew`: a driver and a car of the class the party needs are free, and
+ *   the party is not alone in its car already (alone, a new car changes
+ *   nothing but the label).
+ *
+ * Pure, so the day sheet offers exactly what the server action accepts.
+ */
+export function carChoices<Car extends OpenCar>(options: {
+  cars: readonly Car[];
+  /** The party being moved, in the car it rides in now. */
+  party: { sharedCarId: string; experienceSlug: string; partySize: number };
+  free: { driversLeft: number; vehiclesLeft: VehicleCounts };
+}): { join: Car[]; canOpenNew: boolean } {
+  const { cars, party, free } = options;
+  const current = cars.find((car) => car.id === party.sharedCarId);
+  const join = cars.filter(
+    (car) =>
+      car.id !== party.sharedCarId &&
+      car.experienceSlug === party.experienceSlug &&
+      freeSeats(car) >= party.partySize,
+  );
+  const assignment = assignVehicle(party.experienceSlug, party.partySize);
+  const alone = !current || current.seatsTaken <= party.partySize;
+  const canOpenNew =
+    assignment.ok &&
+    !alone &&
+    free.driversLeft >= 1 &&
+    free.vehiclesLeft[assignment.vehicleClass] > 0;
+  return { join, canOpenNew };
 }

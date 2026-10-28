@@ -125,12 +125,12 @@ export const availabilityStatusEnum = pgEnum("availability_status", ["open", "cl
  * person and tiered by adults, `private` is a group figure and the only mode
  * add-ons attach to.
  *
- * **It no longer decides who shares a car.** Since AGORA-012 every booking is
- * private to its vehicle — nobody is put in a car with strangers — because
- * whether two parties may share a departure is an open question with the
- * client (AGORA-019). The pricing tiers stay exactly as they were; only the
- * sharing semantics wait. So a `public` booking today is a per-person price
- * for a car of your own.
+ * **It also decides who shares a car.** A `public` booking is the open group
+ * tour: it joins a car of the same tour on the same departure that already
+ * carries `public` guests, while that car has the seats ({@link
+ * bookings.sharedCarId}, `lib/fleet.ts`). A `private` booking takes its car
+ * whole, as every booking did before Diogo confirmed the open tour (feedback
+ * round 1, 2026-10-12).
  */
 export const bookingModeEnum = pgEnum("booking_mode", ["public", "private"]);
 
@@ -899,6 +899,23 @@ export const bookings = pgTable("bookings", {
 
   /** Everyone aboard — infants included — and therefore seats consumed. */
   partySize: integer("party_size").notNull(),
+
+  /**
+   * The open car this booking rides in, when it rides in one.
+   *
+   * A `public` booking sold since the open group tour carries the id of its
+   * car: the first party in a car mints it, and every party that joins later
+   * copies it. Every row with the same id on the same departure is one driver
+   * and one vehicle of {@link bookings.vehicleClass}, whatever the number of
+   * parties in it — that is what makes two couples on the 10:00 one car rather
+   * than two (`lib/bookings.ts` counts it, `lib/fleet.ts` decides who fits).
+   *
+   * Null on a `private` booking, which never shares, and on every row sold
+   * before the column existed: those guests were told the car was theirs, so
+   * nobody is put in with them. Not a foreign key — a car is not a row, only
+   * the label its passengers have in common.
+   */
+  sharedCarId: uuid("shared_car_id"),
 
   /**
    * What the guest was charged, in the smallest unit. Computed on the server

@@ -129,6 +129,7 @@ function start() {
     mode: "public",
     party: { adults: 2, children: 0, infants: 0 },
     vehicleClass: "classic-small",
+    sharedCarId: "eeeeeeee-0000-4000-8000-000000000001",
     experience: tour,
     addOns: [],
     lines: [{ slug: "rural-saloia", kind: "tour", unit: "adult", unitCents: 9_500, quantity: 2 }],

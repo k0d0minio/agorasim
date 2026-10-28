@@ -498,6 +498,16 @@ export const blockDaysSchema = z.object({
  * It never posts a status — saving the roster of a blocked day leaves it
  * blocked.
  */
+/**
+ * "Mudar de carro" on the day sheet: which booking, and where it goes — the id
+ * of another open car on its departure, or `new` for a car of its own.
+ * Whether the target has room is the server's question (`moveBookingToCar`).
+ */
+export const changeCarSchema = z.object({
+  bookingId: z.uuid(),
+  target: z.union([z.literal("new"), z.uuid()]),
+});
+
 export const dayRosterSchema = z.object({
   date: optionalDateKey,
   /**

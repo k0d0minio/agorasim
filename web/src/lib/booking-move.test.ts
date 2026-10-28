@@ -385,7 +385,11 @@ describe("moveBookingToDeparture", () => {
     calls = [];
     results = [];
     checkSlotAvailable.mockReset();
-    checkSlotAvailable.mockResolvedValue({ ok: true, vehicleClass: "classic-small" });
+    checkSlotAvailable.mockResolvedValue({
+      ok: true,
+      vehicleClass: "classic-small",
+      sharedCarId: null,
+    });
     slotOccupancyOn.mockReset();
     slotOccupancyOn.mockResolvedValue({ drivers: 0, vehicles: noVehicles() });
     recordAuditOrWarn.mockReset();

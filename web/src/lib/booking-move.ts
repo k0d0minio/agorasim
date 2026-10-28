@@ -44,10 +44,12 @@ import { t } from "@/i18n/config";
 import { recordAuditOrWarn } from "@/lib/audit";
 import {
   checkSlotAvailable,
+  describeSlot,
   fitsParty,
   formatDay,
   isDateKey,
   isTourSlot,
+  readDay,
   todayKey,
   type DateKey,
   type DaySlots,
@@ -61,6 +63,7 @@ import {
 } from "@/lib/departure-window";
 import { bookingLogisticsFacts, guestMoveEmail, titleFromCatalogue } from "@/lib/booking-emails";
 import { bookingRef, slotOccupancyOn } from "@/lib/bookings";
+import { assignVehicle, carChoices, type SeatingMode } from "@/lib/fleet";
 import {
   cancellationPath,
   isCancellationTokenConfigured,
@@ -104,6 +107,18 @@ export function isMovable(booking: Pick<Booking, "status">): boolean {
 }
 
 /**
+ * Whether a booking may ride in an open car where it lands.
+ *
+ * A per-person booking with a car label shares, wherever it goes. A private
+ * one never does — and neither does a per-person booking sold before the open
+ * tour, which carries no label: those guests were told the car was theirs, and
+ * a move must not change that behind their backs.
+ */
+export function seatingOf(booking: Pick<Booking, "mode" | "sharedCarId">): SeatingMode {
+  return booking.mode === "public" && booking.sharedCarId ? "public" : "private";
+}
+
+/**
  * The departures this party could be moved to, out of the ones described.
  *
  * Pure, and the whole of the picker's rule: a target is viable when the same
@@ -117,17 +132,19 @@ export function viableMoveTargets(options: {
   days: DaySlots[];
   experienceSlug: string;
   partySize: number;
+  /** Whether the party may join an open car there — {@link seatingOf}. */
+  mode?: SeatingMode;
   /** The departure the booking is on now. */
   from: MoveTarget;
 }): MoveTarget[] {
-  const { days, experienceSlug, partySize, from } = options;
+  const { days, experienceSlug, partySize, mode = "private", from } = options;
 
   return days.flatMap((day) =>
     day.slots
       .filter(
         (departure) =>
           !sameDeparture({ date: day.date, slot: departure.slot }, from) &&
-          fitsParty(departure, experienceSlug, partySize).ok,
+          fitsParty(departure, experienceSlug, partySize, mode).ok,
       )
       .map((departure) => ({ date: day.date, slot: departure.slot })),
   );
@@ -140,7 +157,10 @@ export function viableMoveTargets(options: {
  * manual booking; what is particular to a move is the filter below it.
  */
 export async function listMoveTargets(
-  booking: Pick<Booking, "experienceSlug" | "partySize" | "date" | "slot">,
+  booking: Pick<
+    Booking,
+    "experienceSlug" | "partySize" | "date" | "slot" | "mode" | "sharedCarId"
+  >,
   options: { today?: DateKey; horizonDays?: number } = {},
 ): Promise<MoveTarget[]> {
   const { today = todayKey(), horizonDays = MOVE_HORIZON_DAYS } = options;
@@ -149,6 +169,7 @@ export async function listMoveTargets(
     days: await readDepartureWindow({ today, horizonDays }),
     experienceSlug: booking.experienceSlug,
     partySize: booking.partySize,
+    mode: seatingOf(booking),
     from: { date: booking.date, slot: booking.slot },
   });
 }
@@ -225,6 +246,8 @@ export async function moveBookingToDeparture(options: {
     date,
     slot,
     partySize: existing.partySize,
+    // A per-person party joins or opens an open car on the new departure.
+    mode: seatingOf(existing),
     occupancy: await slotOccupancyOn(date, slot),
     today,
     // The team moving a booking, like the team selling one (D-13).
@@ -247,6 +270,8 @@ export async function moveBookingToDeparture(options: {
       // holds is the class that was just verified free, and reusing the stored
       // one would be trusting a decision made against a different departure.
       vehicleClass: check.vehicleClass,
+      // The open car on the new departure — the one it left stays behind.
+      sharedCarId: check.sharedCarId,
       // Bumped from the snapshot this function read, not a raw increment: the
       // guard below only matches a row still on `from`, so a concurrent mover
       // that wins this race leaves the loser's `existing.moveSeq` stale and
@@ -304,6 +329,120 @@ export async function moveBookingToDeparture(options: {
   await sendMoveEmail(moved, from);
 
   return { status: "moved", booking: moved, from };
+}
+
+/** What happened when the team tried to move a party to another car. */
+export type CarMoveOutcome =
+  | { status: "moved"; booking: Booking }
+  | { status: "not-found" }
+  /**
+   * Not a paid per-person booking in an open car, or its departure has left.
+   * Also the answer when somebody else changed the booking first.
+   */
+  | { status: "not-movable" }
+  /** The target car has no room for the whole party, or no car is free. */
+  | { status: "no-room" };
+
+/**
+ * Move a per-person party to another car on its own departure — "Mudar de
+ * carro" on the day sheet.
+ *
+ * `target` is the id of another open car of the same tour, or `"new"` for a
+ * car of its own. The choice is checked against {@link carChoices}, the same
+ * rule the day sheet offers from, over a fresh occupancy read. A new car needs
+ * a free driver and a free car of the class the party needs.
+ *
+ * Nothing the guest holds changes — the day, the departure, the meeting point
+ * and the money stay — so no email goes out. The audit entry carries the car
+ * before and after.
+ */
+export async function moveBookingToCar(options: {
+  bookingId: string;
+  target: string;
+  /** The operator, for the audit entry. */
+  actorUserId: string;
+  today?: DateKey;
+}): Promise<CarMoveOutcome> {
+  const { bookingId, target, actorUserId, today } = options;
+
+  const [existing] = await db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.id, bookingId))
+    .limit(1);
+
+  if (!existing) return { status: "not-found" };
+  const current = existing.sharedCarId;
+  if (!isMovable(existing) || seatingOf(existing) !== "public" || !current) {
+    return { status: "not-movable" };
+  }
+
+  const [row, occupancy] = await Promise.all([
+    readDay(existing.date, existing.slot),
+    slotOccupancyOn(existing.date, existing.slot),
+  ]);
+  const departure = describeSlot({
+    date: existing.date,
+    slot: existing.slot,
+    row,
+    occupancy,
+    today,
+    audience: "team",
+  });
+  if (departure.past) return { status: "not-movable" };
+
+  const choices = carChoices({
+    cars: departure.openCars,
+    party: {
+      sharedCarId: current,
+      experienceSlug: existing.experienceSlug,
+      partySize: existing.partySize,
+    },
+    free: departure,
+  });
+
+  let next: { sharedCarId: string; vehicleClass: Booking["vehicleClass"] };
+  if (target === "new") {
+    const assignment = assignVehicle(existing.experienceSlug, existing.partySize);
+    if (!choices.canOpenNew || !assignment.ok) return { status: "no-room" };
+    next = { sharedCarId: crypto.randomUUID(), vehicleClass: assignment.vehicleClass };
+  } else {
+    const car = choices.join.find((entry) => entry.id === target);
+    if (!car) return { status: "no-room" };
+    next = { sharedCarId: car.id, vehicleClass: car.vehicleClass };
+  }
+
+  // Guarded on the car it leaves, like the departure move: two operators
+  // pressing at once produce one change, and the loser is told it moved.
+  const [moved] = await db
+    .update(bookings)
+    .set({ ...next, updatedAt: new Date() })
+    .where(
+      and(
+        eq(bookings.id, existing.id),
+        eq(bookings.status, "confirmed"),
+        eq(bookings.sharedCarId, current),
+      ),
+    )
+    .returning();
+  if (!moved) return { status: "not-movable" };
+
+  await recordAuditOrWarn({
+    actorUserId,
+    action: "booking.car_changed",
+    entityType: "booking",
+    entityId: moved.id,
+    before: { sharedCarId: current, vehicleClass: existing.vehicleClass },
+    after: {
+      ref: bookingRef(moved.id),
+      date: moved.date,
+      slot: moved.slot,
+      sharedCarId: moved.sharedCarId,
+      vehicleClass: moved.vehicleClass,
+    },
+  });
+
+  return { status: "moved", booking: moved };
 }
 
 /**

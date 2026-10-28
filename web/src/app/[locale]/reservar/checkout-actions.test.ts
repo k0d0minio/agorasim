@@ -39,7 +39,11 @@ vi.mock("@/lib/bookings", async (importOriginal) => ({
 }));
 vi.mock("@/lib/availability", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/availability")>()),
-  checkSlotAvailable: vi.fn(() => ({ ok: true, vehicleClass: "classic-small" })),
+  checkSlotAvailable: vi.fn(() => ({
+    ok: true,
+    vehicleClass: "classic-small",
+    sharedCarId: null,
+  })),
 }));
 
 async function load() {

@@ -31,7 +31,12 @@ import {
   type BookingStatus,
 } from "@/db";
 import { applyEventHolds, eventHoldKeysBetween } from "@/lib/event-holds";
-import { isVehicleClass, noVehicles, type VehicleCounts } from "@/lib/fleet";
+import {
+  isVehicleClass,
+  noVehicles,
+  type OpenCar,
+  type VehicleCounts,
+} from "@/lib/fleet";
 import type { DateKey } from "@/lib/availability";
 
 /**
@@ -67,10 +72,19 @@ export function holdExpiryFrom(now: Date = new Date()): Date {
  * that a driver taken by Óbidos is a driver Rural Saloia does not have.
  */
 export type SlotOccupancy = {
-  /** Live bookings on this departure — one driver each. */
+  /**
+   * Cars out on this departure — one driver each. A private booking is one
+   * car, and an open car is one car however many parties ride in it.
+   */
   drivers: number;
-  /** Vehicles committed, per class. */
+  /** Vehicles committed, per class — counted the same way as {@link drivers}. */
   vehicles: VehicleCounts;
+  /**
+   * The open cars among them, with the seats their `public` parties already
+   * take (`bookings.shared_car_id`). Absent or empty when no per-person party
+   * rides on this departure.
+   */
+  openCars?: OpenCar[];
   /**
    * The quotes whose paid deposit holds this departure's whole day
    * (`lib/event-holds.ts`). Absent or empty when no event holds it; any entry
@@ -143,32 +157,81 @@ export async function countSlotOccupancy(options: {
         date: bookings.date,
         slot: bookings.slot,
         vehicleClass: bookings.vehicleClass,
-        // One driver and one car per booking — see the note in `lib/fleet.ts`
-        // on why nothing that would need two of either is sellable.
-        taken: sql<number>`count(*)::int`,
+        sharedCarId: bookings.sharedCarId,
+        experienceSlug: bookings.experienceSlug,
+        bookings: sql<number>`count(*)::int`,
+        seats: sql<number>`coalesce(sum(${bookings.partySize}), 0)::int`,
       })
       .from(bookings)
       .where(
         and(sql`${bookings.date} between ${from} and ${to}`, holdsCapacitySql(now)),
       )
-      .groupBy(bookings.date, bookings.slot, bookings.vehicleClass),
+      .groupBy(
+        bookings.date,
+        bookings.slot,
+        bookings.vehicleClass,
+        bookings.sharedCarId,
+        bookings.experienceSlug,
+      ),
     eventHoldKeysBetween({ from, to }),
   ]);
 
+  return applyEventHolds(tallyOccupancy(rows), holds);
+}
+
+/**
+ * One group of live bookings, as {@link countSlotOccupancy} reads them: the
+ * bookings of one departure that share a class, a tour and a car label.
+ */
+export type OccupancyGroup = {
+  date: DateKey;
+  slot: AvailabilitySlot;
+  vehicleClass: string;
+  /** Null for a private booking, and for a per-person one sold before sharing. */
+  sharedCarId: string | null;
+  experienceSlug: string;
+  /** How many bookings are in the group. */
+  bookings: number;
+  /** Their guests, infants included. */
+  seats: number;
+};
+
+/**
+ * Turn grouped bookings into occupancy per departure — the arithmetic half of
+ * {@link countSlotOccupancy}, pure so it can be tested without a database.
+ *
+ * A group with no car label is that many cars: each of those bookings took a
+ * car whole. A group with a label is one open car, whatever the number of
+ * parties in it — the whole point of the per-person tour.
+ */
+export function tallyOccupancy(groups: readonly OccupancyGroup[]): Map<string, SlotOccupancy> {
   const byKey = new Map<string, SlotOccupancy>();
-  for (const row of rows) {
-    const key = `${row.date}#${row.slot}`;
+  for (const group of groups) {
+    const key = `${group.date}#${group.slot}`;
     const entry = byKey.get(key) ?? emptyOccupancy();
-    entry.drivers += row.taken;
+    const cars = group.sharedCarId ? 1 : group.bookings;
+    entry.drivers += cars;
     // A row whose class the fleet no longer knows still took a driver: it is
     // counted against the roster and simply not against any car, which errs
-    // towards showing a departure as fuller than the fleet can prove.
-    if (isVehicleClass(row.vehicleClass)) {
-      entry.vehicles[row.vehicleClass] += row.taken;
+    // towards showing a departure as fuller than the fleet can prove. Nobody
+    // joins such a car either: its seats are not known.
+    if (isVehicleClass(group.vehicleClass)) {
+      entry.vehicles[group.vehicleClass] += cars;
+      if (group.sharedCarId) {
+        entry.openCars = [
+          ...(entry.openCars ?? []),
+          {
+            id: group.sharedCarId,
+            experienceSlug: group.experienceSlug,
+            vehicleClass: group.vehicleClass,
+            seatsTaken: group.seats,
+          },
+        ];
+      }
     }
     byKey.set(key, entry);
   }
-  return applyEventHolds(byKey, holds);
+  return byKey;
 }
 
 /**
@@ -195,6 +258,11 @@ export type BookingForCalendar = {
   slot: "morning" | "afternoon";
   partySize: number;
   status: BookingStatus;
+  /** Per person (`public`) or the group's own car (`private`). */
+  mode: Booking["mode"];
+  vehicleClass: Booking["vehicleClass"];
+  /** The open car it rides in — the day sheet groups by it. Null for a car of its own. */
+  sharedCarId: string | null;
 };
 
 /**
@@ -224,6 +292,9 @@ export async function bookingsBetween(options: {
       slot: bookings.slot,
       partySize: bookings.partySize,
       status: bookings.status,
+      mode: bookings.mode,
+      vehicleClass: bookings.vehicleClass,
+      sharedCarId: bookings.sharedCarId,
     })
     .from(bookings)
     .leftJoin(tourRequests, eq(bookings.tourRequestId, tourRequests.id))
@@ -237,7 +308,9 @@ export async function bookingsBetween(options: {
         holdsCapacitySql(now),
       ),
     )
-    .orderBy(bookings.date, bookings.slot);
+    // Oldest first inside a departure, so a shared car lists its parties in
+    // the order they joined it.
+    .orderBy(bookings.date, bookings.slot, bookings.createdAt);
 
   return rows.map((row) => ({
     ...row,

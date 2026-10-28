@@ -120,7 +120,11 @@ vi.mock("@/lib/availability", async () => {
     await vi.importActual<typeof import("@/lib/availability")>("@/lib/availability");
   return {
     ...actual,
-    checkSlotAvailable: vi.fn(async () => ({ ok: true, vehicleClass: "classic-small" })),
+    checkSlotAvailable: vi.fn(async () => ({
+      ok: true,
+      vehicleClass: "classic-small",
+      sharedCarId: null,
+    })),
   };
 });
 
@@ -153,6 +157,7 @@ vi.mock("@/lib/admin-users", () => ({
 
 const { ADMIN_SESSION_COOKIE } = await import("@/lib/admin-session");
 const { createManualBooking } = await import("./actions");
+const { checkSlotAvailable } = await import("@/lib/availability");
 
 const OWNER_ID = "11111111-1111-4111-8111-111111111111";
 const LEAD_ID = "33333333-3333-4333-8333-333333333333";
@@ -387,5 +392,46 @@ describe("createManualBooking from the Calendar", () => {
     expect(
       auditRows().find((row) => row.action === "booking.created")?.after,
     ).toMatchObject({ sourceEnquiryExisting: false });
+  });
+});
+
+describe("createManualBooking per person", () => {
+  const CAR_ID = "eeeeeeee-0000-4000-8000-000000000001";
+
+  it("asks for an open car, as the checkout does, and seats the cash sale in it", async () => {
+    await signIn();
+    vi.mocked(checkSlotAvailable).mockResolvedValueOnce({
+      ok: true,
+      slot: {} as never,
+      vehicleClass: "classic-small",
+      sharedCarId: CAR_ID,
+    });
+    queueResult([]);
+    queueResult([{ id: LEAD_ID }]);
+    queueResult([{ id: BOOKING_ID }]);
+
+    const state = await createManualBooking({}, sale({ mode: "public" }));
+
+    expect(state.ok).toBe(true);
+    expect(checkSlotAvailable).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mode: "public", audience: "team" }),
+    );
+    const booking = insertedValues().find((values) => values.paymentMethod === "cash");
+    expect(booking).toMatchObject({ mode: "public", sharedCarId: CAR_ID });
+  });
+
+  it("keeps a private group in a car of its own", async () => {
+    await signIn();
+    queueResult([]);
+    queueResult([{ id: LEAD_ID }]);
+    queueResult([{ id: BOOKING_ID }]);
+
+    await createManualBooking({}, sale({ mode: "private" }));
+
+    expect(checkSlotAvailable).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mode: "private" }),
+    );
+    const booking = insertedValues().find((values) => values.paymentMethod === "cash");
+    expect(booking).toMatchObject({ mode: "private", sharedCarId: null });
   });
 });
