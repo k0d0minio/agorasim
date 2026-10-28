@@ -128,7 +128,6 @@ export const weddingsContent = {
       hours: { pt: "Horas de serviço", en: "Hours of service" } as Localized,
       car: { pt: "Carro preferido", en: "Preferred car" } as Localized,
       carNone: { pt: "Aconselhem-nos", en: "Advise us" } as Localized,
-      partySize: { pt: "Número de convidados", en: "Number of guests" } as Localized,
       message: { pt: "Contem-nos mais", en: "Tell us more" } as Localized,
       messagePlaceholder: {
         pt: "O que imaginam para o vosso dia…",

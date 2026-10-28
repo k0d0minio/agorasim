@@ -345,10 +345,14 @@ export default async function AdminLeadPage({
                   />
                 </dd>
               </div>
-              <div>
-                <dt className="text-muted-foreground">Pessoas</dt>
-                <dd>{lead.partySize ?? "—"}</dd>
-              </div>
+              {/* A wedding enquiry no longer asks the head count, so an empty
+                  row would only be noise. A tour always carries one. */}
+              {lead.partySize ? (
+                <div>
+                  <dt className="text-muted-foreground">Pessoas</dt>
+                  <dd>{lead.partySize}</dd>
+                </div>
+              ) : null}
               <div>
                 {/* A tour is asked when they'd *prefer* to come; a wedding has
                     a date, and calling it a preference reads as a guess. */}
