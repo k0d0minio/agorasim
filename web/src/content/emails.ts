@@ -704,6 +704,35 @@ export const bookingEmails = {
       pt: "Recebeu este email porque pediu um orçamento em {site}.",
       en: "You are receiving this email because you asked for a quote at {site}.",
     } as Localized,
+    /**
+     * A tour quote (`lib/tour-quote.ts`): one payment, one car, the tour terms.
+     * Each key replaces the event wording above; the rest is shared.
+     */
+    tour: {
+      preheader: {
+        pt: "{total} · o passeio fica confirmado com o pagamento",
+        en: "{total} · your tour is confirmed once you pay",
+      } as Localized,
+      lead: {
+        pt: "Obrigado pelo contacto. Preparámos o seu passeio à medida — os detalhes estão abaixo.",
+        en: "Thank you for getting in touch. Here is the tour we prepared for you — the details are below.",
+      } as Localized,
+      date: { pt: "Data do passeio", en: "Tour date" } as Localized,
+      departure: { pt: "Partida", en: "Departure" } as Localized,
+      payment: { pt: "Pagamento", en: "Payment" } as Localized,
+      next: {
+        title: { pt: "Como confirmar", en: "How to confirm" } as Localized,
+        body: {
+          pt: "O passeio fica confirmado com o pagamento, na página do orçamento. Até lá, o carro não fica guardado: se a partida esgotar entretanto, a página avisa e falamos consigo.",
+          en: "Your tour is confirmed once you pay, on the quote page. Until then the car is not held: if the departure sells out first, the page says so and we will be in touch.",
+        } as Localized,
+      },
+      /** The tour terms' own line (`terms.ts`, "Cancelamento e reembolso"). */
+      termsNote: {
+        pt: "Cancelamento gratuito até 48h antes da experiência. Com mau tempo, reagendamos — ou reembolsamos em condições extremas.",
+        en: "Free cancellation up to 48h before the experience. In bad weather we reschedule — or refund in extreme conditions.",
+      } as Localized,
+    },
   },
 
   /**
@@ -927,6 +956,31 @@ export const bookingEmails = {
       pt: "Recebeu este email porque pagou um orçamento em {site}.",
       en: "You are receiving this email because you paid a quote at {site}.",
     } as Localized,
+    /**
+     * A tour quote's one payment (`lib/tour-quote.ts`). It replaces the
+     * deposit wording above; the terms below it are the tour's own sections.
+     */
+    tour: {
+      subject: {
+        pt: "Pagamento recebido — o seu passeio de {date} está confirmado",
+        en: "Payment received — your tour on {date} is confirmed",
+      } as Localized,
+      preheader: {
+        pt: "Recebemos {amount} · está tudo pago",
+        en: "We received {amount} · everything is paid",
+      } as Localized,
+      banner: { pt: "Passeio confirmado", en: "Tour confirmed" } as Localized,
+      lead: {
+        pt: "Recebemos o seu pagamento — o seu passeio está confirmado. Obrigado!",
+        en: "We have received your payment — your tour is confirmed. Thank you!",
+      } as Localized,
+      date: { pt: "Data do passeio", en: "Tour date" } as Localized,
+      paid: { pt: "Valor pago", en: "Amount paid" } as Localized,
+      termsHeading: {
+        pt: "As condições do seu passeio (versão de {version})",
+        en: "The conditions of your tour (version of {version})",
+      } as Localized,
+    },
   },
 
   /** To Diogo & Rita. Portuguese — an instalment of a quote was paid. */
@@ -967,6 +1021,14 @@ export const bookingEmails = {
     cta: "Ver no painel",
     ctaLine: "Ver no painel: {adminUrl}",
     footerNote: "Notificação automática do site — responda para escrever ao cliente.",
+    /** A tour quote's one payment: the car is held, and the fee is the tour's (§4). */
+    tour: {
+      subject: "Passeio pago — {name} · {date}",
+      banner: "Passeio pago",
+      heading: "O orçamento de passeio {ref} foi pago — o carro está reservado.",
+      date: "Data do passeio",
+      fee: "Comissão (4%, mín. 10 €, máx. 50 €)",
+    },
   },
 
   /**

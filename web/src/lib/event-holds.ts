@@ -21,12 +21,13 @@
  */
 import "server-only";
 
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { db, quotes, tourRequests, type EnquiryKind, type QuoteStatus } from "@/db";
 import type { DateKey } from "@/lib/availability";
-import type { SlotOccupancy } from "@/lib/bookings";
+import type { OccupancyGroup, SlotOccupancy } from "@/lib/bookings";
 import { noVehicles } from "@/lib/fleet";
+import { heldDepartures, tourHoldOf, type TourHold } from "@/lib/tour-quote";
 
 /**
  * The quote statuses that hold their date.
@@ -91,6 +92,8 @@ export async function eventHoldKeysBetween(options: {
         // `quotes_status_event_date_idx` — status first, then the date.
         inArray(quotes.status, [...QUOTE_HOLDING_STATUSES]),
         sql`${quotes.eventDate} between ${from} and ${to}`,
+        // A tour quote holds one car, not the day: `tourQuoteHoldsBetween`.
+        isNull(quotes.holdVehicleClass),
       ),
     );
 }
@@ -134,6 +137,7 @@ export async function eventHoldsBetween(options: {
       and(
         inArray(quotes.status, [...QUOTE_HOLDING_STATUSES]),
         sql`${quotes.eventDate} between ${from} and ${to}`,
+        isNull(quotes.holdVehicleClass),
       ),
     )
     .orderBy(asc(quotes.eventDate), asc(quotes.createdAt));
@@ -143,4 +147,87 @@ export async function eventHoldsBetween(options: {
     // An anonymised enquiry keeps its row and loses the person.
     name: anonymisedAt ? null : row.name,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Tour quotes — one car, not the day
+// ---------------------------------------------------------------------------
+
+/**
+ * One paid tour quote holding one driver and one car (`lib/tour-quote.ts`).
+ *
+ * The same statuses hold as for an event: a tour quote is paid in one go, so
+ * it reaches `paid` on its one payment, and a refund does not free the car
+ * until somebody cancels the quote — the event rule, kept for the same reason.
+ * The name is the lead's, for the Calendar's day sheet, and null once erased.
+ */
+export type TourQuoteHold = TourHold & {
+  quoteId: string;
+  tourRequestId: string | null;
+  date: DateKey;
+  name: string | null;
+};
+
+/** The paid tour quotes between two day keys, in date order. */
+export async function tourQuoteHoldsBetween(options: {
+  from: DateKey;
+  to: DateKey;
+}): Promise<TourQuoteHold[]> {
+  const { from, to } = options;
+  const rows = await db
+    .select({
+      quoteId: quotes.id,
+      tourRequestId: quotes.tourRequestId,
+      date: quotes.eventDate,
+      holdSlot: quotes.holdSlot,
+      holdVehicleClass: quotes.holdVehicleClass,
+      name: tourRequests.name,
+      anonymisedAt: tourRequests.anonymisedAt,
+    })
+    .from(quotes)
+    .leftJoin(tourRequests, eq(quotes.tourRequestId, tourRequests.id))
+    .where(
+      and(
+        inArray(quotes.status, [...QUOTE_HOLDING_STATUSES]),
+        sql`${quotes.eventDate} between ${from} and ${to}`,
+        isNotNull(quotes.holdVehicleClass),
+      ),
+    )
+    .orderBy(asc(quotes.eventDate), asc(quotes.createdAt));
+
+  return rows.flatMap((row) => {
+    const hold = tourHoldOf(row);
+    if (!hold) return [];
+    return [
+      {
+        ...hold,
+        quoteId: row.quoteId,
+        tourRequestId: row.tourRequestId,
+        date: row.date,
+        name: row.anonymisedAt ? null : row.name,
+      },
+    ];
+  });
+}
+
+/**
+ * Tour-quote holds as occupancy groups — one private car per held departure —
+ * so `tallyOccupancy` counts them exactly as it counts a booking: one driver,
+ * one car of the class, and no open seats for anybody to join.
+ */
+export function tourHoldGroups(
+  holds: readonly Pick<TourQuoteHold, "date" | "slot" | "vehicleClass">[],
+): OccupancyGroup[] {
+  return holds.flatMap((hold) =>
+    heldDepartures(hold.slot).map((slot) => ({
+      date: hold.date,
+      slot,
+      vehicleClass: hold.vehicleClass,
+      sharedCarId: null,
+      // Read only for an open car, which this never is.
+      experienceSlug: "",
+      bookings: 1,
+      seats: 0,
+    })),
+  );
 }

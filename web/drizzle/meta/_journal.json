@@ -281,6 +281,13 @@
       "when": 1793213623421,
       "tag": "0039_bookings_payment_link",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793218261001,
+      "tag": "0040_quotes_tour_hold",
+      "breakpoints": true
     }
   ]
 }

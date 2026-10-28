@@ -48,13 +48,18 @@ import {
   todayKey,
   TOUR_SLOTS,
 } from "@/lib/availability";
-import { MAX_PARTY_ONLINE } from "@/lib/fleet";
+import { isVehicleClass, MAX_PARTY_ONLINE } from "@/lib/fleet";
 import { parseAmountInput, parsePriceInput } from "@/lib/money";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
 import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 import { classicCars } from "@/content/site";
 import { isServiceHours, parseCeremonyTime } from "@/content/quote-request";
+import {
+  isTourHoldSlot,
+  TOUR_QUOTE_DEPOSIT_PERCENT,
+  type TourHold,
+} from "@/lib/tour-quote";
 
 // ---------------------------------------------------------------------------
 // Enums, straight from the database schema
@@ -728,6 +733,48 @@ function parseQuoteLines(
 }
 
 /**
+ * A tour quote's departure and car, from the builder's two selects.
+ *
+ * Neither posted is a wedding or event form, which never renders them:
+ * `undefined`, so a save leaves the draft's hold as it was. One posted without
+ * the other, or a value the fleet does not know, is a refusal — never a
+ * quietly dropped hold.
+ */
+function parseTourHold(
+  slot: string | undefined,
+  vehicleClass: string | undefined,
+  ctx: z.RefinementCtx,
+): TourHold | undefined {
+  if (slot === undefined && vehicleClass === undefined) return undefined;
+  if (!isTourHoldSlot(slot)) {
+    ctx.addIssue({ code: "custom", message: "Escolha a partida do passeio." });
+    return undefined;
+  }
+  if (!isVehicleClass(vehicleClass)) {
+    ctx.addIssue({ code: "custom", message: "Escolha o carro do passeio." });
+    return undefined;
+  }
+  return { slot, vehicleClass };
+}
+
+/** The quote's day: a real calendar day, not in the past. */
+const quoteDate = z
+  .string()
+  .trim()
+  .refine((value) => isDateKey(value), "Indique a data do evento.")
+  .refine((value) => !isDateKey(value) || value >= todayKey(), "A data do evento já passou.");
+
+/** The deposit share, a whole percentage. A tour quote posts 100. */
+const depositPercentField = z
+  .string()
+  .trim()
+  .transform((value) => Number(value))
+  .refine(
+    (n) => Number.isInteger(n) && n >= 1 && n <= 100,
+    "O sinal tem de ser uma percentagem entre 1 e 100.",
+  );
+
+/**
  * Saving a quote draft — "Criar orçamento" (with `leadId`) or "Guardar" on an
  * existing draft (with `quoteId`).
  *
@@ -740,27 +787,19 @@ export const quoteDraftSchema = z
   .object({
     leadId: z.uuid().optional(),
     quoteId: z.uuid().optional(),
-    eventDate: z
-      .string()
-      .trim()
-      .refine((value) => isDateKey(value), "Indique a data do evento.")
-      .refine((value) => !isDateKey(value) || value >= todayKey(), "A data do evento já passou."),
+    eventDate: quoteDate,
     venue: z
       .string()
       .trim()
       .catch("")
       .transform((value) => (value ? value.slice(0, 300) : null)),
-    depositPercent: z
-      .string()
-      .trim()
-      .transform((value) => Number(value))
-      .refine(
-        (n) => Number.isInteger(n) && n >= 1 && n <= 100,
-        "O sinal tem de ser uma percentagem entre 1 e 100.",
-      ),
+    depositPercent: depositPercentField,
     lineLabel: repeated,
     lineQuantity: repeated,
     lineUnit: repeated,
+    /** A tour quote's departure and car (`lib/tour-quote.ts`). */
+    holdSlot: z.string().trim().optional(),
+    holdVehicleClass: z.string().trim().optional(),
   })
   .refine((value) => Boolean(value.leadId) !== Boolean(value.quoteId), "Pedido inválido.")
   .transform((value, ctx) => ({
@@ -770,7 +809,67 @@ export const quoteDraftSchema = z
     venue: value.venue,
     depositPercent: value.depositPercent,
     lineItems: parseQuoteLines(value.lineLabel, value.lineQuantity, value.lineUnit, ctx),
+    hold: parseTourHold(value.holdSlot, value.holdVehicleClass, ctx),
   }));
+
+/**
+ * "Novo orçamento" on the Sales board — the customer, the kind of job and the
+ * quote, in one form, with no enquiry behind it (`createQuoteFromScratch`).
+ *
+ * A tour asks its departure and car and takes one payment: the deposit share
+ * is set to 100 here, whatever the form posted. A wedding or event asks the
+ * deposit share and holds no car: a posted hold is dropped.
+ */
+export const scratchQuoteSchema = z
+  .object({
+    name: text.min(1, "Diga o nome do cliente."),
+    email: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(EMAIL_RE, "Escreva um endereço de email válido."),
+    phone: optionalText,
+    locale: localeSchema.catch("pt"),
+    kind: z.enum(enquiryKindEnum.enumValues, "Escolha o tipo: passeio, casamento ou evento."),
+    eventDate: quoteDate,
+    venue: z
+      .string()
+      .trim()
+      .catch("")
+      .transform((value) => (value ? value.slice(0, 300) : null)),
+    depositPercent: z.string().trim().catch(""),
+    lineLabel: repeated,
+    lineQuantity: repeated,
+    lineUnit: repeated,
+    holdSlot: z.string().trim().optional(),
+    holdVehicleClass: z.string().trim().optional(),
+  })
+  .transform((value, ctx) => {
+    const tour = value.kind === "tour";
+    const deposit = tour
+      ? { success: true as const, data: TOUR_QUOTE_DEPOSIT_PERCENT }
+      : depositPercentField.safeParse(value.depositPercent);
+    if (!deposit.success) {
+      ctx.addIssue({ code: "custom", message: "O sinal tem de ser uma percentagem entre 1 e 100." });
+    }
+    const hold = tour ? parseTourHold(value.holdSlot ?? "", value.holdVehicleClass ?? "", ctx) : null;
+    return {
+      customer: {
+        name: value.name.slice(0, 200),
+        email: value.email,
+        phone: value.phone,
+        locale: value.locale,
+      },
+      kind: value.kind,
+      input: {
+        eventDate: value.eventDate,
+        venue: value.venue,
+        depositPercent: deposit.success ? deposit.data : TOUR_QUOTE_DEPOSIT_PERCENT,
+        lineItems: parseQuoteLines(value.lineLabel, value.lineQuantity, value.lineUnit, ctx),
+        hold: hold ?? null,
+      },
+    };
+  });
 
 /** A button on one quote — discard, new version, send. */
 export const quoteIdSchema = z.object({ quoteId: z.uuid() });

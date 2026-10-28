@@ -27,6 +27,7 @@ import {
 import { QUOTE_LOOKUP_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { href } from "@/lib/routes";
+import { tourHoldOf } from "@/lib/tour-quote";
 import { QuoteNotice } from "@/components/quote-notice";
 import { QuotePayForm } from "@/components/quote-pay-form";
 import { Section } from "@/components/section";
@@ -51,7 +52,10 @@ import { fillTemplate } from "@/lib/fill-template";
  * the quote — lines, total, deposit, balance and its date — then the events
  * section of the terms, the seller and the complaints section, all rendered
  * from `terms.ts` itself, then the one button. The receipt emails carry the
- * same events section, so the page and the durable copy cannot disagree.
+ * same events section, so the page and the durable copy cannot disagree. A
+ * tour quote (`lib/tour-quote.ts`) shows its departure and its one payment,
+ * and the tour's cancellation and weather sections in place of the events
+ * section — the same sections its receipt carries.
  *
  * **A link that no longer works** — unknown, malformed, replaced by a new
  * version, or cancelled — gets a real 404: `proxy.ts` does the same lookup
@@ -165,11 +169,19 @@ function QuoteView({
   const due = dueInstalment(quote);
   const deposit = quote.payments.find((payment) => payment.kind === "deposit");
   const balance = quote.payments.find((payment) => payment.kind === "balance");
-  const events = termsSection("events", locale);
+  const hold = tourHoldOf(quote);
+  // What the customer agrees to: the events section, or a tour's own two.
+  const sections = hold
+    ? [termsSection("cancellation", locale), termsSection("weather", locale)]
+    : [termsSection("events", locale)];
   const complaints = termsSection("complaints", locale);
 
-  const lead =
-    quote.status === "paid" || due.kind === "settled"
+  const settled = quote.status === "paid" || due.kind === "settled";
+  const lead = hold
+    ? settled
+      ? c.tour.lead.paid
+      : c.tour.lead.sent
+    : settled
       ? c.lead.paid
       : quote.status === "deposit_paid"
         ? c.lead.depositPaid
@@ -193,7 +205,16 @@ function QuoteView({
             <h2 className="text-lg font-semibold">{t(c.detailsHeading, locale)}</h2>
             <dl className="mt-4 space-y-2 text-sm">
               <Row label={t(c.labels.reference, locale)} value={ref} mono />
-              <Row label={t(c.labels.date, locale)} value={formatDay(quote.eventDate, locale)} />
+              <Row
+                label={t(hold ? c.tour.date : c.labels.date, locale)}
+                value={formatDay(quote.eventDate, locale)}
+              />
+              {hold ? (
+                <Row
+                  label={t(c.tour.departure, locale)}
+                  value={t(c.tour.departures[hold.slot], locale)}
+                />
+              ) : null}
               {quote.venue ? <Row label={t(c.labels.venue, locale)} value={quote.venue} /> : null}
             </dl>
             <ul className="mt-4 space-y-2 border-t pt-4 text-sm">
@@ -224,7 +245,13 @@ function QuoteView({
               {deposit ? (
                 <Instalment
                   locale={locale}
-                  label={fillTemplate(t(c.depositLabel, locale), { percent: String(quote.depositPercent) })}
+                  label={
+                    hold
+                      ? t(c.tour.payment, locale)
+                      : fillTemplate(t(c.depositLabel, locale), {
+                          percent: String(quote.depositPercent),
+                        })
+                  }
                   amount={money(deposit.amountCents)}
                   payment={deposit}
                 />
@@ -251,14 +278,16 @@ function QuoteView({
             </p>
             {quote.acceptedTermsVersion ? (
               <p className="mt-1 text-sm text-muted-foreground">
-                {fillTemplate(t(c.acceptedVersion, locale), {
+                {fillTemplate(t(hold ? c.tour.acceptedVersion : c.acceptedVersion, locale), {
                   version: formatDay(quote.acceptedTermsVersion, locale),
                 })}
               </p>
             ) : null}
           </div>
 
-          <TermsBlock heading={events.heading} body={events.body} />
+          {sections.map((section) => (
+            <TermsBlock key={section.heading} heading={section.heading} body={section.body} />
+          ))}
 
           <div>
             <h3 className="text-lg font-semibold">{t(termsContent.sellerHeading, locale)}</h3>
@@ -292,7 +321,10 @@ function QuoteView({
               locale={locale}
               token={token}
               label={fillTemplate(
-                t(due.payment.kind === "balance" ? c.pay.balance : c.pay.deposit, locale),
+                t(
+                  hold ? c.tour.pay : due.payment.kind === "balance" ? c.pay.balance : c.pay.deposit,
+                  locale,
+                ),
                 { amount: money(due.payment.amountCents) },
               )}
             />
