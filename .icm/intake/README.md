@@ -25,7 +25,6 @@ Set by Jamie on 2026-10-27.
 2. bookings-and-payment-links
 3. wedding-quotes
 4. open-and-private-tours
-5. site-copy-and-photos
 
 ## The loop
 
