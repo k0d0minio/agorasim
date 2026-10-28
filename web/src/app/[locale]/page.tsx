@@ -4,7 +4,7 @@ import { isLocale, t, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
 import { home } from "@/content/pages";
 import { classicCars } from "@/content/site";
-import { listExperiences, signatureOf } from "@/lib/experience-catalogue";
+import { complementsOf, listExperiences, signatureOf } from "@/lib/experience-catalogue";
 import { Hero } from "@/components/hero";
 import { Section, SectionHeading } from "@/components/section";
 import { ExperienceCard } from "@/components/experience-card";
@@ -41,6 +41,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const dict = getDictionary(l);
   const experiences = await listExperiences();
   const signatureExperience = signatureOf(experiences);
+  // Tours and add-ons sit in separate sections, so a guest can tell one from the other.
+  const tours = experiences.filter((exp) => exp.kind === "signature");
+  const addOns = complementsOf(experiences);
 
   return (
     <>
@@ -102,12 +105,28 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           title={t(home.experiencesTitle, l)}
           intro={t(home.experiencesIntro, l)}
         />
-        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {experiences.map((exp) => (
+        <div className="mt-10 grid gap-6 sm:grid-cols-2">
+          {tours.map((exp) => (
             <ExperienceCard key={exp.slug} experience={exp} locale={l} learnMore={dict.cta.learnMore} />
           ))}
         </div>
       </Section>
+
+      {/* Add-ons — the same heading as `/experiencias`, under the tours. */}
+      {addOns.length > 0 ? (
+        <Section>
+          <SectionHeading
+            eyebrow={dict.labels.complement}
+            title={t(home.addOnsTitle, l)}
+            intro={t(home.addOnsIntro, l)}
+          />
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {addOns.map((exp) => (
+              <ExperienceCard key={exp.slug} experience={exp} locale={l} learnMore={dict.cta.learnMore} />
+            ))}
+          </div>
+        </Section>
+      ) : null}
 
       {/* Testimonials — real guests, their own words and their own photos.
           Copy only: no review/rating structured data (see the component). */}
