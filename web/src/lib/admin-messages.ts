@@ -46,6 +46,7 @@ export const messageKindLabel: Record<MessageKind, string> = {
   "quote-event-cancelled": "Evento cancelado",
   "balance-request": "Pedido do saldo",
   "balance-reminder": "Lembrete do saldo",
+  "booking-payment-link": "Link de pagamento",
 };
 
 /** One card in "As mensagens": when a kind goes out, and to whom. */
@@ -61,6 +62,10 @@ export const MESSAGE_CARDS: readonly MessageCard[] = [
   {
     kind: "enquiry-ack",
     when: "Quando chega um pedido pelo site — ao cliente e à equipa.",
+  },
+  {
+    kind: "booking-payment-link",
+    when: "Quando regista uma reserva com link de pagamento, ou reenvia o link — ao cliente.",
   },
   {
     kind: "booking-confirmation",
@@ -141,6 +146,7 @@ export type MessageRowCore = {
   quoteSentAt?: Date | null;
   quotePaymentId?: string | null;
   refundedTotalCents?: number | null;
+  linkSentAt?: Date | null;
 };
 
 /** A row's badge, `now` deciding whether a `sending` row has been left behind. */
@@ -171,6 +177,15 @@ function subjectKey(row: MessageRowCore): string {
       row.recipient,
       row.quotePaymentId,
       row.refundedTotalCents,
+    ]);
+  }
+  if (row.bookingId && row.linkSentAt) {
+    return JSON.stringify([
+      "booking-link",
+      row.kind,
+      row.recipient,
+      row.bookingId,
+      row.linkSentAt.getTime(),
     ]);
   }
   if (row.bookingId) {

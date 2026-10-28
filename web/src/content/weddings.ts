@@ -63,8 +63,8 @@ export const weddingsContent = {
       {
         title: { pt: "Conte-nos o vosso dia", en: "Tell us about your day" } as Localized,
         body: {
-          pt: "Data, local da cerimónia, horas de serviço e o carro dos vossos sonhos.",
-          en: "Date, ceremony venue, hours of service and the car of your dreams.",
+          pt: "Data, local da cerimónia, hora da cerimónia e o carro dos vossos sonhos.",
+          en: "Date, ceremony venue, ceremony time and the car of your dreams.",
         } as Localized,
       },
       {
@@ -125,7 +125,7 @@ export const weddingsContent = {
         pt: "Ex.: Igreja de São Pedro, Mafra",
         en: "e.g. São Pedro Church, Mafra",
       } as Localized,
-      hours: { pt: "Horas de serviço", en: "Hours of service" } as Localized,
+      ceremonyTime: { pt: "Hora da cerimónia", en: "Ceremony time" } as Localized,
       car: { pt: "Carro preferido", en: "Preferred car" } as Localized,
       carNone: { pt: "Aconselhem-nos", en: "Advise us" } as Localized,
       message: { pt: "Contem-nos mais", en: "Tell us more" } as Localized,

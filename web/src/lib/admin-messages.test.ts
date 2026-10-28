@@ -53,12 +53,13 @@ describe("messageKindLabel", () => {
 });
 
 describe("MESSAGE_CARDS", () => {
-  it("has one card for each of the thirteen kinds with a sender, the balance kinds included", () => {
+  it("has one card for each of the fourteen kinds with a sender, the balance kinds included", () => {
     const kinds = MESSAGE_CARDS.map((card) => card.kind);
-    expect(kinds).toHaveLength(13);
-    expect(new Set(kinds).size).toBe(13);
+    expect(kinds).toHaveLength(14);
+    expect(new Set(kinds).size).toBe(14);
     expect(kinds).toContain("balance-request");
     expect(kinds).toContain("balance-reminder");
+    expect(kinds).toContain("booking-payment-link");
   });
 
   it("says when and to whom for every card, without SMS or an exclamation mark", () => {
@@ -186,6 +187,34 @@ describe("attentionRows", () => {
       status: "sent",
     });
     expect(attentionRows([failedV1, retryV1], NOW)).toEqual([]);
+  });
+
+  it("matches a payment-link retry only on the same send (kind, booking and link-sent-at)", () => {
+    const firstLink = new Date("2026-10-28T10:00:00Z");
+    const failedFirst = row({
+      kind: "booking-payment-link",
+      bookingId: "b1",
+      linkSentAt: firstLink,
+      status: "failed",
+      sentAt: null,
+    });
+    // "Reenviar link" mints a new link: a different send, which says nothing
+    // about whether the first email ever arrived.
+    const resend = row({
+      kind: "booking-payment-link",
+      bookingId: "b1",
+      linkSentAt: new Date("2026-10-28T11:00:00Z"),
+      status: "sent",
+    });
+    expect(attentionRows([failedFirst, resend], NOW)).toEqual([failedFirst]);
+
+    const retry = row({
+      kind: "booking-payment-link",
+      bookingId: "b1",
+      linkSentAt: firstLink,
+      status: "sent",
+    });
+    expect(attentionRows([failedFirst, retry], NOW)).toEqual([]);
   });
 
   it("never treats a stuck, unconfirmed send as superseded", () => {

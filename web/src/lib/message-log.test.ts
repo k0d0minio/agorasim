@@ -253,6 +253,8 @@ describe("sendLoggedEmail", () => {
       quoteSentAt: null,
       quotePaymentId: null,
       refundedTotalCents: null,
+      // Null too: only a payment-link send names its link.
+      linkSentAt: null,
       status: "sending",
     });
     expect(updatedPatches[0]).toMatchObject({

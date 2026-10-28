@@ -64,7 +64,7 @@ import "server-only";
 
 import { timingSafeEqual } from "node:crypto";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, isNotNull } from "drizzle-orm";
 
 import {
   bookings,
@@ -77,7 +77,7 @@ import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { bookingContent } from "@/content/booking";
 import { t, type Locale } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
-import { formatDay, type DateKey } from "@/lib/availability";
+import { formatDay, todayKey, type DateKey } from "@/lib/availability";
 import { bookingRef, holdExpiryFrom } from "@/lib/bookings";
 import {
   cancellationPath,
@@ -722,6 +722,27 @@ export async function closeUnpaidBooking(options: {
   status: "expired" | "cancelled";
 }): Promise<void> {
   const now = new Date();
+
+  /*
+    A payment link outlives its checkout. The customer opened the form and
+    left, or a delayed payment failed: the link still works until the
+    departure is past, so the booking stays `pending` and only gives the car
+    back. The next tap on the link opens a new session (`lib/payment-link.ts`).
+  */
+  const [released] = await db
+    .update(bookings)
+    .set({ stripeSessionId: null, holdExpiresAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(bookings.stripeSessionId, options.sessionId),
+        eq(bookings.status, "pending"),
+        isNotNull(bookings.paymentLinkTokenHash),
+        gte(bookings.date, todayKey(now)),
+      ),
+    )
+    .returning({ id: bookings.id });
+  if (released) return;
+
   const [closed] = await db
     .update(bookings)
     .set({

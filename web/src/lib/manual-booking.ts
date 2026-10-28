@@ -21,6 +21,8 @@
  */
 import "server-only";
 
+import type { ManualBookingTour } from "@/components/admin/manual-booking-dialog";
+import { t, type Localized } from "@/i18n/config";
 import { MAX_PARTY_ONLINE } from "@/lib/fleet";
 import { todayKey, type DateKey, type DaySlots } from "@/lib/availability";
 import {
@@ -39,6 +41,32 @@ import {
  * to the browser once per board, shared by every card on it.
  */
 export const MANUAL_BOOKING_HORIZON_DAYS = 180;
+
+/**
+ * The tours the manual sheet can sell — active signature routes — each with
+ * the active add-ons that attach to it. One builder for the Calendar's mount
+ * and the Sales screens', so the two sheets cannot offer different baskets.
+ */
+export function manualBookingTours(
+  catalogue: readonly {
+    slug: string;
+    title: Localized;
+    kind: string;
+    active: boolean;
+    attachesTo?: readonly string[];
+  }[],
+): ManualBookingTour[] {
+  const addOns = catalogue.filter((entry) => entry.kind === "complement" && entry.active);
+  return catalogue
+    .filter((entry) => entry.kind === "signature" && entry.active)
+    .map((tour) => ({
+      slug: tour.slug,
+      title: t(tour.title, "pt"),
+      addOns: addOns
+        .filter((addOn) => (addOn.attachesTo ?? []).includes(tour.slug))
+        .map((addOn) => ({ slug: addOn.slug, title: t(addOn.title, "pt") })),
+    }));
+}
 
 /** The dialog's fields, as a lead fills them. Plain data, crosses to the client. */
 export type ManualBookingPrefill = {

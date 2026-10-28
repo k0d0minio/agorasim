@@ -23,7 +23,7 @@ import {
   departureTimeFollowsByEmail,
   meetingPoints,
 } from "@/content/logistics";
-import { serviceHoursLabel } from "@/content/quote-request";
+import { ceremonyTimeLabel, serviceHoursLabel } from "@/content/quote-request";
 import { termsContent, termsSection } from "@/content/terms";
 import type { Booking, EnquiryKind } from "@/db/schema";
 import { t, type Locale, type Localized } from "@/i18n/config";
@@ -1154,8 +1154,10 @@ export type EnquiryEmailFacts = {
   experience: string | null;
   /** Wedding and event enquiries only — null on a tour. */
   venue?: string | null;
-  /** A {@link SERVICE_HOURS} key, resolved to a sentence here. */
+  /** A {@link SERVICE_HOURS} key, resolved to a sentence here. Events only. */
   serviceHours?: string | null;
+  /** `HH:MM`, when the ceremony starts. Weddings only. */
+  ceremonyTime?: string | null;
   /** A `classicCars` id, resolved to the car's name here. */
   preferredCar?: string | null;
   adminUrl: string;
@@ -1282,9 +1284,20 @@ export function teamEnquiryEmail(
   /*
    * What the team reads first. A quote enquiry drops the `Experiência` row —
    * it names none, by definition — for the three facts the price is worked out
-   * from: where it is, how long for, and which car. The `Pessoas` row shows
-   * only when there is a head count: the wedding form does not ask one.
+   * from: where it is, when (a wedding) or how long for (an event), and which
+   * car. The `Pessoas` row shows only when there is a head count: the wedding
+   * form does not ask one.
    */
+  const whenRow: DetailRow =
+    facts.kind === "wedding"
+      ? {
+          label: c.quote.labels.ceremonyTime,
+          value: facts.ceremonyTime ? ceremonyTimeLabel(facts.ceremonyTime) : "—",
+        }
+      : {
+          label: c.quote.labels.hours,
+          value: facts.serviceHours ? serviceHoursLabel(facts.serviceHours, "pt") : "—",
+        };
   const partyRows: DetailRow[] = facts.partySize
     ? [{ label: c.labels.party, value: values.party }]
     : [];
@@ -1292,10 +1305,7 @@ export function teamEnquiryEmail(
     ? [
         { label: c.labels.date, value: facts.preferredDate || "—" },
         { label: c.quote.labels.venue, value: facts.venue || "—" },
-        {
-          label: c.quote.labels.hours,
-          value: facts.serviceHours ? serviceHoursLabel(facts.serviceHours, "pt") : "—",
-        },
+        whenRow,
         { label: c.quote.labels.car, value: carLabel(facts.preferredCar) ?? "—" },
         ...partyRows,
       ]
@@ -1494,6 +1504,119 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
       emailButton({ label: t(c.cta, l), href: facts.quoteUrl }),
       emailSpacer(20),
       emailParagraph(termsNote, { muted: true, spaceBelow: 16 }),
+      emailParagraph(t(c.questions, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+  };
+}
+
+export type PaymentLinkEmailFacts = BookingLogisticsFacts & {
+  /** `AG-1A2B3C` — the booking's reference. */
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  /** The booking's language, which is the enquiry's. */
+  locale: Locale;
+  /** "sábado, 15 de agosto de 2026" — the departure day. */
+  date: string;
+  total: string;
+  /**
+   * The payment page, absolute, carrying the plaintext token this mail is the
+   * only place that will ever hold (`lib/payment-link.ts`).
+   */
+  payUrl: string;
+};
+
+/**
+ * The payment link, sent to the customer in the language they enquired in.
+ *
+ * Shaped like the quote email — a greeting, the facts table, what happens
+ * next, the one button, the phone numbers — because it is read the same way.
+ * It says plainly that nothing is held until the payment lands: a customer who
+ * waits a week and finds the departure gone must not be surprised by it.
+ */
+export function guestPaymentLinkEmail(facts: PaymentLinkEmailFacts): EmailMessage {
+  const c = bookingEmails.paymentLink;
+  const g = bookingEmails.guest;
+  const l = facts.locale;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    experience: facts.experience,
+    date: facts.date,
+    total: facts.total,
+    site: siteUrl(),
+  };
+
+  const subject = fillTemplate(t(c.subject, l), values);
+  const greeting = fillTemplate(t(c.greeting, l), values);
+
+  const rows: DetailRow[] = [
+    { label: t(g.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(g.labels.experience, l), value: facts.experience },
+    { label: t(g.labels.date, l), value: facts.date },
+    ...logisticsRows(facts, l),
+    { label: t(c.totalLabel, l), value: facts.total, emphasis: true },
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    t(c.lead, l),
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    pinLine(facts, l),
+    "",
+    t(c.next.body, l),
+    "",
+    // The URL on its own line, as the quote link is — a text client makes a
+    // bare line tappable and breaks one wrapped in a sentence.
+    fillTemplate(t(c.ctaTextLine, l), { url: facts.payUrl }),
+    t(c.replacesNote, l),
+    "",
+    t(c.questions, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(c.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fillTemplate(t(c.preheader, l), values),
+    banner: { text: t(c.banner, l) },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(t(c.lead, l), { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      emailSpacer(24),
+      emailNote({ title: t(c.next.title, l), body: t(c.next.body, l) }),
+      emailSpacer(20),
+      emailButton({ label: t(c.cta, l), href: facts.payUrl }),
+      emailSpacer(20),
+      emailParagraph(t(c.replacesNote, l), { muted: true, spaceBelow: 16 }),
       emailParagraph(t(c.questions, l), { spaceBelow: 12 }),
       emailContacts(
         [diogo, rita].map((contact) => ({

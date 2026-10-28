@@ -54,7 +54,7 @@ import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience
 import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 import { classicCars } from "@/content/site";
-import { isServiceHours } from "@/content/quote-request";
+import { isServiceHours, parseCeremonyTime } from "@/content/quote-request";
 
 // ---------------------------------------------------------------------------
 // Enums, straight from the database schema
@@ -897,10 +897,30 @@ export const createManualBookingSchema = z.object({
    * above the schema.
    */
   amount: z.string().trim().catch("").transform(parseAmountInput),
+  /**
+   * How the customer pays. `cash` confirms the booking now, as the sheet
+   * always did. `link` emails a payment link and confirms on payment
+   * (`lib/payment-link.ts`). Anything else is read as cash: it is the choice
+   * that existed before this field did.
+   */
+  payment: z.enum(["cash", "link"]).catch("cash"),
 });
 
 /** Field names `createManualBooking` can report an inline error against. */
-export type ManualBookingField = "date" | "slot" | "experience" | "party" | "name" | "email";
+export type ManualBookingField =
+  | "date"
+  | "slot"
+  | "experience"
+  | "party"
+  | "addOns"
+  | "name"
+  | "email"
+  | "amount";
+
+/** "Reenviar link" and "Anular link" on one link booking. */
+export const paymentLinkBookingSchema = z.object({
+  bookingId: z.uuid(),
+});
 
 // ---------------------------------------------------------------------------
 // Public tour-request form
@@ -980,6 +1000,14 @@ export const quoteRequestSchema = z.object({
    */
   serviceHours: optionalText.transform((value) =>
     value && isServiceHours(value) ? value : null,
+  ),
+  /**
+   * When the ceremony starts, from a `type="time"` field: `HH:MM`, stored in
+   * `ceremony_time`. Only `/casamentos` posts it. A value no time field could
+   * post is dropped rather than rejected, like an unknown service-hours key.
+   */
+  ceremonyTime: optionalText.transform((value) =>
+    value ? parseCeremonyTime(value) : null,
   ),
   /** A `classicCars` id, or null for "advise us" — and for anything we retired. */
   preferredCar: optionalText.transform((value) =>
