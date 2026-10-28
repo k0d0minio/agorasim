@@ -5,7 +5,7 @@ import { Clock, CheckCircle2, HelpCircle, Mail, Phone } from "lucide-react";
 
 import { quotePageContent } from "@/content/quote-page";
 import { site } from "@/content/site";
-import { termsContent, termsSection } from "@/content/terms";
+import { seller, termsContent, termsSection } from "@/content/terms";
 import type { QuotePayment } from "@/db";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { formatDay, todayKey } from "@/lib/availability";
@@ -30,7 +30,6 @@ import { tourHoldOf } from "@/lib/tour-quote";
 import { QuoteNotice } from "@/components/quote-notice";
 import { QuotePayForm } from "@/components/quote-pay-form";
 import { Section } from "@/components/section";
-import { SellerDetails } from "@/components/terms-of-sale";
 import { Card, CardContent } from "@/components/ui/card";
 import { fillTemplate } from "@/lib/fill-template";
 
@@ -49,14 +48,17 @@ import { fillTemplate } from "@/lib/fill-template";
  *
  * **What the couple read before they pay** (DL 24/2014 art. 4(1), 17(1)(l)):
  * the quote — lines, total, deposit, balance and its date — then the one
- * button, whose sentence links down to the events section of the terms, the
- * seller and the complaints section, all rendered from `terms.ts` itself and
- * all under it. The button comes first because the deposit is payable as soon
- * as the quote is sent, not at the end of the page. The receipt emails carry the
- * same events section, so the page and the durable copy cannot disagree. A
- * tour quote (`lib/tour-quote.ts`) shows its departure and its one payment,
- * and the tour's cancellation and weather sections in place of the events
- * section — the same sections its receipt carries.
+ * button, whose sentence links down to the events section of the terms and
+ * the complaints section, both rendered from `terms.ts` itself and both under
+ * it. The seller is the trading name and one link to the full identification
+ * on the terms page, not the whole block: Diogo asked for the block off the
+ * quote, and `/termos` still publishes it. The button comes first because the
+ * deposit is payable as soon as the quote is sent, not at the end of the page.
+ * The receipt emails carry the same events section, so the page and the
+ * durable copy cannot disagree. A tour quote (`lib/tour-quote.ts`) shows its
+ * departure and its one payment, and the tour's cancellation and weather
+ * sections in place of the events section — the same sections its receipt
+ * carries.
  *
  * **A link that no longer works** — unknown, malformed, replaced by a new
  * version, or cancelled — gets a real 404: `proxy.ts` does the same lookup
@@ -326,16 +328,12 @@ function QuoteView({
             <TermsBlock key={section.heading} heading={section.heading} body={section.body} />
           ))}
 
-          <div>
-            <h3 className="text-lg font-semibold">{t(termsContent.sellerHeading, locale)}</h3>
-            <SellerDetails locale={locale} />
-          </div>
-
           <TermsBlock heading={complaints.heading} body={complaints.body} />
 
           <p className="text-sm">
+            {seller.tradingName} ·{" "}
             <Link href={href(locale, "termos")} className="underline hover:text-primary">
-              {t(c.fullTermsLink, locale)}
+              {t(c.sellerLink, locale)}
             </Link>
           </p>
         </section>
