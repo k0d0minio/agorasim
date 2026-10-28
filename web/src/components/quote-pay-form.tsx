@@ -40,7 +40,9 @@ import { Button } from "@/components/ui/button";
  *
  * The notice under the button is a sentence, not a checkbox, as at the tour
  * checkout (`terms.ts` → `checkoutNotice`): the button's label already says
- * what pressing it does, and the conditions are directly above it.
+ * what pressing it does. The page puts the button under the quote and the
+ * conditions under the button, so the sentence links down to them
+ * (`#quote-terms`) and out to the full terms of sale.
  */
 export function QuotePayForm({
   locale,
@@ -117,6 +119,10 @@ export function QuotePayForm({
       ) : null}
       <p className="text-sm text-muted-foreground">
         {t(c.pay.notice, locale)}{" "}
+        <a href="#quote-terms" className="underline hover:text-primary">
+          {t(c.pay.noticeConditions, locale)}
+        </a>{" "}
+        {t(c.pay.noticeAnd, locale)}{" "}
         <Link href={href(locale, "termos")} className="underline hover:text-primary">
           {t(termsContent.checkoutNotice.linkLabel, locale)}
         </Link>
