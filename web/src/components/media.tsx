@@ -14,6 +14,7 @@ export function Media({
   rounded = true,
   priority = false,
   sizes = "(max-width: 768px) 100vw, 50vw",
+  position,
 }: {
   src?: string;
   /** Stable string (e.g. slug) used to vary the placeholder hue when no src. */
@@ -24,6 +25,8 @@ export function Media({
   rounded?: boolean;
   priority?: boolean;
   sizes?: string;
+  /** CSS object-position of the photo, e.g. "center 70%". Default: centred. */
+  position?: string;
 }) {
   if (src) {
     return (
@@ -35,6 +38,7 @@ export function Media({
           sizes={sizes}
           priority={priority}
           className="object-cover"
+          style={position ? { objectPosition: position } : undefined}
         />
       </div>
     );
