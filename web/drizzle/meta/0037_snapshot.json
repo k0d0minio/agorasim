@@ -1,5 +1,5 @@
 {
-  "id": "210ca6a8-bc8b-4378-b544-8fdfe1115e8a",
+  "id": "ac7a8425-ec85-470a-b381-641f9bfeca04",
   "prevId": "87af494f-2b24-46af-a8e9-8795e03678ed",
   "version": "7",
   "dialect": "postgresql",
@@ -2569,12 +2569,6 @@
         "service_hours": {
           "name": "service_hours",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ceremony_time": {
-          "name": "ceremony_time",
-          "type": "time",
           "primaryKey": false,
           "notNull": false
         },
