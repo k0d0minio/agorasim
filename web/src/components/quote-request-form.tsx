@@ -37,9 +37,11 @@ function SubmitButton({ locale, label }: { locale: Locale; label: string }) {
  * One component, two voices: the labels come from whichever page rendered it
  * (`copy`), the sentences the form says about itself come from
  * `content/quote-request.ts`, and `kind` is what the Sales board reads as the
- * badge on the card. Weddings and events ask for exactly the same things —
- * where, when, how long, which car, how many of you — so a second copy of this
- * form would only have been a second place to fix a bug.
+ * badge on the card. Weddings and events ask for the same things — where,
+ * when, how long, which car — so a second copy of this form would only have
+ * been a second place to fix a bug. The one difference is the head count: an
+ * event asks it, a wedding does not, and the page says which by giving
+ * `copy.labels.partySize` or leaving it out.
  *
  * Everything below the e-mail is optional, deliberately. A couple who have not
  * settled on a venue and a company that has not fixed its date are both leads
@@ -217,19 +219,21 @@ export function QuoteRequestForm({
           </Select>
         </div>
 
-        <div className="flex flex-col gap-1.5 sm:col-span-2">
-          <Label htmlFor="partySize">
-            {t(copy.labels.partySize, locale)} {optional}
-          </Label>
-          <Input
-            id="partySize"
-            name="partySize"
-            type="number"
-            min={1}
-            inputMode="numeric"
-            placeholder={t(shared.placeholders.partySize, locale)}
-          />
-        </div>
+        {copy.labels.partySize ? (
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Label htmlFor="partySize">
+              {t(copy.labels.partySize, locale)} {optional}
+            </Label>
+            <Input
+              id="partySize"
+              name="partySize"
+              type="number"
+              min={1}
+              inputMode="numeric"
+              placeholder={t(shared.placeholders.partySize, locale)}
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-1.5">

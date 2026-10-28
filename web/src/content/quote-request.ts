@@ -31,7 +31,12 @@ export type QuoteFormCopy = {
     car: Localized;
     /** The "no preference" option at the top of the car picker. */
     carNone: Localized;
-    partySize: Localized;
+    /**
+     * Absent where the page does not ask. `/casamentos` leaves it out: the
+     * number of guests does not change what Agorasim sells at a wedding.
+     * `/eventos` keeps it.
+     */
+    partySize?: Localized;
     message: Localized;
     messagePlaceholder: Localized;
     submit: Localized;
