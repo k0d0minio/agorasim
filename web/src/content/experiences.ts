@@ -307,8 +307,8 @@ export const experiences: Experience[] = [
       en: "A family meal at the Saloia table",
     },
     summary: {
-      pt: "Tasco Galapito é uma refeição privada em ambiente de família, com pratos tradicionais Saloios servidos à mesa. Dura cerca de 2 horas e combina na perfeição com a experiência Rural Saloia.",
-      en: "Tasco Galapito is a private family-style meal, with traditional Saloia dishes served at the table. It lasts about 2 hours and pairs perfectly with the Rural Saloia experience.",
+      pt: "Tasco Galapito é uma refeição privada em ambiente de família, com pratos tradicionais Saloios servidos à mesa. Dura cerca de 2 horas e combina na perfeição com a experiência Rural Saloia ou Óbidos & Aldeias Medievais.",
+      en: "Tasco Galapito is a private family-style meal, with traditional Saloia dishes served at the table. It lasts about 2 hours and pairs perfectly with the Rural Saloia or the Óbidos & Medieval Villages experience.",
     },
     description: {
       pt: [
@@ -389,8 +389,8 @@ export const experiences: Experience[] = [
           en: "Is the Manzwine tasting available every day?",
         },
         answer: {
-          pt: "A Manzwine encerra à segunda-feira. Nos restantes dias, a prova junta-se à experiência privada Rural Saloia com um mínimo de 2 adultos.",
-          en: "Manzwine closes on Mondays. On other days, the tasting joins the private Rural Saloia experience with a minimum of 2 adults.",
+          pt: "A Manzwine encerra à segunda-feira. Nos restantes dias, a prova junta-se a uma experiência privada Rural Saloia ou Óbidos & Aldeias Medievais, com um mínimo de 2 adultos.",
+          en: "Manzwine closes on Mondays. On other days, the tasting joins a private Rural Saloia or Óbidos & Medieval Villages experience, with a minimum of 2 adults.",
         },
       },
     ],
@@ -442,8 +442,8 @@ export const experiences: Experience[] = [
           en: "What is the minimum group for the Ramilo Wines visit?",
         },
         answer: {
-          pt: "A visita realiza-se com um mínimo de 3 adultos, como complemento da experiência privada Rural Saloia.",
-          en: "The visit runs with a minimum of 3 adults, as an add-on to the private Rural Saloia experience.",
+          pt: "A visita realiza-se com um mínimo de 3 adultos, como complemento de uma experiência privada Rural Saloia ou Óbidos & Aldeias Medievais.",
+          en: "The visit runs with a minimum of 3 adults, as an add-on to a private Rural Saloia or Óbidos & Medieval Villages experience.",
         },
       },
     ],
