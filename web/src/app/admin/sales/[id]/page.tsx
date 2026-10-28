@@ -360,21 +360,25 @@ export default async function AdminLeadPage({
                 <dt className="text-muted-foreground">Telefone</dt>
                 <dd>{lead.phone ?? "—"}</dd>
               </div>
-              <div>
-                <dt className="text-muted-foreground">Experiência</dt>
-                <dd className="flex flex-wrap items-center gap-2">
-                  <ExperienceIconRow
-                    experienceSlug={lead.experienceSlug}
-                    addOns={lead.addOns}
-                    catalogue={index}
-                  />
-                  <ExperienceNames
-                    experienceSlug={lead.experienceSlug}
-                    addOns={lead.addOns}
-                    catalogue={index}
-                  />
-                </dd>
-              </div>
+              {/* A tour's route and extras. A wedding or event is quoted line
+                  by line, so the row would only show the catalogue it never uses. */}
+              {isQuote ? null : (
+                <div>
+                  <dt className="text-muted-foreground">Experiência</dt>
+                  <dd className="flex flex-wrap items-center gap-2">
+                    <ExperienceIconRow
+                      experienceSlug={lead.experienceSlug}
+                      addOns={lead.addOns}
+                      catalogue={index}
+                    />
+                    <ExperienceNames
+                      experienceSlug={lead.experienceSlug}
+                      addOns={lead.addOns}
+                      catalogue={index}
+                    />
+                  </dd>
+                </div>
+              )}
               {/* A wedding enquiry no longer asks the head count, so an empty
                   row would only be noise. A tour always carries one. */}
               {lead.partySize ? (
