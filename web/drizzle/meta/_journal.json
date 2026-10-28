@@ -260,6 +260,13 @@
       "when": 1793193676304,
       "tag": "0036_experience_attaches_to",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793212192936,
+      "tag": "0037_faq_seats_per_car",
+      "breakpoints": true
     }
   ]
 }
