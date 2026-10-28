@@ -344,6 +344,9 @@ export const experienceSchema = z
     faqQuestionEn: repeated,
     faqAnswerPt: repeated,
     faqAnswerEn: repeated,
+
+    /** One checkbox per tour, ticked for each tour an add-on joins. */
+    attachesTo: repeated,
   })
   .transform((value) => ({
     id: value.id,
@@ -378,6 +381,19 @@ export const experienceSchema = z
       .filter(
         (faq) => faq.question.pt && faq.question.en && faq.answer.pt && faq.answer.en,
       ),
+    /*
+     * Only an add-on joins a tour. A tour saved with ticks left over from when
+     * it was an add-on keeps none, and a slug is kept once whatever the form
+     * repeated. The action checks the slugs against the tours that exist.
+     */
+    attachesTo:
+      value.kind === "complement"
+        ? [
+            ...new Set(
+              value.attachesTo.map((slug) => slug.trim()).filter((slug) => SLUG_RE.test(slug)),
+            ),
+          ]
+        : [],
   }));
 
 /** Field names `saveExperience` can report an inline error against. */

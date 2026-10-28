@@ -8,8 +8,8 @@ import {
   complementsOf,
   getCatalogueEntry,
   listExperiences,
-  signatureOf,
 } from "@/lib/experience-catalogue";
+import { addOnsFor } from "@/lib/pricing";
 import { testimonialsFor } from "@/content/testimonials";
 import { site } from "@/content/site";
 import { Section, Container } from "@/components/section";
@@ -69,15 +69,19 @@ export default async function ExperienceDetailPage({
 
   /*
    * The pricing section needs the rest of the catalogue twice over: a tour
-   * whose private departures take add-ons lists them with their prices, and an
-   * add-on names the tour it can only be bought with. Nothing else on this page
-   * does, so the read only happens for the entries that use it.
+   * whose private departures take add-ons lists the ones attached to it, and an
+   * add-on names the tours it can only be bought with. Nothing else on this
+   * page does, so the read only happens for the entries that use it.
    */
   const needsCatalogue =
     exp.pricing?.type === "addon" ||
-    (exp.pricing?.type === "tour" && exp.pricing.private?.allowsAddOns === true);
+    (exp.pricing?.type === "tour" && Boolean(exp.pricing.private));
   const catalogue = needsCatalogue ? await listExperiences() : [];
-  const signature = signatureOf(catalogue);
+  const tourAddOns =
+    exp.kind === "signature" ? addOnsFor(complementsOf(catalogue), exp.slug) : [];
+  const addOnTours = catalogue
+    .filter((entry) => entry.kind === "signature" && exp.attachesTo.includes(entry.slug))
+    .map((entry) => t(entry.title, l));
 
   const breadcrumb = breadcrumbJsonLd(l, [
     { name: site.name, url: `${site.domain}${href(l, "home")}` },
@@ -153,8 +157,8 @@ export default async function ExperienceDetailPage({
         <div className="mt-16">
           <ExperiencePrices
             experience={exp}
-            addOns={complementsOf(catalogue)}
-            signatureTitle={signature ? t(signature.title, l) : undefined}
+            addOns={tourAddOns}
+            tourTitles={addOnTours}
             locale={l}
           />
         </div>

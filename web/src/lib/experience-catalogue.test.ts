@@ -91,6 +91,7 @@ function row(overrides: Partial<ExperienceRow> = {}): ExperienceRow {
     imageAlt: localized,
     priceCents: null,
     pricing: null,
+    attachesTo: [],
     active: true,
     sortOrder: 0,
     createdAt: new Date("2026-08-01T00:00:00Z"),
@@ -138,6 +139,34 @@ describe("mapping a database row", () => {
     const entry = await getCatalogueEntry("rural-saloia");
 
     expect(isPriced(entry?.pricing)).toBe(true);
+  });
+
+  it("carries the tours an add-on joins", async () => {
+    table.rows = [
+      row({
+        slug: "manzwine",
+        kind: "complement",
+        pricing: SEEDED.manzwine,
+        attachesTo: ["rural-saloia", "obidos-medieval-villages"],
+      }),
+    ];
+
+    const [entry] = await listCatalogue();
+
+    expect(entry.attachesTo).toEqual(["rural-saloia", "obidos-medieval-villages"]);
+  });
+
+  it("reads a malformed attachment list as no tour at all", async () => {
+    // `jsonb` holds whatever was written; nothing but slugs survives the read.
+    table.rows = [
+      row({ attachesTo: "rural-saloia" as unknown as string[] }),
+      row({ slug: "manzwine", attachesTo: ["rural-saloia", 7] as unknown as string[] }),
+    ];
+
+    const [first, second] = await listCatalogue();
+
+    expect(first.attachesTo).toEqual([]);
+    expect(second.attachesTo).toEqual(["rural-saloia"]);
   });
 
   it("leaves an unpriced row unpriced, quietly", async () => {

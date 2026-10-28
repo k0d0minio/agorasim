@@ -49,6 +49,11 @@ export type Experience = {
    * unsellable, and the enquiry form takes over.
    */
   pricing?: ExperiencePricing | null;
+  /**
+   * On an add-on: the slugs of the tours it joins, as a private departure of
+   * each. Absent or empty means the add-on is offered with no tour.
+   */
+  attachesTo?: string[];
 };
 
 export const experiences: Experience[] = [
@@ -337,13 +342,14 @@ export const experiences: Experience[] = [
         },
       },
     ],
-    // Only with a private countryside tour; the table seats two or more.
+    // Only with a private tour; the table seats two or more.
     pricing: {
       type: "addon",
       perAdultCents: 6000,
       childCents: 2500,
       minGuests: 2,
     },
+    attachesTo: ["rural-saloia", "obidos-medieval-villages"],
   },
   {
     slug: "manzwine",
@@ -388,7 +394,7 @@ export const experiences: Experience[] = [
         },
       },
     ],
-    // Only with a private countryside tour; per adult, minimum two; shut Mondays.
+    // Only with a private tour; per adult, minimum two; shut Mondays.
     pricing: {
       type: "addon",
       perAdultCents: 3500,
@@ -396,6 +402,7 @@ export const experiences: Experience[] = [
       minAdults: 2,
       closedWeekdays: [0],
     },
+    attachesTo: ["rural-saloia", "obidos-medieval-villages"],
   },
   {
     slug: "ramilo-wines",
@@ -440,13 +447,14 @@ export const experiences: Experience[] = [
         },
       },
     ],
-    // Only with a private countryside tour; per adult, minimum three.
+    // Only with a private tour; per adult, minimum three.
     pricing: {
       type: "addon",
       perAdultCents: 4500,
       childCents: null,
       minAdults: 3,
     },
+    attachesTo: ["rural-saloia", "obidos-medieval-villages"],
   },
 ];
 

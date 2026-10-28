@@ -43,6 +43,8 @@ export type CatalogueEntry = Experience & {
    * as `null` — unpriced, which the checkout already stands down for.
    */
   pricing: ExperiencePricing | null;
+  /** Always present here: the tours an add-on joins, empty on a tour. */
+  attachesTo: string[];
 };
 
 /**
@@ -68,6 +70,17 @@ function pricingOf(row: ExperienceRow): ExperiencePricing | null {
   return pricing;
 }
 
+/**
+ * The column is `jsonb`, so it is read like `pricing`: anything but a list of
+ * slugs joins no tour, which hides the add-on rather than offering it with a
+ * tour nobody chose.
+ */
+export function attachesToOf(row: Pick<ExperienceRow, "attachesTo">): string[] {
+  const value: unknown = row.attachesTo;
+  if (!Array.isArray(value)) return [];
+  return value.filter((slug): slug is string => typeof slug === "string");
+}
+
 /** Map a database row onto the shape the site already renders. */
 function toEntry(row: ExperienceRow): CatalogueEntry {
   return {
@@ -91,6 +104,7 @@ function toEntry(row: ExperienceRow): CatalogueEntry {
     // checkout arithmetic — without it, no database-backed entry is sellable
     // at all, which is the bug this line exists to prevent recurring.
     pricing: pricingOf(row),
+    attachesTo: attachesToOf(row),
     active: row.active,
     sortOrder: row.sortOrder,
   };
@@ -145,6 +159,7 @@ function shippedCatalogue(): CatalogueEntry[] {
     ...experience,
     priceCents: experience.priceCents ?? null,
     pricing: experience.pricing ?? null,
+    attachesTo: experience.attachesTo ?? [],
     active: true,
     sortOrder: index,
   }));

@@ -730,6 +730,34 @@ describe("the experience catalogue", () => {
     ]);
   });
 
+  it("attaches an add-on to the ticked tours that exist, and no others", async () => {
+    await signInAs("collaborator");
+    queueResult([]); // no slug clash
+    queueResult([{ slug: "rural-saloia" }, { slug: "obidos-medieval-villages" }]); // the tours
+    queueResult(undefined); // the insert
+    queueResult(undefined); // the audit insert
+
+    await saveExperience(
+      {},
+      experienceForm({
+        attachesTo: ["obidos-medieval-villages", "retired-tour", "obidos-medieval-villages"],
+      }),
+    );
+
+    expect(insertedValues()[0]!.attachesTo).toEqual(["obidos-medieval-villages"]);
+  });
+
+  it("keeps no attachment on a tour", async () => {
+    await signInAs("collaborator");
+    queueResult([]);
+    queueResult(undefined);
+    queueResult(undefined);
+
+    await saveExperience({}, experienceForm({ kind: "signature", attachesTo: "rural-saloia" }));
+
+    expect(insertedValues()[0]!.attachesTo).toEqual([]);
+  });
+
   it("reports a taken address against the field rather than throwing", async () => {
     await signInAs("collaborator");
     queueResult([{ id: EXPERIENCE_ID }]); // the clash lookup finds one

@@ -8,6 +8,7 @@ import {
   complementsOf,
   listExperiences,
 } from "@/lib/experience-catalogue";
+import { addOnsFor } from "@/lib/pricing";
 import { fromPriceLabel } from "@/content/pricing";
 import { Section, SectionHeading, Container } from "@/components/section";
 import { ExperienceCard } from "@/components/experience-card";
@@ -146,7 +147,7 @@ export default async function ExperiencesPage({
       {/* Cross-links: each signature tour points to its complements so the
           guest sees them as part of composing that specific tour. */}
       {signatures.map((tour) => {
-        const tourComplements = complementsOf(catalogue);
+        const tourComplements = addOnsFor(complementExperiences, tour.slug);
         if (tourComplements.length === 0) return null;
         return (
           <Section muted key={`${tour.slug}-crosslinks`}>

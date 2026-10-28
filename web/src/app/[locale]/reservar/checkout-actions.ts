@@ -228,7 +228,11 @@ export async function startCheckout(
 
   const priced = priceBooking({
     tour: { slug: experience.slug, pricing: experience.pricing },
-    addOns: knownAddOns.map((entry) => ({ slug: entry.slug, pricing: entry.pricing })),
+    addOns: knownAddOns.map((entry) => ({
+      slug: entry.slug,
+      pricing: entry.pricing,
+      attachesTo: entry.attachesTo,
+    })),
     mode: booking.mode,
     party,
     date: booking.date,
