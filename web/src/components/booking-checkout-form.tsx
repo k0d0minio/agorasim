@@ -390,7 +390,7 @@ export function BookingCheckoutForm({
     ? calendar.flatMap((month) => month.days).find((day) => day.date === basket.date)
     : undefined;
   const usableDepartures = (chosenDay?.slots ?? []).filter((entry) =>
-    departureUsable(entry, tour?.slug, seats),
+    departureUsable(entry, tour?.slug, seats, mode),
   );
   const date = usableDepartures.length > 0 ? basket.date : null;
   const slot =
@@ -407,7 +407,7 @@ export function BookingCheckoutForm({
   const usableOnPayload = (
     availability.flatMap((month) => month.days).find((day) => day.date === basket.date)
       ?.slots ?? []
-  ).some((entry) => departureUsable(entry, tour?.slug, seats));
+  ).some((entry) => departureUsable(entry, tour?.slug, seats, mode));
   const dayGone = Boolean(basket.date) && date === null;
   const dayDroppedByClock = dayGone && usableOnPayload;
   /** The guest had a day, and the party they have just become cannot have it. */
@@ -805,6 +805,7 @@ export function BookingCheckoutForm({
               slotLabels={slotLabels}
               experienceSlug={tour.slug}
               partySize={seats}
+              mode={mode}
               allowFlexible={false}
               contactHref={href(l, "contactos")}
               months={calendar}

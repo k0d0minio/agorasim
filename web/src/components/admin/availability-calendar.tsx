@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, Minus, Plus, UserRoundPlus, X } from "lucide
 
 import {
   blockDays,
+  changeBookingCar,
   countLiveBookings,
   saveDayRoster,
   type AvailabilityActionState,
@@ -17,7 +18,13 @@ import type { DaySlots, SlotAvailability } from "@/lib/availability";
 import type { BookingStatus, EnquiryKind } from "@/db/schema";
 import type { DayBlock } from "@/lib/form-schemas";
 import { bookingStatusMeta, enquiryKindMeta } from "@/lib/admin-format";
-import { VEHICLE_CLASSES, type VehicleClass } from "@/lib/fleet";
+import {
+  CLASS_SEATS,
+  carChoices,
+  freeSeats,
+  VEHICLE_CLASSES,
+  type VehicleClass,
+} from "@/lib/fleet";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -105,6 +112,8 @@ export type CalendarVehicle = { name: string; seats: number };
  * SQL than to explain to a client component.
  */
 export type CalendarBooking = {
+  /** The booking's id — what "Mudar de carro" posts. */
+  id: string;
   /** `BK-XXXXXX` — the reference the guest was quoted. Precomputed, server-side. */
   ref: string;
   /** The lead's id — the day sheet links through to its sales page. Nullable after erasure. */
@@ -115,6 +124,11 @@ export type CalendarBooking = {
   slot: "morning" | "afternoon";
   partySize: number;
   status: BookingStatus;
+  /** Per person (`public`) or the group's own car (`private`). */
+  mode: "public" | "private";
+  vehicleClass: VehicleClass;
+  /** The open car it rides in. Null when the booking has a car of its own. */
+  sharedCarId: string | null;
 };
 
 /**
@@ -158,6 +172,13 @@ function carsLeft(slot: SlotAvailability): string {
     },
   );
   return parts.length > 0 ? parts.join(", ") : "sem veículos";
+}
+
+/** "1 lugar em carros partilhados" — seats still for sale per person, or null. */
+function openSeatsLeft(slot: SlotAvailability): string | null {
+  const seats = slot.openCars.reduce((sum, car) => sum + freeSeats(car), 0);
+  if (seats === 0) return null;
+  return `${seats} ${seats === 1 ? "lugar" : "lugares"} em carros partilhados`;
 }
 
 /**
@@ -257,9 +278,14 @@ function slotSentence(slot: SlotAvailability): string {
   // "Sem condutores livres" rather than the English's "both drivers out": the
   // roster can be one, and a sentence that says "both" on a one-driver
   // departure is telling the operator something that is not true.
-  if (slot.driversLeft === 0) return `${short} sem condutores livres`;
+  // An open car can still sell a seat with every driver out: say both facts.
+  const seats = slot.heldByEvent ? null : openSeatsLeft(slot);
+  const withSeats = (sentence: string) => (seats ? `${sentence}, ${seats}` : sentence);
+  if (slot.driversLeft === 0) return withSeats(`${short} sem condutores livres`);
   if (!slot.hasRoom) return `${short} sem veículos livres`;
-  return `${short} ${slot.driversLeft} de ${slot.drivers} condutores livres, ${carsLeft(slot)}`;
+  return withSeats(
+    `${short} ${slot.driversLeft} de ${slot.drivers} condutores livres, ${carsLeft(slot)}`,
+  );
 }
 
 /** The whole cell: gray when blocked, plain otherwise (see {@link tileState}). */
@@ -394,12 +420,20 @@ function DayEvents({
  * Shown above the controls, not below: "who is on this day" is the first thing
  * an operator asks when they open it, and it is why the tile's green was struck
  * through.
+ *
+ * **A shared car is one box.** Per-person parties that ride together are drawn
+ * inside one frame headed with the car's class and its seats, so the driver's
+ * list for the morning reads car by car. Each paid party in it can be moved to
+ * another car of its tour, or to a car of its own ({@link ChangeCar}).
  */
 function DayBookings({
   bookings,
+  slots,
   experienceNames,
 }: {
   bookings: CalendarBooking[];
+  /** The day's departures — the open cars and what is free on each. */
+  slots: SlotAvailability[];
   experienceNames: Record<string, string>;
 }) {
   const groups = (
@@ -411,6 +445,7 @@ function DayBookings({
     .map((group) => ({
       ...group,
       rows: bookings.filter((booking) => booking.slot === group.slot),
+      departure: slots.find((slot) => slot.slot === group.slot),
     }))
     .filter((group) => group.rows.length > 0);
 
@@ -422,48 +457,165 @@ function DayBookings({
       {groups.map((group) => (
         <div key={group.slot} className="flex flex-col gap-1.5">
           <p className="text-xs font-medium text-muted-foreground">{group.label}</p>
-          {group.rows.map((booking) => {
-            const meta = bookingStatusMeta[booking.status];
-            const experience =
-              experienceNames[booking.experienceSlug] ?? booking.experienceSlug;
-            const party =
-              booking.partySize === 1 ? "1 pessoa" : `${booking.partySize} pessoas`;
-            const row = (
-              <>
-                <span className="text-sm font-medium">
-                  {booking.name ?? booking.ref}
-                </span>
-                {booking.name ? (
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {booking.ref}
-                  </span>
-                ) : null}
-                <Badge variant={meta.variant}>{meta.label}</Badge>
-                <span className="text-sm text-muted-foreground">{experience}</span>
-                <span aria-hidden>·</span>
-                <span className="text-sm text-muted-foreground">{party}</span>
-              </>
-            );
-            return booking.tourRequestId ? (
-              <Link
-                key={booking.ref}
-                href={`/admin/sales/${booking.tourRequestId}`}
-                className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-muted/40 px-2 py-1.5 transition-colors hover:bg-muted/70 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-              >
-                {row}
-              </Link>
-            ) : (
+          {carsOf(group.rows).map((car) =>
+            car.sharedCarId ? (
               <div
-                key={booking.ref}
-                className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-muted/40 px-2 py-1.5"
+                key={car.sharedCarId}
+                className="flex flex-col gap-1.5 rounded-lg border border-dashed p-2"
               >
-                {row}
+                <p className="text-xs font-medium text-muted-foreground">
+                  {sharedCarHeading(car.rows)}
+                </p>
+                {car.rows.map((booking) => (
+                  <div key={booking.ref} className="flex flex-col gap-1">
+                    <BookingRow booking={booking} experienceNames={experienceNames} />
+                    {group.departure ? (
+                      <ChangeCar booking={booking} departure={group.departure} />
+                    ) : null}
+                  </div>
+                ))}
               </div>
-            );
-          })}
+            ) : (
+              <BookingRow
+                key={car.rows[0].ref}
+                booking={car.rows[0]}
+                experienceNames={experienceNames}
+              />
+            ),
+          )}
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * A departure's bookings, car by car, in the order the cars were first sold:
+ * every party sharing an open car together, every other booking on its own.
+ */
+function carsOf(
+  rows: CalendarBooking[],
+): { sharedCarId: string | null; rows: CalendarBooking[] }[] {
+  const cars: { sharedCarId: string | null; rows: CalendarBooking[] }[] = [];
+  for (const booking of rows) {
+    const car = booking.sharedCarId
+      ? cars.find((entry) => entry.sharedCarId === booking.sharedCarId)
+      : undefined;
+    if (car) car.rows.push(booking);
+    else cars.push({ sharedCarId: booking.sharedCarId, rows: [booking] });
+  }
+  return cars;
+}
+
+/** "Carro partilhado · clássico · 2 de 3 lugares" — the box's heading. */
+function sharedCarHeading(rows: CalendarBooking[]): string {
+  const vehicleClass = rows[0].vehicleClass;
+  const taken = rows.reduce((sum, booking) => sum + booking.partySize, 0);
+  return `Carro partilhado · ${CLASS_WORDS[vehicleClass].one} · ${taken} de ${CLASS_SEATS[vehicleClass]} lugares`;
+}
+
+/** One booking: the guest, the reference, the payment state, the tour, the party. */
+function BookingRow({
+  booking,
+  experienceNames,
+}: {
+  booking: CalendarBooking;
+  experienceNames: Record<string, string>;
+}) {
+  const meta = bookingStatusMeta[booking.status];
+  const experience = experienceNames[booking.experienceSlug] ?? booking.experienceSlug;
+  const party = booking.partySize === 1 ? "1 pessoa" : `${booking.partySize} pessoas`;
+  const row = (
+    <>
+      <span className="text-sm font-medium">{booking.name ?? booking.ref}</span>
+      {booking.name ? (
+        <span className="font-mono text-xs text-muted-foreground">{booking.ref}</span>
+      ) : null}
+      <Badge variant={meta.variant}>{meta.label}</Badge>
+      <span className="text-sm text-muted-foreground">{experience}</span>
+      <span aria-hidden>·</span>
+      <span className="text-sm text-muted-foreground">{party}</span>
+    </>
+  );
+  return booking.tourRequestId ? (
+    <Link
+      href={`/admin/sales/${booking.tourRequestId}`}
+      className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-muted/40 px-2 py-1.5 transition-colors hover:bg-muted/70 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      {row}
+    </Link>
+  ) : (
+    <div className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-muted/40 px-2 py-1.5">
+      {row}
+    </div>
+  );
+}
+
+/**
+ * "Mudar de carro" — move one paid per-person party to another car on its
+ * departure, or to a car of its own.
+ *
+ * Offers exactly what `moveBookingToCar` accepts, by the same `carChoices`
+ * from `lib/fleet.ts`, over the departure the page described. Nothing is
+ * offered on a pending hold, on a departure that has left, or when no other
+ * car can take the party.
+ */
+function ChangeCar({
+  booking,
+  departure,
+}: {
+  booking: CalendarBooking;
+  departure: SlotAvailability;
+}) {
+  const [state, action] = useActionState<AvailabilityActionState, FormData>(
+    changeBookingCar,
+    {},
+  );
+  if (booking.status !== "confirmed" || !booking.sharedCarId || departure.past) return null;
+
+  const { join, canOpenNew } = carChoices({
+    cars: departure.openCars,
+    party: {
+      sharedCarId: booking.sharedCarId,
+      experienceSlug: booking.experienceSlug,
+      partySize: booking.partySize,
+    },
+    free: departure,
+  });
+  if (join.length === 0 && !canOpenNew) return null;
+
+  const fieldId = `car-${booking.id}`;
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-2 pl-2">
+      <input type="hidden" name="bookingId" value={booking.id} />
+      <Label htmlFor={fieldId} className="sr-only">
+        Mudar {booking.name ?? booking.ref} de carro
+      </Label>
+      <select
+        id={fieldId}
+        name="target"
+        className="h-9 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm"
+      >
+        {join.map((car) => {
+          const free = freeSeats(car);
+          return (
+            <option key={car.id} value={car.id}>
+              Outro {CLASS_WORDS[car.vehicleClass].one} partilhado · {free}{" "}
+              {free === 1 ? "lugar livre" : "lugares livres"}
+            </option>
+          );
+        })}
+        {canOpenNew ? <option value="new">Um carro novo</option> : null}
+      </select>
+      <SubmitButton variant="outline" pendingLabel="A mudar…">
+        Mudar de carro
+      </SubmitButton>
+      {state.error ? (
+        <p role="alert" className="w-full text-xs text-destructive">
+          {state.error}
+        </p>
+      ) : null}
+    </form>
   );
 }
 
@@ -550,7 +702,11 @@ function DayPanel({
 
           <DayEvents events={events} bookingCount={bookings.length} />
 
-          <DayBookings bookings={bookings} experienceNames={experienceNames} />
+          <DayBookings
+            bookings={bookings}
+            slots={day.slots}
+            experienceNames={experienceNames}
+          />
 
           {openSlots.length > 0 && tours.length > 0 ? (
             <Button

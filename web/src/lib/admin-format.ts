@@ -239,6 +239,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "booking.cancelled": "cancelou uma reserva",
   "booking.refunded": "cancelou e reembolsou uma reserva",
   "booking.moved": "mudou uma reserva de partida",
+  "booking.car_changed": "mudou uma reserva de carro",
   "booking.no_show_marked": "marcou uma falta numa reserva",
   "booking.no_show_cleared": "retirou a falta de uma reserva",
   "quote.created": "criou um orçamento",

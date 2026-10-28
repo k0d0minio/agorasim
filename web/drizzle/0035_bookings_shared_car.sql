@@ -1,0 +1,1 @@
+ALTER TABLE "bookings" ADD COLUMN "shared_car_id" uuid;

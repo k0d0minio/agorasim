@@ -163,6 +163,17 @@ export function SalesBoard({
                   {record.when ? (
                     <span className="text-muted-foreground">{record.when}</span>
                   ) : null}
+                  {/*
+                    A per-person booking rides with other parties: the driver
+                    plans one car, not one per card. Who else is in it is on
+                    the Calendar's day sheet.
+                  */}
+                  {record.sharedCar ? (
+                    <Badge variant="outline">
+                      Carro partilhado · {record.sharedCar.seatsTaken} de{" "}
+                      {record.sharedCar.seats} lugares
+                    </Badge>
+                  ) : null}
                   <span className="inline-flex items-center gap-1 text-muted-foreground">
                     <Clock className="size-3" aria-hidden />
                     {formatRelativeTime(record.createdAt, now)}
