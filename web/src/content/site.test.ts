@@ -1,7 +1,11 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { classicCars } from "./site";
+import { about } from "./pages";
 import { weddingsContent } from "./weddings";
+import { locales } from "@/i18n/config";
 import { FLEET } from "@/lib/fleet";
 
 /**
@@ -25,5 +29,19 @@ describe("the classic cars", () => {
       expect(carIds).toContain(tile.id);
     }
     expect(weddingsContent.fleet.cars).toHaveLength(classicCars.length);
+  });
+
+  it("has one biography and one photo per About page tile", () => {
+    const publicDir = fileURLToPath(new URL("../../public", import.meta.url));
+    const carIds = classicCars.map((car) => car.id);
+    for (const tile of about.fleet.cars) {
+      expect(carIds).toContain(tile.id);
+      expect(tile.image.startsWith("/images/fleet/")).toBe(true);
+      expect(existsSync(`${publicDir}${tile.image}`)).toBe(true);
+      for (const locale of locales) {
+        expect(tile.alt[locale].trim().length).toBeGreaterThan(0);
+      }
+    }
+    expect(about.fleet.cars).toHaveLength(classicCars.length);
   });
 });

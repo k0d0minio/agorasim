@@ -92,6 +92,50 @@ export const about = {
       { title: "Local", text: "We support Saloia producers and artisans." },
     ],
   } as Localized<{ title: string; text: string }[]>,
+  fleet: {
+    title: { pt: "Os nossos clássicos", en: "Our classics" } as Localized,
+    /**
+     * Only the photo lives here: `id` joins each tile to `classicCars` in
+     * `content/site.ts`, where the name, model, year and story are written once.
+     * `position` is the CSS object-position for a portrait frame that the 4:3
+     * tile would otherwise crop through the car.
+     */
+    cars: [
+      {
+        id: "citroen-2cv",
+        image: "/images/fleet/citroen-2cv-agorasim-lettering.jpg",
+        alt: {
+          pt: "Citroën 2CV Josefina de perfil, com a inscrição Agorasim na porta, num largo empedrado",
+          en: "Citroën 2CV Josefina in profile, with the Agorasim script on the door, on a cobbled square",
+        },
+      },
+      {
+        id: "renault-4l",
+        image: "/images/fleet/renault-4-village-house.jpg",
+        alt: {
+          pt: "Renault 4L Catrel num largo empedrado, em frente a uma casa saloia caiada de branco e azul",
+          en: "Renault 4L Catrel on a cobbled square, in front of a white and blue Saloia house",
+        },
+      },
+      {
+        id: "fiat-600",
+        image: "/images/fleet/fiat-600-countryside.jpg",
+        alt: {
+          pt: "Fiat 600 Cerejinha, cor de vinho, de lado, numa calçada junto a uma casa rural",
+          en: "Maroon Fiat 600 Cerejinha, side on, on cobbles beside a rural house",
+        },
+      },
+      {
+        id: "vw-t3",
+        image: "/images/fleet/vw-t3-van-front.jpg",
+        position: "center 70%",
+        alt: {
+          pt: "Carrinha Volkswagen T3 Caravela, verde e creme, vista de frente numa calçada",
+          en: "Green and cream Volkswagen T3 Caravela, seen from the front on cobbles",
+        },
+      },
+    ] as { id: string; image: string; position?: string; alt: Localized }[],
+  },
 };
 
 /** Events page copy. */
