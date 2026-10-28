@@ -94,8 +94,12 @@ vi.mock("@/lib/email", () => ({
 }));
 vi.mock("@/lib/observability", () => ({ captureAlert: vi.fn(), captureError: vi.fn() }));
 
-const { releaseBookingCheckout, sessionIdFromClientSecret, startBookingCheckout } =
-  await import("./booking-checkout");
+const {
+  closeUnpaidBooking,
+  releaseBookingCheckout,
+  sessionIdFromClientSecret,
+  startBookingCheckout,
+} = await import("./booking-checkout");
 const { holdExpiryFrom } = await import("@/lib/bookings");
 const { commissionOn } = await import("@/lib/commission");
 
@@ -248,10 +252,36 @@ describe("sessionIdFromClientSecret", () => {
   });
 });
 
+describe("closeUnpaidBooking — a payment link outlives its checkout", () => {
+  it("gives the car back and keeps the link booking pending", async () => {
+    // The payment-link release finds the row: it is a link booking.
+    answers.push([{ id: BOOKING_ID }]);
+
+    await closeUnpaidBooking({ sessionId: SESSION_ID, status: "expired" });
+
+    expect(writes).toEqual([
+      { op: "update", values: expect.objectContaining({ stripeSessionId: null }) },
+    ]);
+    expect(writes[0].values).not.toHaveProperty("status");
+  });
+
+  it("closes an ordinary checkout as before", async () => {
+    answers.push([], [{ id: BOOKING_ID, date: "2026-11-14" }]);
+
+    await closeUnpaidBooking({ sessionId: SESSION_ID, status: "expired" });
+
+    expect(writes[1]).toEqual({
+      op: "update",
+      values: expect.objectContaining({ status: "expired" }),
+    });
+  });
+});
+
 describe("releaseBookingCheckout — back from the payment step", () => {
   it("expires the guest's own open session and closes the booking at once", async () => {
-    // The pending booking, then the close's guarded update.
-    answers.push([{ id: BOOKING_ID }], [{ id: BOOKING_ID, date: "2026-11-14" }]);
+    // The pending booking, the payment-link release (not a link booking, so
+    // nothing), then the close's guarded update.
+    answers.push([{ id: BOOKING_ID }], [], [{ id: BOOKING_ID, date: "2026-11-14" }]);
     sessionsRetrieve.mockResolvedValue({
       id: SESSION_ID,
       client_secret: CLIENT_SECRET,
@@ -271,7 +301,7 @@ describe("releaseBookingCheckout — back from the payment step", () => {
 
   it("asks the connected account, where a direct charge's session lives", async () => {
     connectedAccount = "acct_test_agorasim";
-    answers.push([{ id: BOOKING_ID }], [{ id: BOOKING_ID }]);
+    answers.push([{ id: BOOKING_ID }], [], [{ id: BOOKING_ID }]);
     sessionsRetrieve.mockResolvedValue({ client_secret: CLIENT_SECRET, status: "open" });
 
     await releaseBookingCheckout(CLIENT_SECRET);

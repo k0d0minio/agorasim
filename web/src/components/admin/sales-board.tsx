@@ -155,6 +155,14 @@ export function SalesBoard({
                   {record.value ? (
                     <span className="font-semibold text-primary">{record.value}</span>
                   ) : null}
+                  {/*
+                    Money asked for and not yet paid: a payment link the team
+                    sent, or a checkout still open. The card stays in its stage
+                    until the payment lands, so this is what tells it apart.
+                  */}
+                  {record.payment === "Awaiting payment" ? (
+                    <Badge variant="secondary">Pagamento pendente</Badge>
+                  ) : null}
                   {record.partySize ? (
                     <span className="text-muted-foreground">
                       {record.partySize} {record.partySize === 1 ? "pessoa" : "pessoas"}

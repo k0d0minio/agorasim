@@ -247,6 +247,7 @@ export const messageKindEnum = pgEnum("message_kind", [
   "balance-paid",
   "quote-refunded",
   "quote-event-cancelled",
+  "booking-payment-link",
 ]);
 
 /**
@@ -1004,6 +1005,25 @@ export const bookings = pgTable("bookings", {
   cancellationTokenHash: text("cancellation_token_hash"),
 
   /**
+   * The payment link's credential, hashed — set only on a booking the team
+   * registered with "Enviar link de pagamento" (`lib/payment-link.ts`).
+   *
+   * A non-null value is also what marks the row as a link booking: it waits
+   * for the customer's payment with no hold on any car, so the expiry paths
+   * leave it `pending` until its departure is past. The plaintext lives only
+   * in the emailed link, as with {@link bookings.cancellationTokenHash}; a
+   * resend mints a new token and the old link stops working. Kept after the
+   * payment, so a second tap on the link reads "paid" rather than "unknown".
+   */
+  paymentLinkTokenHash: text("payment_link_token_hash"),
+  /**
+   * When the current payment link was emailed — every send stamps a new value.
+   * It names the link in `message_log`, so a resend is a new email and a
+   * double tap on "Reenviar link" is not. Null on every other booking.
+   */
+  paymentLinkSentAt: timestamp("payment_link_sent_at", { withTimezone: true }),
+
+  /**
    * How much of {@link bookings.amountCents} has gone back to the guest, in the
    * same unit it was charged in.
    *
@@ -1110,6 +1130,8 @@ export const bookings = pgTable("bookings", {
   // any number of nulls under a unique index, which is what makes the
   // untokenised rows above legal.
   uniqueIndex("bookings_cancellation_token_key").on(table.cancellationTokenHash),
+  // The payment link is looked up by digest, like the cancel link.
+  uniqueIndex("bookings_payment_link_token_key").on(table.paymentLinkTokenHash),
 ]);
 
 /**
@@ -1287,6 +1309,15 @@ export const messageLog = pgTable("message_log", {
    */
   refundedTotalCents: integer("refunded_total_cents"),
 
+  /**
+   * Which send of a booking's payment link this row is — the booking's
+   * `payment_link_sent_at` at the moment of sending, as
+   * {@link messageLog.quoteSentAt} is for a quote. `booking-payment-link`
+   * only: a resend rotates the link and must be a new email, so the booking
+   * alone cannot be the key. Null for every other kind.
+   */
+  linkSentAt: timestamp("link_sent_at", { withTimezone: true }),
+
   status: messageStatusEnum("status").notNull().default("sending"),
 
   /**
@@ -1325,7 +1356,18 @@ export const messageLog = pgTable("message_log", {
   uniqueIndex("message_log_booking_kind_key")
     .on(table.kind, table.recipient, table.bookingId)
     .where(
-      sql`"booking_id" is not null and "subject_date" is null and "status" <> 'failed'`,
+      sql`"booking_id" is not null and "subject_date" is null and "link_sent_at" is null and "status" <> 'failed'`,
+    ),
+  /**
+   * One payment-link email per booking, per recipient, **per send** — the
+   * booking's `payment_link_sent_at` names the link the mail carried, as
+   * `quote_sent_at` does for a quote. Split from the index above on
+   * `link_sent_at`'s nullness, so a resend is not refused as a duplicate.
+   */
+  uniqueIndex("message_log_payment_link_key")
+    .on(table.kind, table.recipient, table.bookingId, table.linkSentAt)
+    .where(
+      sql`"booking_id" is not null and "link_sent_at" is not null and "status" <> 'failed'`,
     ),
   /**
    * The same rule for the kinds whose subject is a departure: one message of

@@ -1,11 +1,10 @@
 import { Inbox, Search } from "lucide-react";
-import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import { lastAuditByEntity } from "@/lib/audit";
 import { formatDay, todayKey } from "@/lib/availability";
 import { balanceMessagesLabel, eventWhenLabel } from "@/lib/balance-schedule";
 import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
-import { listOpenDepartures } from "@/lib/manual-booking";
+import { listOpenDepartures, manualBookingTours } from "@/lib/manual-booking";
 import { listQuoteBalanceMessages, type QuoteBalanceMessage } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import {
@@ -111,9 +110,7 @@ export default async function AdminSalesPage({
   const index = catalogueIndex(catalogue);
   // The tours a phone booking can be recorded against — active signature
   // routes, the same set the Calendar's "Nova reserva" sheet sells.
-  const sellableTours = catalogue
-    .filter((entry) => entry.kind === "signature" && entry.active)
-    .map((entry) => ({ slug: entry.slug, title: t(entry.title, "pt") }));
+  const sellableTours = manualBookingTours(catalogue);
   const countLabel = `${totalEnquiries} ${totalEnquiries === 1 ? "pedido" : "pedidos"}`;
 
   return (

@@ -897,10 +897,30 @@ export const createManualBookingSchema = z.object({
    * above the schema.
    */
   amount: z.string().trim().catch("").transform(parseAmountInput),
+  /**
+   * How the customer pays. `cash` confirms the booking now, as the sheet
+   * always did. `link` emails a payment link and confirms on payment
+   * (`lib/payment-link.ts`). Anything else is read as cash: it is the choice
+   * that existed before this field did.
+   */
+  payment: z.enum(["cash", "link"]).catch("cash"),
 });
 
 /** Field names `createManualBooking` can report an inline error against. */
-export type ManualBookingField = "date" | "slot" | "experience" | "party" | "name" | "email";
+export type ManualBookingField =
+  | "date"
+  | "slot"
+  | "experience"
+  | "party"
+  | "addOns"
+  | "name"
+  | "email"
+  | "amount";
+
+/** "Reenviar link" and "Anular link" on one link booking. */
+export const paymentLinkBookingSchema = z.object({
+  bookingId: z.uuid(),
+});
 
 // ---------------------------------------------------------------------------
 // Public tour-request form

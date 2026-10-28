@@ -23,8 +23,18 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-/** An active signature tour the sheet can sell, as `page.tsx` shapes it. */
-export type ManualBookingTour = { slug: string; title: string };
+/**
+ * An active signature tour the sheet can sell, as `page.tsx` shapes it, with
+ * the active add-ons that attach to it (`attachesTo`).
+ */
+export type ManualBookingTour = {
+  slug: string;
+  title: string;
+  addOns: { slug: string; title: string }[];
+};
+
+/** How the customer pays: now in cash, or later through an emailed link. */
+type Payment = "cash" | "link";
 
 /** One day the sheet can sell, and the departures of it still open. */
 export type ManualBookingDay = {
@@ -54,11 +64,19 @@ export type ManualBookingDeparture =
   /** Nothing is settled; pick the day and then its departure. */
   | { kind: "pick"; days: ManualBookingDay[] };
 
-function SubmitButton({ armed }: { armed: boolean }) {
+function SubmitButton({ armed, payment }: { armed: boolean; payment: Payment }) {
   const { pending } = useFormStatus();
+  const label =
+    payment === "link"
+      ? pending
+        ? "A enviar…"
+        : "Enviar link"
+      : pending
+        ? "A registar…"
+        : "Registar e confirmar";
   return (
     <Button type="submit" disabled={pending || !armed}>
-      {pending ? "A registar…" : "Registar e confirmar"}
+      {label}
     </Button>
   );
 }
@@ -174,11 +192,13 @@ function FieldError({ message }: { message?: string }) {
 }
 
 /**
- * Record a sale that never went through Stripe.
+ * Record a sale agreed on the phone or in person.
  *
- * Every cash or phone booking is inserted straight into the calendar,
+ * Paid in cash, the booking is inserted straight into the calendar,
  * `confirmed` from creation, by the one path that writes
  * `payment_method = 'cash'` (see the action's note in `calendar/actions.ts`).
+ * On a lead the sheet also offers "Enviar link de pagamento": the booking
+ * waits, holding no car, until the customer pays the emailed link.
  * This sheet is its phone-first entry point: pick the departure — only those
  * actually on sale and with capacity appear — the tour, the format, and the
  * party, name the guest, and either accept the catalogue price or type the
@@ -303,6 +323,10 @@ function ManualBookingForm({
     lead?.experience ?? tours[0]?.slug ?? "",
   );
   const [mode, setMode] = useState<"public" | "private">("public");
+  const [chosenAddOns, setChosenAddOns] = useState<string[]>([]);
+  // The link is for a lead, whose person it is sent to. The Calendar's mount
+  // has no enquiry behind it, so it records cash only.
+  const [payment, setPayment] = useState<Payment>("cash");
   const [adults, setAdults] = useState(lead?.adults ?? 2);
   const [children, setChildren] = useState(lead?.children ?? 0);
   const [infants, setInfants] = useState(lead?.infants ?? 0);
@@ -330,6 +354,15 @@ function ManualBookingForm({
 
   const errors = state.fieldErrors ?? {};
 
+  // The add-ons this tour takes. They join a private tour only, as on the
+  // public checkout (`lib/pricing.ts`), so a shared one offers none.
+  const tourAddOns =
+    mode === "private" ? (tours.find((tour) => tour.slug === experience)?.addOns ?? []) : [];
+  const toggleAddOn = (slug: string) =>
+    setChosenAddOns((current) =>
+      current.includes(slug) ? current.filter((entry) => entry !== slug) : [...current, slug],
+    );
+
   // Both halves of the departure are chosen. On the Calendar's mount that is
   // true from the first render; on the board's it guards the two states the
   // action would otherwise have to refuse with an error nobody asked for — a
@@ -354,10 +387,13 @@ function ManualBookingForm({
           <DialogHeader>
             <DialogTitle>{lead ? `Registar reserva — ${lead.name}` : "Nova reserva"}</DialogTitle>
             <DialogDescription>
-              Venda feita ao telefone ou em pessoa, sem Stripe. O valor de base é o do
-              catálogo; diga outro se o que combinou foi diferente.
+              Venda combinada ao telefone ou em pessoa. O valor de base é o do catálogo;
+              diga outro se o que combinou foi diferente.
+              {lead ? " Os dados vêm do pedido — corrija-os aqui se entretanto mudaram." : ""}
               {lead
-                ? " Os dados vêm do pedido — corrija-os aqui se entretanto mudaram. O pedido passa a Reservado."
+                ? payment === "link"
+                  ? " O pedido passa a Reservado quando o cliente pagar."
+                  : " O pedido passa a Reservado."
                 : ""}
             </DialogDescription>
           </DialogHeader>
@@ -453,7 +489,11 @@ function ManualBookingForm({
               id="manual-booking-experience"
               name="experience"
               value={experience}
-              onChange={(event) => setExperience(event.target.value)}
+              onChange={(event) => {
+                setExperience(event.target.value);
+                // Another tour takes other add-ons.
+                setChosenAddOns([]);
+              }}
             >
               {tours.map((tour) => (
                 <option key={tour.slug} value={tour.slug}>
@@ -467,7 +507,13 @@ function ManualBookingForm({
           <div role="group" aria-label="Formato" className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">Formato</span>
             <div className="flex gap-2">
-              <Choice active={mode === "public"} onClick={() => setMode("public")}>
+              <Choice
+                active={mode === "public"}
+                onClick={() => {
+                  setMode("public");
+                  setChosenAddOns([]);
+                }}
+              >
                 Partilhado
               </Choice>
               <Choice active={mode === "private"} onClick={() => setMode("private")}>
@@ -476,6 +522,31 @@ function ManualBookingForm({
             </div>
           </div>
           <input type="hidden" name="mode" value={mode} />
+
+          {tourAddOns.length > 0 ? (
+            <div role="group" aria-label="Extras" className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium">Extras</span>
+              <div className="flex flex-wrap gap-2">
+                {tourAddOns.map((addOn) => (
+                  <Choice
+                    key={addOn.slug}
+                    active={chosenAddOns.includes(addOn.slug)}
+                    onClick={() => toggleAddOn(addOn.slug)}
+                  >
+                    {addOn.title}
+                  </Choice>
+                ))}
+              </div>
+              <FieldError message={errors.addOns} />
+            </div>
+          ) : (
+            <FieldError message={errors.addOns} />
+          )}
+          {tourAddOns
+            .filter((addOn) => chosenAddOns.includes(addOn.slug))
+            .map((addOn) => (
+              <input key={addOn.slug} type="hidden" name="addOns" value={addOn.slug} />
+            ))}
 
           <div role="group" aria-label="Quantos vêm" className="flex flex-col gap-2">
             <span className="text-sm font-medium">Quantos vêm</span>
@@ -569,13 +640,34 @@ function ManualBookingForm({
               Em branco, o preço do catálogo. Ou o valor negociado — fica registado
               como combinado.
             </p>
+            <FieldError message={errors.amount} />
           </div>
+
+          {lead ? (
+            <div role="group" aria-label="Pagamento" className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium">Pagamento</span>
+              <div className="flex flex-wrap gap-2">
+                <Choice active={payment === "cash"} onClick={() => setPayment("cash")}>
+                  Pagar em dinheiro
+                </Choice>
+                <Choice active={payment === "link"} onClick={() => setPayment("link")}>
+                  Enviar link de pagamento
+                </Choice>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {payment === "link"
+                  ? "O cliente recebe um email com o link. A reserva fica pendente e não guarda o carro até ao pagamento."
+                  : "A reserva fica confirmada e paga agora."}
+              </p>
+            </div>
+          ) : null}
+          <input type="hidden" name="payment" value={lead ? payment : "cash"} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
-            <SubmitButton armed={armed} />
+            <SubmitButton armed={armed} payment={payment} />
           </DialogFooter>
         </form>
       </DialogContent>
