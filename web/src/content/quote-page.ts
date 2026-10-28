@@ -5,7 +5,7 @@ import type { Localized } from "@/i18n/config";
  * the pay button that page mints a Checkout session from (D25).
  *
  * The terms themselves are not here: the page renders the events and
- * complaints sections of `terms.ts` verbatim, so what the couple read above
+ * complaints sections of `terms.ts` verbatim, so what the couple read under
  * the button is the text their receipt carries and the text the terms page
  * publishes. These are only the page's own words around them.
  *
@@ -65,11 +65,14 @@ export const quotePageContent = {
   pay: {
     deposit: { pt: "Pagar sinal de {amount}", en: "Pay {amount} deposit" } as Localized,
     balance: { pt: "Pagar restante de {amount}", en: "Pay {amount} balance" } as Localized,
-    /** Under the button — the sentence, not a checkbox, as at the tour checkout. */
-    notice: {
-      pt: "Ao pagar aceita as condições acima e os",
-      en: "By paying you accept the conditions above and the",
-    } as Localized,
+    /**
+     * Under the button — the sentence, not a checkbox, as at the tour checkout.
+     * The conditions sit below the button, so `noticeConditions` links down to
+     * them: "Ao pagar aceita as [condições abaixo] e os [termos de venda]."
+     */
+    notice: { pt: "Ao pagar aceita as", en: "By paying you accept the" } as Localized,
+    noticeConditions: { pt: "condições abaixo", en: "conditions below" } as Localized,
+    noticeAnd: { pt: "e os", en: "and the" } as Localized,
     secure: {
       pt: "O pagamento é feito na Stripe. Não guardamos os dados do seu cartão.",
       en: "Payment is taken by Stripe. We never see or store your card details.",

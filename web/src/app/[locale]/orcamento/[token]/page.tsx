@@ -48,9 +48,11 @@ import { fillTemplate } from "@/lib/fill-template";
  * origin and never the path (`lib/security-headers.ts`).
  *
  * **What the couple read before they pay** (DL 24/2014 art. 4(1), 17(1)(l)):
- * the quote — lines, total, deposit, balance and its date — then the events
- * section of the terms, the seller and the complaints section, all rendered
- * from `terms.ts` itself, then the one button. The receipt emails carry the
+ * the quote — lines, total, deposit, balance and its date — then the one
+ * button, whose sentence links down to the events section of the terms, the
+ * seller and the complaints section, all rendered from `terms.ts` itself and
+ * all under it. The button comes first because the deposit is payable as soon
+ * as the quote is sent, not at the end of the page. The receipt emails carry the
  * same events section, so the page and the durable copy cannot disagree. A
  * tour quote (`lib/tour-quote.ts`) shows its departure and its one payment,
  * and the tour's cancellation and weather sections in place of the events
@@ -268,41 +270,6 @@ function QuoteView({
           </CardContent>
         </Card>
 
-        <section aria-labelledby="quote-terms" className="space-y-6">
-          <div>
-            <h2 id="quote-terms" className="text-2xl font-semibold">
-              {t(c.termsHeading, locale)}
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {fillTemplate(t(c.termsVersion, locale), { date: t(termsContent.lastUpdated, locale) })}
-            </p>
-            {quote.acceptedTermsVersion ? (
-              <p className="mt-1 text-sm text-muted-foreground">
-                {fillTemplate(t(hold ? c.tour.acceptedVersion : c.acceptedVersion, locale), {
-                  version: formatDay(quote.acceptedTermsVersion, locale),
-                })}
-              </p>
-            ) : null}
-          </div>
-
-          {sections.map((section) => (
-            <TermsBlock key={section.heading} heading={section.heading} body={section.body} />
-          ))}
-
-          <div>
-            <h3 className="text-lg font-semibold">{t(termsContent.sellerHeading, locale)}</h3>
-            <SellerDetails locale={locale} />
-          </div>
-
-          <TermsBlock heading={complaints.heading} body={complaints.body} />
-
-          <p className="text-sm">
-            <Link href={href(locale, "termos")} className="underline hover:text-primary">
-              {t(c.fullTermsLink, locale)}
-            </Link>
-          </p>
-        </section>
-
         <div aria-live="polite">
           {returnState ? (
             <QuoteNotice
@@ -336,6 +303,42 @@ function QuoteView({
             />
           ) : null}
         </div>
+
+        <section aria-labelledby="quote-terms" className="space-y-6">
+          <div>
+            {/* The pay button's sentence links here (`QuotePayForm`). */}
+            <h2 id="quote-terms" className="scroll-mt-24 text-2xl font-semibold">
+              {t(c.termsHeading, locale)}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {fillTemplate(t(c.termsVersion, locale), { date: t(termsContent.lastUpdated, locale) })}
+            </p>
+            {quote.acceptedTermsVersion ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {fillTemplate(t(hold ? c.tour.acceptedVersion : c.acceptedVersion, locale), {
+                  version: formatDay(quote.acceptedTermsVersion, locale),
+                })}
+              </p>
+            ) : null}
+          </div>
+
+          {sections.map((section) => (
+            <TermsBlock key={section.heading} heading={section.heading} body={section.body} />
+          ))}
+
+          <div>
+            <h3 className="text-lg font-semibold">{t(termsContent.sellerHeading, locale)}</h3>
+            <SellerDetails locale={locale} />
+          </div>
+
+          <TermsBlock heading={complaints.heading} body={complaints.body} />
+
+          <p className="text-sm">
+            <Link href={href(locale, "termos")} className="underline hover:text-primary">
+              {t(c.fullTermsLink, locale)}
+            </Link>
+          </p>
+        </section>
 
         <Contacts locale={locale} />
       </div>
