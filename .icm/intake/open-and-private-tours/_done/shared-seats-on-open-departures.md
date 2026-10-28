@@ -23,7 +23,8 @@ cars and drivers, as today.
 
 ## Acceptance criteria
 
-- [ ] Two per-person bookings of 2 adults each on the same Rural Saloia departure take one small classic, not two.
+- [ ] A per-person booking of 2 adults and one of 1 adult on the same Rural Saloia departure take one small classic, not two.
+- [ ] Two per-person bookings of 2 adults each on the same departure take two small classics. A small classic has 3 seats.
 - [ ] A per-person booking of 4 adults on a departure whose open car has 1 seat left takes a second car.
 - [ ] A private group booking never shares its car.
 - [ ] The admin calendar and the Sales board show the shared car and its guests on the departure.
