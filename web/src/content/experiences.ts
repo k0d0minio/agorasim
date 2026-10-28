@@ -141,8 +141,8 @@ export const experiences: Experience[] = [
           en: "How many people can join?",
         },
         answer: {
-          pt: "As saídas são em pequenos grupos para manter o ambiente intimista. Fazemos também passeios privados para famílias e grupos — fale connosco para grupos maiores.",
-          en: "Departures are in small groups to keep the atmosphere intimate. We also run private tours for families and groups — contact us for larger parties.",
+          pt: "Depende do carro. O Citroën 2CV leva até 3 pessoas, o Renault 4L até 3, o Fiat 600 até 3 e a carrinha Volkswagen T3 até 8. Todos contam para os lugares, incluindo bebés. Para grupos com mais de 8 pessoas, fale connosco.",
+          en: "It depends on the car. The Citroën 2CV seats up to 3 guests, the Renault 4L up to 3, the Fiat 600 up to 3 and the Volkswagen T3 van up to 8. Everyone counts towards the seats, infants included. For groups of more than 8, contact us.",
         },
       },
       {
