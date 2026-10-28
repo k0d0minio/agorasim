@@ -56,6 +56,7 @@ import {
   pgEnum,
   pgTable,
   text,
+  time,
   timestamp,
   uniqueIndex,
   uuid,
@@ -587,16 +588,26 @@ export const tourRequests = pgTable("tour_requests", {
   /*
    * What a wedding or event enquiry carries and a tour one never does.
    *
-   * All three are null on a `tour` row and are only rendered where `kind` says
+   * All four are null on a `tour` row and are only rendered where `kind` says
    * to. They are columns rather than sentences appended to `message` because
    * the team quotes these by hand off the Sales board: "which venue, which car,
-   * how many hours" is what a quote is priced from, and a fact buried in the
-   * guest's own paragraph is a fact somebody has to re-read to find.
+   * how many hours, what time" is what a quote is priced from, and a fact
+   * buried in the guest's own paragraph is a fact somebody has to re-read to
+   * find.
    */
   /** Where it happens — "Igreja de São Pedro, Mafra". Their words, as given. */
   venue: text("venue"),
-  /** How long the car is wanted for, in the form's own wording. */
+  /**
+   * How long the car is wanted for, in the form's own wording. Only the event
+   * form asks it now. Wedding rows from before `ceremony_time` keep theirs.
+   */
   serviceHours: text("service_hours"),
+  /**
+   * When the wedding ceremony starts, `HH:MM`. Only the wedding form asks it:
+   * Agorasim prices a wedding per event, not per hour (feedback round 1,
+   * Diogo, 2026-10-12). Null on every other row.
+   */
+  ceremonyTime: time("ceremony_time"),
   /** `classicCars` id of the car they asked for, or null for "advise us". */
   preferredCar: text("preferred_car"),
 

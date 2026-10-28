@@ -54,7 +54,7 @@ import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience
 import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 import { classicCars } from "@/content/site";
-import { isServiceHours } from "@/content/quote-request";
+import { isServiceHours, parseCeremonyTime } from "@/content/quote-request";
 
 // ---------------------------------------------------------------------------
 // Enums, straight from the database schema
@@ -980,6 +980,14 @@ export const quoteRequestSchema = z.object({
    */
   serviceHours: optionalText.transform((value) =>
     value && isServiceHours(value) ? value : null,
+  ),
+  /**
+   * When the ceremony starts, from a `type="time"` field: `HH:MM`, stored in
+   * `ceremony_time`. Only `/casamentos` posts it. A value no time field could
+   * post is dropped rather than rejected, like an unknown service-hours key.
+   */
+  ceremonyTime: optionalText.transform((value) =>
+    value ? parseCeremonyTime(value) : null,
   ),
   /** A `classicCars` id, or null for "advise us" — and for anything we retired. */
   preferredCar: optionalText.transform((value) =>
