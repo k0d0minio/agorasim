@@ -114,6 +114,8 @@ describe("payQuote — paying on the quote page", () => {
       [{ status: "awaiting" }, { status: "awaiting" }],
       [{ status: "closed" }, { status: "refused", reason: "closed" }],
       [{ status: "settled" }, { status: "refused", reason: "settled" }],
+      // A tour quote whose departure filled before the payment.
+      [{ status: "no-car" }, { status: "refused", reason: "noCar" }],
       [{ status: "failed" }, { status: "refused", reason: "failed" }],
       [{ status: "not-found" }, { status: "invalid" }],
     ] as const) {

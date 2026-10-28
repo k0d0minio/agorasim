@@ -48,7 +48,7 @@ export type QuotePayState =
   /** Paid a moment ago, or on its way by a delayed method — reload to see it. */
   | { status: "paid" | "awaiting" }
   /** Keyed to `quotePageContent.refused`. */
-  | { status: "refused"; reason: "unconfigured" | "failed" | "closed" | "settled" }
+  | { status: "refused"; reason: "unconfigured" | "failed" | "closed" | "settled" | "noCar" }
   /** The link stopped working between the render and the tap. */
   | { status: "invalid" };
 
@@ -87,7 +87,12 @@ export async function payQuote(
           publishableKey: publishableKey(),
           stripeAccount: outcome.stripeAccount,
         },
-        instalment: t(quotePageContent.instalmentNames[outcome.instalment.kind], locale),
+        instalment: t(
+          outcome.tour
+            ? quotePageContent.tour.payment
+            : quotePageContent.instalmentNames[outcome.instalment.kind],
+          locale,
+        ),
         amount: formatPrice(outcome.instalment.amountCents, locale, outcome.instalment.currency),
       };
     case "paid":
@@ -97,6 +102,8 @@ export async function payQuote(
       return { status: "refused", reason: "closed" };
     case "settled":
       return { status: "refused", reason: "settled" };
+    case "no-car":
+      return { status: "refused", reason: "noCar" };
     case "unconfigured":
       return { status: "refused", reason: "unconfigured" };
     case "failed":

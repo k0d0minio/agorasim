@@ -64,13 +64,18 @@ export const TERMS_VERSION = "2026-10-28";
 /**
  * One section of the terms. `id` names the few sections something other than
  * the terms page renders on its own — the quote page and the quote receipts
- * quote the events section and the complaints section verbatim, and they find
+ * quote the events section (or a tour's cancellation and weather sections) and
+ * the complaints section verbatim, and they find
  * them by this key rather than by position or heading, which differ by locale.
  */
 type Section = { id?: TermsSectionId; heading: string; body: string[] };
 
-/** The sections other surfaces quote — see {@link termsSection}. */
-export type TermsSectionId = "events" | "complaints";
+/**
+ * The sections other surfaces quote — see {@link termsSection}. A tour quote
+ * (`lib/tour-quote.ts`) quotes the tour's own two, cancellation and weather,
+ * where a wedding quote quotes the events section.
+ */
+export type TermsSectionId = "events" | "complaints" | "cancellation" | "weather";
 
 export const termsContent = {
   title: {
@@ -141,6 +146,7 @@ export const termsContent = {
         ],
       },
       {
+        id: "cancellation",
         heading: "Cancelamento e reembolso",
         body: [
           "Cancelamento gratuito até 48h antes da experiência. Com mau tempo, reagendamos — ou reembolsamos em condições extremas.",
@@ -150,6 +156,7 @@ export const termsContent = {
         ],
       },
       {
+        id: "weather",
         heading: "Mau tempo",
         body: [
           "Os passeios acontecem ao ar livre, em carros clássicos, e o tempo faz parte da experiência. Com mau tempo, tentamos sempre reagendar — e reembolsamos em condições extremas.",
@@ -227,6 +234,7 @@ export const termsContent = {
         ],
       },
       {
+        id: "cancellation",
         heading: "Cancellation and refunds",
         body: [
           "Free cancellation up to 48h before the experience. In bad weather we reschedule — or refund in extreme conditions.",
@@ -236,6 +244,7 @@ export const termsContent = {
         ],
       },
       {
+        id: "weather",
         heading: "Bad weather",
         body: [
           "The tours happen outdoors, in classic cars, and the weather is part of the experience. In bad weather we always try to reschedule — and refund in extreme conditions.",

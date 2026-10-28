@@ -13,7 +13,9 @@
  *
  * - Only a `wedding` or `event` lead is quoted — a tour is sold, not quoted —
  *   and never an anonymised one: the retention job has already erased the
- *   person the quote would be for.
+ *   person the quote would be for. The one tour that is quoted is the one the
+ *   team wrote from "Novo orçamento" (`lib/tour-quote.ts`): one payment, one
+ *   car, and a car check before every save.
  * - A lead holds at most one draft and at most one live quote. Creating is
  *   refused while anything but a cancelled quote exists (`canStartQuote`); a
  *   sent quote is changed by copying it into a draft ("Nova versão"), and the
@@ -27,8 +29,18 @@ import "server-only";
 
 import { eq, inArray } from "drizzle-orm";
 
-import { db, messageLog, tourRequests, type Quote, type QuoteLineItem, type TourRequest } from "@/db";
+import {
+  db,
+  messageLog,
+  tourRequests,
+  type EnquiryKind,
+  type Quote,
+  type QuoteLineItem,
+  type TourRequest,
+} from "@/db";
+import { quotePageContent } from "@/content/quote-page";
 import { TERMS_VERSION } from "@/content/terms";
+import { t } from "@/i18n/config";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { formatDay, TOUR_SLOTS, type DateKey } from "@/lib/availability";
 import { bookingsBetween, type BookingForCalendar } from "@/lib/bookings";
@@ -58,6 +70,15 @@ import {
 import { expireWrittenOffSessions } from "@/lib/quote-checkout";
 import { issueQuoteToken, isQuoteTokenConfigured, quotePath } from "@/lib/quote-token";
 import { siteUrl } from "@/lib/site-origin";
+import {
+  ADMIN_QUOTE_SOURCE,
+  TOUR_QUOTE_DEPOSIT_PERCENT,
+  isQuotableLead,
+  isTourQuote,
+  tourHoldOf,
+  type TourHold,
+} from "@/lib/tour-quote";
+import { checkTourHold } from "@/lib/tour-quote-hold";
 
 /** What the builder's form carries, already parsed into cents. */
 export type QuoteDraftInput = {
@@ -65,6 +86,11 @@ export type QuoteDraftInput = {
   venue: string | null;
   depositPercent: number;
   lineItems: QuoteLineItem[];
+  /**
+   * A tour quote's departure and car. Absent on a wedding or event form, which
+   * never shows the two fields; a save without it keeps what the draft had.
+   */
+  hold?: TourHold | null;
 };
 
 /** Why a quote could not be written, in the terms the action words. */
@@ -74,7 +100,9 @@ export type DraftOutcome =
   | { status: "not-quotable" }
   | { status: "already-quoted" }
   | { status: "not-editable" }
-  | { status: "invalid"; problems: string[] };
+  | { status: "invalid"; problems: string[] }
+  /** A tour quote's departure has no driver or no car of its class left. */
+  | { status: "no-car"; reason: "unavailable" | "unreadable" };
 
 /** What became of a send — the quote, and separately its email. */
 export type SendOutcome =
@@ -96,15 +124,21 @@ function isSendConfigured(): boolean {
   return isQuoteTokenConfigured() && isEmailConfigured();
 }
 
-/** Only weddings and events are quoted; an anonymised person is not quoted. */
-function isQuotable(lead: Pick<TourRequest, "kind" | "anonymisedAt">): boolean {
-  return lead.kind !== "tour" && lead.anonymisedAt === null;
+/**
+ * Weddings and events are quoted, and a tour the team raised from "Novo
+ * orçamento". An anonymised person is not quoted. See `isQuotableLead`.
+ */
+function isQuotable(lead: Pick<TourRequest, "kind" | "anonymisedAt" | "source">): boolean {
+  return isQuotableLead(lead);
 }
 
 async function readLead(id: string): Promise<TourRequest | null> {
   const [lead] = await db.select().from(tourRequests).where(eq(tourRequests.id, id)).limit(1);
   return lead ?? null;
 }
+
+/** The smallest tour quote Stripe can charge in one payment. */
+export const MIN_TOUR_QUOTE_CENTS = 50;
 
 /**
  * The problems with a form's lines that `validateQuoteInput` does not ask
@@ -113,8 +147,26 @@ async function readLead(id: string): Promise<TourRequest | null> {
  */
 function builderProblems(input: QuoteDraftInput): string[] {
   if (input.lineItems.length === 0) return ["no-lines"];
-  if (lineItemsTotal(input.lineItems) <= 0) return ["zero-total"];
+  const total = lineItemsTotal(input.lineItems);
+  if (total <= 0) return ["zero-total"];
+  // Stripe takes no charge under €0.50, and a tour quote is one charge of the
+  // whole total.
+  if (input.hold && total < MIN_TOUR_QUOTE_CENTS) return ["too-small"];
   return [];
+}
+
+/**
+ * The input a tour or a wedding draft is written with: a tour lead's draft
+ * needs a hold and takes one payment, any other lead's holds nothing. `null`
+ * when a tour lead's form came without its departure and car.
+ */
+export function draftInputForLead(
+  lead: Pick<TourRequest, "kind">,
+  input: QuoteDraftInput,
+): QuoteDraftInput | null {
+  if (lead.kind !== "tour") return { ...input, hold: null };
+  if (!input.hold) return null;
+  return { ...input, depositPercent: TOUR_QUOTE_DEPOSIT_PERCENT };
 }
 
 /**
@@ -128,7 +180,7 @@ export async function createDraftForLead(options: {
   input: QuoteDraftInput;
   actorUserId: string;
 }): Promise<DraftOutcome> {
-  const { leadId, input, actorUserId } = options;
+  const { leadId, actorUserId } = options;
 
   const lead = await readLead(leadId);
   if (!lead) return { status: "not-found" };
@@ -137,8 +189,16 @@ export async function createDraftForLead(options: {
   const existing = await listQuotesForLead(lead.id);
   if (!canStartQuote(existing)) return { status: "already-quoted" };
 
+  const input = draftInputForLead(lead, options.input);
+  if (!input) return { status: "invalid", problems: ["no-hold"] };
+
   const problems = builderProblems(input);
   if (problems.length > 0) return { status: "invalid", problems };
+
+  if (input.hold) {
+    const car = await checkTourHold({ date: input.eventDate, hold: input.hold });
+    if (!car.ok) return { status: "no-car", reason: car.reason };
+  }
 
   let quote: QuoteWithPayments;
   try {
@@ -151,6 +211,7 @@ export async function createDraftForLead(options: {
       totalCents: lineItemsTotal(input.lineItems),
       lineItems: input.lineItems,
       depositPercent: input.depositPercent,
+      hold: input.hold ?? null,
     });
   } catch (err) {
     // The other phone's tap landed between the check above and this insert —
@@ -171,16 +232,122 @@ export async function createDraftForLead(options: {
   return { status: "saved", quote };
 }
 
+/** Who a quote from scratch is for — what "Novo orçamento" asks first. */
+export type ScratchCustomer = {
+  name: string;
+  email: string;
+  phone: string | null;
+  locale: "pt" | "en";
+};
+
+/** What "Novo orçamento" came to: the lead and its draft, or why not. */
+export type ScratchOutcome =
+  | { status: "saved"; leadId: string; quote: QuoteWithPayments }
+  | Extract<DraftOutcome, { status: "invalid" } | { status: "no-car" }>;
+
+/**
+ * "Novo orçamento" on the Sales board — a quote with no enquiry behind it, for
+ * a personalised tour, a wedding or an event (feedback round 1, Diogo).
+ *
+ * Writes the lead the quote needs, then the draft on it. The lead is the
+ * customer's one home, as for any enquiry: the quote page, the emails and the
+ * Art. 17 erasure all reach the person through it. It starts in `contacted`,
+ * and the send moves it to `quoted` as for any quote. Its source is
+ * {@link ADMIN_QUOTE_SOURCE}, which is what makes a tour lead quotable.
+ *
+ * Two writes and no transaction — the HTTP driver has none. Every check runs
+ * before the first write, and a draft that still fails removes its lead, so a
+ * refusal never leaves a card with no quote on the board.
+ */
+export async function createQuoteFromScratch(options: {
+  customer: ScratchCustomer;
+  kind: EnquiryKind;
+  input: QuoteDraftInput;
+  actorUserId: string;
+}): Promise<ScratchOutcome> {
+  const { customer, kind, actorUserId } = options;
+
+  const input = draftInputForLead({ kind }, options.input);
+  if (!input) return { status: "invalid", problems: ["no-hold"] };
+
+  const problems = builderProblems(input);
+  if (problems.length > 0) return { status: "invalid", problems };
+
+  if (input.hold) {
+    const car = await checkTourHold({ date: input.eventDate, hold: input.hold });
+    if (!car.ok) return { status: "no-car", reason: car.reason };
+  }
+
+  const [lead] = await db
+    .insert(tourRequests)
+    .values({
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      locale: customer.locale,
+      kind,
+      // The quote's day, written where an enquiry keeps its own.
+      preferredDate: input.eventDate,
+      venue: input.venue,
+      status: "contacted",
+      source: ADMIN_QUOTE_SOURCE,
+    })
+    .returning({ id: tourRequests.id });
+
+  let quote: QuoteWithPayments;
+  try {
+    quote = await createQuote({
+      tourRequestId: lead.id,
+      createdByUserId: actorUserId,
+      eventDate: input.eventDate,
+      venue: input.venue,
+      locale: customer.locale,
+      totalCents: lineItemsTotal(input.lineItems),
+      lineItems: input.lineItems,
+      depositPercent: input.depositPercent,
+      hold: input.hold ?? null,
+    });
+  } catch (err) {
+    await db.delete(tourRequests).where(eq(tourRequests.id, lead.id));
+    if (err instanceof QuoteError) return { status: "invalid", problems: [err.message] };
+    throw err;
+  }
+
+  await recordAuditOrWarn({
+    actorUserId,
+    action: "quote.created",
+    entityType: "tour_request",
+    entityId: lead.id,
+    after: {
+      quoteRef: quoteRef(quote.id),
+      totalCents: quote.totalCents,
+      kind,
+      fromScratch: true,
+    },
+  });
+
+  return { status: "saved", leadId: lead.id, quote };
+}
+
 /** "Guardar" on a draft — rewrite it, and its two instalments, from the form. */
 export async function saveDraft(options: {
   quoteId: string;
   input: QuoteDraftInput;
   actorUserId: string;
 }): Promise<DraftOutcome> {
-  const { quoteId, input, actorUserId } = options;
+  const { quoteId, actorUserId } = options;
+  // A tour draft's form carries its hold, and a tour quote is one payment.
+  const input = options.input.hold
+    ? { ...options.input, depositPercent: TOUR_QUOTE_DEPOSIT_PERCENT }
+    : options.input;
 
   const problems = builderProblems(input);
   if (problems.length > 0) return { status: "invalid", problems };
+
+  if (input.hold) {
+    const car = await checkTourHold({ date: input.eventDate, hold: input.hold });
+    if (!car.ok) return { status: "no-car", reason: car.reason };
+  }
 
   let quote: QuoteWithPayments | null;
   try {
@@ -190,6 +357,8 @@ export async function saveDraft(options: {
       totalCents: lineItemsTotal(input.lineItems),
       lineItems: input.lineItems,
       depositPercent: input.depositPercent,
+      // Absent keeps the draft's own; `updateQuoteDraft` refuses a change of kind.
+      ...(input.hold !== undefined ? { hold: input.hold } : {}),
     });
   } catch (err) {
     if (err instanceof QuoteError) return { status: "invalid", problems: [err.message] };
@@ -395,6 +564,7 @@ async function emailQuote(
   const withPayments = await getQuote(quote.id);
   const deposit = withPayments?.payments.find((payment) => payment.kind === "deposit");
   const balance = withPayments?.payments.find((payment) => payment.kind === "balance");
+  const hold = tourHoldOf(quote);
 
   const message = guestQuoteSentEmail({
     ref: quoteRef(quote.id),
@@ -422,6 +592,7 @@ async function emailQuote(
     balanceRequestDaysBefore: BALANCE_REQUEST_DAYS_BEFORE,
     termsWindowDays: quote.termsWindowDays,
     quoteUrl: `${siteUrl()}${quotePath(locale, token)}`,
+    tourDeparture: hold ? t(quotePageContent.tour.departures[hold.slot], locale) : null,
   });
 
   const result = await sendLoggedEmail(
@@ -523,10 +694,12 @@ export function summariseClash(
  * `holdsCapacitySql` — never a second definition of it here.
  */
 export async function bookingClashesForDrafts(
-  leadQuotes: readonly Pick<Quote, "id" | "status" | "eventDate">[],
+  leadQuotes: readonly Pick<Quote, "id" | "status" | "eventDate" | "holdVehicleClass">[],
   now: Date = new Date(),
 ): Promise<Map<string, BookingClash>> {
-  const drafts = leadQuotes.filter((quote) => quote.status === "draft");
+  // A tour draft takes one car and is checked for it on save; the warning is
+  // about an event that takes the whole day.
+  const drafts = leadQuotes.filter((quote) => quote.status === "draft" && !isTourQuote(quote));
   const clashes = new Map<string, BookingClash>();
   for (const quote of drafts) {
     const clash = summariseClash(

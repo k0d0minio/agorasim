@@ -1550,11 +1550,14 @@ export type QuoteLineItem = {
  * recomputed afterwards. Editing a sent quote is a re-quote, not a silent
  * re-price of an instalment somebody may already have paid.
  *
- * **Commission is the events rate (§5): 6%, proportionally on each payment.**
- * There is no kind column deciding that — a quote is an event by construction,
- * and whether it is a wedding or another kind of event is already on the
- * `tour_requests` row. The rate that was actually applied is recorded per
- * payment, where the fee is.
+ * **Commission follows what the quote is for.** A wedding or event quote takes
+ * the events rate (§5): 6%, proportionally on each payment. A tour quote — a
+ * personalised tour the team raised from "Novo orçamento", with no enquiry
+ * behind it — takes the tour rate (§4): 4%, with the €10 floor and the €50
+ * cap, on its one payment. What makes a quote a tour quote is
+ * {@link quotes.holdVehicleClass}, not the lead's kind: the quote must still
+ * know what it is after an erasure empties the lead. The rate that was
+ * actually applied is recorded per payment, where the fee is.
  */
 export const quotes = pgTable("quotes", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -1582,6 +1585,21 @@ export const quotes = pgTable("quotes", {
   eventDate: date("event_date").notNull(),
   /** Where it is, in the team's own words — "Quinta do Hespanhol, Mafra". */
   venue: text("venue"),
+
+  /**
+   * The departure a tour quote holds once it is paid: `morning`, `afternoon`
+   * or `full_day` (both). Null on a wedding or event quote, whose paid
+   * deposit takes the whole day by another rule (`lib/event-holds.ts`).
+   */
+  holdSlot: availabilitySlotEnum("hold_slot"),
+  /**
+   * The car class a tour quote holds — one driver and one car of this class
+   * on {@link quotes.holdSlot}, counted in the same occupancy as a booking
+   * (`lib/tour-quote.ts`). Set on a tour quote and only there: it is what
+   * makes a quote a tour quote. Text, like `bookings.vehicle_class`, because
+   * the fleet's classes live in code (`lib/fleet.ts`).
+   */
+  holdVehicleClass: text("hold_vehicle_class"),
 
   /** The language the quote is written and sent in. */
   locale: localeEnum("locale").notNull().default("pt"),

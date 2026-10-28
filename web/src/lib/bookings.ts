@@ -30,7 +30,12 @@ import {
   type Booking,
   type BookingStatus,
 } from "@/db";
-import { applyEventHolds, eventHoldKeysBetween } from "@/lib/event-holds";
+import {
+  applyEventHolds,
+  eventHoldKeysBetween,
+  tourHoldGroups,
+  tourQuoteHoldsBetween,
+} from "@/lib/event-holds";
 import {
   isVehicleClass,
   noVehicles,
@@ -152,7 +157,8 @@ function holdsCapacitySql(now: Date) {
 
 /**
  * Occupancy per (day, departure) between two dates, across every tour — and
- * every deposit-paid event, which takes its whole day (`lib/event-holds.ts`).
+ * every deposit-paid event, which takes its whole day, and every paid tour
+ * quote, which takes one car (`lib/event-holds.ts`).
  *
  * The map is what the calendars pass to `describeMonth` as `occupancy`, keyed
  * with `occupancySlotKey` from `lib/availability.ts`; a departure missing from
@@ -167,7 +173,7 @@ export async function countSlotOccupancy(options: {
 }): Promise<Map<string, SlotOccupancy>> {
   const { from, to, now = new Date() } = options;
 
-  const [rows, holds] = await Promise.all([
+  const [rows, holds, tourHolds] = await Promise.all([
     db
       .select({
         date: bookings.date,
@@ -190,9 +196,12 @@ export async function countSlotOccupancy(options: {
         bookings.experienceSlug,
       ),
     eventHoldKeysBetween({ from, to }),
+    tourQuoteHoldsBetween({ from, to }),
   ]);
 
-  return applyEventHolds(tallyOccupancy(rows), holds);
+  // A paid tour quote is one more private car on its departure, counted in the
+  // same tally as the bookings (`lib/tour-quote.ts`).
+  return applyEventHolds(tallyOccupancy([...rows, ...tourHoldGroups(tourHolds)]), holds);
 }
 
 /**

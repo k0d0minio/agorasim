@@ -105,6 +105,7 @@ const {
   markQuoteSent,
   quoteRef,
   QuoteDraftConflictError,
+  QuoteError,
   reissuePayment,
   supersedeSentQuotes,
   updateQuoteDraft,
@@ -595,6 +596,38 @@ describe("createQuote and updateQuoteDraft — the 100% deposit exception", () =
     const insertedPayments = calls.filter((call) => call.method === "values")[1]
       ?.args[0] as Record<string, unknown>[];
     expect(insertedPayments).toHaveLength(2);
+  });
+
+  it("createQuote writes a tour quote's hold beside its one payment", async () => {
+    queueResult([quote({ depositPercent: 100, totalCents: 32_000, status: "draft" })]);
+    queueResult([instalment(DEPOSIT_ID, "deposit", "pending")]);
+
+    await createQuote({
+      tourRequestId: LEAD_ID,
+      eventDate: "2026-08-15",
+      totalCents: 32_000,
+      depositPercent: 100,
+      lineItems: [{ label: "Passeio personalizado", unitCents: 32_000, quantity: 1 }],
+      hold: { slot: "full_day", vehicleClass: "classic-van" },
+    });
+
+    const inserted = calls.find((call) => call.method === "values")?.args[0] as Record<
+      string,
+      unknown
+    >;
+    expect(inserted).toMatchObject({ holdSlot: "full_day", holdVehicleClass: "classic-van" });
+  });
+
+  it("createQuote refuses a tour quote split into a deposit and a balance", async () => {
+    await expect(
+      createQuote({
+        tourRequestId: LEAD_ID,
+        eventDate: "2026-08-15",
+        totalCents: 32_000,
+        depositPercent: 30,
+        hold: { slot: "morning", vehicleClass: "classic-small" },
+      }),
+    ).rejects.toBeInstanceOf(QuoteError);
   });
 
   it("updateQuoteDraft removes the balance row when the deposit is raised to 100%", async () => {

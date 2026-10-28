@@ -31,6 +31,14 @@ describe("termsSection", () => {
     }
   });
 
+  // A tour quote's page and receipt quote the tour's own terms instead.
+  it("finds the tour's cancellation and weather sections in both languages", () => {
+    for (const locale of ["pt", "en"] as const) {
+      expect(termsSection("cancellation", locale).body[0]).toMatch(/48h/);
+      expect(termsSection("weather", locale).heading).toMatch(/Mau tempo|Bad weather/);
+    }
+  });
+
   it("states when the balance is due and no withdrawal right for a dated event", () => {
     const pt = termsSection("events", "pt").body.join(" ");
     const en = termsSection("events", "en").body.join(" ");

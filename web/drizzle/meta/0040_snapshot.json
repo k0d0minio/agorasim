@@ -1,5 +1,5 @@
 {
-  "id": "ffaf5c27-d4de-408f-8499-06eb0d901480",
+  "id": "d2fb026a-39a1-4826-81a7-3d746638d544",
   "prevId": "a6718633-3f72-4254-b226-40885a5f1e49",
   "version": "7",
   "dialect": "postgresql",
@@ -2174,6 +2174,19 @@
           "primaryKey": false,
           "notNull": false
         },
+        "hold_slot": {
+          "name": "hold_slot",
+          "type": "availability_slot",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hold_vehicle_class": {
+          "name": "hold_vehicle_class",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "locale": {
           "name": "locale",
           "type": "locale",
@@ -2909,8 +2922,7 @@
         "balance-paid",
         "quote-refunded",
         "quote-event-cancelled",
-        "booking-payment-link",
-        "balance-request-manual"
+        "booking-payment-link"
       ]
     },
     "public.message_recipient": {

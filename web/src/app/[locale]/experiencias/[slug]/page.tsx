@@ -11,6 +11,7 @@ import {
 } from "@/lib/experience-catalogue";
 import { addOnsFor } from "@/lib/pricing";
 import { testimonialsFor } from "@/content/testimonials";
+import { getGooglePlaceReviews } from "@/lib/google-reviews";
 import { site } from "@/content/site";
 import { Section, Container } from "@/components/section";
 import { Media } from "@/components/media";
@@ -18,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { FaqList } from "@/components/faq";
 import { ExperiencePrices } from "@/components/experience-pricing";
 import { Testimonials } from "@/components/testimonials";
+import { GoogleReviews } from "@/components/google-reviews";
 import { BookingButton } from "@/components/booking-button";
 import { JsonLd } from "@/components/json-ld";
 import { experienceJsonLd, faqJsonLd, breadcrumbJsonLd } from "@/lib/jsonld";
@@ -89,6 +91,10 @@ export default async function ExperienceDetailPage({
     { name: t(exp.title, l), url: `${site.domain}${href(l, "experiencias", exp.slug)}` },
   ]);
   const faq = faqJsonLd(exp.faqs, l);
+  // No reviews when the key or the Place ID is unset, when Google fails, or when
+  // Google gives no review text (Agorasim's case): the static testimonials below
+  // then show instead, with the Google rating when Google gives one.
+  const google = await getGooglePlaceReviews();
 
   return (
     <>
@@ -171,11 +177,23 @@ export default async function ExperienceDetailPage({
       </Section>
 
       {/*
-        Only the guests who were actually on this experience speak for it, so
-        most pages render nothing here — the component returns null on an empty
-        list. Copy only: no review/rating structured data joins the JSON-LD above.
+        The business's Google reviews, on every experience page, under a heading
+        that says they are about Agorasim, not this one experience. Without them,
+        only the guests who were actually on this experience speak for it, and
+        the Google rating links to the listing — on a page with no such quotes,
+        the rating stands alone. Copy only: no review/rating structured data
+        joins the JSON-LD above.
       */}
-      <Testimonials locale={l} items={testimonialsFor(exp.slug)} muted />
+      {google.reviews.length > 0 ? (
+        <GoogleReviews locale={l} reviews={google.reviews} rating={google} muted />
+      ) : (
+        <Testimonials
+          locale={l}
+          items={testimonialsFor(exp.slug)}
+          googleRating={google}
+          muted
+        />
+      )}
     </>
   );
 }

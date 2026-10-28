@@ -146,6 +146,12 @@ export type CalendarEvent = {
   /** The couple's or client's name, from the lead. Null once erased. */
   name: string | null;
   venue: string | null;
+  /**
+   * A paid tour quote's departure and car in words ("Manhã (10:00) · …"), or
+   * absent for a wedding or event. A tour quote holds one car, not the day,
+   * so it is counted in the departure's cars and never marks a conflict.
+   */
+  hold?: string;
 };
 
 const SLOT_SHORT: Record<string, string> = { morning: "10h", afternoon: "14h" };
@@ -369,7 +375,9 @@ function DayEvents({
 
   return (
     <div className="flex flex-col gap-1.5 border-t pt-3">
-      <p className="text-sm font-medium">Evento neste dia</p>
+      <p className="text-sm font-medium">
+        {events.every((event) => event.hold) ? "Orçamento pago neste dia" : "Evento neste dia"}
+      </p>
       {events.map((event) => {
         const kind = event.kind ? enquiryKindMeta[event.kind].label : "Evento";
         const row = (
@@ -383,8 +391,8 @@ function DayEvents({
               <span className="text-sm text-muted-foreground">{event.venue}</span>
             ) : null}
             <span aria-hidden>·</span>
-            <span className="text-sm text-muted-foreground">Dia inteiro</span>
-            {bookingCount > 0 ? (
+            <span className="text-sm text-muted-foreground">{event.hold ?? "Dia inteiro"}</span>
+            {bookingCount > 0 && !event.hold ? (
               <Badge variant="destructive">
                 Conflito: {bookingCount} {bookingCount === 1 ? "reserva" : "reservas"} neste dia
               </Badge>
@@ -1305,8 +1313,11 @@ export function AvailabilityCalendar({
             if (!day) return <span key={date} />;
 
             const { className, disabled, label } = cellAppearance(day);
-            const dateBookings = bookingsOf(date).length;
-            const dateEvents = eventsOf(date).length;
+            // A paid tour quote takes one car like a booking, so it is a dot
+            // like one; only a wedding or event, which takes the day, is a square.
+            const dateTourQuotes = eventsOf(date).filter((event) => event.hold).length;
+            const dateBookings = bookingsOf(date).length + dateTourQuotes;
+            const dateEvents = eventsOf(date).length - dateTourQuotes;
             const state = tileState(day);
             const selected = inStretch(date);
             return (

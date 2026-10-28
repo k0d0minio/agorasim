@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { departureLabel } from "@/content/logistics";
 import { t } from "@/i18n/config";
@@ -22,6 +23,7 @@ import {
   quoteIdSchema,
   refundQuotePaymentSchema,
   resendQuoteSchema,
+  scratchQuoteSchema,
 } from "@/lib/form-schemas";
 import { formatPrice } from "@/lib/money";
 import {
@@ -31,6 +33,7 @@ import {
 } from "@/lib/payment-link";
 import {
   createDraftForLead,
+  createQuoteFromScratch,
   discardQuoteDraft,
   resendQuote,
   saveDraft,
@@ -408,7 +411,11 @@ function draftMessage(outcome: DraftOutcome, saved: string): QuoteActionState {
     case "not-found":
       return { error: "Esse pedido ou orçamento já não existe." };
     case "not-quotable":
-      return { error: "Só se fazem orçamentos para casamentos e eventos com os dados do cliente." };
+      return {
+        error:
+          "Só se fazem orçamentos para casamentos, eventos e passeios criados em " +
+          "“Novo orçamento”, com os dados do cliente.",
+      };
     case "already-quoted":
       // Also the second of two phones pressing "Criar" at once.
       return { error: "Este pedido já tem um orçamento. Recarregue a página." };
@@ -417,14 +424,54 @@ function draftMessage(outcome: DraftOutcome, saved: string): QuoteActionState {
         error: "Este orçamento já não é um rascunho — foi enviado ou descartado entretanto. Recarregue a página.",
       };
     case "invalid":
-      return {
-        error: outcome.problems.includes("zero-total")
-          ? "O total do orçamento tem de ser maior que zero."
-          : outcome.problems.includes("no-lines")
-            ? "Acrescente pelo menos uma linha ao orçamento."
-            : "O orçamento tem dados inválidos. Reveja as linhas e a data.",
-      };
+      return { error: invalidDraftMessage(outcome.problems) };
+    case "no-car":
+      return { error: noCarMessage(outcome.reason) };
   }
+}
+
+/** Why the builder refused a draft's figures, in one sentence. */
+function invalidDraftMessage(problems: string[]): string {
+  if (problems.includes("zero-total")) return "O total do orçamento tem de ser maior que zero.";
+  if (problems.includes("no-lines")) return "Acrescente pelo menos uma linha ao orçamento.";
+  if (problems.includes("no-hold")) return "Escolha a partida e o carro do passeio.";
+  if (problems.includes("too-small")) {
+    return "Um passeio pago por link precisa de um total de pelo menos 0,50 €.";
+  }
+  return "O orçamento tem dados inválidos. Reveja as linhas e a data.";
+}
+
+/** A tour quote's departure with no car of its class left, or a count that failed. */
+function noCarMessage(reason: "unavailable" | "unreadable"): string {
+  return reason === "unreadable"
+    ? "Não foi possível confirmar a disponibilidade — tente novamente."
+    : "Essa partida já não tem condutor ou carro dessa classe livre. Escolha outra partida, outro carro ou outra data.";
+}
+
+/**
+ * "Novo orçamento" — the customer and the quote in one form, with no enquiry
+ * behind it. On success the lead's page opens, with the draft ready to send.
+ */
+export async function createScratchQuote(
+  _prevState: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = scratchQuoteSchema.safeParse(formValues(formData));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Reveja o orçamento." };
+  }
+
+  const outcome = await createQuoteFromScratch({ ...parsed.data, actorUserId: actor.id });
+  if (outcome.status === "saved") {
+    revalidatePath("/admin/sales");
+    // Outside any try: `redirect` throws to navigate.
+    redirect(`/admin/sales/${outcome.leadId}`);
+  }
+  return outcome.status === "invalid"
+    ? { error: invalidDraftMessage(outcome.problems) }
+    : { error: noCarMessage(outcome.reason) };
 }
 
 /** "Criar orçamento" or "Guardar" — the builder's form, create or edit. */
