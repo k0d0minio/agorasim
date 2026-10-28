@@ -29,6 +29,13 @@ export const site = {
    */
   reviews: {
     google: "https://g.page/r/CWIk-M6uFZMdEBM/review",
+    /**
+     * The Google Place ID of the business, from Google's Place ID Finder. Not a
+     * secret: it is public on Google Maps. The experience pages read the
+     * reviews of this place (`lib/google-reviews.ts`). Empty means no read: the
+     * pages show the static testimonials.
+     */
+    placeId: "",
   },
 } as const;
 

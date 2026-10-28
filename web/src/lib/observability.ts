@@ -43,7 +43,13 @@ import { after } from "next/server";
  * in Sentry, and the alert rules' handle. A closed list so a typo in a route
  * does not quietly start a new bucket.
  */
-export type CaptureArea = "email" | "stripe" | "stripe-webhook" | "catalogue" | "cron";
+export type CaptureArea =
+  | "email"
+  | "stripe"
+  | "stripe-webhook"
+  | "catalogue"
+  | "cron"
+  | "reviews";
 
 export type CaptureContext = {
   area: CaptureArea;
