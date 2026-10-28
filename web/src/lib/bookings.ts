@@ -38,6 +38,7 @@ import {
   type VehicleCounts,
 } from "@/lib/fleet";
 import type { DateKey } from "@/lib/availability";
+import { todayKey } from "@/lib/date-keys";
 
 /**
  * How long a car is held while the guest is on Stripe's payment page.
@@ -124,6 +125,21 @@ export function holdsCapacity(
   // for this to be true — which is the point: a sweeper that fails silently
   // would leave August looking sold out.
   return booking.holdExpiresAt.getTime() > now.getTime();
+}
+
+/**
+ * Whether one booking waits for its customer to pay through a payment link
+ * (`lib/payment-link.ts`).
+ *
+ * Not a capacity rule: such a booking holds no car while it waits — only the
+ * 30 minutes of an open payment do, through {@link holdsCapacity} like any
+ * checkout. It is the Sales board's "Pagamento pendente", and what keeps the
+ * expiry paths from closing a booking whose link still works.
+ */
+export function awaitsLinkPayment(
+  booking: Pick<Booking, "status" | "paymentLinkTokenHash">,
+): boolean {
+  return booking.status === "pending" && booking.paymentLinkTokenHash !== null;
 }
 
 /** The capacity rule, in SQL. Keep in step with {@link holdsCapacity}. */
@@ -484,7 +500,15 @@ export async function expireLapsedHolds(now: Date = new Date()): Promise<number>
   const rows = await db
     .update(bookings)
     .set({ status: "expired", updatedAt: now })
-    .where(and(eq(bookings.status, "pending"), lt(bookings.holdExpiresAt, now)))
+    .where(
+      and(
+        eq(bookings.status, "pending"),
+        lt(bookings.holdExpiresAt, now),
+        // A payment link holds nothing and still works until its departure is
+        // past: only then is the booking over (`lib/payment-link.ts`).
+        or(isNull(bookings.paymentLinkTokenHash), lt(bookings.date, todayKey(now))),
+      ),
+    )
     .returning({ id: bookings.id });
 
   return rows.length;

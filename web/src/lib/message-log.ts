@@ -154,6 +154,17 @@ export const QUOTE_REFUND_KINDS = ["quote-refunded"] as const;
 
 export type QuoteRefundKind = (typeof QUOTE_REFUND_KINDS)[number];
 
+/**
+ * The kinds whose subject is one send of a booking's payment link
+ * (`lib/payment-link.ts`). A resend rotates the link, so each send is keyed on
+ * the booking and on the `payment_link_sent_at` it stamped — one email per
+ * link, as {@link QUOTE_SEND_KINDS} are for a quote
+ * (`message_log_payment_link_key`).
+ */
+export const PAYMENT_LINK_KINDS = ["booking-payment-link"] as const;
+
+export type PaymentLinkKind = (typeof PAYMENT_LINK_KINDS)[number];
+
 /** Whom a message is about, in rows — shared by every shape of the subject. */
 type SubjectRows = {
   recipient: MessageRecipient;
@@ -192,6 +203,7 @@ export type MessageSubject =
       quoteSentAt?: never;
       quotePaymentId?: never;
       refundedTotalCents?: never;
+      linkSentAt?: never;
     })
   | (SubjectRows & {
       kind: QuoteSendKind;
@@ -204,6 +216,7 @@ export type MessageSubject =
       moveSeq?: never;
       quotePaymentId?: never;
       refundedTotalCents?: never;
+      linkSentAt?: never;
     })
   | (SubjectRows & {
       kind: QuoteReceiptKind | QuoteBalanceKind | QuoteCancellationKind;
@@ -215,6 +228,7 @@ export type MessageSubject =
       quoteSentAt?: never;
       quotePaymentId?: never;
       refundedTotalCents?: never;
+      linkSentAt?: never;
     })
   | (SubjectRows & {
       kind: QuoteRefundKind;
@@ -228,6 +242,20 @@ export type MessageSubject =
       subjectDate?: never;
       moveSeq?: never;
       quoteSentAt?: never;
+      linkSentAt?: never;
+    })
+  | (SubjectRows & {
+      kind: PaymentLinkKind;
+      /** The booking whose payment link this mail carries. */
+      bookingId: string;
+      /** The booking's `payment_link_sent_at` as this send stamped it — which link the mail carries. */
+      linkSentAt: Date;
+      subjectDate?: never;
+      moveSeq?: never;
+      quoteId?: never;
+      quoteSentAt?: never;
+      quotePaymentId?: never;
+      refundedTotalCents?: never;
     })
   | (SubjectRows & {
       kind: Exclude<
@@ -238,6 +266,7 @@ export type MessageSubject =
         | QuoteBalanceKind
         | QuoteRefundKind
         | QuoteCancellationKind
+        | PaymentLinkKind
       >;
       /**
        * The booking this message is about, for the booking-shaped kinds
@@ -251,6 +280,7 @@ export type MessageSubject =
       quoteSentAt?: never;
       quotePaymentId?: never;
       refundedTotalCents?: never;
+      linkSentAt?: never;
     });
 
 /** Why a send did not happen, in the provider's own terms. */
@@ -420,9 +450,10 @@ async function claimSend(subject: MessageSubject): Promise<string | "duplicate" 
         quoteSentAt: subject.quoteSentAt ?? null,
         quotePaymentId: subject.quotePaymentId ?? null,
         refundedTotalCents: subject.refundedTotalCents ?? null,
+        linkSentAt: subject.linkSentAt ?? null,
         status: "sending",
       })
-      // No conflict target: all six partial unique indexes are arbiters, and
+      // No conflict target: all seven partial unique indexes are arbiters, and
       // which one applies depends on whether this message names a booking, a
       // date or a quote.
       .onConflictDoNothing()

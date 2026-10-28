@@ -16,12 +16,18 @@ import {
   cancelHeldQuoteSchema,
   formValues,
   moveBookingSchema,
+  paymentLinkBookingSchema,
   quoteDraftSchema,
   quoteIdSchema,
   refundQuotePaymentSchema,
   resendQuoteSchema,
 } from "@/lib/form-schemas";
 import { formatPrice } from "@/lib/money";
+import {
+  sendPaymentLink,
+  voidPaymentLink,
+  type PaymentLinkSendOutcome,
+} from "@/lib/payment-link";
 import {
   createDraftForLead,
   discardQuoteDraft,
@@ -182,6 +188,90 @@ export async function setBookingNoShow(
       return {
         error: "Só é possível marcar falta numa reserva paga, no dia do passeio ou depois.",
       };
+  }
+}
+
+export type PaymentLinkActionState = { ok?: boolean; error?: string; message?: string };
+
+/**
+ * "Reenviar link" on a booking that waits on its payment link: a new link, a
+ * new email. The old link stops working — only a digest is kept, so the same
+ * link cannot be sent twice (`lib/payment-link.ts`). `requireAdmin()`: it is
+ * the day job, like registering the booking was.
+ */
+export async function resendPaymentLink(
+  _prevState: PaymentLinkActionState,
+  formData: FormData,
+): Promise<PaymentLinkActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = paymentLinkBookingSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Essa reserva já não existe." };
+
+  let outcome: PaymentLinkSendOutcome;
+  try {
+    outcome = await sendPaymentLink({
+      bookingId: parsed.data.bookingId,
+      actorUserId: actor.id,
+      resend: true,
+    });
+  } catch (err) {
+    console.error("[admin] couldn't resend a payment link", err);
+    return { error: "Não foi possível reenviar o link — tente novamente." };
+  }
+  switch (outcome.status) {
+    case "sent":
+      return { ok: true, message: "Link novo enviado. O anterior deixou de funcionar." };
+    case "email-failed":
+      return {
+        error: "O link foi renovado, mas o email não saiu. Tente de novo daqui a pouco.",
+      };
+    case "not-found":
+      return { error: "Essa reserva já não existe." };
+    case "not-pending":
+      return { error: "Esta reserva já não espera pagamento." };
+    case "unconfigured":
+      return { error: "Os links de pagamento não estão configurados." };
+  }
+}
+
+/**
+ * "Anular link": cancel a link booking nobody has paid. The customer's link
+ * then reads that the booking was cancelled. No money moved, so there is
+ * nothing to refund and no email: the team is already talking to the person.
+ */
+export async function cancelPaymentLink(
+  _prevState: PaymentLinkActionState,
+  formData: FormData,
+): Promise<PaymentLinkActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = paymentLinkBookingSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Essa reserva já não existe." };
+
+  try {
+    const outcome = await voidPaymentLink({
+      bookingId: parsed.data.bookingId,
+      actorUserId: actor.id,
+    });
+    switch (outcome.status) {
+      case "cancelled":
+        // An open payment could have been holding a car until a moment ago.
+        revalidatePath("/", "layout");
+        return { ok: true, message: "Link anulado. A reserva ficou cancelada." };
+      case "not-found":
+        return { error: "Essa reserva já não existe." };
+      case "not-pending":
+        return { error: "Esta reserva já não espera pagamento." };
+      case "in-payment":
+        return {
+          error:
+            "O cliente já iniciou um pagamento por Multibanco. Espere pelo resultado antes de anular.",
+        };
+    }
+  } catch (err) {
+    console.error("[admin] couldn't cancel a payment link", err);
+    return { error: "Não foi possível anular o link — tente novamente." };
   }
 }
 

@@ -19,8 +19,10 @@ import {
 import { bookingRef, bookingsBetween, slotOccupancyOn } from "@/lib/bookings";
 import { moveBookingToCar } from "@/lib/booking-move";
 import { recordAuditOrWarn } from "@/lib/audit";
+import { issueCancellationToken } from "@/lib/cancellation-token";
 import { listCatalogue } from "@/lib/experience-catalogue";
 import { BOOKING_CURRENCY } from "@/lib/money";
+import { isPaymentLinkConfigured, sendPaymentLink } from "@/lib/payment-link";
 import { priceBooking } from "@/lib/pricing";
 import { enquiryRef } from "@/lib/sales";
 import { db, bookings, tourRequests, type BookingLineItem } from "@/db";
@@ -287,6 +289,8 @@ export type ManualBookingActionState = {
   ok?: boolean;
   error?: string;
   message?: string;
+  /** The booking landed, but something still needs the operator: the sheet says it. */
+  warning?: string;
   fieldErrors?: Partial<Record<ManualBookingField, string>>;
 };
 
@@ -323,6 +327,14 @@ export type ManualBookingActionState = {
  * which moves that lead to `booked` rather than creating a second one, and
  * names it in the audit trail. Everything else about the sale is identical,
  * which is the point: a second action would be a second capacity check.
+ *
+ * **Two ways to pay.** "Pagar em dinheiro" is everything above: confirmed and
+ * paid now. "Enviar link de pagamento", offered on a lead only, writes the
+ * same booking as `pending`, holding no car (`hold_expires_at = now`), and
+ * emails the customer a link to pay it (`lib/payment-link.ts`). The lead keeps
+ * its stage: it moves to `Reservado` when the payment lands, in
+ * `confirmPaidBooking`, like any checkout. The capacity check still runs here,
+ * so a link is never sent for a departure that is already full.
  */
 /** The source enquiry, as much of it as the sale needs. */
 async function readLead(id: string) {
@@ -359,6 +371,7 @@ export async function createManualBooking(
           fieldErrors.adults?.[0] ??
           fieldErrors.children?.[0] ??
           fieldErrors.infants?.[0],
+        addOns: fieldErrors.addOns?.[0],
         name: fieldErrors.name?.[0],
         email: fieldErrors.email?.[0],
       },
@@ -379,13 +392,25 @@ export async function createManualBooking(
     email,
     phone,
     amount,
+    payment,
   } = parsed.data;
+  const byLink = payment === "link";
 
   // The enquiry this sale answers, read before a single row is written: a
   // stale id from a board left open since yesterday must not leave a confirmed
   // booking attached to nothing.
   const source = leadId ? await readLead(leadId) : null;
   if (leadId && !source) return { error: "Esse pedido já não existe." };
+  // A link is sent to the person of an enquiry: the sheet offers it on a lead
+  // only, and a crafted post from the Calendar's mount is refused here.
+  if (byLink && !source) {
+    return { error: "O link de pagamento envia-se a partir de um pedido." };
+  }
+  if (byLink && !isPaymentLinkConfigured()) {
+    return {
+      error: "Os pagamentos online não estão configurados. Registe a reserva em dinheiro.",
+    };
+  }
 
   const catalogue = await listCatalogue();
   const tour = catalogue.find((entry) => entry.slug === experience);
@@ -393,9 +418,28 @@ export async function createManualBooking(
     return { fieldErrors: { experience: "Esta experiência não está à venda." } };
   }
 
+  // The add-ons the sheet offered for this tour: active complements that
+  // attach to it. Anything else is a stale sheet or a crafted post.
+  const extras = addOns.map((slug) =>
+    catalogue.find(
+      (entry) =>
+        entry.slug === slug &&
+        entry.kind === "complement" &&
+        entry.active &&
+        (entry.attachesTo ?? []).includes(tour.slug),
+    ),
+  );
+  if (extras.some((entry) => !entry)) {
+    return { fieldErrors: { addOns: "Este extra não se junta a esta experiência." } };
+  }
+
   const quoted = priceBooking({
     tour: { slug: tour.slug, pricing: tour.pricing },
-    addOns: [],
+    addOns: extras.flatMap((entry) =>
+      entry
+        ? [{ slug: entry.slug, pricing: entry.pricing, attachesTo: entry.attachesTo }]
+        : [],
+    ),
     mode,
     party: { adults, children, infants },
     date,
@@ -414,10 +458,21 @@ export async function createManualBooking(
         };
       case "bad-party":
         return { fieldErrors: { party: "Diga quantos adultos vêm (1 a 8)." } };
+      case "addons-not-allowed":
+        return { fieldErrors: { addOns: "Os extras só se juntam a um passeio privado." } };
+      case "addon-min-adults":
+        return {
+          fieldErrors: { addOns: `Este extra precisa de ao menos ${quoted.min} adultos.` },
+        };
+      case "addon-min-guests":
+        return {
+          fieldErrors: { addOns: `Este extra precisa de ao menos ${quoted.min} pessoas.` },
+        };
+      case "addon-closed-day":
+        return { fieldErrors: { addOns: "Este extra está fechado nesse dia da semana." } };
       default:
-        // Unpriced, mode unsupported, add-on rules: with an empty add-on basket
-        // the add-on reasons are unreachable, so they read back as the tour
-        // itself not being on sale in this format.
+        // Unpriced or mode unsupported: the tour itself is not on sale in
+        // this format.
         return { fieldErrors: { experience: "Esta experiência não está à venda neste formato." } };
     }
   }
@@ -457,6 +512,12 @@ export async function createManualBooking(
   }
 
   const agreedCents = amount ?? quoted.totalCents;
+  // Stripe takes no charge under €0.50. A cash deal can be anything.
+  if (byLink && agreedCents < 50) {
+    return {
+      fieldErrors: { amount: "Um link de pagamento precisa de um valor de pelo menos 0,50 €." },
+    };
+  }
   const lines: BookingLineItem[] = [...quoted.lines];
   if (agreedCents !== quoted.totalCents) {
     lines.push({
@@ -468,7 +529,18 @@ export async function createManualBooking(
     });
   }
 
+  /*
+    A link booking's credentials, minted before the insert so the row is never
+    without them. The payment-link digest here is a placeholder: the send below
+    rotates it and stamps the send, as the cancel token is rotated at
+    confirmation (`lib/booking-checkout.ts`).
+  */
+  // `isPaymentLinkConfigured` above has already made sure both can be minted.
+  const linkDigest = byLink ? (await issueCancellationToken()).digest : null;
+  const cancellationTokenHash = byLink ? (await issueCancellationToken()).digest : null;
+
   const now = new Date();
+  let bookingId: string;
   try {
     /*
       One person, one card. Opened from a day in the Calendar there is no
@@ -504,7 +576,9 @@ export async function createManualBooking(
             addOns,
             partySize: quoted.seats,
             preferredDate: date,
-            status: "booked",
+            // A link leaves the lead in its stage: it is booked when it is
+            // paid, and `confirmPaidBooking` moves it then.
+            ...(byLink ? {} : { status: "booked" as const }),
             updatedAt: now,
           })
           .where(eq(tourRequests.id, source.id))
@@ -549,15 +623,27 @@ export async function createManualBooking(
         amountCents: agreedCents,
         currency: BOOKING_CURRENCY,
         priceBreakdown: lines,
-        status: "confirmed",
         // The language this guest is written to in. A lead knows it; a call
         // that arrived without one is Portuguese, as it always was here.
         locale: source?.locale ?? "pt",
-        paymentMethod: "cash",
+        // Held until `now`, which is to say not held: a cash sale is
+        // confirmed, and a link holds no car until the customer opens it.
         holdExpiresAt: now,
-        confirmedAt: now,
+        ...(byLink
+          ? {
+              status: "pending" as const,
+              paymentMethod: "stripe" as const,
+              paymentLinkTokenHash: linkDigest,
+              cancellationTokenHash,
+            }
+          : {
+              status: "confirmed" as const,
+              paymentMethod: "cash" as const,
+              confirmedAt: now,
+            }),
       })
       .returning({ id: bookings.id });
+    bookingId = booking.id;
 
     await recordAuditOrWarn({
       actorUserId: actor.id,
@@ -570,7 +656,7 @@ export async function createManualBooking(
         experienceSlug: tour.slug,
         partySize: quoted.seats,
         amountCents: agreedCents,
-        paymentMethod: "cash",
+        paymentMethod: byLink ? "link" : "cash",
         // Which enquiry this sale came out of — the id and the handle the team
         // quotes, never the person. `bookings` holds no name, email or phone by
         // design, and this entry keeps that property.
@@ -595,7 +681,7 @@ export async function createManualBooking(
       so a move recorded only against the booking would leave a card that
       silently jumped from `Novo` to `Reservado` with nobody's name on it.
     */
-    if (source) {
+    if (source && !byLink) {
       await recordAuditOrWarn({
         actorUserId: actor.id,
         action: "tour_request.status_changed",
@@ -608,6 +694,22 @@ export async function createManualBooking(
   } catch (err) {
     console.error("[admin] failed to create a manual booking", err);
     return { error: "Não foi possível registar a reserva — tente novamente." };
+  }
+
+  if (byLink) {
+    // No revalidation: the booking holds no car, so the public calendar has
+    // nothing new to show.
+    const sent = await sendPaymentLink({ bookingId, actorUserId: actor.id, resend: false });
+    return sent.status === "sent"
+      ? {
+          ok: true,
+          message: "Link de pagamento enviado. A reserva fica confirmada quando o cliente pagar.",
+        }
+      : {
+          ok: true,
+          warning:
+            "A reserva ficou registada, mas o email com o link não saiu. Use «Reenviar link» nas Reservas do pedido.",
+        };
   }
 
   revalidatePublicSite();

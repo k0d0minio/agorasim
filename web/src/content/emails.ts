@@ -707,6 +707,58 @@ export const bookingEmails = {
   },
 
   /**
+   * The payment link — `booking-payment-link`, sent when the team registers a
+   * tour with "Enviar link de pagamento", and again on "Reenviar link"
+   * (`lib/payment-link.ts`). The booking is confirmed only on payment and holds
+   * no car until then, so the mail says both before the button.
+   *
+   * Ungendered Portuguese, as every guest line: see `guest.lead`.
+   */
+  paymentLink: {
+    subject: {
+      pt: "Pagamento da sua reserva — {experience}, {date}",
+      en: "Payment for your booking — {experience}, {date}",
+    } as Localized,
+    preheader: {
+      pt: "{total} · a reserva fica confirmada com o pagamento",
+      en: "{total} · your booking is confirmed once you pay",
+    } as Localized,
+    banner: { pt: "Pagamento da reserva", en: "Booking payment" } as Localized,
+    greeting: { pt: "Olá {name},", en: "Hello {name}," } as Localized,
+    lead: {
+      pt: "Obrigado pelo contacto. Preparámos a sua reserva — os detalhes estão abaixo. Para a confirmar, basta pagar no link.",
+      en: "Thank you for getting in touch. We have prepared your booking — the details are below. To confirm it, pay through the link.",
+    } as Localized,
+    detailsHeading: { pt: "A sua reserva", en: "Your booking" } as Localized,
+    totalLabel: { pt: "Total a pagar", en: "Total to pay" } as Localized,
+    next: {
+      title: { pt: "Como confirmar", en: "How to confirm" } as Localized,
+      body: {
+        pt: "A reserva só fica confirmada depois do pagamento. Até lá, os lugares não ficam guardados: se a partida esgotar entretanto, a página avisa e falamos consigo.",
+        en: "Your booking is confirmed only once you pay. Until then the seats are not held: if the departure sells out first, the page says so and we will be in touch.",
+      } as Localized,
+    },
+    cta: { pt: "Pagar a reserva", en: "Pay for your booking" } as Localized,
+    ctaTextLine: { pt: "Pagar a reserva: {url}", en: "Pay for your booking: {url}" } as Localized,
+    replacesNote: {
+      pt: "Este link substitui qualquer link anterior para esta reserva.",
+      en: "This link replaces any earlier link for this booking.",
+    } as Localized,
+    questions: {
+      pt: "Alguma dúvida? Responda a este email ou ligue-nos:",
+      en: "Any questions? Reply to this email or call us:",
+    } as Localized,
+    signoff: {
+      pt: "Até breve,\nDiogo e Rita\nAgorasim",
+      en: "See you soon,\nDiogo and Rita\nAgorasim",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque combinou um passeio com a equipa de {site}.",
+      en: "You are receiving this email because you arranged a tour with the team at {site}.",
+    } as Localized,
+  },
+
+  /**
    * The balance, asked for — `balance-request` at T−14 and, if it is still
    * unpaid, one `balance-reminder` at T−7 (`lib/cron/balance-scheduler.ts`).
    *

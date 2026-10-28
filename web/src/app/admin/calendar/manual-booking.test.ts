@@ -139,6 +139,20 @@ vi.mock("@/lib/bookings", async () => {
   };
 });
 
+// The payment link's own work — the token rotation and the email — is
+// `lib/payment-link.ts`'s. What is under test here is the booking it is sent for.
+const sendPaymentLink = vi.fn<(options: unknown) => Promise<{ status: "sent" }>>(
+  async () => ({ status: "sent" }),
+);
+let paymentLinkConfigured = true;
+vi.mock("@/lib/payment-link", () => ({
+  isPaymentLinkConfigured: () => paymentLinkConfigured,
+  sendPaymentLink: (options: unknown) => sendPaymentLink(options),
+}));
+
+// The cancel and link digests are real HMACs: they need their secret.
+process.env.BOOKING_TOKEN_SECRET = "test-secret-for-manual-booking-links";
+
 const findAdminUserById = vi.fn<(id: string) => Promise<AdminUserSummary | null>>();
 
 vi.mock("@/lib/admin-users", () => ({
@@ -243,6 +257,8 @@ beforeEach(() => {
   cookieJar.clear();
   revalidatePath.mockClear();
   findAdminUserById.mockReset();
+  sendPaymentLink.mockClear();
+  paymentLinkConfigured = true;
 });
 
 describe("createManualBooking from the Sales board", () => {
@@ -433,5 +449,100 @@ describe("createManualBooking per person", () => {
     );
     const booking = insertedValues().find((values) => values.paymentMethod === "cash");
     expect(booking).toMatchObject({ mode: "private", sharedCarId: null });
+  });
+});
+
+describe("createManualBooking with a payment link", () => {
+  it("writes a pending booking that holds no car, and sends the link", async () => {
+    await signIn();
+    queueBoardSale();
+
+    const state = await createManualBooking({}, sale({ leadId: LEAD_ID, payment: "link" }));
+
+    expect(state.ok).toBe(true);
+    const booking = insertedValues().find((values) => values.tourRequestId === LEAD_ID);
+    expect(booking).toMatchObject({
+      status: "pending",
+      paymentMethod: "stripe",
+      paymentLinkTokenHash: expect.stringMatching(/^hmac-sha256\$/),
+    });
+    // Held until the moment it was written: not held at all.
+    expect(booking?.holdExpiresAt).toBeInstanceOf(Date);
+    expect(booking).not.toHaveProperty("confirmedAt");
+    expect(sendPaymentLink).toHaveBeenCalledWith(
+      expect.objectContaining({ bookingId: BOOKING_ID, resend: false }),
+    );
+  });
+
+  it("leaves the lead in its stage until the payment lands", async () => {
+    await signIn();
+    queueBoardSale("contacted");
+
+    await createManualBooking({}, sale({ leadId: LEAD_ID, payment: "link" }));
+
+    expect(updatedValues()[0]).not.toHaveProperty("status");
+    expect(
+      auditRows().some((row) => row.action === "tour_request.status_changed"),
+    ).toBe(false);
+    expect(
+      auditRows().find((row) => row.action === "booking.created")?.after,
+    ).toMatchObject({ paymentMethod: "link" });
+  });
+
+  it("keeps the booking and warns when the link email did not go", async () => {
+    await signIn();
+    queueBoardSale();
+    sendPaymentLink.mockResolvedValueOnce({ status: "email-failed" } as never);
+
+    const state = await createManualBooking({}, sale({ leadId: LEAD_ID, payment: "link" }));
+
+    // Not an error: the booking exists, and a second submit would make another.
+    expect(state.ok).toBe(true);
+    expect(state.warning).toMatch(/Reenviar link/);
+  });
+
+  it("refuses a link from the Calendar, where no enquiry stands behind it", async () => {
+    await signIn();
+
+    const state = await createManualBooking({}, sale({ payment: "link" }));
+
+    expect(state.error).toBe("O link de pagamento envia-se a partir de um pedido.");
+    expect(insertedValues()).toEqual([]);
+    expect(sendPaymentLink).not.toHaveBeenCalled();
+  });
+
+  it("refuses a link below Stripe's minimum charge", async () => {
+    await signIn();
+    queueBoardSale();
+
+    const state = await createManualBooking(
+      {},
+      sale({ leadId: LEAD_ID, payment: "link", amount: "0,40" }),
+    );
+
+    expect(state.fieldErrors?.amount).toMatch(/0,50 €/);
+    expect(insertedValues()).toEqual([]);
+  });
+
+  it("says so when online payments are not configured", async () => {
+    await signIn();
+    paymentLinkConfigured = false;
+    queueResult([{ id: LEAD_ID, status: "new", locale: "pt" }]);
+
+    const state = await createManualBooking({}, sale({ leadId: LEAD_ID, payment: "link" }));
+
+    expect(state.error).toMatch(/não estão configurados/);
+    expect(insertedValues()).toEqual([]);
+  });
+
+  it("keeps cash as the default when the form names no payment", async () => {
+    await signIn();
+    queueBoardSale();
+
+    await createManualBooking({}, sale({ leadId: LEAD_ID }));
+
+    const booking = insertedValues().find((values) => values.tourRequestId === LEAD_ID);
+    expect(booking).toMatchObject({ status: "confirmed", paymentMethod: "cash" });
+    expect(sendPaymentLink).not.toHaveBeenCalled();
   });
 });

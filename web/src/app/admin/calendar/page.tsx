@@ -22,6 +22,7 @@ import { eventHoldsBetween } from "@/lib/event-holds";
 import { quoteRef } from "@/lib/quotes";
 import { FLEET } from "@/lib/fleet";
 import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
+import { manualBookingTours } from "@/lib/manual-booking";
 import { t } from "@/i18n/config";
 import { AdminShell } from "@/components/admin/admin-shell";
 import {
@@ -120,9 +121,7 @@ export default async function AdminCalendarPage({
   // The tours the "Nova reserva" sheet can sell: active signature tours only.
   // The manual path records cash sales against the two flagships; a retired
   // tour takes no new money, and anything else is an add-on, not a tour.
-  const tours = catalogue
-    .filter((entry) => entry.kind === "signature" && entry.active)
-    .map((entry) => ({ slug: entry.slug, title: t(entry.title, "pt") }));
+  const tours = manualBookingTours(catalogue);
   const bookingsByDate = bookings.reduce<Record<string, typeof bookings>>(
     (groups, booking) => {
       (groups[booking.date] ??= []).push(booking);
