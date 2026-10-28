@@ -30,12 +30,15 @@ export const site = {
   reviews: {
     google: "https://g.page/r/CWIk-M6uFZMdEBM/review",
     /**
-     * The Google Place ID of the business, from Google's Place ID Finder. Not a
-     * secret: it is public on Google Maps. The experience pages read the
-     * reviews of this place (`lib/google-reviews.ts`). Empty means no read: the
-     * pages show the static testimonials.
+     * The Google Place ID of the business. Not a secret: it is public on
+     * Google Maps. The Place ID Finder does not list the business, so the ID
+     * comes from the feature ID behind the review link above
+     * (`0xd1ed1df308008a1:0x1d9315aecef82462`), and Google Maps resolves it to
+     * the same place. The experience pages read the reviews of this place
+     * (`lib/google-reviews.ts`). Empty means no read: the pages show the
+     * static testimonials.
      */
-    placeId: "",
+    placeId: "ChIJoQiAMN_RHg0RYiT4zq4Vkx0",
   },
 } as const;
 
