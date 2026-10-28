@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Clock, MapPin } from "lucide-react";
+import type { RequestStatus } from "@/db/schema";
 import type { AuditLogRow } from "@/lib/audit";
 import type { CatalogueEntry } from "@/lib/experience-catalogue";
 import { manualBookingPrefill } from "@/lib/manual-booking";
@@ -49,6 +50,7 @@ export function SalesBoard({
   now,
   openDays,
   tours,
+  initialStage,
 }: {
   records: SalesRecord[];
   catalogue: Map<string, CatalogueEntry>;
@@ -62,6 +64,8 @@ export function SalesBoard({
    */
   openDays: ManualBookingDay[];
   tours: ManualBookingTour[];
+  /** The stage the board opens on, from `?fase=`. Unset opens on the first. */
+  initialStage?: RequestStatus;
 }) {
   const columns = groupByStage(records);
 
@@ -224,5 +228,5 @@ export function SalesBoard({
     };
   });
 
-  return <SalesStagePager stages={stages} />;
+  return <SalesStagePager stages={stages} initialStage={initialStage} />;
 }

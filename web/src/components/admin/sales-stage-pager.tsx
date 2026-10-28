@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
@@ -27,11 +27,39 @@ export type StageSlide = {
  * active chip in step with the scroll position and scrolling a tapped chip's
  * slide into view. Slides are fixed-width, which is the case `mandatory`
  * snapping is safe for.
+ *
+ * `initialStage` (a slide's `key`) opens the rail on that stage: its chip is
+ * active from the first render, and the rail scrolls to its slide on mount.
  */
-export function SalesStagePager({ stages }: { stages: StageSlide[] }) {
+export function SalesStagePager({
+  stages,
+  initialStage,
+}: {
+  stages: StageSlide[];
+  initialStage?: string;
+}) {
   const scroller = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(0);
+  const initialIndex = Math.max(
+    0,
+    stages.findIndex((stage) => stage.key === initialStage),
+  );
+  const [active, setActive] = useState(initialIndex);
   const frame = useRef(0);
+
+  // Open on the requested stage. The rail's own scrollLeft, not
+  // scrollIntoView: on load the board can sit below the fold, and
+  // scrollIntoView would scroll the page vertically as well. Instant, so the
+  // page does not open with a swipe animation. Minus the scroll padding, to
+  // land on the same snap point a swipe would.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || initialIndex === 0) return;
+    const slide = el.querySelectorAll<HTMLElement>("[data-stage-slide]")[initialIndex];
+    if (!slide) return;
+    el.scrollLeft = slide.offsetLeft - (parseFloat(getComputedStyle(el).scrollPaddingLeft) || 0);
+    // Mount only: a later change of stage is the reader's own swipe or tap.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Which slide's left edge sits nearest the scroll position. Measured from
   // the live DOM rather than index arithmetic so the slide gap and scroll

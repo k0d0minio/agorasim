@@ -94,6 +94,23 @@ export const requestStatusMeta: Record<
 export const REQUEST_STATUSES = Object.keys(requestStatusMeta) as RequestStatus[];
 
 /**
+ * Each stage as the Sales board's `?fase=` value: the column's label,
+ * lower-case and without accents, so a link reads as the column it opens.
+ */
+export const requestStatusParam: Record<RequestStatus, string> = {
+  new: "novo",
+  contacted: "contactado",
+  quoted: "orcamentado",
+  booked: "reservado",
+  archived: "arquivado",
+};
+
+/** The stage a `?fase=` value names, or `undefined` for anything else. */
+export function requestStatusFromParam(value: string | undefined): RequestStatus | undefined {
+  return REQUEST_STATUSES.find((status) => requestStatusParam[status] === value);
+}
+
+/**
  * Where a booking's money is, as the admin says it.
  *
  * Kept apart from {@link requestStatusMeta}: a lead's stage is where the *team*
