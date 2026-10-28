@@ -14,6 +14,7 @@ import type { ContentStatus, FeatureRequestStatus } from "@/db/schema";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { InDevLegend, InDevMarker } from "@/components/admin/in-dev-marker";
 import { requireAdmin } from "@/lib/admin-auth";
+import { requestStatusParam } from "@/lib/admin-format";
 import { adminAreas } from "@/lib/admin-nav";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
@@ -69,12 +70,27 @@ export default async function AdminDashboardPage() {
   const draftsToReview = drafts.reduce((total, rows) => total + tally(rows, REVIEW), 0);
   const publishedCount = drafts.reduce((total, rows) => total + tally(rows, PUBLISHED), 0);
 
-  const STATS = [
+  /*
+   * The two counts the team acts on first, as links: each opens the Sales
+   * board on its own stage (`?fase=`). The count is the stage's, so it
+   * matches the column it opens.
+   */
+  const QUICK_ACCESS = [
     {
       label: "Pedidos novos",
       value: String(tally(requests, ["new"])),
       hint: "À espera do primeiro contacto",
+      href: `/admin/sales?fase=${requestStatusParam.new}`,
     },
+    {
+      label: "Reservas confirmadas",
+      value: String(tally(requests, ["booked"])),
+      hint: "Na fase Reservado",
+      href: `/admin/sales?fase=${requestStatusParam.booked}`,
+    },
+  ];
+
+  const STATS = [
     {
       label: "Rascunhos por rever",
       value: String(draftsToReview),
@@ -93,7 +109,29 @@ export default async function AdminDashboardPage() {
       <div className="flex flex-col gap-8">
         <section>
           <h2 className="sr-only">Resumo</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {QUICK_ACCESS.map((stat) => (
+              <Link
+                key={stat.label}
+                href={stat.href}
+                className="group/stat rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                <Card size="sm" className="h-full transition-colors group-hover/stat:ring-foreground/20">
+                  <CardHeader>
+                    <CardDescription className="flex items-center gap-1">
+                      {stat.label}
+                      <ArrowRight className="size-3.5 -translate-x-1 opacity-0 transition-all group-hover/stat:translate-x-0 group-hover/stat:opacity-100" />
+                    </CardDescription>
+                    <CardTitle className="text-3xl">{stat.value}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">{stat.hint}</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
             {STATS.map((stat) => (
               <Card key={stat.label} size="sm">
                 <CardHeader>

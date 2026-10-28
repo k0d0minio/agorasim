@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Inbox, Plus, Search } from "lucide-react";
 import { requireAdmin } from "@/lib/admin-auth";
+import { requestStatusFromParam } from "@/lib/admin-format";
 import { lastAuditByEntity } from "@/lib/audit";
 import { formatDay, todayKey } from "@/lib/availability";
 import { balanceMessagesLabel, eventWhenLabel } from "@/lib/balance-schedule";
@@ -50,14 +51,18 @@ const NO_UNPAID_BALANCES: UnpaidBalancesDue = { upcoming: [], past: [], pastTota
  * quietly wrong. A search (`?q=`) is the way past the cap: matches are served
  * server-side against name, e-mail and phone across every stage, and shown as
  * one flat list with the count.
+ *
+ * `?fase=` opens the board on one stage (`requestStatusParam`) — the admin
+ * home's quick-access cards link here with it. An unknown value is ignored.
  */
 export default async function AdminSalesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; fase?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, fase } = await searchParams;
   const query = q?.trim();
+  const initialStage = requestStatusFromParam(fase);
 
   // Every operator can triage; only owners can export guest data below.
   const viewer = await requireAdmin();
@@ -180,6 +185,7 @@ export default async function AdminSalesPage({
           now={now}
           openDays={openDays}
           tours={sellableTours}
+          initialStage={initialStage}
         />
       )}
 
