@@ -97,3 +97,30 @@ export const testimonialsHeading = {
 export function testimonialsFor(slug: string): readonly Testimonial[] {
   return testimonials.filter((entry) => entry.experiences.includes(slug));
 }
+
+/**
+ * The Google reviews section on the experience pages (`components/google-reviews.tsx`).
+ * The heading says whose reviews these are: Google reviews speak for the whole
+ * business, not for the one experience on the page.
+ */
+export const googleReviewsCopy = {
+  eyebrow: { pt: "Avaliações no Google", en: "Google reviews" } as Localized,
+  title: {
+    pt: "Avaliações Google da Agorasim",
+    en: "Agorasim on Google reviews",
+  } as Localized,
+  /** Google asks that the page says how the reviews are ordered. */
+  order: {
+    pt: "Avaliações do Google, das mais recentes para as mais antigas.",
+    en: "Reviews from Google, newest first.",
+  } as Localized,
+  more: {
+    pt: "Ver todas as avaliações no Google Maps",
+    en: "See all reviews on Google Maps",
+  } as Localized,
+  /** Screen-reader text for the stars. `{n}` is the rating. */
+  stars: {
+    pt: "{n} de 5 estrelas",
+    en: "{n} out of 5 stars",
+  } as Localized,
+};

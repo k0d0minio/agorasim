@@ -16,13 +16,13 @@ Jamie decided a connection that loads Google reviews is enough for now.
 ## Proposed change
 
 The site loads the business's Google reviews on the server and shows them in the testimonials
-section of every experience page: the reviewer's first name, the stars, the text and the date.
+section of every experience page: the reviewer's name as Google shows it, the stars, the text and the date.
 The three static quotes stay as a fallback when the connection fails. No script and no cookie
 reach the browser.
 
 ## Acceptance criteria
 
-- [ ] Every experience page shows the latest Google reviews of the business, with name, stars, text and date, in the language Google returns.
+- [ ] Every experience page shows the Google reviews that Google returns for the business, up to five, newest first, with name, stars, text and date, in the guest's original language.
 - [ ] The reviews are fetched on the server and cached with the page's hourly revalidation. No request to Google leaves the browser.
 - [ ] When the connection fails or returns nothing, the page shows the static testimonials as today.
 - [ ] The API key is read from an environment variable, named in `web/.env.example`, never in git.
@@ -40,4 +40,5 @@ reach the browser.
   2. The Place ID. Default: the one behind the review link in `web/src/content/site.ts` lines 30 to 32. Jamie confirms it.
   3. The account that holds the API key. Default: Jamie's Google Cloud project, key named `GOOGLE_PLACES_API_KEY`.
   4. How many reviews to show. Default: up to five, newest first.
+- Jamie accepted the defaults of the ten questions in the pull request, 2026-10-28.
 - The testimonials component is `web/src/components/testimonials.tsx`, the content `web/src/content/testimonials.ts`, the page `web/src/app/[locale]/experiencias/[slug]/page.tsx` line 174.

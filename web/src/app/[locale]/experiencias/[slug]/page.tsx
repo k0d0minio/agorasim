@@ -11,6 +11,7 @@ import {
 } from "@/lib/experience-catalogue";
 import { addOnsFor } from "@/lib/pricing";
 import { testimonialsFor } from "@/content/testimonials";
+import { getGoogleReviews } from "@/lib/google-reviews";
 import { site } from "@/content/site";
 import { Section, Container } from "@/components/section";
 import { Media } from "@/components/media";
@@ -18,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { FaqList } from "@/components/faq";
 import { ExperiencePrices } from "@/components/experience-pricing";
 import { Testimonials } from "@/components/testimonials";
+import { GoogleReviews } from "@/components/google-reviews";
 import { BookingButton } from "@/components/booking-button";
 import { JsonLd } from "@/components/json-ld";
 import { experienceJsonLd, faqJsonLd, breadcrumbJsonLd } from "@/lib/jsonld";
@@ -89,6 +91,9 @@ export default async function ExperienceDetailPage({
     { name: t(exp.title, l), url: `${site.domain}${href(l, "experiencias", exp.slug)}` },
   ]);
   const faq = faqJsonLd(exp.faqs, l);
+  // Empty when the key or the Place ID is unset, or when Google fails: the
+  // static testimonials below then show instead.
+  const googleReviews = await getGoogleReviews();
 
   return (
     <>
@@ -171,11 +176,17 @@ export default async function ExperienceDetailPage({
       </Section>
 
       {/*
-        Only the guests who were actually on this experience speak for it, so
+        The business's Google reviews, on every experience page, under a heading
+        that says they are about Agorasim, not this one experience. Without them,
+        only the guests who were actually on this experience speak for it, so
         most pages render nothing here — the component returns null on an empty
         list. Copy only: no review/rating structured data joins the JSON-LD above.
       */}
-      <Testimonials locale={l} items={testimonialsFor(exp.slug)} muted />
+      {googleReviews.length > 0 ? (
+        <GoogleReviews locale={l} reviews={googleReviews} muted />
+      ) : (
+        <Testimonials locale={l} items={testimonialsFor(exp.slug)} muted />
+      )}
     </>
   );
 }
