@@ -44,17 +44,21 @@ import {
 import {
   DEFAULT_DRIVERS,
   isDateKey,
-  MAX_DRIVERS,
   todayKey,
   TOUR_SLOTS,
 } from "@/lib/availability";
-import { MAX_PARTY_ONLINE } from "@/lib/fleet";
+import { isVehicleClass, MAX_PARTY_ONLINE } from "@/lib/fleet";
 import { parseAmountInput, parsePriceInput } from "@/lib/money";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
 import { isExperienceBlobUrl, isLegacyImagePath } from "@/lib/experience-images";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 import { classicCars } from "@/content/site";
-import { isServiceHours } from "@/content/quote-request";
+import { isServiceHours, parseCeremonyTime } from "@/content/quote-request";
+import {
+  isTourHoldSlot,
+  TOUR_QUOTE_DEPOSIT_PERCENT,
+  type TourHold,
+} from "@/lib/tour-quote";
 
 // ---------------------------------------------------------------------------
 // Enums, straight from the database schema
@@ -344,6 +348,9 @@ export const experienceSchema = z
     faqQuestionEn: repeated,
     faqAnswerPt: repeated,
     faqAnswerEn: repeated,
+
+    /** One checkbox per tour, ticked for each tour an add-on joins. */
+    attachesTo: repeated,
   })
   .transform((value) => ({
     id: value.id,
@@ -378,6 +385,19 @@ export const experienceSchema = z
       .filter(
         (faq) => faq.question.pt && faq.question.en && faq.answer.pt && faq.answer.en,
       ),
+    /*
+     * Only an add-on joins a tour. A tour saved with ticks left over from when
+     * it was an add-on keeps none, and a slug is kept once whatever the form
+     * repeated. The action checks the slugs against the tours that exist.
+     */
+    attachesTo:
+      value.kind === "complement"
+        ? [
+            ...new Set(
+              value.attachesTo.map((slug) => slug.trim()).filter((slug) => SLUG_RE.test(slug)),
+            ),
+          ]
+        : [],
   }));
 
 /** Field names `saveExperience` can report an inline error against. */
@@ -468,15 +488,55 @@ const optionalDateKey = z
   .transform((value) => (isDateKey(value) ? value : undefined));
 
 /**
- * What the calendar's bar does to every selected day — the four buttons.
+ * What the calendar's bar does to every selected day — the seven buttons.
  *
  * Each one *sets* the day rather than adding to it: "Só manhã" leaves 10:00
  * blocked and 14:00 on sale whatever the day was before (D-17 in the run
  * `admin-block-days`), so the same tap means the same thing on every day of a
- * stretch.
+ * stretch. The three `one-driver-*` buttons are "Só um condutor": the named
+ * departures go on sale with one driver, and the other departure stays as it
+ * was.
  */
-export const DAY_BLOCKS = ["day", "morning", "afternoon", "none"] as const;
+export const DAY_BLOCKS = [
+  "day",
+  "morning",
+  "afternoon",
+  "none",
+  "one-driver-day",
+  "one-driver-morning",
+  "one-driver-afternoon",
+] as const;
 export type DayBlock = (typeof DAY_BLOCKS)[number];
+
+/** What one bar button writes to every selected day. */
+export type DayBlockEffect = {
+  /** The departures it blocks. */
+  closed: ("morning" | "afternoon")[];
+  /** The departures it puts on sale. */
+  open: ("morning" | "afternoon")[];
+  /**
+   * The roster the `open` departures get. Absent keeps each departure's own
+   * roster, which is what a block or a "Só manhã" does.
+   */
+  drivers?: number;
+};
+
+/**
+ * Each button's write, in one table: `blockDays` runs it and the tests pin it.
+ *
+ * "Desbloquear" puts both departures back on the full roster as well as on
+ * sale: it is the one button that undoes every other (Jamie, 2026-10-28, on
+ * `one-driver-off-per-departure`). A note is never touched.
+ */
+export const DAY_BLOCK_EFFECTS: Record<DayBlock, DayBlockEffect> = {
+  day: { closed: ["morning", "afternoon"], open: [] },
+  morning: { closed: ["morning"], open: ["afternoon"] },
+  afternoon: { closed: ["afternoon"], open: ["morning"] },
+  none: { closed: [], open: ["morning", "afternoon"], drivers: DEFAULT_DRIVERS },
+  "one-driver-day": { closed: [], open: ["morning", "afternoon"], drivers: 1 },
+  "one-driver-morning": { closed: [], open: ["morning"], drivers: 1 },
+  "one-driver-afternoon": { closed: [], open: ["afternoon"], drivers: 1 },
+};
 
 /**
  * Block or unblock a stretch of days: its two ends, and which button.
@@ -484,7 +544,8 @@ export type DayBlock = (typeof DAY_BLOCKS)[number];
  * A stretch is posted as its two ends rather than as a list of days — a
  * holiday across three months is one gesture, and the server expands it with
  * a cap. A single day posts `from` alone. The form never carries a roster or a
- * note, and that absence is the guarantee that blocking a day keeps both.
+ * note: the button alone decides the roster ({@link DAY_BLOCK_EFFECTS}), and
+ * no button writes a note.
  */
 export const blockDaysSchema = z.object({
   from: optionalDateKey,
@@ -492,12 +553,6 @@ export const blockDaysSchema = z.object({
   block: z.enum(DAY_BLOCKS),
 });
 
-/**
- * The "Mais opções" half of a day's panel: how many drivers are on, and why.
- *
- * It never posts a status — saving the roster of a blocked day leaves it
- * blocked.
- */
 /**
  * "Mudar de carro" on the day sheet: which booking, and where it goes — the id
  * of another open car on its departure, or `new` for a car of its own.
@@ -508,24 +563,14 @@ export const changeCarSchema = z.object({
   target: z.union([z.literal("new"), z.uuid()]),
 });
 
-export const dayRosterSchema = z.object({
+/**
+ * The "Mais opções" half of a day's panel: the team's note on the day.
+ *
+ * It never posts a status or a roster — the bar owns both, so saving the note
+ * of a blocked or one-driver day leaves it as it was.
+ */
+export const dayNoteSchema = z.object({
   date: optionalDateKey,
-  /**
-   * Drivers rostered on each departure. Clamped rather than refused: this
-   * arrives from a stepper whose buttons already stop at the bounds, so an
-   * out-of-range value is a crafted request, and the useful answer to one is
-   * the nearest legal number. The ceiling is the real roster — a third driver
-   * is AGORA-019's question, not this form's.
-   */
-  drivers: z
-    .string()
-    .trim()
-    .catch("")
-    .transform((value) => {
-      const n = Number.parseInt(value, 10);
-      if (!Number.isFinite(n)) return DEFAULT_DRIVERS;
-      return Math.min(MAX_DRIVERS, Math.max(1, n));
-    }),
   /** The panel always renders the field: empty clears the note. */
   note: preservedText,
 });
@@ -712,6 +757,48 @@ function parseQuoteLines(
 }
 
 /**
+ * A tour quote's departure and car, from the builder's two selects.
+ *
+ * Neither posted is a wedding or event form, which never renders them:
+ * `undefined`, so a save leaves the draft's hold as it was. One posted without
+ * the other, or a value the fleet does not know, is a refusal — never a
+ * quietly dropped hold.
+ */
+function parseTourHold(
+  slot: string | undefined,
+  vehicleClass: string | undefined,
+  ctx: z.RefinementCtx,
+): TourHold | undefined {
+  if (slot === undefined && vehicleClass === undefined) return undefined;
+  if (!isTourHoldSlot(slot)) {
+    ctx.addIssue({ code: "custom", message: "Escolha a partida do passeio." });
+    return undefined;
+  }
+  if (!isVehicleClass(vehicleClass)) {
+    ctx.addIssue({ code: "custom", message: "Escolha o carro do passeio." });
+    return undefined;
+  }
+  return { slot, vehicleClass };
+}
+
+/** The quote's day: a real calendar day, not in the past. */
+const quoteDate = z
+  .string()
+  .trim()
+  .refine((value) => isDateKey(value), "Indique a data do evento.")
+  .refine((value) => !isDateKey(value) || value >= todayKey(), "A data do evento já passou.");
+
+/** The deposit share, a whole percentage. A tour quote posts 100. */
+const depositPercentField = z
+  .string()
+  .trim()
+  .transform((value) => Number(value))
+  .refine(
+    (n) => Number.isInteger(n) && n >= 1 && n <= 100,
+    "O sinal tem de ser uma percentagem entre 1 e 100.",
+  );
+
+/**
  * Saving a quote draft — "Criar orçamento" (with `leadId`) or "Guardar" on an
  * existing draft (with `quoteId`).
  *
@@ -724,27 +811,19 @@ export const quoteDraftSchema = z
   .object({
     leadId: z.uuid().optional(),
     quoteId: z.uuid().optional(),
-    eventDate: z
-      .string()
-      .trim()
-      .refine((value) => isDateKey(value), "Indique a data do evento.")
-      .refine((value) => !isDateKey(value) || value >= todayKey(), "A data do evento já passou."),
+    eventDate: quoteDate,
     venue: z
       .string()
       .trim()
       .catch("")
       .transform((value) => (value ? value.slice(0, 300) : null)),
-    depositPercent: z
-      .string()
-      .trim()
-      .transform((value) => Number(value))
-      .refine(
-        (n) => Number.isInteger(n) && n >= 1 && n <= 100,
-        "O sinal tem de ser uma percentagem entre 1 e 100.",
-      ),
+    depositPercent: depositPercentField,
     lineLabel: repeated,
     lineQuantity: repeated,
     lineUnit: repeated,
+    /** A tour quote's departure and car (`lib/tour-quote.ts`). */
+    holdSlot: z.string().trim().optional(),
+    holdVehicleClass: z.string().trim().optional(),
   })
   .refine((value) => Boolean(value.leadId) !== Boolean(value.quoteId), "Pedido inválido.")
   .transform((value, ctx) => ({
@@ -754,7 +833,67 @@ export const quoteDraftSchema = z
     venue: value.venue,
     depositPercent: value.depositPercent,
     lineItems: parseQuoteLines(value.lineLabel, value.lineQuantity, value.lineUnit, ctx),
+    hold: parseTourHold(value.holdSlot, value.holdVehicleClass, ctx),
   }));
+
+/**
+ * "Novo orçamento" on the Sales board — the customer, the kind of job and the
+ * quote, in one form, with no enquiry behind it (`createQuoteFromScratch`).
+ *
+ * A tour asks its departure and car and takes one payment: the deposit share
+ * is set to 100 here, whatever the form posted. A wedding or event asks the
+ * deposit share and holds no car: a posted hold is dropped.
+ */
+export const scratchQuoteSchema = z
+  .object({
+    name: text.min(1, "Diga o nome do cliente."),
+    email: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(EMAIL_RE, "Escreva um endereço de email válido."),
+    phone: optionalText,
+    locale: localeSchema.catch("pt"),
+    kind: z.enum(enquiryKindEnum.enumValues, "Escolha o tipo: passeio, casamento ou evento."),
+    eventDate: quoteDate,
+    venue: z
+      .string()
+      .trim()
+      .catch("")
+      .transform((value) => (value ? value.slice(0, 300) : null)),
+    depositPercent: z.string().trim().catch(""),
+    lineLabel: repeated,
+    lineQuantity: repeated,
+    lineUnit: repeated,
+    holdSlot: z.string().trim().optional(),
+    holdVehicleClass: z.string().trim().optional(),
+  })
+  .transform((value, ctx) => {
+    const tour = value.kind === "tour";
+    const deposit = tour
+      ? { success: true as const, data: TOUR_QUOTE_DEPOSIT_PERCENT }
+      : depositPercentField.safeParse(value.depositPercent);
+    if (!deposit.success) {
+      ctx.addIssue({ code: "custom", message: "O sinal tem de ser uma percentagem entre 1 e 100." });
+    }
+    const hold = tour ? parseTourHold(value.holdSlot ?? "", value.holdVehicleClass ?? "", ctx) : null;
+    return {
+      customer: {
+        name: value.name.slice(0, 200),
+        email: value.email,
+        phone: value.phone,
+        locale: value.locale,
+      },
+      kind: value.kind,
+      input: {
+        eventDate: value.eventDate,
+        venue: value.venue,
+        depositPercent: deposit.success ? deposit.data : TOUR_QUOTE_DEPOSIT_PERCENT,
+        lineItems: parseQuoteLines(value.lineLabel, value.lineQuantity, value.lineUnit, ctx),
+        hold: hold ?? null,
+      },
+    };
+  });
 
 /** A button on one quote — discard, new version, send. */
 export const quoteIdSchema = z.object({ quoteId: z.uuid() });
@@ -881,10 +1020,30 @@ export const createManualBookingSchema = z.object({
    * above the schema.
    */
   amount: z.string().trim().catch("").transform(parseAmountInput),
+  /**
+   * How the customer pays. `cash` confirms the booking now, as the sheet
+   * always did. `link` emails a payment link and confirms on payment
+   * (`lib/payment-link.ts`). Anything else is read as cash: it is the choice
+   * that existed before this field did.
+   */
+  payment: z.enum(["cash", "link"]).catch("cash"),
 });
 
 /** Field names `createManualBooking` can report an inline error against. */
-export type ManualBookingField = "date" | "slot" | "experience" | "party" | "name" | "email";
+export type ManualBookingField =
+  | "date"
+  | "slot"
+  | "experience"
+  | "party"
+  | "addOns"
+  | "name"
+  | "email"
+  | "amount";
+
+/** "Reenviar link" and "Anular link" on one link booking. */
+export const paymentLinkBookingSchema = z.object({
+  bookingId: z.uuid(),
+});
 
 // ---------------------------------------------------------------------------
 // Public tour-request form
@@ -964,6 +1123,14 @@ export const quoteRequestSchema = z.object({
    */
   serviceHours: optionalText.transform((value) =>
     value && isServiceHours(value) ? value : null,
+  ),
+  /**
+   * When the ceremony starts, from a `type="time"` field: `HH:MM`, stored in
+   * `ceremony_time`. Only `/casamentos` posts it. A value no time field could
+   * post is dropped rather than rejected, like an unknown service-hours key.
+   */
+  ceremonyTime: optionalText.transform((value) =>
+    value ? parseCeremonyTime(value) : null,
   ),
   /** A `classicCars` id, or null for "advise us" — and for anything we retired. */
   preferredCar: optionalText.transform((value) =>

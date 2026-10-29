@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { events } from "@/content/pages";
 import { todayKey } from "@/lib/availability";
-import { href } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { Section, SectionHeading } from "@/components/section";
 import { Media } from "@/components/media";
@@ -63,12 +61,6 @@ export default async function EventsPage({ params }: { params: Promise<{ locale:
               <a href="#orcamento" className={cn(buttonVariants({ size: "lg" }))}>
                 {t(events.quote.labels.submit, l)}
               </a>
-              <Link
-                href={href(l, "casamentos")}
-                className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
-              >
-                {l === "pt" ? "Casamentos em carros clássicos" : "Classic-car weddings"}
-              </Link>
             </div>
           </div>
           <Media

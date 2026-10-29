@@ -24,6 +24,12 @@ export type Testimonial = {
   /** What the photo shows — written from the photo, not from the quote. */
   photoAlt: Localized;
   /**
+   * The photo is taller than it is wide. Its card then shows it in its own 3:4
+   * frame: the usual 4:3 crop keeps only the middle of a portrait and cuts the
+   * faces at the top and the bottom of a group selfie.
+   */
+  portrait?: true;
+  /**
    * Catalogue slugs this quote can honestly stand under, beyond the home page.
    * A quote only lists an experience the guests actually had: the Óbidos tour
    * is neither a classic-car day nor a Saloia one, so nothing here speaks for
@@ -62,6 +68,7 @@ export const testimonials: readonly Testimonial[] = [
       pt: "Madeline e Elliot muito juntos numa selfie ao fim do dia com o Diogo e a Rita, os quatro a rir, com o cão da casa ao colo da Rita.",
       en: "Madeline and Elliot pressed together for an end-of-day selfie with Diogo and Rita, all four laughing, the house Jack Russell in Rita's arms.",
     },
+    portrait: true,
     experiences: ["rural-saloia"],
   },
   {
@@ -97,3 +104,38 @@ export const testimonialsHeading = {
 export function testimonialsFor(slug: string): readonly Testimonial[] {
   return testimonials.filter((entry) => entry.experiences.includes(slug));
 }
+
+/**
+ * The Google reviews section on the experience pages (`components/google-reviews.tsx`).
+ * The heading says whose reviews these are: Google reviews speak for the whole
+ * business, not for the one experience on the page.
+ */
+export const googleReviewsCopy = {
+  eyebrow: { pt: "Avaliações no Google", en: "Google reviews" } as Localized,
+  title: {
+    pt: "Avaliações Google da Agorasim",
+    en: "Agorasim on Google reviews",
+  } as Localized,
+  /** Google asks that the page says how the reviews are ordered. */
+  order: {
+    pt: "Avaliações do Google, das mais recentes para as mais antigas.",
+    en: "Reviews from Google, newest first.",
+  } as Localized,
+  more: {
+    pt: "Ver todas as avaliações no Google Maps",
+    en: "See all reviews on Google Maps",
+  } as Localized,
+  /**
+   * The rating link. `{rating}` is the average with one decimal and `{count}`
+   * the number of ratings, both in the reader's number format.
+   */
+  rating: {
+    one: { pt: "{rating} · {count} avaliação no Google", en: "{rating} · {count} Google review" },
+    other: { pt: "{rating} · {count} avaliações no Google", en: "{rating} · {count} Google reviews" },
+  } as { one: Localized; other: Localized },
+  /** Screen-reader text for the stars. `{n}` is the rating. */
+  stars: {
+    pt: "{n} de 5 estrelas",
+    en: "{n} out of 5 stars",
+  } as Localized,
+};

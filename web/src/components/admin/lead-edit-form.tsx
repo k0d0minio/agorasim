@@ -74,6 +74,8 @@ export function LeadEditForm({
     {},
   );
 
+  /** The experience and the extras are what a tour is sold from. */
+  const tourLead = lead.kind === "tour";
   const experiences = options.filter(
     (option) => option.active || option.slug === lead.experienceSlug,
   );
@@ -156,22 +158,24 @@ export function LeadEditForm({
               </Select>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="experienceSlug">Experiência</Label>
-              <Select
-                id="experienceSlug"
-                name="experienceSlug"
-                defaultValue={lead.experienceSlug ?? ""}
-              >
-                <option value="">Por decidir</option>
-                {experiences.map((option) => (
-                  <option key={option.slug} value={option.slug}>
-                    {option.label}
-                    {option.active ? "" : " (arquivada)"}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            {tourLead ? (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="experienceSlug">Experiência</Label>
+                <Select
+                  id="experienceSlug"
+                  name="experienceSlug"
+                  defaultValue={lead.experienceSlug ?? ""}
+                >
+                  <option value="">Por decidir</option>
+                  {experiences.map((option) => (
+                    <option key={option.slug} value={option.slug}>
+                      {option.label}
+                      {option.active ? "" : " (arquivada)"}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            ) : null}
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="partySize">Número de pessoas</Label>
@@ -200,33 +204,46 @@ export function LeadEditForm({
             </div>
           </div>
 
-          <fieldset className="flex flex-col gap-2">
-            <legend className="text-sm font-medium">Extras</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {addOns.map((option) => {
-                const Icon = experienceIcon(option.icon).icon;
-                return (
-                  <label
-                    key={option.slug}
-                    className="flex min-h-11 items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      name="addOns"
-                      value={option.slug}
-                      defaultChecked={lead.addOns.includes(option.slug)}
-                      className="size-4 rounded border-border accent-primary"
-                    />
-                    <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                    {option.label}
-                    {option.active ? null : (
-                      <span className="text-xs text-muted-foreground">(arquivada)</span>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
-          </fieldset>
+          {tourLead ? (
+            <fieldset className="flex flex-col gap-2">
+              <legend className="text-sm font-medium">Extras</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {addOns.map((option) => {
+                  const Icon = experienceIcon(option.icon).icon;
+                  return (
+                    <label
+                      key={option.slug}
+                      className="flex min-h-11 items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        name="addOns"
+                        value={option.slug}
+                        defaultChecked={lead.addOns.includes(option.slug)}
+                        className="size-4 rounded border-border accent-primary"
+                      />
+                      <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      {option.label}
+                      {option.active ? null : (
+                        <span className="text-xs text-muted-foreground">(arquivada)</span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ) : (
+            <>
+              {/* A wedding or event is quoted line by line, so the tour pickers
+                  stay off its form. The values ride along unchanged: the save
+                  reads a missing field as "cleared", and a lead whose kind was
+                  changed from a tour would lose its route and extras. */}
+              <input type="hidden" name="experienceSlug" value={lead.experienceSlug ?? ""} />
+              {lead.addOns.map((slug) => (
+                <input key={slug} type="hidden" name="addOns" value={slug} />
+              ))}
+            </>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="message">O que o cliente escreveu</Label>

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { describeSlot, TOUR_SLOTS, type DaySlots } from "@/lib/availability";
 import { MAX_PARTY_ONLINE, noVehicles, type VehicleClass } from "@/lib/fleet";
-import { manualBookingPrefill, openDepartures } from "@/lib/manual-booking";
+import { manualBookingPrefill, manualBookingTours, openDepartures } from "@/lib/manual-booking";
 import type { SlotOccupancy } from "@/lib/bookings";
 import type { AvailabilityRow, AvailabilitySlot } from "@/db";
 
@@ -215,5 +215,28 @@ describe("openDepartures", () => {
 
   it("never offers a day that has already happened", () => {
     expect(openDepartures([day("2026-07-30", { today: "2026-08-01" })])).toEqual([]);
+  });
+});
+
+describe("manualBookingTours", () => {
+  const entry = (
+    slug: string,
+    kind: "signature" | "complement",
+    extra: { active?: boolean; attachesTo?: string[] } = {},
+  ) => ({ slug, title: { pt: slug, en: slug }, kind, active: true, ...extra });
+
+  it("sells active tours, each with the active add-ons that attach to it", () => {
+    const tours = manualBookingTours([
+      entry("rural-saloia", "signature"),
+      entry("obidos", "signature"),
+      entry("retired", "signature", { active: false }),
+      entry("manzwine", "complement", { attachesTo: ["rural-saloia"] }),
+      entry("archived-wine", "complement", { active: false, attachesTo: ["rural-saloia"] }),
+    ]);
+
+    expect(tours).toEqual([
+      { slug: "rural-saloia", title: "rural-saloia", addOns: [{ slug: "manzwine", title: "manzwine" }] },
+      { slug: "obidos", title: "obidos", addOns: [] },
+    ]);
   });
 });

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Experience } from "@/content/experiences";
+import type { SlotCheck } from "@/lib/availability";
 
 /**
  * The booking's embedded checkout, at its Stripe boundary: the session it
@@ -94,8 +95,33 @@ vi.mock("@/lib/email", () => ({
 }));
 vi.mock("@/lib/observability", () => ({ captureAlert: vi.fn(), captureError: vi.fn() }));
 
-const { releaseBookingCheckout, sessionIdFromClientSecret, startBookingCheckout } =
-  await import("./booking-checkout");
+// ---------------------------------------------------------------------------
+// The departure lock, as a recorder: which departure each call held, and the
+// writes made while it was held. `lib/departure-lock.test.ts` proves the lock.
+// ---------------------------------------------------------------------------
+
+const lock = { inside: false, calls: [] as { departure: string; writes: string[] }[] };
+vi.mock("@/lib/departure-lock", () => ({
+  withDepartureLock: async (date: string, slot: string, run: () => Promise<unknown>) => {
+    const call = { departure: `${date}:${slot}`, writes: [] as string[] };
+    lock.calls.push(call);
+    const before = writes.length;
+    lock.inside = true;
+    try {
+      return await run();
+    } finally {
+      lock.inside = false;
+      call.writes = writes.slice(before).map((write) => write.op);
+    }
+  },
+}));
+
+const {
+  closeUnpaidBooking,
+  releaseBookingCheckout,
+  sessionIdFromClientSecret,
+  startBookingCheckout,
+} = await import("./booking-checkout");
 const { holdExpiryFrom } = await import("@/lib/bookings");
 const { commissionOn } = await import("@/lib/commission");
 
@@ -114,7 +140,15 @@ const tour = {
   tagline: { pt: "O campo saloio", en: "The Saloia countryside" },
 } as unknown as Experience;
 
-function start() {
+/** The departure re-check's answer: a free car, and a seat in a new open car. */
+const fits: SlotCheck = {
+  ok: true,
+  slot: {} as Extract<SlotCheck, { ok: true }>["slot"],
+  vehicleClass: "classic-small",
+  sharedCarId: "eeeeeeee-0000-4000-8000-000000000001",
+};
+
+function start(assign: () => Promise<SlotCheck> = async () => fits) {
   return startBookingCheckout({
     guest: {
       name: "Ana",
@@ -128,8 +162,7 @@ function start() {
     slot: "morning",
     mode: "public",
     party: { adults: 2, children: 0, infants: 0 },
-    vehicleClass: "classic-small",
-    sharedCarId: "eeeeeeee-0000-4000-8000-000000000001",
+    assign,
     experience: tour,
     addOns: [],
     lines: [{ slug: "rural-saloia", kind: "tour", unit: "adult", unitCents: 9_500, quantity: 2 }],
@@ -145,6 +178,7 @@ beforeEach(() => {
   sessionsCreate.mockReset();
   sessionsRetrieve.mockReset();
   sessionsExpire.mockReset();
+  lock.calls.length = 0;
 });
 
 // ---------------------------------------------------------------------------
@@ -163,7 +197,7 @@ describe("startBookingCheckout — the embedded session", () => {
 
     const started = await start();
 
-    expect(started).toEqual({ clientSecret: CLIENT_SECRET, bookingId: BOOKING_ID });
+    expect(started).toEqual({ ok: true, clientSecret: CLIENT_SECRET, bookingId: BOOKING_ID });
     const [params] = sessionsCreate.mock.calls[0];
     expect(params.ui_mode).toBe("embedded_page");
     // Paying ends on our own confirmation page, never a stripe.com address…
@@ -216,6 +250,43 @@ describe("startBookingCheckout — the embedded session", () => {
     expect(options).toBeUndefined();
   });
 
+  it("re-checks and holds the car under the departure's lock, and calls Stripe after it", async () => {
+    queueInserts();
+    let checkedInside = false;
+    let stripeInside = true;
+    sessionsCreate.mockImplementation(async () => {
+      stripeInside = lock.inside;
+      return { id: SESSION_ID, client_secret: CLIENT_SECRET };
+    });
+
+    await start(async () => {
+      checkedInside = lock.inside;
+      return fits;
+    });
+
+    expect(lock.calls).toEqual([
+      { departure: "2026-11-14:morning", writes: ["insert", "insert"] },
+    ]);
+    expect(checkedInside).toBe(true);
+    // The hold is written; a slow Stripe must not keep the next guest waiting.
+    expect(stripeInside).toBe(false);
+    const booking = writes.find(
+      (write) => write.op === "insert" && "vehicleClass" in (write.values as object),
+    );
+    expect(booking?.values).toMatchObject({
+      vehicleClass: "classic-small",
+      sharedCarId: "eeeeeeee-0000-4000-8000-000000000001",
+    });
+  });
+
+  it("returns the re-check's refusal, and writes nothing and opens no session", async () => {
+    const started = await start(async () => ({ ok: false, reason: "no-vehicle" }));
+
+    expect(started).toEqual({ ok: false, reason: "no-vehicle" });
+    expect(writes).toEqual([]);
+    expect(sessionsCreate).not.toHaveBeenCalled();
+  });
+
   it("refuses a session that came back without a client secret, and frees the car", async () => {
     queueInserts();
     sessionsCreate.mockResolvedValue({ id: SESSION_ID, client_secret: null });
@@ -248,10 +319,36 @@ describe("sessionIdFromClientSecret", () => {
   });
 });
 
+describe("closeUnpaidBooking — a payment link outlives its checkout", () => {
+  it("gives the car back and keeps the link booking pending", async () => {
+    // The payment-link release finds the row: it is a link booking.
+    answers.push([{ id: BOOKING_ID }]);
+
+    await closeUnpaidBooking({ sessionId: SESSION_ID, status: "expired" });
+
+    expect(writes).toEqual([
+      { op: "update", values: expect.objectContaining({ stripeSessionId: null }) },
+    ]);
+    expect(writes[0].values).not.toHaveProperty("status");
+  });
+
+  it("closes an ordinary checkout as before", async () => {
+    answers.push([], [{ id: BOOKING_ID, date: "2026-11-14" }]);
+
+    await closeUnpaidBooking({ sessionId: SESSION_ID, status: "expired" });
+
+    expect(writes[1]).toEqual({
+      op: "update",
+      values: expect.objectContaining({ status: "expired" }),
+    });
+  });
+});
+
 describe("releaseBookingCheckout — back from the payment step", () => {
   it("expires the guest's own open session and closes the booking at once", async () => {
-    // The pending booking, then the close's guarded update.
-    answers.push([{ id: BOOKING_ID }], [{ id: BOOKING_ID, date: "2026-11-14" }]);
+    // The pending booking, the payment-link release (not a link booking, so
+    // nothing), then the close's guarded update.
+    answers.push([{ id: BOOKING_ID }], [], [{ id: BOOKING_ID, date: "2026-11-14" }]);
     sessionsRetrieve.mockResolvedValue({
       id: SESSION_ID,
       client_secret: CLIENT_SECRET,
@@ -271,7 +368,7 @@ describe("releaseBookingCheckout — back from the payment step", () => {
 
   it("asks the connected account, where a direct charge's session lives", async () => {
     connectedAccount = "acct_test_agorasim";
-    answers.push([{ id: BOOKING_ID }], [{ id: BOOKING_ID }]);
+    answers.push([{ id: BOOKING_ID }], [], [{ id: BOOKING_ID }]);
     sessionsRetrieve.mockResolvedValue({ client_secret: CLIENT_SECRET, status: "open" });
 
     await releaseBookingCheckout(CLIENT_SECRET);

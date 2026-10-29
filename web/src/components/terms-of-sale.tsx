@@ -59,9 +59,8 @@ export function TermsOfSale({ locale }: { locale: Locale }) {
 }
 
 /**
- * Who is selling, as a definition list — the terms page's seller block, and
- * the same block the quote page shows above its pay button, so the identity a
- * couple read before paying is the one the terms publish.
+ * Who is selling, as a definition list — the terms page's seller block. The
+ * quote page shows the trading name and links here for the rest.
  */
 export function SellerDetails({ locale }: { locale: Locale }) {
   const c = termsContent;

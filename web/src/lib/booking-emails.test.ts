@@ -54,7 +54,7 @@ function facts(overrides: Partial<BookingEmailFacts> = {}): BookingEmailFacts {
     guestPhone: "+351912345678",
     locale: "pt",
     date: "sábado, 15 de agosto de 2026",
-    experience: "Rural Saloia — por grupo",
+    experience: "Rural Saloia — grupo privado",
     departure: "Manhã · 10h00",
     departureTimeFollows: false,
     meetingPoint: {
@@ -299,7 +299,7 @@ function cancelled(
     guestEmail: "sofia@example.com",
     locale: "pt",
     date: "sábado, 15 de agosto de 2026",
-    experience: "Rural Saloia — por grupo",
+    experience: "Rural Saloia — grupo privado",
     partyLabel: "2 adultos",
     total: "€340",
     refund: "€340",
@@ -413,7 +413,7 @@ function reminder(overrides: Partial<ReminderEmailFacts> = {}): ReminderEmailFac
 /** The same guest on Óbidos, whose departures still have no clock time. */
 function obidos(overrides: Partial<ReminderEmailFacts> = {}): ReminderEmailFacts {
   return reminder({
-    experience: "Óbidos & Aldeias Medievais — por pessoa",
+    experience: "Óbidos & Aldeias Medievais — grupo aberto",
     departure: "Partida da manhã — hora exata confirmada por email",
     departureTimeFollows: true,
     meetingPoint: OBIDOS_PIN,
@@ -882,7 +882,7 @@ function guestCancelled(
     guestPhone: "+351912345678",
     locale: "pt",
     date: "sábado, 15 de agosto de 2026",
-    experience: "Rural Saloia — por grupo",
+    experience: "Rural Saloia — grupo privado",
     departure: "Manhã · 10h00",
     partyLabel: "2 adultos",
     total: "€340",
@@ -1016,8 +1016,18 @@ function weddingEnquiry(overrides: Partial<EnquiryEmailFacts> = {}): EnquiryEmai
     preferredDate: "2027-06-12",
     experience: null,
     venue: "Igreja de São Pedro, Mafra",
-    serviceHours: "full-day",
+    ceremonyTime: "15:30",
     preferredCar: "citroen-2cv",
+    ...overrides,
+  });
+}
+
+/** An event enquiry. An event asks the hours of service, not a ceremony time. */
+function eventEnquiry(overrides: Partial<EnquiryEmailFacts> = {}): EnquiryEmailFacts {
+  return weddingEnquiry({
+    kind: "event",
+    ceremonyTime: null,
+    serviceHours: "full-day",
     ...overrides,
   });
 }
@@ -1071,7 +1081,7 @@ describe("teamEnquiryEmail", () => {
   });
 
   it("carries the three facts a quote is priced from, by name not by key", () => {
-    const message = teamEnquiryEmail(weddingEnquiry(), recipients);
+    const message = teamEnquiryEmail(eventEnquiry(), recipients);
     for (const part of [message.text, message.html!]) {
       expect(part).toContain("Igreja de São Pedro, Mafra");
       expect(part).toContain("Dia inteiro (até 8h)");
@@ -1080,6 +1090,25 @@ describe("teamEnquiryEmail", () => {
       expect(part).not.toContain("full-day");
       expect(part).not.toContain("citroen-2cv");
     }
+  });
+
+  it("gives a wedding the ceremony time, not the hours of service", () => {
+    const message = teamEnquiryEmail(weddingEnquiry(), recipients);
+    expect(message.text).toContain("Hora da cerimónia: 15:30");
+    expect(message.html).toContain("Hora da cerimónia");
+    expect(message.text).not.toContain("Horas de serviço");
+  });
+
+  it("drops the seconds of a ceremony time read back from the database", () => {
+    const message = teamEnquiryEmail(weddingEnquiry({ ceremonyTime: "15:30:00" }), recipients);
+    expect(message.text).toContain("Hora da cerimónia: 15:30");
+    expect(message.text).not.toContain("15:30:00");
+  });
+
+  it("keeps the hours of service on an event", () => {
+    const message = teamEnquiryEmail(eventEnquiry(), recipients);
+    expect(message.text).toContain("Horas de serviço: Dia inteiro (até 8h)");
+    expect(message.text).not.toContain("Hora da cerimónia");
   });
 
   it("drops the experience row a quote never fills in", () => {
@@ -1092,12 +1121,14 @@ describe("teamEnquiryEmail", () => {
 
   it("says so plainly when a quote enquiry left the fields empty", () => {
     const message = teamEnquiryEmail(
-      weddingEnquiry({ venue: null, serviceHours: null, preferredCar: null }),
+      weddingEnquiry({ venue: null, ceremonyTime: null, preferredCar: null }),
       recipients,
     );
     expect(message.text).toContain("Local: —");
-    expect(message.text).toContain("Horas de serviço: —");
+    expect(message.text).toContain("Hora da cerimónia: —");
     expect(message.text).toContain("Carro preferido: —");
+    const event = teamEnquiryEmail(eventEnquiry({ serviceHours: null }), recipients);
+    expect(event.text).toContain("Horas de serviço: —");
   });
 
   it("drops the Pessoas row when the enquiry carries no head count", () => {
@@ -1141,8 +1172,8 @@ describe("guestQuoteSentEmail", () => {
       total: "1620 €",
       deposit: "486 €",
       depositPercent: 30,
-      balance: { amount: "1134 €", dueDate: "sábado, 1 de agosto de 2026" },
-      balanceDueDaysBefore: 14,
+      balance: { amount: "1134 €", dueDate: "sexta-feira, 14 de agosto de 2026" },
+      balanceRequestDaysBefore: 15,
       termsWindowDays: 30,
       quoteUrl: QUOTE_URL,
       ...overrides,
@@ -1166,9 +1197,11 @@ describe("guestQuoteSentEmail", () => {
       expect(part).toContain("1620 €");
       expect(part).toContain("486 €");
       expect(part).toContain("1134 €");
-      expect(part).toContain("sábado, 1 de agosto de 2026");
+      expect(part).toContain("sexta-feira, 14 de agosto de 2026");
       expect(part).toContain(QUOTE_URL);
     }
+    expect(mail.text).toContain("pode pagar o restante na mesma página a qualquer momento, até à véspera do evento");
+    expect(mail.text).toContain("15 dias antes do evento");
     expect(mail.text).toContain("2 × Carro clássico com motorista, 6 horas: 1500 €");
     expect(mail.text).toContain("Deslocação Ericeira: 120 €");
     expect(mail.text).toContain("Sinal (30%): 486 €");
@@ -1184,13 +1217,13 @@ describe("guestQuoteSentEmail", () => {
         date: "Saturday, 15 August 2026",
         total: "€1,620",
         deposit: "€486",
-        balance: { amount: "€1,134", dueDate: "Saturday, 1 August 2026" },
+        balance: { amount: "€1,134", dueDate: "Friday, 14 August 2026" },
       }),
     );
 
     expect(mail.subject).toBe("Your Agorasim quote — Saturday, 15 August 2026");
     expect(mail.text).toContain("Deposit (30%): €486");
-    expect(mail.text).toContain("Balance: €1,134 · due Saturday, 1 August 2026");
+    expect(mail.text).toContain("Balance: €1,134 · due Friday, 14 August 2026");
     expect(mail.text).toContain("View your quote: " + QUOTE_URL);
     expect(mail.text).not.toContain("orçamento à medida");
     expect(mail.html).toContain('lang="en"');
@@ -1218,7 +1251,7 @@ describe("guestQuoteSentEmail", () => {
 
     for (const part of [mail.text, mail.html ?? ""]) {
       expect(part).toContain("Nada — o sinal cobre o valor total");
-      expect(part).not.toContain("restante é pedido automaticamente");
+      expect(part).not.toContain("pode pagar o restante");
     }
     expect(mail.text).toContain("A data fica reservada com o pagamento do sinal, na página do orçamento.");
   });
@@ -1238,8 +1271,8 @@ describe("the quote receipts — deposit-received and balance-paid", () => {
       amount: "486 €",
       paidOn: "segunda, 1 de junho de 2026",
       total: "1620 €",
-      remaining: { amount: "1134 €", dueDate: "sábado, 1 de agosto de 2026" },
-      balanceDueDaysBefore: 14,
+      remaining: { amount: "1134 €", dueDate: "sexta-feira, 14 de agosto de 2026" },
+      balanceRequestDaysBefore: 15,
       fee: "29,16 €",
       adminUrl: "https://agorasim.pt/admin/sales/abc",
       ...overrides,
@@ -1265,7 +1298,12 @@ describe("the quote receipts — deposit-received and balance-paid", () => {
     const pt = guestQuoteReceiptEmail(receiptFacts());
     expect(pt.subject).toBe("Sinal recebido — a data de sábado, 15 de agosto de 2026 está reservada");
     expect(pt.text).toContain("Sinal pago: 486 €");
-    expect(pt.text).toContain("Por pagar: 1134 € · até sábado, 1 de agosto de 2026");
+    expect(pt.text).toContain("Por pagar: 1134 € · até sexta-feira, 14 de agosto de 2026");
+    // The balance can be paid now, and is due the day before the event.
+    expect(pt.text).toContain("Pode pagar já o restante");
+    expect(pt.text).toContain("O prazo é sexta-feira, 14 de agosto de 2026, a véspera do evento.");
+    expect(pt.text).toContain("15 dias antes do evento");
+    expect(pt.text).not.toMatch(/\{\w+\}/);
     expect(pt.to).toEqual(["ines@example.com"]);
     expect(pt.replyTo).toBe(site.email);
 
@@ -1276,7 +1314,7 @@ describe("the quote receipts — deposit-received and balance-paid", () => {
     expect(en.text).toContain("Balance paid: 486 €");
     expect(en.text).toContain("Nothing — everything is paid");
     // Nothing left to pay: no "what happens next" about a balance.
-    expect(en.text).not.toContain("We will send you the link");
+    expect(en.text).not.toContain("We also send you a new link");
   });
 
   it("links the full terms and never a quote link — the webhook has no token", () => {
@@ -1370,6 +1408,70 @@ describe("guestQuoteRefundEmail — quote-refunded", () => {
     // The couple's names are escaped in the HTML part, as every name is.
     expect(mail.html).toContain("Inês &amp; Tomás");
   });
+
+  it("says passeio and pagamento on a tour quote, never evento or sinal, in Portuguese", () => {
+    const pt = guestQuoteRefundEmail(
+      refundFacts({
+        tour: true,
+        venue: null,
+        paid: "320 €",
+        amount: "120 €",
+        totalRefunded: "120 €",
+      }),
+    );
+
+    expect(pt.subject).toBe("Reembolso do seu passeio — sábado, 15 de agosto de 2026");
+    expect(pt.text).toContain(
+      "Devolvemos 120 € do pagamento do seu passeio de sábado, 15 de agosto de 2026. O seu passeio continua marcado.",
+    );
+    expect(pt.text).toContain("Data do passeio: sábado, 15 de agosto de 2026");
+    expect(pt.text).toContain("O passeio: Continua marcado");
+    expect(pt.text).toContain("Pagamento: Pagamento único");
+    expect(pt.text).not.toMatch(/evento|sinal/i);
+    expect(pt.html).not.toMatch(/evento|sinal/i);
+
+    const cancelled = guestQuoteRefundEmail(
+      refundFacts({ tour: true, venue: null, eventCancelled: true }),
+    );
+    expect(cancelled.subject).toBe("Passeio cancelado e reembolso — sábado, 15 de agosto de 2026");
+    expect(cancelled.text).toContain(
+      "O seu passeio de sábado, 15 de agosto de 2026 foi cancelado e devolvemos 243 € do pagamento.",
+    );
+    expect(cancelled.text).toContain("O passeio: Cancelado");
+    expect(cancelled.html).toContain("Passeio cancelado");
+    expect(cancelled.text).not.toMatch(/evento|sinal/i);
+    expect(cancelled.html).not.toMatch(/evento|sinal/i);
+  });
+
+  it("says tour and payment on a tour quote, never event or deposit, in English", () => {
+    const en = guestQuoteRefundEmail(
+      refundFacts({
+        tour: true,
+        locale: "en",
+        venue: null,
+        date: "Saturday, 15 August 2026",
+        amount: "€243",
+        totalRefunded: "€243",
+        eventCancelled: true,
+      }),
+    );
+
+    expect(en.subject).toBe("Tour cancelled and refunded — Saturday, 15 August 2026");
+    expect(en.text).toContain(
+      "Your tour on Saturday, 15 August 2026 has been cancelled and we have returned €243 of the payment.",
+    );
+    expect(en.text).toContain("Tour date: Saturday, 15 August 2026");
+    expect(en.text).toContain("The tour: Cancelled");
+    expect(en.text).toContain("Payment: Single payment");
+    expect(en.text).not.toMatch(/event|deposit/i);
+    expect(en.html).not.toMatch(/event|deposit/i);
+
+    const held = guestQuoteRefundEmail(
+      refundFacts({ tour: true, locale: "en", venue: null, date: "Saturday, 15 August 2026" }),
+    );
+    expect(held.subject).toBe("A refund on your tour — Saturday, 15 August 2026");
+    expect(held.text).toContain("Your tour is still booked.");
+  });
 });
 
 describe("guestQuoteEventCancelledEmail — quote-event-cancelled", () => {
@@ -1454,6 +1556,48 @@ describe("guestQuoteEventCancelledEmail — quote-event-cancelled", () => {
     const pt = guestQuoteEventCancelledEmail(cancelledFacts({ venue: null }));
     expect(pt.text).not.toContain("Local:");
   });
+
+  it("says passeio on a tour quote, never evento, in Portuguese", () => {
+    const pt = guestQuoteEventCancelledEmail(cancelledFacts({ tour: true, venue: null }));
+
+    expect(pt.subject).toBe("Passeio cancelado — sábado, 15 de agosto de 2026");
+    expect(pt.text).toContain(
+      "O seu passeio de sábado, 15 de agosto de 2026 foi cancelado. O reembolso de 486 € já foi feito — enviámos-lhe os detalhes num email anterior.",
+    );
+    expect(pt.text).toContain("Data do passeio: sábado, 15 de agosto de 2026");
+    expect(pt.text).toContain("O passeio: Cancelado");
+    expect(pt.html).toContain("O seu passeio");
+    expect(pt.text).not.toMatch(/evento/i);
+    expect(pt.html).not.toMatch(/evento/i);
+
+    const noEarlier = guestQuoteEventCancelledEmail(
+      cancelledFacts({ tour: true, venue: null, refundNoticeSent: false }),
+    );
+    expect(noEarlier.text).toContain(
+      "O seu passeio de sábado, 15 de agosto de 2026 foi cancelado. O reembolso de 486 € já foi feito.",
+    );
+  });
+
+  it("says tour on a tour quote, never event, in English", () => {
+    const en = guestQuoteEventCancelledEmail(
+      cancelledFacts({
+        tour: true,
+        locale: "en",
+        venue: null,
+        date: "Saturday, 15 August 2026",
+        totalRefunded: "€486",
+      }),
+    );
+
+    expect(en.subject).toBe("Tour cancelled — Saturday, 15 August 2026");
+    expect(en.text).toContain(
+      "Your tour on Saturday, 15 August 2026 has been cancelled. The refund of €486 has already been made — we sent you its details in an earlier email.",
+    );
+    expect(en.text).toContain("Tour date: Saturday, 15 August 2026");
+    expect(en.text).toContain("The tour: Cancelled");
+    expect(en.text).not.toMatch(/event/i);
+    expect(en.html).not.toMatch(/event/i);
+  });
 });
 
 describe("guestBalanceEmail", () => {
@@ -1469,7 +1613,7 @@ describe("guestBalanceEmail", () => {
       date: "sábado, 15 de agosto de 2026",
       venue: "Quinta do Hespanhol, Mafra",
       amount: "1134 €",
-      dueDate: "sábado, 1 de agosto de 2026",
+      dueDate: "sexta-feira, 14 de agosto de 2026",
       quoteUrl: QUOTE_URL,
       ...overrides,
     };
@@ -1491,7 +1635,7 @@ describe("guestBalanceEmail", () => {
       expect(part).toContain("sábado, 15 de agosto de 2026");
       expect(part).toContain("Quinta do Hespanhol, Mafra");
       expect(part).toContain("1134 €");
-      expect(part).toContain("sábado, 1 de agosto de 2026");
+      expect(part).toContain("sexta-feira, 14 de agosto de 2026");
       expect(part).toContain(QUOTE_URL);
       expect(part).toContain("Este link substitui os dos emails anteriores");
     }
@@ -1509,12 +1653,12 @@ describe("guestBalanceEmail", () => {
 
   it("writes in English for an English quote, request and reminder", () => {
     const request = guestBalanceEmail(
-      balanceFacts({ locale: "en", date: "Saturday, 15 August 2026", dueDate: "Saturday, 1 August 2026" }),
+      balanceFacts({ locale: "en", date: "Saturday, 15 August 2026", dueDate: "Friday, 14 August 2026" }),
     );
     expect(request.subject).toBe("The balance for your event — Saturday, 15 August 2026");
     expect(request.text).toContain("Pay the balance:");
     expect(request.text).toContain("This link replaces the ones in our earlier emails");
-    expect(request.text).toContain("Due by: Saturday, 1 August 2026");
+    expect(request.text).toContain("Due by: Friday, 14 August 2026");
 
     const reminder = guestBalanceEmail(balanceFacts({ locale: "en", stage: "reminder" }));
     expect(reminder.subject).toMatch(/^Reminder: the balance for your event/);

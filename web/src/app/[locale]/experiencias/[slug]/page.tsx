@@ -8,9 +8,10 @@ import {
   complementsOf,
   getCatalogueEntry,
   listExperiences,
-  signatureOf,
 } from "@/lib/experience-catalogue";
+import { addOnsFor } from "@/lib/pricing";
 import { testimonialsFor } from "@/content/testimonials";
+import { getGooglePlaceReviews } from "@/lib/google-reviews";
 import { site } from "@/content/site";
 import { Section, Container } from "@/components/section";
 import { Media } from "@/components/media";
@@ -18,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { FaqList } from "@/components/faq";
 import { ExperiencePrices } from "@/components/experience-pricing";
 import { Testimonials } from "@/components/testimonials";
+import { GoogleReviews } from "@/components/google-reviews";
 import { BookingButton } from "@/components/booking-button";
 import { JsonLd } from "@/components/json-ld";
 import { experienceJsonLd, faqJsonLd, breadcrumbJsonLd } from "@/lib/jsonld";
@@ -69,15 +71,19 @@ export default async function ExperienceDetailPage({
 
   /*
    * The pricing section needs the rest of the catalogue twice over: a tour
-   * whose private departures take add-ons lists them with their prices, and an
-   * add-on names the tour it can only be bought with. Nothing else on this page
-   * does, so the read only happens for the entries that use it.
+   * whose private departures take add-ons lists the ones attached to it, and an
+   * add-on names the tours it can only be bought with. Nothing else on this
+   * page does, so the read only happens for the entries that use it.
    */
   const needsCatalogue =
     exp.pricing?.type === "addon" ||
-    (exp.pricing?.type === "tour" && exp.pricing.private?.allowsAddOns === true);
+    (exp.pricing?.type === "tour" && Boolean(exp.pricing.private));
   const catalogue = needsCatalogue ? await listExperiences() : [];
-  const signature = signatureOf(catalogue);
+  const tourAddOns =
+    exp.kind === "signature" ? addOnsFor(complementsOf(catalogue), exp.slug) : [];
+  const addOnTours = catalogue
+    .filter((entry) => entry.kind === "signature" && exp.attachesTo.includes(entry.slug))
+    .map((entry) => t(entry.title, l));
 
   const breadcrumb = breadcrumbJsonLd(l, [
     { name: site.name, url: `${site.domain}${href(l, "home")}` },
@@ -85,6 +91,10 @@ export default async function ExperienceDetailPage({
     { name: t(exp.title, l), url: `${site.domain}${href(l, "experiencias", exp.slug)}` },
   ]);
   const faq = faqJsonLd(exp.faqs, l);
+  // No reviews when the key or the Place ID is unset, when Google fails, or when
+  // Google gives no review text (Agorasim's case): the static testimonials below
+  // then show instead, with the Google rating when Google gives one.
+  const google = await getGooglePlaceReviews();
 
   return (
     <>
@@ -153,8 +163,8 @@ export default async function ExperienceDetailPage({
         <div className="mt-16">
           <ExperiencePrices
             experience={exp}
-            addOns={complementsOf(catalogue)}
-            signatureTitle={signature ? t(signature.title, l) : undefined}
+            addOns={tourAddOns}
+            tourTitles={addOnTours}
             locale={l}
           />
         </div>
@@ -167,11 +177,23 @@ export default async function ExperienceDetailPage({
       </Section>
 
       {/*
-        Only the guests who were actually on this experience speak for it, so
-        most pages render nothing here — the component returns null on an empty
-        list. Copy only: no review/rating structured data joins the JSON-LD above.
+        The business's Google reviews, on every experience page, under a heading
+        that says they are about Agorasim, not this one experience. Without them,
+        only the guests who were actually on this experience speak for it, and
+        the Google rating links to the listing — on a page with no such quotes,
+        the rating stands alone. Copy only: no review/rating structured data
+        joins the JSON-LD above.
       */}
-      <Testimonials locale={l} items={testimonialsFor(exp.slug)} muted />
+      {google.reviews.length > 0 ? (
+        <GoogleReviews locale={l} reviews={google.reviews} rating={google} muted />
+      ) : (
+        <Testimonials
+          locale={l}
+          items={testimonialsFor(exp.slug)}
+          googleRating={google}
+          muted
+        />
+      )}
     </>
   );
 }

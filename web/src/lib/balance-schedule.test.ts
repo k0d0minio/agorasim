@@ -4,8 +4,8 @@ import type { QuoteBalanceMessage } from "@/lib/message-log";
 
 /**
  * The balance's calendar, asserted from the spec's windows rather than from
- * the implementation: T−14 asks (never on or after the event day), T−7 chases once if
- * the request reached the couple three days before, T−3 flags for the team.
+ * the implementation: T−15 asks (never on or after the event day), T−7 chases once if
+ * a request reached the couple three days before, T−3 flags for the team.
  * Every day is a Lisbon calendar key, so the tests pin "today" and never read
  * the clock.
  */
@@ -18,6 +18,7 @@ const {
   isBalanceFlagged,
   isReminderDue,
   isRequestInWindow,
+  lastRequestSentAt,
 } = await import("./balance-schedule");
 
 const EVENT = "2026-08-15";
@@ -50,9 +51,9 @@ describe("isRequestInWindow", () => {
 });
 
 describe("isReminderDue", () => {
-  it("chases at T−7 when the request went out at T−14", () => {
+  it("chases at T−7 when the request went out at T−15", () => {
     expect(
-      isReminderDue({ eventDate: EVENT, today: "2026-08-08", requestSentAt: at("2026-08-01") }),
+      isReminderDue({ eventDate: EVENT, today: "2026-08-08", requestSentAt: at("2026-07-31") }),
     ).toBe(true);
   });
 
@@ -62,7 +63,7 @@ describe("isReminderDue", () => {
     ).toBe(false);
   });
 
-  it("waits three days after a late request — a deposit paid inside T−14", () => {
+  it("waits three days after a late request — a deposit paid inside T−15", () => {
     // Request on T−9; the reminder is due from T−6, not at T−7 or T−8.
     const requestSentAt = at("2026-08-06");
     expect(isReminderDue({ eventDate: EVENT, today: "2026-08-08", requestSentAt })).toBe(false);
@@ -192,7 +193,30 @@ describe("the log, read back", () => {
     expect(balanceMessageSentAt([], "balance-request")).toBeNull();
   });
 
-  it("says what went out, the reminder before the request", () => {
+  it("reads the latest of several sends", () => {
+    expect(
+      balanceMessageSentAt(
+        [sent("balance-request-manual", "2026-07-25"), sent("balance-request-manual", "2026-07-20")],
+        "balance-request-manual",
+      ),
+    ).toEqual(at("2026-07-25"));
+  });
+
+  it("takes the latest request, the job's or the team's, for the reminder's gap", () => {
+    expect(
+      lastRequestSentAt([
+        sent("balance-request", "2026-07-31"),
+        sent("balance-request-manual", "2026-08-06"),
+        sent("balance-reminder", "2026-08-08"),
+      ]),
+    ).toEqual(at("2026-08-06"));
+    expect(lastRequestSentAt([sent("balance-request-manual", "2026-07-20")])).toEqual(
+      at("2026-07-20"),
+    );
+    expect(lastRequestSentAt([sent("balance-reminder", "2026-08-08")])).toBeNull();
+  });
+
+  it("says the last thing that went out, and who sent a request", () => {
     expect(balanceMessagesLabel(undefined)).toBe("Pedido não enviado");
     expect(balanceMessagesLabel([sent("balance-request", "2026-08-01")])).toMatch(
       /^Pedido enviado a /,
@@ -200,6 +224,15 @@ describe("the log, read back", () => {
     expect(
       balanceMessagesLabel([sent("balance-request", "2026-08-01"), sent("balance-reminder", "2026-08-08")]),
     ).toMatch(/^Lembrete enviado a /);
+    expect(
+      balanceMessagesLabel([sent("balance-request", "2026-07-31"), sent("balance-request-manual", "2026-08-02")]),
+    ).toMatch(/^Pedido enviado pela equipa a /);
+    expect(
+      balanceMessagesLabel([
+        sent("balance-request-manual", "2026-07-20"),
+        { kind: "balance-request-manual", status: "failed", sentAt: null },
+      ]),
+    ).toMatch(/^Pedido enviado pela equipa a /);
   });
 });
 

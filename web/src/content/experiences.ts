@@ -49,6 +49,11 @@ export type Experience = {
    * unsellable, and the enquiry form takes over.
    */
   pricing?: ExperiencePricing | null;
+  /**
+   * On an add-on: the slugs of the tours it joins, as a private departure of
+   * each. Absent or empty means the add-on is offered with no tour.
+   */
+  attachesTo?: string[];
 };
 
 export const experiences: Experience[] = [
@@ -136,8 +141,8 @@ export const experiences: Experience[] = [
           en: "How many people can join?",
         },
         answer: {
-          pt: "As saídas são em pequenos grupos para manter o ambiente intimista. Fazemos também passeios privados para famílias e grupos — fale connosco para grupos maiores.",
-          en: "Departures are in small groups to keep the atmosphere intimate. We also run private tours for families and groups — contact us for larger parties.",
+          pt: "Depende do carro. O Citroën 2CV leva até 3 pessoas, o Renault 4L até 3, o Fiat 600 até 3 e a carrinha Volkswagen T3 até 8. Todos contam para os lugares, incluindo bebés. Para grupos com mais de 8 pessoas, fale connosco.",
+          en: "It depends on the car. The Citroën 2CV seats up to 3 guests, the Renault 4L up to 3, the Fiat 600 up to 3 and the Volkswagen T3 van up to 8. Everyone counts towards the seats, infants included. For groups of more than 8, contact us.",
         },
       },
       {
@@ -302,8 +307,8 @@ export const experiences: Experience[] = [
       en: "A family meal at the Saloia table",
     },
     summary: {
-      pt: "Tasco Galapito é uma refeição privada em ambiente de família, com pratos tradicionais Saloios servidos à mesa. Dura cerca de 2 horas e combina na perfeição com a experiência Rural Saloia.",
-      en: "Tasco Galapito is a private family-style meal, with traditional Saloia dishes served at the table. It lasts about 2 hours and pairs perfectly with the Rural Saloia experience.",
+      pt: "Tasco Galapito é uma refeição privada em ambiente de família, com pratos tradicionais Saloios servidos à mesa. Dura cerca de 2 horas e combina na perfeição com a experiência Rural Saloia ou Óbidos & Aldeias Medievais.",
+      en: "Tasco Galapito is a private family-style meal, with traditional Saloia dishes served at the table. It lasts about 2 hours and pairs perfectly with the Rural Saloia or the Óbidos & Medieval Villages experience.",
     },
     description: {
       pt: [
@@ -337,13 +342,14 @@ export const experiences: Experience[] = [
         },
       },
     ],
-    // Only with a private countryside tour; the table seats two or more.
+    // Only with a private tour; the table seats two or more.
     pricing: {
       type: "addon",
       perAdultCents: 6000,
       childCents: 2500,
       minGuests: 2,
     },
+    attachesTo: ["rural-saloia", "obidos-medieval-villages"],
   },
   {
     slug: "manzwine",
@@ -383,12 +389,12 @@ export const experiences: Experience[] = [
           en: "Is the Manzwine tasting available every day?",
         },
         answer: {
-          pt: "A Manzwine encerra à segunda-feira. Nos restantes dias, a prova junta-se à experiência privada Rural Saloia com um mínimo de 2 adultos.",
-          en: "Manzwine closes on Mondays. On other days, the tasting joins the private Rural Saloia experience with a minimum of 2 adults.",
+          pt: "A Manzwine encerra à segunda-feira. Nos restantes dias, a prova junta-se a uma experiência privada Rural Saloia ou Óbidos & Aldeias Medievais, com um mínimo de 2 adultos.",
+          en: "Manzwine closes on Mondays. On other days, the tasting joins a private Rural Saloia or Óbidos & Medieval Villages experience, with a minimum of 2 adults.",
         },
       },
     ],
-    // Only with a private countryside tour; per adult, minimum two; shut Mondays.
+    // Only with a private tour; per adult, minimum two; shut Mondays.
     pricing: {
       type: "addon",
       perAdultCents: 3500,
@@ -396,6 +402,7 @@ export const experiences: Experience[] = [
       minAdults: 2,
       closedWeekdays: [0],
     },
+    attachesTo: ["rural-saloia", "obidos-medieval-villages"],
   },
   {
     slug: "ramilo-wines",
@@ -435,18 +442,19 @@ export const experiences: Experience[] = [
           en: "What is the minimum group for the Ramilo Wines visit?",
         },
         answer: {
-          pt: "A visita realiza-se com um mínimo de 3 adultos, como complemento da experiência privada Rural Saloia.",
-          en: "The visit runs with a minimum of 3 adults, as an add-on to the private Rural Saloia experience.",
+          pt: "A visita realiza-se com um mínimo de 3 adultos, como complemento de uma experiência privada Rural Saloia ou Óbidos & Aldeias Medievais.",
+          en: "The visit runs with a minimum of 3 adults, as an add-on to a private Rural Saloia or Óbidos & Medieval Villages experience.",
         },
       },
     ],
-    // Only with a private countryside tour; per adult, minimum three.
+    // Only with a private tour; per adult, minimum three.
     pricing: {
       type: "addon",
       perAdultCents: 4500,
       childCents: null,
       minAdults: 3,
     },
+    attachesTo: ["rural-saloia", "obidos-medieval-villages"],
   },
 ];
 

@@ -94,6 +94,23 @@ export const requestStatusMeta: Record<
 export const REQUEST_STATUSES = Object.keys(requestStatusMeta) as RequestStatus[];
 
 /**
+ * Each stage as the Sales board's `?fase=` value: the column's label,
+ * lower-case and without accents, so a link reads as the column it opens.
+ */
+export const requestStatusParam: Record<RequestStatus, string> = {
+  new: "novo",
+  contacted: "contactado",
+  quoted: "orcamentado",
+  booked: "reservado",
+  archived: "arquivado",
+};
+
+/** The stage a `?fase=` value names, or `undefined` for anything else. */
+export function requestStatusFromParam(value: string | undefined): RequestStatus | undefined {
+  return REQUEST_STATUSES.find((status) => requestStatusParam[status] === value);
+}
+
+/**
  * Where a booking's money is, as the admin says it.
  *
  * Kept apart from {@link requestStatusMeta}: a lead's stage is where the *team*
@@ -242,11 +259,13 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "booking.car_changed": "mudou uma reserva de carro",
   "booking.no_show_marked": "marcou uma falta numa reserva",
   "booking.no_show_cleared": "retirou a falta de uma reserva",
+  "booking.payment_link_sent": "enviou o link de pagamento",
   "quote.created": "criou um orçamento",
   "quote.updated": "editou um orçamento",
   "quote.discarded": "descartou um rascunho de orçamento",
   "quote.sent": "enviou um orçamento",
   "quote.resent": "reenviou um orçamento com um novo link",
+  "quote.balance_requested": "enviou o pedido do restante",
   "quote.superseded": "substituiu um orçamento por uma nova versão",
   "quote.payment_refunded": "reembolsou um pagamento de um orçamento",
   "quote.cancelled": "cancelou um evento",

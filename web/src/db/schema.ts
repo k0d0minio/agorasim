@@ -56,6 +56,7 @@ import {
   pgEnum,
   pgTable,
   text,
+  time,
   timestamp,
   uniqueIndex,
   uuid,
@@ -227,7 +228,9 @@ export const commissionBoundEnum = pgEnum("commission_bound", ["rate", "floor", 
  * {@link messageLog.quotePaymentId} and {@link messageLog.refundedTotalCents}.
  * `quote-event-cancelled` tells the couple their event was called off when the
  * last thing they heard was that it was still on — once per quote, on
- * `message_log_quote_receipt_key`.
+ * `message_log_quote_receipt_key`. `balance-request-manual` is the balance
+ * request the team sends by hand from the quote card — any number per quote,
+ * one per send, on `message_log_quote_kind_key` (`lib/balance-request.ts`).
  *
  * New values go on the **end** of this list, because that is where
  * `ALTER TYPE … ADD VALUE` puts them in Postgres and the two orderings have to
@@ -247,6 +250,8 @@ export const messageKindEnum = pgEnum("message_kind", [
   "balance-paid",
   "quote-refunded",
   "quote-event-cancelled",
+  "booking-payment-link",
+  "balance-request-manual",
 ]);
 
 /**
@@ -281,11 +286,11 @@ export const messageStatusEnum = pgEnum("message_status", [
  * which is quoted per job rather than sold off a price list (info PDF §2.3).
  *
  * The order is the flow: Rita builds a `draft`, sends it, the guest pays the
- * deposit that holds the date (`deposit_paid`), the balance lands 14 days
+ * deposit that holds the date (`deposit_paid`), the balance lands by the day
  * before the event (`paid`). `cancelled` can follow any of them.
  *
  * `deposit_paid` is a state and not a derived count for one reason: it is what
- * the date being *held* means, and the T−14 balance scheduler selects on it.
+ * the date being *held* means, and the T−15 balance scheduler selects on it.
  * Deriving it from the payment rows on every scan would put the same predicate
  * in two places and make an index impossible.
  */
@@ -317,7 +322,7 @@ export const quotePaymentKindEnum = pgEnum("quote_payment_kind", [
  *
  * `pending` is the row a quote is created with: an amount and a due date that
  * nobody has been asked for yet. `issued` means a Stripe Checkout Session
- * exists and the link has gone to the guest — the flag the T−14 scheduler is
+ * exists and the link has gone to the guest — the flag the T−15 scheduler is
  * idempotent on, so a dispatcher that runs twice in a day does not email the
  * same balance link twice.
  *
@@ -587,16 +592,26 @@ export const tourRequests = pgTable("tour_requests", {
   /*
    * What a wedding or event enquiry carries and a tour one never does.
    *
-   * All three are null on a `tour` row and are only rendered where `kind` says
+   * All four are null on a `tour` row and are only rendered where `kind` says
    * to. They are columns rather than sentences appended to `message` because
    * the team quotes these by hand off the Sales board: "which venue, which car,
-   * how many hours" is what a quote is priced from, and a fact buried in the
-   * guest's own paragraph is a fact somebody has to re-read to find.
+   * how many hours, what time" is what a quote is priced from, and a fact
+   * buried in the guest's own paragraph is a fact somebody has to re-read to
+   * find.
    */
   /** Where it happens — "Igreja de São Pedro, Mafra". Their words, as given. */
   venue: text("venue"),
-  /** How long the car is wanted for, in the form's own wording. */
+  /**
+   * How long the car is wanted for, in the form's own wording. Only the event
+   * form asks it now. Wedding rows from before `ceremony_time` keep theirs.
+   */
   serviceHours: text("service_hours"),
+  /**
+   * When the wedding ceremony starts, `HH:MM`. Only the wedding form asks it:
+   * Agorasim prices a wedding per event, not per hour (feedback round 1,
+   * Diogo, 2026-10-12). Null on every other row.
+   */
+  ceremonyTime: time("ceremony_time"),
   /** `classicCars` id of the car they asked for, or null for "advise us". */
   preferredCar: text("preferred_car"),
 
@@ -710,6 +725,15 @@ export const experienceCatalogue = pgTable("experiences", {
    * refuses, the enquiry form takes over.
    */
   pricing: jsonb("pricing").$type<ExperiencePricing>(),
+
+  /**
+   * On an add-on: the slugs of the tours it can join, as a private departure
+   * of each. Empty on a tour, and empty on an add-on nobody has attached yet —
+   * which the booking page reads as "not offered", never as "offered
+   * everywhere". Plain slugs, like `add_ons` on the bookings: a retired tour
+   * leaves its slug behind rather than a broken reference.
+   */
+  attachesTo: jsonb("attaches_to").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
 
   /** Archived experiences keep their slug resolvable but leave the website. */
   active: boolean("active").notNull().default(true),
@@ -995,6 +1019,25 @@ export const bookings = pgTable("bookings", {
   cancellationTokenHash: text("cancellation_token_hash"),
 
   /**
+   * The payment link's credential, hashed — set only on a booking the team
+   * registered with "Enviar link de pagamento" (`lib/payment-link.ts`).
+   *
+   * A non-null value is also what marks the row as a link booking: it waits
+   * for the customer's payment with no hold on any car, so the expiry paths
+   * leave it `pending` until its departure is past. The plaintext lives only
+   * in the emailed link, as with {@link bookings.cancellationTokenHash}; a
+   * resend mints a new token and the old link stops working. Kept after the
+   * payment, so a second tap on the link reads "paid" rather than "unknown".
+   */
+  paymentLinkTokenHash: text("payment_link_token_hash"),
+  /**
+   * When the current payment link was emailed — every send stamps a new value.
+   * It names the link in `message_log`, so a resend is a new email and a
+   * double tap on "Reenviar link" is not. Null on every other booking.
+   */
+  paymentLinkSentAt: timestamp("payment_link_sent_at", { withTimezone: true }),
+
+  /**
    * How much of {@link bookings.amountCents} has gone back to the guest, in the
    * same unit it was charged in.
    *
@@ -1101,6 +1144,8 @@ export const bookings = pgTable("bookings", {
   // any number of nulls under a unique index, which is what makes the
   // untokenised rows above legal.
   uniqueIndex("bookings_cancellation_token_key").on(table.cancellationTokenHash),
+  // The payment link is looked up by digest, like the cancel link.
+  uniqueIndex("bookings_payment_link_token_key").on(table.paymentLinkTokenHash),
 ]);
 
 /**
@@ -1278,6 +1323,15 @@ export const messageLog = pgTable("message_log", {
    */
   refundedTotalCents: integer("refunded_total_cents"),
 
+  /**
+   * Which send of a booking's payment link this row is — the booking's
+   * `payment_link_sent_at` at the moment of sending, as
+   * {@link messageLog.quoteSentAt} is for a quote. `booking-payment-link`
+   * only: a resend rotates the link and must be a new email, so the booking
+   * alone cannot be the key. Null for every other kind.
+   */
+  linkSentAt: timestamp("link_sent_at", { withTimezone: true }),
+
   status: messageStatusEnum("status").notNull().default("sending"),
 
   /**
@@ -1316,7 +1370,18 @@ export const messageLog = pgTable("message_log", {
   uniqueIndex("message_log_booking_kind_key")
     .on(table.kind, table.recipient, table.bookingId)
     .where(
-      sql`"booking_id" is not null and "subject_date" is null and "status" <> 'failed'`,
+      sql`"booking_id" is not null and "subject_date" is null and "link_sent_at" is null and "status" <> 'failed'`,
+    ),
+  /**
+   * One payment-link email per booking, per recipient, **per send** — the
+   * booking's `payment_link_sent_at` names the link the mail carried, as
+   * `quote_sent_at` does for a quote. Split from the index above on
+   * `link_sent_at`'s nullness, so a resend is not refused as a duplicate.
+   */
+  uniqueIndex("message_log_payment_link_key")
+    .on(table.kind, table.recipient, table.bookingId, table.linkSentAt)
+    .where(
+      sql`"booking_id" is not null and "link_sent_at" is not null and "status" <> 'failed'`,
     ),
   /**
    * The same rule for the kinds whose subject is a departure: one message of
@@ -1485,11 +1550,14 @@ export type QuoteLineItem = {
  * recomputed afterwards. Editing a sent quote is a re-quote, not a silent
  * re-price of an instalment somebody may already have paid.
  *
- * **Commission is the events rate (§5): 6%, proportionally on each payment.**
- * There is no kind column deciding that — a quote is an event by construction,
- * and whether it is a wedding or another kind of event is already on the
- * `tour_requests` row. The rate that was actually applied is recorded per
- * payment, where the fee is.
+ * **Commission follows what the quote is for.** A wedding or event quote takes
+ * the events rate (§5): 6%, proportionally on each payment. A tour quote — a
+ * personalised tour the team raised from "Novo orçamento", with no enquiry
+ * behind it — takes the tour rate (§4): 4%, with the €10 floor and the €50
+ * cap, on its one payment. What makes a quote a tour quote is
+ * {@link quotes.holdVehicleClass}, not the lead's kind: the quote must still
+ * know what it is after an erasure empties the lead. The rate that was
+ * actually applied is recorded per payment, where the fee is.
  */
 export const quotes = pgTable("quotes", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -1513,10 +1581,25 @@ export const quotes = pgTable("quotes", {
     onDelete: "set null",
   }),
 
-  /** The day of the event, `YYYY-MM-DD`. What T−14 is computed against. */
+  /** The day of the event, `YYYY-MM-DD`. What T−15 is computed against. */
   eventDate: date("event_date").notNull(),
   /** Where it is, in the team's own words — "Quinta do Hespanhol, Mafra". */
   venue: text("venue"),
+
+  /**
+   * The departure a tour quote holds once it is paid: `morning`, `afternoon`
+   * or `full_day` (both). Null on a wedding or event quote, whose paid
+   * deposit takes the whole day by another rule (`lib/event-holds.ts`).
+   */
+  holdSlot: availabilitySlotEnum("hold_slot"),
+  /**
+   * The car class a tour quote holds — one driver and one car of this class
+   * on {@link quotes.holdSlot}, counted in the same occupancy as a booking
+   * (`lib/tour-quote.ts`). Set on a tour quote and only there: it is what
+   * makes a quote a tour quote. Text, like `bookings.vehicle_class`, because
+   * the fleet's classes live in code (`lib/fleet.ts`).
+   */
+  holdVehicleClass: text("hold_vehicle_class"),
 
   /** The language the quote is written and sent in. */
   locale: localeEnum("locale").notNull().default("pt"),
@@ -1596,7 +1679,7 @@ export const quotes = pgTable("quotes", {
 }, (table) => [
   // The lead's own page lists the quotes built from it.
   index("quotes_tour_request_idx").on(table.tourRequestId),
-  // The T−14 scan: "deposit-paid quotes whose event is on this date". Status
+  // The T−15 scan: "deposit-paid quotes whose event is on this date". Status
   // first, because it is the selective half — most rows are never deposit-paid
   // on any given morning.
   index("quotes_status_event_date_idx").on(table.status, table.eventDate),
@@ -1661,7 +1744,7 @@ export const quotePayments = pgTable("quote_payments", {
   /**
    * When it is owed, `YYYY-MM-DD`. Null for the deposit, which is due on
    * acceptance rather than on a date; the balance carries the event date minus
-   * 14 days (proposal §5).
+   * one day (Diogo, feedback round 1; it was 14 days in proposal §5).
    */
   dueDate: date("due_date"),
 
@@ -1700,7 +1783,7 @@ export const quotePayments = pgTable("quote_payments", {
   /**
    * When the payment link last went to the guest.
    *
-   * The T−14 scheduler's idempotency, and the reason it is a timestamp on the
+   * The T−15 scheduler's idempotency, and the reason it is a timestamp on the
    * row rather than a job-side ledger: "has this balance been asked for?" has
    * to be answerable from the payment itself, or a dispatcher that runs twice
    * in a morning emails the same link twice.

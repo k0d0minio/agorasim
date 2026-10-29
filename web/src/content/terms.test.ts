@@ -31,12 +31,35 @@ describe("termsSection", () => {
     }
   });
 
-  it("states the balance by link and no withdrawal right for a dated event", () => {
+  // A tour quote's page and receipt quote the tour's own terms instead.
+  it("finds the tour's cancellation and weather sections in both languages", () => {
+    for (const locale of ["pt", "en"] as const) {
+      expect(termsSection("cancellation", locale).body[0]).toMatch(/48h/);
+      expect(termsSection("weather", locale).heading).toMatch(/Mau tempo|Bad weather/);
+    }
+  });
+
+  // A tour quote has no self-serve cancel link, so the section it quotes must
+  // name the way its customer cancels: email or phone.
+  it("tells a tour quote's customer to cancel by email or phone", () => {
+    const pt = termsSection("cancellation", "pt").body.join(" ");
+    const en = termsSection("cancellation", "en").body.join(" ");
+    expect(pt).toContain("através de um orçamento, não há link");
+    expect(pt).toContain("info@agorasim.pt ou telefone-nos");
+    expect(en).toContain("through a quote, there is no link");
+    expect(en).toContain("info@agorasim.pt or call us");
+  });
+
+  it("states when the balance is due and no withdrawal right for a dated event", () => {
     const pt = termsSection("events", "pt").body.join(" ");
     const en = termsSection("events", "en").body.join(" ");
-    expect(pt).toContain("14 dias antes do evento");
+    expect(pt).toContain("a qualquer momento depois do sinal");
+    expect(pt).toContain("até à véspera do evento");
+    expect(pt).toContain("15 dias antes do evento");
     expect(pt).toContain("não se aplica a casamentos e eventos");
-    expect(en).toContain("14 days before the event");
+    expect(en).toContain("at any time after the deposit");
+    expect(en).toContain("due by the day before the event");
+    expect(en).toContain("15 days before the event");
     expect(en).toContain("does not apply to weddings and events");
   });
 });

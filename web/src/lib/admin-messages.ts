@@ -46,6 +46,8 @@ export const messageKindLabel: Record<MessageKind, string> = {
   "quote-event-cancelled": "Evento cancelado",
   "balance-request": "Pedido do saldo",
   "balance-reminder": "Lembrete do saldo",
+  "booking-payment-link": "Link de pagamento",
+  "balance-request-manual": "Pedido do saldo (equipa)",
 };
 
 /** One card in "As mensagens": when a kind goes out, and to whom. */
@@ -55,12 +57,17 @@ export type MessageCard = { kind: MessageKind; when: string };
  * The kinds that have a sender today, in the order a guest meets them.
  *
  * Each "to whom" was read off the `recipient` at that kind's `sendLoggedEmail`
- * call — for the two balance kinds, at `lib/cron/balance-scheduler.ts`.
+ * call — for the daily balance kinds, at `lib/cron/balance-scheduler.ts`, and
+ * for the one the team sends by hand, at `lib/balance-request.ts`.
  */
 export const MESSAGE_CARDS: readonly MessageCard[] = [
   {
     kind: "enquiry-ack",
     when: "Quando chega um pedido pelo site — ao cliente e à equipa.",
+  },
+  {
+    kind: "booking-payment-link",
+    when: "Quando regista uma reserva com link de pagamento, ou reenvia o link — ao cliente.",
   },
   {
     kind: "booking-confirmation",
@@ -92,7 +99,11 @@ export const MESSAGE_CARDS: readonly MessageCard[] = [
   },
   {
     kind: "balance-request",
-    when: "14 dias antes do evento, com o link para pagar o saldo — ao cliente.",
+    when: "15 dias antes do evento, com o link para pagar o saldo — ao cliente.",
+  },
+  {
+    kind: "balance-request-manual",
+    when: "Quando envia o pedido do restante no orçamento, com um novo link — ao cliente.",
   },
   {
     kind: "balance-reminder",
@@ -141,6 +152,7 @@ export type MessageRowCore = {
   quoteSentAt?: Date | null;
   quotePaymentId?: string | null;
   refundedTotalCents?: number | null;
+  linkSentAt?: Date | null;
 };
 
 /** A row's badge, `now` deciding whether a `sending` row has been left behind. */
@@ -171,6 +183,15 @@ function subjectKey(row: MessageRowCore): string {
       row.recipient,
       row.quotePaymentId,
       row.refundedTotalCents,
+    ]);
+  }
+  if (row.bookingId && row.linkSentAt) {
+    return JSON.stringify([
+      "booking-link",
+      row.kind,
+      row.recipient,
+      row.bookingId,
+      row.linkSentAt.getTime(),
     ]);
   }
   if (row.bookingId) {

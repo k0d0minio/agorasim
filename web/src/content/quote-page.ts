@@ -5,7 +5,7 @@ import type { Localized } from "@/i18n/config";
  * the pay button that page mints a Checkout session from (D25).
  *
  * The terms themselves are not here: the page renders the events and
- * complaints sections of `terms.ts` verbatim, so what the couple read above
+ * complaints sections of `terms.ts` verbatim, so what the couple read under
  * the button is the text their receipt carries and the text the terms page
  * publishes. These are only the page's own words around them.
  *
@@ -51,6 +51,11 @@ export const quotePageContent = {
   instalmentState: {
     toPay: { pt: "Por pagar", en: "To pay" } as Localized,
     dueBy: { pt: "Por pagar até {date}", en: "Due by {date}" } as Localized,
+    /** The balance while the page takes it: from the deposit to its due date. */
+    dueByPayNow: {
+      pt: "Por pagar até {date} — pode pagar já",
+      en: "Due by {date} — you can pay now",
+    } as Localized,
     paidOn: { pt: "Pago a {date}", en: "Paid on {date}" } as Localized,
     // Written off by the team: it arrived another way (a transfer).
     settled: { pt: "Liquidado", en: "Settled" } as Localized,
@@ -60,11 +65,14 @@ export const quotePageContent = {
   pay: {
     deposit: { pt: "Pagar sinal de {amount}", en: "Pay {amount} deposit" } as Localized,
     balance: { pt: "Pagar restante de {amount}", en: "Pay {amount} balance" } as Localized,
-    /** Under the button — the sentence, not a checkbox, as at the tour checkout. */
-    notice: {
-      pt: "Ao pagar aceita as condições acima e os",
-      en: "By paying you accept the conditions above and the",
-    } as Localized,
+    /**
+     * Under the button — the sentence, not a checkbox, as at the tour checkout.
+     * The conditions sit below the button, so `noticeConditions` links down to
+     * them: "Ao pagar aceita as [condições abaixo] e os [termos de venda]."
+     */
+    notice: { pt: "Ao pagar aceita as", en: "By paying you accept the" } as Localized,
+    noticeConditions: { pt: "condições abaixo", en: "conditions below" } as Localized,
+    noticeAnd: { pt: "e os", en: "and the" } as Localized,
     secure: {
       pt: "O pagamento é feito na Stripe. Não guardamos os dados do seu cartão.",
       en: "Payment is taken by Stripe. We never see or store your card details.",
@@ -93,14 +101,15 @@ export const quotePageContent = {
     } as Localized,
   },
 
-  notYet: {
+  /** The balance's due date has passed (the event day or later): the team takes it from here. */
+  closed: {
     title: {
-      pt: "O restante é pago a partir de {date}",
-      en: "The balance is paid from {date}",
+      pt: "O prazo do restante terminou a {date}",
+      en: "The balance was due by {date}",
     } as Localized,
     body: {
-      pt: "Enviamos-lhe o link {days} dias antes do evento, e a partir desse dia também o pode pagar aqui.",
-      en: "We send you the link {days} days before the event, and from that day you can also pay it here.",
+      pt: "Já não é possível pagar o restante nesta página. Fale connosco — os contactos estão abaixo.",
+      en: "The balance can no longer be paid on this page. Please talk to us — our contacts are below.",
     } as Localized,
   },
 
@@ -112,6 +121,15 @@ export const quotePageContent = {
       en: "Stripe has told us — the confirmation arrives in a moment, and the receipt follows by email. You can refresh this page.",
     } as Localized,
   },
+  /**
+   * Back from Stripe on a link that a later email replaced while the couple
+   * paid (`lib/quote-return.ts`): the page shows the quote, but takes no
+   * payment on the dead link.
+   */
+  retired: {
+    pt: "Este link foi substituído por um mais recente. Para voltar a este orçamento ou pagar o que falta, use o link do último email que lhe enviámos.",
+    en: "This link has been replaced by a newer one. To come back to this quote or pay what is left, use the link in the latest email we sent you.",
+  } as Localized,
   /** A delayed method (Multibanco): the money is on its way. */
   awaiting: {
     title: { pt: "A aguardar o pagamento", en: "Waiting for your payment" } as Localized,
@@ -131,13 +149,49 @@ export const quotePageContent = {
       pt: "Não foi possível abrir o pagamento. Tente outra vez dentro de momentos, ou fale connosco.",
       en: "We could not open the payment. Please try again in a moment, or talk to us.",
     } as Localized,
-    notDue: {
-      pt: "O restante ainda não está a pagamento — a data em que fica está indicada acima.",
-      en: "The balance is not payable yet — the day it becomes payable is shown above.",
+    closed: {
+      pt: "O prazo do restante terminou — fale connosco para o pagar.",
+      en: "The balance is past its due date — please talk to us to pay it.",
     } as Localized,
     settled: {
       pt: "Este orçamento já está pago na totalidade.",
       en: "This quote is already paid in full.",
+    } as Localized,
+    /** A tour quote whose departure filled before the payment (`lib/tour-quote.ts`). */
+    noCar: {
+      pt: "A partida deste passeio já não tem carro disponível. Ligue-nos ou escreva-nos e combinamos outra data consigo.",
+      en: "This tour's departure no longer has a car available. Call or write to us and we will arrange another date with you.",
+    } as Localized,
+  },
+
+  /**
+   * A tour quote (`lib/tour-quote.ts`): one payment, one car, the tour's
+   * terms. Each key replaces the event wording above on such a quote.
+   */
+  tour: {
+    lead: {
+      sent: {
+        pt: "Aqui está o passeio que preparámos para si. Leia as condições abaixo e, quando estiver pronto, pague para o confirmar.",
+        en: "Here is the tour we prepared for you. Read the conditions below and, when you are ready, pay to confirm it.",
+      } as Localized,
+      paid: {
+        pt: "O seu passeio está pago e confirmado. Obrigado — até breve!",
+        en: "Your tour is paid and confirmed. Thank you — see you soon!",
+      } as Localized,
+    },
+    date: { pt: "Data do passeio", en: "Tour date" } as Localized,
+    departure: { pt: "Partida", en: "Departure" } as Localized,
+    departures: {
+      morning: { pt: "Manhã (10:00)", en: "Morning (10:00)" } as Localized,
+      afternoon: { pt: "Tarde (14:00)", en: "Afternoon (14:00)" } as Localized,
+      full_day: { pt: "Dia inteiro", en: "Full day" } as Localized,
+    },
+    /** The one instalment's name — on this page and on Stripe's. */
+    payment: { pt: "Pagamento", en: "Payment" } as Localized,
+    pay: { pt: "Pagar {amount}", en: "Pay {amount}" } as Localized,
+    acceptedVersion: {
+      pt: "Condições aceites com o pagamento: versão de {version}",
+      en: "Conditions accepted with the payment: version of {version}",
     } as Localized,
   },
 
@@ -150,9 +204,13 @@ export const quotePageContent = {
     pt: "Condições aceites com o pagamento do sinal: versão de {version}",
     en: "Conditions accepted with the deposit: version of {version}",
   } as Localized,
-  fullTermsLink: {
-    pt: "Ler os termos de venda completos",
-    en: "Read the full terms of sale",
+  /**
+   * The seller line at the end of the conditions: the trading name, then this
+   * link to the terms page, which carries the full "Quem vende" block.
+   */
+  sellerLink: {
+    pt: "Condições e identificação do vendedor",
+    en: "Terms and seller details",
   } as Localized,
 
   contactsHeading: { pt: "Alguma dúvida?", en: "Any questions?" } as Localized,

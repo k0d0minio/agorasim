@@ -1,11 +1,13 @@
 import { Section, SectionHeading } from "@/components/section";
 import { Media } from "@/components/media";
+import { GoogleRatingLink } from "@/components/google-reviews";
 import { t, type Locale } from "@/i18n/config";
 import {
   testimonials as allTestimonials,
   testimonialsHeading,
   type Testimonial,
 } from "@/content/testimonials";
+import type { GooglePlaceReviews } from "@/lib/google-reviews";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,19 +19,34 @@ import { cn } from "@/lib/utils";
  *
  * The photos are group shots rather than portraits (hosts, guests and the dog,
  * all in frame), so each one gets a full-width 4:3 crop above its quote instead
- * of the round avatar the shape usually implies.
+ * of the round avatar the shape usually implies. A portrait photo keeps its own
+ * 3:4 frame: a 4:3 crop of it cuts the faces at the top and the bottom.
  */
 export function Testimonials({
   locale,
   items = allTestimonials,
+  googleRating,
   muted = false,
 }: {
   locale: Locale;
   /** Defaults to all three. Experience pages pass `testimonialsFor(slug)`. */
   items?: readonly Testimonial[];
+  /**
+   * The business's Google rating, shown as a link under the quotes. Experience
+   * pages pass it when Google gives one; without quotes, the link stands alone.
+   */
+  googleRating?: Pick<GooglePlaceReviews, "rating" | "ratingCount">;
   muted?: boolean;
 }) {
-  if (items.length === 0) return null;
+  const rating = googleRating && googleRating.rating !== null ? googleRating : undefined;
+  if (items.length === 0) {
+    if (!rating) return null;
+    return (
+      <Section muted={muted} className="py-10 sm:py-12">
+        <GoogleRatingLink locale={locale} summary={rating} />
+      </Section>
+    );
+  }
   return (
     <Section muted={muted}>
       <SectionHeading
@@ -52,7 +69,7 @@ export function Testimonials({
                 src={entry.photo}
                 label={t(entry.photoAlt, locale)}
                 rounded={false}
-                className="aspect-4/3 w-full"
+                className={cn("w-full", entry.portrait ? "aspect-3/4" : "aspect-4/3")}
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               />
               <div className="flex flex-1 flex-col p-6">
@@ -70,6 +87,7 @@ export function Testimonials({
           </li>
         ))}
       </ul>
+      {rating && <GoogleRatingLink locale={locale} summary={rating} className="mt-8" />}
     </Section>
   );
 }

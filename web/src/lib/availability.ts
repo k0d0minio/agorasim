@@ -56,7 +56,7 @@
  */
 import "server-only";
 
-import { and, asc, between, eq, inArray } from "drizzle-orm";
+import { and, asc, between, eq, inArray, ne, or } from "drizzle-orm";
 
 import {
   availability,
@@ -888,6 +888,12 @@ export async function checkSlotAvailable(options: {
   };
 }
 
+/** What {@link checkSlotAvailable} answers: the fit to write, or why not. */
+export type SlotCheck = Awaited<ReturnType<typeof checkSlotAvailable>>;
+
+/** A {@link SlotCheck} that said no. */
+export type SlotRefusal = Extract<SlotCheck, { ok: false }>;
+
 /**
  * Whether any departure of a day could still take *someone*.
  *
@@ -980,24 +986,29 @@ export function expandDateRange(
 /**
  * Block and unblock departures across a set of days, in one round trip.
  *
- * The calendar's bar sets each selected day to one of four states — both
- * departures blocked, only the morning, only the afternoon, or neither — so a
- * write names which departures end `closed` and which end `open`:
+ * The calendar's bar sets each selected day to one of its states — both
+ * departures blocked, only the morning, only the afternoon, neither, or one
+ * driver on some of them — so a write names which departures end `closed`,
+ * which end `open`, and, when the button says, the roster the open ones get:
  *
  * - **Blocking is an upsert.** Most days have no row (an untouched departure
  *   is open), so a holiday blocked in one gesture is mostly inserts, and
  *   `onConflictDoUpdate` on `availability_date_slot_key` turns the rest into
  *   updates — one statement, not hundreds of round trips from a phone on
  *   rural 4G.
- * - **Unblocking only touches rows that are blocked.** A departure with no row
- *   is already open with the full roster; writing a row for it would change
- *   nothing a guest can see and leave behind a decision nobody made.
+ * - **Unblocking only touches rows that need it.** A departure with no row is
+ *   already open with the full roster; writing a row for it would change
+ *   nothing a guest can see and leave behind a decision nobody made. With
+ *   `drivers` at the full roster ("Desbloquear"), a row that is open but one
+ *   driver short is put back too.
+ * - **One driver is an upsert**, like a block: "Só um condutor" over a week of
+ *   untouched days has no rows to update. The row is born `open`.
  *
- * **`status` is the only column either half writes.** The roster and the note
- * are left exactly as the row had them — the note is *why* a day is off, the
- * roster is who is driving, and a block across a fortnight knows neither.
- * Rows that do not exist yet get the column defaults (`DRIVERS_PER_SLOT`, no
- * note), because there is nothing there to keep.
+ * **The note is never written.** It is *why* a day is off, and no button
+ * knows it. The roster is written only when `drivers` is given, and only on
+ * the `open` departures: a block, "Só manhã" and "Só tarde" keep it. Rows that
+ * do not exist yet get the column defaults (`DRIVERS_PER_SLOT`, no note),
+ * because there is nothing there to keep.
  *
  * Both halves go in one `db.batch`, which Neon's HTTP driver runs as one
  * transaction: "Só manhã" over a week is never left half applied.
@@ -1009,8 +1020,10 @@ export async function setDepartureStates(options: {
   dates: DateKey[];
   closed: AvailabilitySlot[];
   open: AvailabilitySlot[];
+  /** The roster the `open` departures get. Absent keeps each row's own. */
+  drivers?: number;
 }): Promise<{ closed: number; opened: number }> {
-  const { dates } = options;
+  const { dates, drivers } = options;
   if (dates.length === 0) return { closed: 0, opened: 0 };
 
   const now = new Date();
@@ -1030,19 +1043,38 @@ export async function setDepartureStates(options: {
           .returning({ id: availability.id })
       : null;
   const unblock =
-    options.open.length > 0
-      ? db
-          .update(availability)
-          .set({ status: "open", updatedAt: now })
-          .where(
-            and(
-              inArray(availability.date, dates),
-              inArray(availability.slot, options.open),
-              eq(availability.status, "closed"),
-            ),
-          )
-          .returning({ id: availability.id })
-      : null;
+    options.open.length === 0
+      ? null
+      : drivers !== undefined && drivers !== DRIVERS_PER_SLOT
+        ? db
+            .insert(availability)
+            .values(
+              dates.flatMap((date) =>
+                options.open.map((slot) => ({ date, slot, status: "open" as const, drivers })),
+              ),
+            )
+            .onConflictDoUpdate({
+              target: [availability.date, availability.slot],
+              set: { status: "open", drivers, updatedAt: now },
+            })
+            .returning({ id: availability.id })
+        : db
+            .update(availability)
+            .set(
+              drivers === undefined
+                ? { status: "open", updatedAt: now }
+                : { status: "open", drivers, updatedAt: now },
+            )
+            .where(
+              and(
+                inArray(availability.date, dates),
+                inArray(availability.slot, options.open),
+                drivers === undefined
+                  ? eq(availability.status, "closed")
+                  : or(eq(availability.status, "closed"), ne(availability.drivers, drivers)),
+              ),
+            )
+            .returning({ id: availability.id });
 
   if (block && unblock) {
     const [closed, opened] = await db.batch([block, unblock]);
@@ -1054,25 +1086,24 @@ export async function setDepartureStates(options: {
 }
 
 /**
- * Set how many drivers are on a day, and the team's note on it — both
- * departures alike.
+ * Set the team's note on a day — both departures alike.
  *
  * The day panel's "Mais opções". It never changes whether a departure is
- * blocked: a new row is born `open` (which is what no row already meant), and
- * an existing row keeps its status. `note: null` clears the note.
+ * blocked or how many drivers it has: a new row is born `open` with the full
+ * roster (which is what no row already meant), and an existing row keeps
+ * both. `note: null` clears the note.
  */
-export async function setDayRoster(options: {
+export async function setDayNote(options: {
   date: DateKey;
-  drivers: number;
   note: string | null;
 }): Promise<AvailabilityRow[]> {
-  const { date, drivers, note } = options;
+  const { date, note } = options;
   return db
     .insert(availability)
-    .values(TOUR_SLOTS.map((slot) => ({ date, slot, status: "open" as const, drivers, note })))
+    .values(TOUR_SLOTS.map((slot) => ({ date, slot, status: "open" as const, note })))
     .onConflictDoUpdate({
       target: [availability.date, availability.slot],
-      set: { drivers, note, updatedAt: new Date() },
+      set: { note, updatedAt: new Date() },
     })
     .returning();
 }

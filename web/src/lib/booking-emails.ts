@@ -23,7 +23,7 @@ import {
   departureTimeFollowsByEmail,
   meetingPoints,
 } from "@/content/logistics";
-import { serviceHoursLabel } from "@/content/quote-request";
+import { ceremonyTimeLabel, serviceHoursLabel } from "@/content/quote-request";
 import { termsContent, termsSection } from "@/content/terms";
 import type { Booking, EnquiryKind } from "@/db/schema";
 import { t, type Locale, type Localized } from "@/i18n/config";
@@ -62,7 +62,7 @@ export type BookingEmailFacts = {
   locale: Locale;
   /** "Saturday, 15 August 2026" — already in the guest's language. */
   date: string;
-  /** "Rural Saloia — por grupo" — name plus how it was sold. */
+  /** "Rural Saloia — grupo privado" — name plus how it was sold. */
   experience: string;
   /** "Manhã · 10h00" — the departure, in the guest's language. */
   departure: string;
@@ -1154,8 +1154,10 @@ export type EnquiryEmailFacts = {
   experience: string | null;
   /** Wedding and event enquiries only — null on a tour. */
   venue?: string | null;
-  /** A {@link SERVICE_HOURS} key, resolved to a sentence here. */
+  /** A {@link SERVICE_HOURS} key, resolved to a sentence here. Events only. */
   serviceHours?: string | null;
+  /** `HH:MM`, when the ceremony starts. Weddings only. */
+  ceremonyTime?: string | null;
   /** A `classicCars` id, resolved to the car's name here. */
   preferredCar?: string | null;
   adminUrl: string;
@@ -1282,9 +1284,20 @@ export function teamEnquiryEmail(
   /*
    * What the team reads first. A quote enquiry drops the `Experiência` row —
    * it names none, by definition — for the three facts the price is worked out
-   * from: where it is, how long for, and which car. The `Pessoas` row shows
-   * only when there is a head count: the wedding form does not ask one.
+   * from: where it is, when (a wedding) or how long for (an event), and which
+   * car. The `Pessoas` row shows only when there is a head count: the wedding
+   * form does not ask one.
    */
+  const whenRow: DetailRow =
+    facts.kind === "wedding"
+      ? {
+          label: c.quote.labels.ceremonyTime,
+          value: facts.ceremonyTime ? ceremonyTimeLabel(facts.ceremonyTime) : "—",
+        }
+      : {
+          label: c.quote.labels.hours,
+          value: facts.serviceHours ? serviceHoursLabel(facts.serviceHours, "pt") : "—",
+        };
   const partyRows: DetailRow[] = facts.partySize
     ? [{ label: c.labels.party, value: values.party }]
     : [];
@@ -1292,10 +1305,7 @@ export function teamEnquiryEmail(
     ? [
         { label: c.labels.date, value: facts.preferredDate || "—" },
         { label: c.quote.labels.venue, value: facts.venue || "—" },
-        {
-          label: c.quote.labels.hours,
-          value: facts.serviceHours ? serviceHoursLabel(facts.serviceHours, "pt") : "—",
-        },
+        whenRow,
         { label: c.quote.labels.car, value: carLabel(facts.preferredCar) ?? "—" },
         ...partyRows,
       ]
@@ -1389,8 +1399,8 @@ export type QuoteSentEmailFacts = {
   depositPercent: number;
   /** What is left after the deposit and when it falls due, or `null` at a 100% deposit. */
   balance: { amount: string; dueDate: string } | null;
-  /** How many days before the event the balance is asked for. */
-  balanceDueDaysBefore: number;
+  /** How many days before the event the balance request is sent. */
+  balanceRequestDaysBefore: number;
   /** The non-refundable window the quote was written under (D9). */
   termsWindowDays: number;
   /**
@@ -1398,6 +1408,12 @@ export type QuoteSentEmailFacts = {
    * only place that will ever hold (`lib/quote-token.ts`).
    */
   quoteUrl: string;
+  /**
+   * A tour quote's departure in words ("Manhã (10:00)"), or `null` for a
+   * wedding or event. A tour quote is one payment and the tour's terms
+   * (`lib/tour-quote.ts`), and the mail says so in place of the deposit.
+   */
+  tourDeparture?: string | null;
 };
 
 /**
@@ -1415,6 +1431,7 @@ export type QuoteSentEmailFacts = {
 export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
   const c = bookingEmails.quoteSent;
   const l = facts.locale;
+  const tour = facts.tourDeparture ? { departure: facts.tourDeparture } : null;
 
   const values: Record<string, string> = {
     name: facts.guestName,
@@ -1426,14 +1443,40 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
 
   const subject = fillTemplate(t(c.subject, l), values);
   const greeting = fillTemplate(t(c.greeting, l), values);
-  const nextBody = facts.balance
-    ? fillTemplate(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) })
-    : t(c.next.bodyFull, l);
-  const termsNote = fillTemplate(t(c.termsNote, l), { days: String(facts.termsWindowDays) });
+  const nextTitle = tour ? t(c.tour.next.title, l) : t(c.next.title, l);
+  const nextBody = tour
+    ? t(c.tour.next.body, l)
+    : facts.balance
+      ? fillTemplate(t(c.next.body, l), { days: String(facts.balanceRequestDaysBefore) })
+      : t(c.next.bodyFull, l);
+  const termsNote = tour
+    ? t(c.tour.termsNote, l)
+    : fillTemplate(t(c.termsNote, l), { days: String(facts.termsWindowDays) });
+  const lead = tour ? t(c.tour.lead, l) : t(c.lead, l);
+
+  // A tour quote is one payment: the payment row, and no balance row.
+  const moneyRows: DetailRow[] = tour
+    ? [{ label: t(c.tour.payment, l), value: facts.deposit }]
+    : [
+        {
+          label: fillTemplate(t(c.labels.deposit, l), { percent: String(facts.depositPercent) }),
+          value: facts.deposit,
+        },
+        {
+          label: t(c.labels.balance, l),
+          value: facts.balance
+            ? fillTemplate(t(c.balanceDue, l), {
+                amount: facts.balance.amount,
+                date: facts.balance.dueDate,
+              })
+            : t(c.noBalance, l),
+        },
+      ];
 
   const rows: DetailRow[] = [
     { label: t(c.labels.reference, l), value: facts.ref, mono: true },
-    { label: t(c.labels.date, l), value: facts.date },
+    { label: tour ? t(c.tour.date, l) : t(c.labels.date, l), value: facts.date },
+    ...(tour ? [{ label: t(c.tour.departure, l), value: tour.departure }] : []),
     ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
     ...facts.lines.map((line) => ({
       label:
@@ -1443,22 +1486,13 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
       value: line.amount,
     })),
     { label: t(c.labels.total, l), value: facts.total, emphasis: true },
-    {
-      label: fillTemplate(t(c.labels.deposit, l), { percent: String(facts.depositPercent) }),
-      value: facts.deposit,
-    },
-    {
-      label: t(c.labels.balance, l),
-      value: facts.balance
-        ? fillTemplate(t(c.balanceDue, l), { amount: facts.balance.amount, date: facts.balance.dueDate })
-        : t(c.noBalance, l),
-    },
+    ...moneyRows,
   ];
 
   const text = textLines([
     greeting,
     "",
-    t(c.lead, l),
+    lead,
     "",
     ...rows.map((row) => `${row.label}: ${row.value}`),
     "",
@@ -1481,15 +1515,15 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: fillTemplate(t(c.preheader, l), values),
+    preheader: fillTemplate(t(tour ? c.tour.preheader : c.preheader, l), values),
     banner: { text: t(c.banner, l) },
     content: [
       emailHeading(greeting),
-      emailParagraph(t(c.lead, l), { spaceBelow: 24 }),
+      emailParagraph(lead, { spaceBelow: 24 }),
       emailEyebrow(t(c.detailsHeading, l)),
       emailDetails(rows),
       emailSpacer(24),
-      emailNote({ title: t(c.next.title, l), body: nextBody }),
+      emailNote({ title: nextTitle, body: nextBody }),
       emailSpacer(20),
       emailButton({ label: t(c.cta, l), href: facts.quoteUrl }),
       emailSpacer(20),
@@ -1519,7 +1553,120 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
   };
 }
 
-/** Which of the two balance emails — the T−14 request or the T−7 reminder. */
+export type PaymentLinkEmailFacts = BookingLogisticsFacts & {
+  /** `AG-1A2B3C` — the booking's reference. */
+  ref: string;
+  guestName: string;
+  guestEmail: string;
+  /** The booking's language, which is the enquiry's. */
+  locale: Locale;
+  /** "sábado, 15 de agosto de 2026" — the departure day. */
+  date: string;
+  total: string;
+  /**
+   * The payment page, absolute, carrying the plaintext token this mail is the
+   * only place that will ever hold (`lib/payment-link.ts`).
+   */
+  payUrl: string;
+};
+
+/**
+ * The payment link, sent to the customer in the language they enquired in.
+ *
+ * Shaped like the quote email — a greeting, the facts table, what happens
+ * next, the one button, the phone numbers — because it is read the same way.
+ * It says plainly that nothing is held until the payment lands: a customer who
+ * waits a week and finds the departure gone must not be surprised by it.
+ */
+export function guestPaymentLinkEmail(facts: PaymentLinkEmailFacts): EmailMessage {
+  const c = bookingEmails.paymentLink;
+  const g = bookingEmails.guest;
+  const l = facts.locale;
+
+  const values: Record<string, string> = {
+    name: facts.guestName,
+    experience: facts.experience,
+    date: facts.date,
+    total: facts.total,
+    site: siteUrl(),
+  };
+
+  const subject = fillTemplate(t(c.subject, l), values);
+  const greeting = fillTemplate(t(c.greeting, l), values);
+
+  const rows: DetailRow[] = [
+    { label: t(g.labels.reference, l), value: facts.ref, mono: true },
+    { label: t(g.labels.experience, l), value: facts.experience },
+    { label: t(g.labels.date, l), value: facts.date },
+    ...logisticsRows(facts, l),
+    { label: t(c.totalLabel, l), value: facts.total, emphasis: true },
+  ];
+
+  const text = textLines([
+    greeting,
+    "",
+    t(c.lead, l),
+    "",
+    ...rows.map((row) => `${row.label}: ${row.value}`),
+    pinLine(facts, l),
+    "",
+    t(c.next.body, l),
+    "",
+    // The URL on its own line, as the quote link is — a text client makes a
+    // bare line tappable and breaks one wrapped in a sentence.
+    fillTemplate(t(c.ctaTextLine, l), { url: facts.payUrl }),
+    t(c.replacesNote, l),
+    "",
+    t(c.questions, l),
+    `${diogo.name} ${diogo.phoneDisplay}`,
+    `${rita.name} ${rita.phoneDisplay}`,
+    "",
+    t(c.signoff, l),
+    siteUrl(),
+  ]);
+
+  const html = emailDocument({
+    lang: l,
+    title: subject,
+    preheader: fillTemplate(t(c.preheader, l), values),
+    banner: { text: t(c.banner, l) },
+    content: [
+      emailHeading(greeting),
+      emailParagraph(t(c.lead, l), { spaceBelow: 24 }),
+      emailEyebrow(t(c.detailsHeading, l)),
+      emailDetails(rows),
+      emailSpacer(24),
+      emailNote({ title: t(c.next.title, l), body: t(c.next.body, l) }),
+      emailSpacer(20),
+      emailButton({ label: t(c.cta, l), href: facts.payUrl }),
+      emailSpacer(20),
+      emailParagraph(t(c.replacesNote, l), { muted: true, spaceBelow: 16 }),
+      emailParagraph(t(c.questions, l), { spaceBelow: 12 }),
+      emailContacts(
+        [diogo, rita].map((contact) => ({
+          name: contact.name,
+          display: contact.phoneDisplay,
+          href: `tel:${contact.phone}`,
+        })),
+      ),
+      emailSpacer(24),
+      emailDivider(),
+      emailSpacer(20),
+      emailParagraph(t(c.signoff, l), { muted: true, spaceBelow: 0 }),
+    ].join(""),
+    footer: [escapeHtml(t(taglines, l)), footerWithSiteLink(t(c.footerNote, l))],
+  });
+
+  return {
+    to: [facts.guestEmail],
+    subject,
+    text,
+    html,
+    replyTo: site.email,
+  };
+}
+
+/** Which of the two balance emails — the request (T−15 or sent by hand) or the T−7 reminder. */
 export type BalanceEmailStage = "request" | "reminder";
 
 /**
@@ -1553,7 +1700,7 @@ export type BalanceEmailFacts = {
 };
 
 /**
- * The balance, asked for: the T−14 request, or the one T−7 reminder.
+ * The balance, asked for: the request (T−15, or sent by hand), or the one T−7 reminder.
  *
  * Shaped like the quote email it follows — the facts table, one button, the
  * phone numbers — and short, because it is a request for money the couple
@@ -1671,12 +1818,18 @@ export type QuoteReceiptEmailFacts = {
   total: string;
   /** What is still owed and by when, or `null` when nothing is. */
   remaining: { amount: string; dueDate: string } | null;
-  /** How many days before the event the balance link is sent. */
-  balanceDueDaysBefore: number;
+  /** How many days before the event the balance request is sent. */
+  balanceRequestDaysBefore: number;
   /** The fee Stripe routed, formatted — `null` on a platform-only charge. Team copy only. */
   fee: string | null;
   /** Deep link to the lead on the Sales board, for the team's copy. */
   adminUrl: string;
+  /**
+   * A tour quote's one payment (`lib/tour-quote.ts`): the tour's wording, the
+   * tour's terms and the tour fee in place of the deposit's. Absent is a
+   * wedding or event.
+   */
+  tour?: boolean;
 };
 
 /**
@@ -1705,18 +1858,27 @@ export function guestQuoteReceiptEmail(facts: QuoteReceiptEmailFacts): EmailMess
     site: siteUrl(),
   };
 
-  const subject = fillTemplate(t(c.subject[which], l), values);
+  const tour = facts.tour === true;
+  const subject = fillTemplate(t(tour ? c.tour.subject : c.subject[which], l), values);
   const greeting = fillTemplate(t(c.greeting, l), values);
-  const events = termsSection("events", l);
-  const termsHeading = fillTemplate(t(c.termsHeading, l), {
+  const lead = t(tour ? c.tour.lead : c.lead[which], l);
+  // The terms the customer paid under: the events section for a wedding or
+  // event, the tour's cancellation and weather sections for a tour.
+  const sections = tour
+    ? [termsSection("cancellation", l), termsSection("weather", l)]
+    : [termsSection("events", l)];
+  const termsHeading = fillTemplate(t(tour ? c.tour.termsHeading : c.termsHeading, l), {
     version: t(termsContent.lastUpdated, l),
   });
-  const nextBody = fillTemplate(t(c.next.body, l), { days: String(facts.balanceDueDaysBefore) });
+  const nextBody = fillTemplate(t(c.next.body, l), {
+    days: String(facts.balanceRequestDaysBefore),
+    due: facts.remaining?.dueDate ?? "",
+  });
   const fullTermsUrl = termsUrl(l);
 
   const rows: DetailRow[] = [
     { label: t(c.labels.reference, l), value: facts.ref, mono: true },
-    { label: t(c.labels.date, l), value: facts.date },
+    { label: t(tour ? c.tour.date : c.labels.date, l), value: facts.date },
     ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
     { label: t(c.labels.paidOn, l), value: facts.paidOn },
     { label: t(c.labels.total, l), value: facts.total },
@@ -1729,21 +1891,24 @@ export function guestQuoteReceiptEmail(facts: QuoteReceiptEmailFacts): EmailMess
           })
         : t(c.fullyPaid, l),
     },
-    { label: t(c.labels.paid[which], l), value: facts.amount, emphasis: true },
+    {
+      label: t(tour ? c.tour.paid : c.labels.paid[which], l),
+      value: facts.amount,
+      emphasis: true,
+    },
   ];
 
   const text = textLines([
     greeting,
     "",
-    t(c.lead[which], l),
+    lead,
     "",
     ...rows.map((row) => `${row.label}: ${row.value}`),
     "",
     facts.remaining ? nextBody : null,
     facts.remaining ? "" : null,
     termsHeading,
-    events.heading,
-    ...events.body,
+    ...sections.flatMap((section) => [section.heading, ...section.body]),
     "",
     fillTemplate(t(c.fullTerms, l), { url: fullTermsUrl }),
     "",
@@ -1758,11 +1923,11 @@ export function guestQuoteReceiptEmail(facts: QuoteReceiptEmailFacts): EmailMess
   const html = emailDocument({
     lang: l,
     title: subject,
-    preheader: fillTemplate(t(c.preheader[which], l), values),
-    banner: { text: t(c.banner[which], l) },
+    preheader: fillTemplate(t(tour ? c.tour.preheader : c.preheader[which], l), values),
+    banner: { text: t(tour ? c.tour.banner : c.banner[which], l) },
     content: [
       emailHeading(greeting),
-      emailParagraph(t(c.lead[which], l), { spaceBelow: 24 }),
+      emailParagraph(lead, { spaceBelow: 24 }),
       emailEyebrow(t(c.detailsHeading, l)),
       emailDetails(rows),
       emailSpacer(24),
@@ -1772,8 +1937,12 @@ export function guestQuoteReceiptEmail(facts: QuoteReceiptEmailFacts): EmailMess
       emailDivider(),
       emailSpacer(20),
       emailEyebrow(termsHeading),
-      emailParagraph(events.heading, { spaceBelow: 8 }),
-      ...events.body.map((paragraph) => emailParagraph(paragraph, { muted: true, spaceBelow: 12 })),
+      ...sections.flatMap((section) => [
+        emailParagraph(section.heading, { spaceBelow: 8 }),
+        ...section.body.map((paragraph) =>
+          emailParagraph(paragraph, { muted: true, spaceBelow: 12 }),
+        ),
+      ]),
       // The link as markup, the words around it inert — as in the withdrawal line.
       `<p style="margin:4px 0 20px;"><a href="${escapeHtml(fullTermsUrl)}" style="color:${emailPalette.textMuted};text-decoration:underline;">${escapeHtml(t(c.fullTermsLink, l))}</a></p>`,
       emailParagraph(t(c.questions, l), { spaceBelow: 12 }),
@@ -1820,12 +1989,13 @@ export function teamQuoteReceiptEmail(
     adminUrl: facts.adminUrl,
   };
 
-  const subject = fillTemplate(c.subject[which], values);
-  const heading = fillTemplate(c.heading[which], values);
+  const tour = facts.tour === true;
+  const subject = fillTemplate(tour ? c.tour.subject : c.subject[which], values);
+  const heading = fillTemplate(tour ? c.tour.heading : c.heading[which], values);
 
   const rows: DetailRow[] = [
     { label: c.labels.reference, value: facts.ref, mono: true },
-    { label: c.labels.date, value: facts.date },
+    { label: tour ? c.tour.date : c.labels.date, value: facts.date },
     ...(facts.venue ? [{ label: c.labels.venue, value: facts.venue }] : []),
     { label: c.labels.total, value: facts.total },
     {
@@ -1834,7 +2004,7 @@ export function teamQuoteReceiptEmail(
         ? fillTemplate(c.remainingDue, { amount: facts.remaining.amount, date: facts.remaining.dueDate })
         : c.fullyPaid,
     },
-    { label: c.labels.fee, value: facts.fee ?? c.noFee },
+    { label: tour ? c.tour.fee : c.labels.fee, value: facts.fee ?? c.noFee },
     { label: c.labels.amount, value: facts.amount, emphasis: true },
   ];
 
@@ -1864,7 +2034,7 @@ export function teamQuoteReceiptEmail(
     lang: "pt",
     title: subject,
     preheader: fillTemplate(c.preheader, values),
-    banner: { text: c.banner[which], background: emailPalette.primaryDark },
+    banner: { text: tour ? c.tour.banner : c.banner[which], background: emailPalette.primaryDark },
     content: [
       emailHeading(facts.guestName),
       emailParagraph(heading, { muted: true, spaceBelow: 24 }),
@@ -1985,6 +2155,12 @@ export type QuoteRefundEmailFacts = {
   totalRefunded: string;
   /** Whether the event was called off with it. */
   eventCancelled: boolean;
+  /**
+   * A tour quote (`lib/tour-quote.ts`): the tour's wording, passeio and
+   * pagamento, in place of the event's and the sinal's. Absent is a wedding
+   * or event.
+   */
+  tour?: boolean;
 };
 
 /**
@@ -2007,17 +2183,22 @@ export function guestQuoteRefundEmail(facts: QuoteRefundEmailFacts): EmailMessag
     site: siteUrl(),
   };
 
-  const subject = fillTemplate(t(c.subject[state], l), values);
+  const tour = facts.tour === true;
+  const subject = fillTemplate(t(tour ? c.tour.subject[state] : c.subject[state], l), values);
   const greeting = fillTemplate(t(c.greeting, l), values);
-  const lead = fillTemplate(t(c.lead[state], l), values);
+  const lead = fillTemplate(t(tour ? c.tour.lead[state] : c.lead[state], l), values);
   const moneyNote = { title: t(c.moneyNote.title, l), body: t(c.moneyNote.body, l) };
+  // A tour quote's one payment is its deposit row: name it as the payment it is.
+  const instalment =
+    tour && facts.instalment === "deposit" ? c.tour.instalment : c.instalment[facts.instalment];
+  const banner = tour && state === "cancelled" ? c.tour.banner.cancelled : c.banner[state];
 
   const rows: DetailRow[] = [
     { label: t(c.labels.reference, l), value: facts.ref, mono: true },
-    { label: t(c.labels.date, l), value: facts.date },
+    { label: t(tour ? c.tour.date : c.labels.date, l), value: facts.date },
     ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
-    { label: t(c.labels.status, l), value: t(c.status[state], l) },
-    { label: t(c.labels.instalment, l), value: t(c.instalment[facts.instalment], l) },
+    { label: t(tour ? c.tour.status : c.labels.status, l), value: t(c.status[state], l) },
+    { label: t(c.labels.instalment, l), value: t(instalment, l) },
     { label: t(c.labels.paid, l), value: facts.paid },
     { label: t(c.labels.totalRefunded, l), value: facts.totalRefunded },
     { label: t(c.labels.refund, l), value: facts.amount, emphasis: true },
@@ -2029,7 +2210,7 @@ export function guestQuoteRefundEmail(facts: QuoteRefundEmailFacts): EmailMessag
     greeting,
     lead,
     preheader: fillTemplate(t(c.preheader, l), values),
-    banner: t(c.banner[state], l),
+    banner: t(banner, l),
     detailsHeading: t(c.detailsHeading, l),
     rows,
     note: moneyNote,
@@ -2065,6 +2246,8 @@ export type QuoteEventCancelledEmailFacts = {
    * for one that does not refer to an earlier email.
    */
   refundNoticeSent: boolean;
+  /** A tour quote (`lib/tour-quote.ts`): the tour's wording. Absent is a wedding or event. */
+  tour?: boolean;
 };
 
 /**
@@ -2085,15 +2268,22 @@ export function guestQuoteEventCancelledEmail(facts: QuoteEventCancelledEmailFac
     site: siteUrl(),
   };
 
-  const subject = fillTemplate(t(c.subject, l), values);
+  const tour = facts.tour === true;
+  // The tour's wording where it has its own, the event's otherwise.
+  const w = tour ? { ...c, ...c.tour } : c;
+  const subject = fillTemplate(t(w.subject, l), values);
   const greeting = fillTemplate(t(c.greeting, l), values);
-  const lead = fillTemplate(t(facts.refundNoticeSent ? c.lead : c.leadNoEarlierEmail, l), values);
+  const lead = fillTemplate(t(facts.refundNoticeSent ? w.lead : w.leadNoEarlierEmail, l), values);
 
   const rows: DetailRow[] = [
     { label: t(r.labels.reference, l), value: facts.ref, mono: true },
-    { label: t(r.labels.date, l), value: facts.date },
+    { label: t(tour ? r.tour.date : r.labels.date, l), value: facts.date },
     ...(facts.venue ? [{ label: t(r.labels.venue, l), value: facts.venue }] : []),
-    { label: t(r.labels.status, l), value: t(r.status.cancelled, l), emphasis: true },
+    {
+      label: t(tour ? r.tour.status : r.labels.status, l),
+      value: t(r.status.cancelled, l),
+      emphasis: true,
+    },
     { label: t(r.labels.totalRefunded, l), value: facts.totalRefunded },
   ];
 
@@ -2102,9 +2292,9 @@ export function guestQuoteEventCancelledEmail(facts: QuoteEventCancelledEmailFac
     subject,
     greeting,
     lead,
-    preheader: fillTemplate(t(c.preheader, l), values),
-    banner: t(c.banner, l),
-    detailsHeading: t(c.detailsHeading, l),
+    preheader: fillTemplate(t(w.preheader, l), values),
+    banner: t(w.banner, l),
+    detailsHeading: t(w.detailsHeading, l),
     rows,
   });
 

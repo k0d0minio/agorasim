@@ -59,18 +59,23 @@ export const seller = {
  * page prints (`terms.test.ts`): change the terms, change both, or the test
  * says the version and the page have come apart.
  */
-export const TERMS_VERSION = "2026-10-28";
+export const TERMS_VERSION = "2026-10-29";
 
 /**
  * One section of the terms. `id` names the few sections something other than
  * the terms page renders on its own — the quote page and the quote receipts
- * quote the events section and the complaints section verbatim, and they find
+ * quote the events section (or a tour's cancellation and weather sections) and
+ * the complaints section verbatim, and they find
  * them by this key rather than by position or heading, which differ by locale.
  */
 type Section = { id?: TermsSectionId; heading: string; body: string[] };
 
-/** The sections other surfaces quote — see {@link termsSection}. */
-export type TermsSectionId = "events" | "complaints";
+/**
+ * The sections other surfaces quote — see {@link termsSection}. A tour quote
+ * (`lib/tour-quote.ts`) quotes the tour's own two, cancellation and weather,
+ * where a wedding quote quotes the events section.
+ */
+export type TermsSectionId = "events" | "complaints" | "cancellation" | "weather";
 
 export const termsContent = {
   title: {
@@ -90,7 +95,7 @@ export const termsContent = {
   } as Localized,
 
   lastUpdatedLabel: { pt: "Última atualização", en: "Last updated" } as Localized,
-  lastUpdated: { pt: "28 de outubro de 2026", en: "28 October 2026" } as Localized,
+  lastUpdated: { pt: "29 de outubro de 2026", en: "29 October 2026" } as Localized,
 
   /**
    * The seller block, rendered as a definition list under its own heading so
@@ -128,7 +133,7 @@ export const termsContent = {
       {
         heading: "O que compra",
         body: [
-          "Compra um lugar — ou o carro inteiro, se escolher o preço por grupo — numa partida com dia e hora definidos, na experiência que selecionou, com os complementos que tiver adicionado. Tudo o que está incluído está descrito na página da experiência e no resumo da reserva antes de pagar.",
+          "Compra um lugar num grupo aberto — ou o carro inteiro, num grupo privado — numa partida com dia e hora definidos, na experiência que selecionou, com os complementos que tiver adicionado. Tudo o que está incluído está descrito na página da experiência e no resumo da reserva antes de pagar.",
           "Cada dia tem até duas partidas (10:00 e 14:00), e o ponto de encontro é o indicado na página da experiência e no email de confirmação.",
           "A sua reserva fica confirmada quando o pagamento é aceite. Recebe então um email de confirmação com todos os detalhes. Enquanto conclui o pagamento, guardamos o vosso carro durante 30 minutos; se o pagamento não for concluído nesse período, a partida volta a ficar disponível.",
         ],
@@ -141,15 +146,17 @@ export const termsContent = {
         ],
       },
       {
+        id: "cancellation",
         heading: "Cancelamento e reembolso",
         body: [
           "Cancelamento gratuito até 48h antes da experiência. Com mau tempo, reagendamos — ou reembolsamos em condições extremas.",
-          "Como cancelar: o email de confirmação inclui um link para cancelar a reserva. Se precisar de cancelar, pode fazê-lo aí até 48 horas antes da partida — sem custos e com devolução do valor total. Também pode escrever-nos para info@agorasim.pt ou telefonar-nos; nesse caso, o pedido conta a partir do momento em que o recebemos.",
+          "Como cancelar: se reservou online, o email de confirmação inclui um link para cancelar a reserva. Se precisar de cancelar, pode fazê-lo aí até 48 horas antes da partida — sem custos e com devolução do valor total. Se pagou um passeio através de um orçamento, não há link: escreva-nos para info@agorasim.pt ou telefone-nos até 48 horas antes da partida, nas mesmas condições. Também pode cancelar uma reserva online por email ou telefone. Quando nos escreve ou telefona, o pedido conta a partir do momento em que o recebemos.",
           "Devolvemos o reembolso para o mesmo cartão ou método com que pagou. O valor costuma aparecer em 5 a 10 dias úteis, consoante o banco.",
-          "A menos de 48 horas da partida, o cancelamento gratuito online já não está disponível e o valor pago não é reembolsado automaticamente. Ligue-nos ou mande mensagem — falamos consigo e vemos o que é possível. Não comparecer à partida sem aviso equivale a um cancelamento fora do prazo.",
+          "A menos de 48 horas da partida, o cancelamento gratuito já não está disponível e o valor pago não é reembolsado automaticamente. Ligue-nos ou mande mensagem — falamos consigo e vemos o que é possível. Não comparecer à partida sem aviso equivale a um cancelamento fora do prazo.",
         ],
       },
       {
+        id: "weather",
         heading: "Mau tempo",
         body: [
           "Os passeios acontecem ao ar livre, em carros clássicos, e o tempo faz parte da experiência. Com mau tempo, tentamos sempre reagendar — e reembolsamos em condições extremas.",
@@ -176,7 +183,7 @@ export const termsContent = {
           "Casamentos e outros eventos são orçamentados caso a caso e não se reservam através da página de reservas online. As condições abaixo aplicam-se a esses orçamentos, salvo indicação diferente no orçamento aceite.",
           "A data fica reservada com o pagamento de um sinal de 30% do valor orçamentado. O sinal não é reembolsável em caso de cancelamento a menos de 30 dias do evento. Até essa altura, o sinal é devolvido na totalidade se cancelar.",
           "A mudança de data é gratuita, sujeita à nossa disponibilidade.",
-          "O restante valor (o saldo) é pago através de um link de pagamento que lhe enviamos 14 dias antes do evento.",
+          "O restante valor (o saldo) pode ser pago a qualquer momento depois do sinal, na página do orçamento, e tem de estar pago até à véspera do evento. Enviamos-lhe também um link de pagamento 15 dias antes do evento.",
           "O direito de livre resolução de 14 dias não se aplica a casamentos e eventos: são serviços contratados para uma data específica (artigo 16.º, alínea l), da Diretiva 2011/83/UE; artigo 17.º, n.º 1, alínea l), do Decreto-Lei n.º 24/2014). Aplicam-se, em vez dele, as condições do sinal descritas acima.",
         ],
       },
@@ -214,7 +221,7 @@ export const termsContent = {
       {
         heading: "What you are buying",
         body: [
-          "You are buying a seat — or the whole car, if you choose the per-group price — on a departure with a set day and time, on the experience you selected, with any add-ons you included. Everything that is included is described on the experience page and in the booking summary before you pay.",
+          "You are buying a seat on an open group tour — or the whole car, on a private group tour — on a departure with a set day and time, on the experience you selected, with any add-ons you included. Everything that is included is described on the experience page and in the booking summary before you pay.",
           "Each day has up to two departures (10:00 and 14:00), and the meeting point is the one shown on the experience page and in your confirmation email.",
           "Your booking is confirmed when the payment is accepted. You then receive a confirmation email with every detail. We hold your car for 30 minutes while you complete the payment; if the payment is not completed in that time, the departure becomes available again.",
         ],
@@ -227,15 +234,17 @@ export const termsContent = {
         ],
       },
       {
+        id: "cancellation",
         heading: "Cancellation and refunds",
         body: [
           "Free cancellation up to 48h before the experience. In bad weather we reschedule — or refund in extreme conditions.",
-          "How to cancel: your confirmation email includes a link to cancel the booking. If you need to cancel, you can do it there up to 48 hours before departure — free of charge, with the full amount returned. You can also write to info@agorasim.pt or call us; in that case the request counts from the moment we receive it.",
+          "How to cancel: if you booked online, your confirmation email includes a link to cancel the booking. If you need to cancel, you can do it there up to 48 hours before departure — free of charge, with the full amount returned. If you paid for a tour through a quote, there is no link: write to info@agorasim.pt or call us up to 48 hours before departure, on the same terms. You can also cancel an online booking by email or phone. When you write or call, the request counts from the moment we receive it.",
           "We return the refund to the same card or method you paid with. It usually appears within 5 to 10 working days, depending on your bank.",
-          "Less than 48 hours before departure, free online cancellation is no longer available and the amount paid is not refunded automatically. Call or message us — we'll talk it through and see what we can do. Not turning up for the departure without notice counts as a late cancellation.",
+          "Less than 48 hours before departure, free cancellation is no longer available and the amount paid is not refunded automatically. Call or message us — we'll talk it through and see what we can do. Not turning up for the departure without notice counts as a late cancellation.",
         ],
       },
       {
+        id: "weather",
         heading: "Bad weather",
         body: [
           "The tours happen outdoors, in classic cars, and the weather is part of the experience. In bad weather we always try to reschedule — and refund in extreme conditions.",
@@ -262,7 +271,7 @@ export const termsContent = {
           "Weddings and other events are quoted case by case and are not booked through the online booking page. The conditions below apply to those quotes unless the accepted quote says otherwise.",
           "The date is reserved on payment of a deposit of 30% of the quoted amount. The deposit is non-refundable if you cancel less than 30 days before the event. Until then, the deposit is returned in full if you cancel.",
           "Changing the date is free, subject to our availability.",
-          "The rest of the amount (the balance) is paid through a payment link we send you 14 days before the event.",
+          "The rest of the amount (the balance) may be paid at any time after the deposit, on the quote page, and is due by the day before the event. We also send you a payment link 15 days before the event.",
           "The 14-day right of withdrawal does not apply to weddings and events: they are services booked for a specific date (Article 16(l) of Directive 2011/83/EU; Article 17(1)(l) of Portuguese Decree-Law 24/2014). The deposit conditions above apply in its place.",
         ],
       },

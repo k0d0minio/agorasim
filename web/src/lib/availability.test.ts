@@ -588,6 +588,40 @@ describe("describeMonth", () => {
   });
 });
 
+/**
+ * "Só um condutor" on the morning (`one-driver-off-per-departure`): the
+ * morning sells one car, the afternoon keeps both drivers, and a guest sees
+ * the same.
+ */
+describe("one driver on one departure", () => {
+  const today = "2026-07-01";
+  const oneDriverMorning = [row({ date: "2026-08-15", slot: "morning", drivers: 1 })];
+
+  it("sells one car on the morning and leaves the afternoon at two drivers", () => {
+    const days = describeMonth({ month: "2026-08", rows: oneDriverMorning, today });
+    const fifteenth = days.find((day) => day.date === "2026-08-15")!;
+    const morning = fifteenth.slots.find((slot) => slot.slot === "morning")!;
+    const afternoon = fifteenth.slots.find((slot) => slot.slot === "afternoon")!;
+    expect(morning).toMatchObject({ drivers: 1, driversLeft: 1, bookable: true });
+    expect(afternoon).toMatchObject({ drivers: DEFAULT_DRIVERS, driversLeft: DEFAULT_DRIVERS });
+  });
+
+  it("stops selling the morning once one booking takes its driver", () => {
+    const days = describeMonth({
+      month: "2026-08",
+      rows: oneDriverMorning,
+      occupancy: new Map([
+        [occupancySlotKey("2026-08-15", "morning"), committed("classic-small")],
+      ]),
+      today,
+    });
+    const fifteenth = days.find((day) => day.date === "2026-08-15")!;
+    const [morning, afternoon] = toPublicDay(fifteenth).slots;
+    expect(morning.driversLeft).toBe(0);
+    expect(afternoon.driversLeft).toBe(DEFAULT_DRIVERS);
+  });
+});
+
 describe("toPublicDay", () => {
   it("tells a guest only what they may know about each departure", () => {
     const [day] = describeMonth({

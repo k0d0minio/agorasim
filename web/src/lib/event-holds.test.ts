@@ -5,8 +5,9 @@ import {
   applyEventHolds,
   QUOTE_HOLDING_STATUSES,
   quoteHoldsDate,
+  tourHoldGroups,
 } from "@/lib/event-holds";
-import { emptyOccupancy, type SlotOccupancy } from "@/lib/bookings";
+import { emptyOccupancy, tallyOccupancy, type SlotOccupancy } from "@/lib/bookings";
 import { statusAfterPayment } from "@/lib/quotes";
 
 /**
@@ -101,5 +102,35 @@ describe("applyEventHolds", () => {
 
     expect(map.get("2026-08-15#morning")?.eventHolds).toBeUndefined();
     expect(map.size).toBe(1);
+  });
+});
+
+/**
+ * A paid tour quote holds one car, not the day (Jamie, on the pull request of
+ * `payment-link-from-scratch`): it enters the tally as one private car on each
+ * departure it holds, as a booking would, and never as an event hold.
+ */
+describe("tourHoldGroups — a paid tour quote as one more car", () => {
+  it("takes one driver and one car of its class on its departure", () => {
+    const map = tallyOccupancy(
+      tourHoldGroups([{ date: "2026-08-15", slot: "morning", vehicleClass: "classic-van" }]),
+    );
+
+    expect(map.get("2026-08-15#morning")).toMatchObject({
+      drivers: 1,
+      vehicles: { "classic-small": 0, "classic-van": 1, touring: 0 },
+    });
+    expect(map.get("2026-08-15#morning")?.eventHolds).toBeUndefined();
+    expect(map.get("2026-08-15#morning")?.openCars).toBeUndefined();
+    expect(map.has("2026-08-15#afternoon")).toBe(false);
+  });
+
+  it("takes both departures for the whole day", () => {
+    const map = tallyOccupancy(
+      tourHoldGroups([{ date: "2026-08-15", slot: "full_day", vehicleClass: "classic-small" }]),
+    );
+
+    expect(map.get("2026-08-15#morning")?.vehicles["classic-small"]).toBe(1);
+    expect(map.get("2026-08-15#afternoon")?.vehicles["classic-small"]).toBe(1);
   });
 });

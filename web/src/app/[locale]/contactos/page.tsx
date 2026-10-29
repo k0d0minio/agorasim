@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Mail, Phone, MapPin } from "lucide-react";
+import { Mail, Phone } from "lucide-react";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { getDictionary } from "@/i18n/dictionaries";
 import { contact } from "@/content/pages";
@@ -73,16 +73,6 @@ export default async function ContactPage({ params }: { params: Promise<{ locale
               >
                 {site.email}
               </a>
-            </CardContent>
-          </Card>
-
-          <Card className="sm:col-span-2 lg:col-span-3">
-            <CardContent>
-              <div className="flex items-center gap-2 text-primary">
-                <MapPin className="h-5 w-5" />
-                <span className="font-semibold">{dict.labels.getInTouch}</span>
-              </div>
-              <p className="mt-2 text-lg text-muted-foreground">{site.region}</p>
             </CardContent>
           </Card>
         </div>

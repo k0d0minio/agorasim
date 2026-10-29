@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db, tourRequests } from "@/db";
 import { departureLabel } from "@/content/logistics";
 import { classicCars } from "@/content/site";
-import { serviceHoursLabel } from "@/content/quote-request";
+import { ceremonyTimeLabel, serviceHoursLabel } from "@/content/quote-request";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
@@ -18,20 +18,27 @@ import { mailtoHref, whatsAppHref, type ContactContext } from "@/lib/contact-tem
 import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
 import { toTelHref, toWhatsAppNumber } from "@/lib/phone";
 import { requestStatusMeta } from "@/lib/admin-format";
-import { bookingRef } from "@/lib/bookings";
+import { awaitsLinkPayment, bookingRef } from "@/lib/bookings";
 import { formatPrice } from "@/lib/money";
 import { canMarkNoShow } from "@/lib/booking-no-show";
 import { refundableCents } from "@/lib/booking-refund";
 import { formatDay, isDateKey, todayKey } from "@/lib/availability";
-import { isBalanceFlagged } from "@/lib/balance-schedule";
+import { balanceMessagesLabel, balanceOf, isBalanceFlagged } from "@/lib/balance-schedule";
+import { listQuoteBalanceMessages, type QuoteBalanceMessage } from "@/lib/message-log";
+import { isOpenInstalment } from "@/lib/quote-math";
 import { groupMoveTargets, listMoveTargets } from "@/lib/booking-move";
-import { listOpenDepartures, manualBookingPrefill } from "@/lib/manual-booking";
+import {
+  listOpenDepartures,
+  manualBookingPrefill,
+  manualBookingTours,
+} from "@/lib/manual-booking";
 import { bookingsForLead, bookingSummaries, enquiryRef, recordFromRequest } from "@/lib/sales";
 import { bookingClashesForDrafts, quoteEmailStates } from "@/lib/quote-builder";
 import {
   canCopyAsNewVersion,
   canStartQuote,
   depositRefundedInFull,
+  dueInstalment,
   instalmentRefundableCents,
   listQuotesForLead,
   quoteRef,
@@ -42,6 +49,7 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { CancelBookingDialog } from "@/components/admin/cancel-booking-dialog";
 import { MoveBookingDialog } from "@/components/admin/move-booking-dialog";
 import { NoShowToggle } from "@/components/admin/no-show-toggle";
+import { PaymentLinkActions } from "@/components/admin/payment-link-actions";
 import { DeleteSubmissionDialog } from "@/components/admin/delete-submission-dialog";
 import {
   EnquiryKindIcon,
@@ -51,6 +59,7 @@ import {
 import { LeadEditForm, type CatalogueOption } from "@/components/admin/lead-edit-form";
 import { LeadManualBooking } from "@/components/admin/lead-manual-booking";
 import { LeadQuoteCard, type QuoteCardItem } from "@/components/admin/lead-quote-card";
+import { isQuotedKind, tourHoldOf } from "@/lib/tour-quote";
 import { ArchiveLeadButton, LogContactButton } from "@/components/admin/lead-quick-actions";
 import { MarketingConsent, Received } from "@/components/admin/record-meta";
 import { RequestStatusSelect } from "@/components/admin/request-status-select";
@@ -93,16 +102,25 @@ export default async function AdminLeadPage({
     // The "Registar reserva" picker: every departure still on sale between now
     // and the horizon, so a booking taken on the phone never needs the Calendar.
     listOpenDepartures(),
-    // Weddings and events only — a tour is sold, never quoted.
-    lead.kind === "tour"
-      ? Promise.resolve<QuoteWithPayments[]>([])
-      : listQuotesForLead(lead.id),
+    // Weddings and events — a tour is sold, never quoted, unless the team
+    // raised it from "Novo orçamento" (`lib/tour-quote.ts`).
+    isQuotedKind(lead)
+      ? listQuotesForLead(lead.id)
+      : Promise.resolve<QuoteWithPayments[]>([]),
   ]);
-  const [emailStates, clashes] = await Promise.all([
+  const [emailStates, clashes, balanceMessages] = await Promise.all([
     quoteEmailStates(leadQuotes.filter((quote) => quote.status === "sent")),
     // Tours already sold on a draft's event day — the builder warns before
     // "Enviar", because a paid deposit takes the whole day but cannot un-sell them.
     bookingClashesForDrafts(leadQuotes),
+    // What went to the couple about the balance — the line above "Enviar
+    // pedido do restante".
+    listQuoteBalanceMessages(
+      leadQuotes.filter((quote) => quote.status === "deposit_paid").map((quote) => quote.id),
+    ).catch((err) => {
+      console.error("[sales] balance messages could not be read", err);
+      return new Map<string, QuoteBalanceMessage[]>();
+    }),
   ]);
 
   const today = todayKey();
@@ -116,6 +134,7 @@ export default async function AdminLeadPage({
     eventDate: quote.eventDate,
     eventDateLabel: formatDay(quote.eventDate, "pt"),
     venue: quote.venue,
+    hold: tourHoldOf(quote),
     lineItems: quote.lineItems,
     totalCents: quote.totalCents,
     currency: quote.currency,
@@ -129,6 +148,14 @@ export default async function AdminLeadPage({
     bookingClash: clashes.get(quote.id) ?? null,
     depositRefundedInFull: depositRefundedInFull(quote.payments),
     balanceUnpaid: isBalanceFlagged(quote, today),
+    balanceRequest: (() => {
+      const balance = balanceOf(quote.payments);
+      if (quote.status !== "deposit_paid" || !balance || !isOpenInstalment(balance)) return null;
+      return {
+        lastSentLabel: balanceMessagesLabel(balanceMessages.get(quote.id)),
+        canSend: dueInstalment(quote).kind !== "closed",
+      };
+    })(),
     payments: quote.payments.map((payment) => {
       // What is still returnable — the ceiling the refund dialog offers and
       // validates against, computed once here.
@@ -198,7 +225,12 @@ export default async function AdminLeadPage({
   const tel = toTelHref(lead.phone);
   const whatsAppNumber = toWhatsAppNumber(lead.phone);
 
-  /** Weddings and events are quoted by hand; tours are not quoted at all. */
+  /**
+   * Weddings and events are quoted by hand. Tours are sold, not quoted — but
+   * the one the team raised from "Novo orçamento" is.
+   */
+  const hasQuotes = isQuotedKind(lead);
+  /** The enquiry's own words: an event's date and venue, a tour's preferences. */
   const isQuote = lead.kind !== "tour";
   const preferredCarId = lead.preferredCar;
   const preferredCarName = preferredCarId
@@ -206,9 +238,7 @@ export default async function AdminLeadPage({
     : null;
   // The tours the manual sheet can sell — active signature routes, exactly as
   // the Calendar's mount picks them. A retired route takes no new money.
-  const sellableTours = catalogue
-    .filter((entry) => entry.kind === "signature" && entry.active)
-    .map((entry) => ({ slug: entry.slug, title: t(entry.title, "pt") }));
+  const sellableTours = manualBookingTours(catalogue);
 
   const options: CatalogueOption[] = catalogue.map((entry) => ({
     slug: entry.slug,
@@ -330,21 +360,25 @@ export default async function AdminLeadPage({
                 <dt className="text-muted-foreground">Telefone</dt>
                 <dd>{lead.phone ?? "—"}</dd>
               </div>
-              <div>
-                <dt className="text-muted-foreground">Experiência</dt>
-                <dd className="flex flex-wrap items-center gap-2">
-                  <ExperienceIconRow
-                    experienceSlug={lead.experienceSlug}
-                    addOns={lead.addOns}
-                    catalogue={index}
-                  />
-                  <ExperienceNames
-                    experienceSlug={lead.experienceSlug}
-                    addOns={lead.addOns}
-                    catalogue={index}
-                  />
-                </dd>
-              </div>
+              {/* A tour's route and extras. A wedding or event is quoted line
+                  by line, so the row would only show the catalogue it never uses. */}
+              {isQuote ? null : (
+                <div>
+                  <dt className="text-muted-foreground">Experiência</dt>
+                  <dd className="flex flex-wrap items-center gap-2">
+                    <ExperienceIconRow
+                      experienceSlug={lead.experienceSlug}
+                      addOns={lead.addOns}
+                      catalogue={index}
+                    />
+                    <ExperienceNames
+                      experienceSlug={lead.experienceSlug}
+                      addOns={lead.addOns}
+                      catalogue={index}
+                    />
+                  </dd>
+                </div>
+              )}
               {/* A wedding enquiry no longer asks the head count, so an empty
                   row would only be noise. A tour always carries one. */}
               {lead.partySize ? (
@@ -374,12 +408,26 @@ export default async function AdminLeadPage({
                     <dt className="text-muted-foreground">Local</dt>
                     <dd>{lead.venue ?? "—"}</dd>
                   </div>
-                  <div>
-                    <dt className="text-muted-foreground">Horas de serviço</dt>
-                    <dd>
-                      {lead.serviceHours ? serviceHoursLabel(lead.serviceHours, "pt") : "—"}
-                    </dd>
-                  </div>
+                  {/*
+                    A wedding is priced per event, so its form asks when the
+                    ceremony starts. An event still asks how long for. A
+                    wedding lead from before the change keeps its hours row,
+                    so the value the couple gave is never hidden.
+                  */}
+                  {lead.kind === "wedding" ? (
+                    <div>
+                      <dt className="text-muted-foreground">Hora da cerimónia</dt>
+                      <dd>{lead.ceremonyTime ? ceremonyTimeLabel(lead.ceremonyTime) : "—"}</dd>
+                    </div>
+                  ) : null}
+                  {lead.kind !== "wedding" || lead.serviceHours ? (
+                    <div>
+                      <dt className="text-muted-foreground">Horas de serviço</dt>
+                      <dd>
+                        {lead.serviceHours ? serviceHoursLabel(lead.serviceHours, "pt") : "—"}
+                      </dd>
+                    </div>
+                  ) : null}
                   <div>
                     <dt className="text-muted-foreground">Carro preferido</dt>
                     <dd>{preferredCarName ?? "—"}</dd>
@@ -436,7 +484,7 @@ export default async function AdminLeadPage({
           while the person is still on file: an anonymised lead has nobody to
           send an offer to.
         */}
-        {isQuote && !lead.anonymisedAt ? (
+        {hasQuotes && !lead.anonymisedAt ? (
           <LeadQuoteCard
             leadId={lead.id}
             guestEmail={lead.email}
@@ -449,6 +497,7 @@ export default async function AdminLeadPage({
             }}
             canStart={canStartQuote(leadQuotes)}
             quotes={quoteItems}
+            tourLead={lead.kind === "tour"}
           />
         ) : null}
 
@@ -511,7 +560,11 @@ export default async function AdminLeadPage({
 
                   <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
                     <div>
-                      <dt className="text-muted-foreground">Pago</dt>
+                      {/* "Pago" only where money came in: a link booking is a
+                          total asked for, not a total paid. */}
+                      <dt className="text-muted-foreground">
+                        {booking.confirmedAt ? "Pago" : "Total"}
+                      </dt>
                       <dd>{formatPrice(booking.amountCents, "pt", booking.currency)}</dd>
                     </div>
                     <div>
@@ -592,6 +645,27 @@ export default async function AdminLeadPage({
                       </p>
                     ) : null}
                   </dl>
+
+                  {/*
+                    A booking that waits on its payment link: when the link
+                    went, that it holds no car, and the two things the team
+                    can do about it. It confirms itself when the customer pays.
+                  */}
+                  {awaitsLinkPayment(booking) ? (
+                    <div className="flex flex-col gap-2 text-sm">
+                      <p className="text-muted-foreground">
+                        Link de pagamento enviado
+                        {booking.paymentLinkSentAt
+                          ? ` ${formatDateTime(booking.paymentLinkSentAt)}`
+                          : ""}
+                        . Não guarda o carro até o cliente pagar.
+                      </p>
+                      <PaymentLinkActions
+                        bookingId={booking.id}
+                        bookingRef={bookingRef(booking.id)}
+                      />
+                    </div>
+                  ) : null}
 
                   {/*
                     Only a paid booking can be called off: everything else is

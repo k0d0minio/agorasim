@@ -1,11 +1,12 @@
-import { Inbox, Search } from "lucide-react";
-import { t } from "@/i18n/config";
+import Link from "next/link";
+import { Inbox, Plus, Search } from "lucide-react";
 import { requireAdmin } from "@/lib/admin-auth";
+import { requestStatusFromParam } from "@/lib/admin-format";
 import { lastAuditByEntity } from "@/lib/audit";
 import { formatDay, todayKey } from "@/lib/availability";
 import { balanceMessagesLabel, eventWhenLabel } from "@/lib/balance-schedule";
 import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
-import { listOpenDepartures } from "@/lib/manual-booking";
+import { listOpenDepartures, manualBookingTours } from "@/lib/manual-booking";
 import { listQuoteBalanceMessages, type QuoteBalanceMessage } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import {
@@ -17,6 +18,7 @@ import {
 import { countPendingRetention, retentionDays } from "@/lib/retention";
 import { listSalesBoard } from "@/lib/sales";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlaceholderPanel } from "@/components/admin/placeholder-panel";
 import { SalesBoard } from "@/components/admin/sales-board";
@@ -49,14 +51,18 @@ const NO_UNPAID_BALANCES: UnpaidBalancesDue = { upcoming: [], past: [], pastTota
  * quietly wrong. A search (`?q=`) is the way past the cap: matches are served
  * server-side against name, e-mail and phone across every stage, and shown as
  * one flat list with the count.
+ *
+ * `?fase=` opens the board on one stage (`requestStatusParam`) — the admin
+ * home's quick-access cards link here with it. An unknown value is ignored.
  */
 export default async function AdminSalesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; fase?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, fase } = await searchParams;
   const query = q?.trim();
+  const initialStage = requestStatusFromParam(fase);
 
   // Every operator can triage; only owners can export guest data below.
   const viewer = await requireAdmin();
@@ -111,9 +117,7 @@ export default async function AdminSalesPage({
   const index = catalogueIndex(catalogue);
   // The tours a phone booking can be recorded against — active signature
   // routes, the same set the Calendar's "Nova reserva" sheet sells.
-  const sellableTours = catalogue
-    .filter((entry) => entry.kind === "signature" && entry.active)
-    .map((entry) => ({ slug: entry.slug, title: t(entry.title, "pt") }));
+  const sellableTours = manualBookingTours(catalogue);
   const countLabel = `${totalEnquiries} ${totalEnquiries === 1 ? "pedido" : "pedidos"}`;
 
   return (
@@ -122,25 +126,33 @@ export default async function AdminSalesPage({
         Lead lookup — "where is that couple's enquiry?". No query shows the
         board; any query searches every lead, reaching past the per-stage cap.
       */}
-      <form method="get" className="mb-6">
-        <label htmlFor="sales-search" className="text-sm font-medium">
-          Procurar pedidos
-        </label>
-        <div className="relative mt-1.5 max-w-md">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            id="sales-search"
-            name="q"
-            type="search"
-            defaultValue={query}
-            placeholder="Nome, e-mail ou telefone"
-            className="pl-9"
-          />
-        </div>
-      </form>
+      <div className="mb-6 flex flex-wrap items-end gap-3">
+        <form method="get" className="min-w-0 flex-1">
+          <label htmlFor="sales-search" className="text-sm font-medium">
+            Procurar pedidos
+          </label>
+          <div className="relative mt-1.5 max-w-md">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              id="sales-search"
+              name="q"
+              type="search"
+              defaultValue={query}
+              placeholder="Nome, e-mail ou telefone"
+              className="pl-9"
+            />
+          </div>
+        </form>
+        {/* A quote with no enquiry behind it — a personalised tour, a wedding or
+            an event agreed on the phone (`createQuoteFromScratch`). */}
+        <Link href="/admin/sales/new" className={buttonVariants()}>
+          <Plus className="size-4" />
+          Novo orçamento
+        </Link>
+      </div>
 
       {query ? null : (
         <UnpaidBalancesPanel
@@ -173,6 +185,7 @@ export default async function AdminSalesPage({
           now={now}
           openDays={openDays}
           tours={sellableTours}
+          initialStage={initialStage}
         />
       )}
 

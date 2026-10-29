@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ADMIN_SESSION_COOKIE, verifySessionToken } from "@/lib/admin-session";
 import { adminCsp } from "@/lib/security-headers";
+import { resolveRetiredQuoteReturn } from "@/lib/quote-return";
 import { getQuoteByAccessTokenHash } from "@/lib/quotes";
 import { DEAD_QUOTE_TOKEN, looksLikeQuoteToken, quoteTokenDigest } from "@/lib/quote-token";
 import { QUOTE_LOOKUP_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
@@ -107,13 +108,31 @@ async function quoteLinkIsDead(request: NextRequest, token: string): Promise<boo
   return quote.status !== "sent" && quote.status !== "deposit_paid" && quote.status !== "paid";
 }
 
+/**
+ * Whether a dead link is Stripe returning a couple whose link a balance email
+ * or a re-send retired while they paid — `?session_id=` naming a finished
+ * session of a live quote (`resolveRetiredQuoteReturn`). The page then shows
+ * the quote's paid state, not the 404. A dead link without such a session
+ * still gets the 404.
+ */
+async function isRetiredQuoteReturn(request: NextRequest, token: string): Promise<boolean> {
+  if (!looksLikeQuoteToken(token)) return false;
+  const sessionId = request.nextUrl.searchParams.get("session_id")?.trim();
+  if (!sessionId) return false;
+  return (await resolveRetiredQuoteReturn(sessionId)) !== null;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const quoteMatch = pathname.match(QUOTE_PATH);
   if (quoteMatch) {
     const [, locale, token] = quoteMatch;
-    if (token !== DEAD_QUOTE_TOKEN && (await quoteLinkIsDead(request, token))) {
+    if (
+      token !== DEAD_QUOTE_TOKEN &&
+      (await quoteLinkIsDead(request, token)) &&
+      !(await isRetiredQuoteReturn(request, token))
+    ) {
       return NextResponse.rewrite(new URL(`/${locale}/orcamento/${DEAD_QUOTE_TOKEN}`, request.url));
     }
     return NextResponse.next();

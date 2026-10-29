@@ -6,9 +6,10 @@ import type { Locale, Localized } from "@/i18n/config";
  * Two pages ask the same question in two voices: `/casamentos` asks a couple
  * about their wedding, `/eventos` asks a company about its day out. What
  * changes between them is the wording of the labels, which each page owns
- * (`weddingsContent.quote`, `events.quote`); what does not change is the list
- * of fields, the service-hours options, and every sentence the *form itself*
- * says back — sending, sent, and the three ways a submission can fail.
+ * (`weddingsContent.quote`, `events.quote`), and which of the optional fields
+ * it asks; what does not change are the service-hours options, and every
+ * sentence the *form itself* says back — sending, sent, and the three ways a
+ * submission can fail.
  *
  * Those live here so a fixed typo is fixed once, in both languages, on both
  * pages. `content/tour-request.ts` is the same idea for `/reservar`; the two
@@ -27,7 +28,14 @@ export type QuoteFormCopy = {
     date: Localized;
     venue: Localized;
     venuePlaceholder: Localized;
-    hours: Localized;
+    /**
+     * Absent where the page does not ask. `/eventos` asks how long the cars
+     * are wanted for. `/casamentos` does not: Agorasim prices a wedding per
+     * event, not per hour, and asks the ceremony time instead.
+     */
+    hours?: Localized;
+    /** Absent where the page does not ask. Only `/casamentos` sets it. */
+    ceremonyTime?: Localized;
     car: Localized;
     /** The "no preference" option at the top of the car picker. */
     carNone: Localized;
@@ -80,6 +88,26 @@ export function isServiceHours(value: string): value is ServiceHours {
 export function serviceHoursLabel(value: string, locale: Locale): string {
   const option = SERVICE_HOURS.find((entry) => entry.value === value);
   return option ? option.label[locale] : value;
+}
+
+/**
+ * A `type="time"` value, `HH:MM` on the 24-hour clock. A browser that posts
+ * seconds (`HH:MM:SS`) passes too, and the seconds are dropped.
+ */
+const TIME_OF_DAY_RE = /^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/;
+
+/** The time as `HH:MM`, or null for anything a time field could not post. */
+export function parseCeremonyTime(value: string): string | null {
+  const match = TIME_OF_DAY_RE.exec(value);
+  return match ? `${match[1]}:${match[2]}` : null;
+}
+
+/**
+ * The stored ceremony time as the team reads it. Postgres hands a `time`
+ * column back as `HH:MM:SS`, and nobody books a ceremony to the second.
+ */
+export function ceremonyTimeLabel(value: string): string {
+  return value.slice(0, 5);
 }
 
 /** Everything the form says on its own behalf, in both languages. */

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Clock, MapPin } from "lucide-react";
+import type { RequestStatus } from "@/db/schema";
 import type { AuditLogRow } from "@/lib/audit";
 import type { CatalogueEntry } from "@/lib/experience-catalogue";
 import { manualBookingPrefill } from "@/lib/manual-booking";
@@ -35,7 +36,8 @@ const BOOKABLE_STAGES = new Set(["new", "contacted", "quoted"]);
  * name, then what they asked for as icons, then the two facts triage actually
  * turns on: how old it is and what it's worth.
  *
- * On a phone the columns are pages of a swipeable stage pager — see
+ * On a phone the columns are pages of a swipeable stage pager. From `md` up
+ * they stack, each a full-width section with its cards in a grid — see
  * `SalesStagePager` for why. Moving a card is the status picker on the card
  * itself, on every screen size: the preview's drag-and-drop was desktop-only
  * and had a separate "move to…" menu bolted on for touch; one control that
@@ -49,6 +51,7 @@ export function SalesBoard({
   now,
   openDays,
   tours,
+  initialStage,
 }: {
   records: SalesRecord[];
   catalogue: Map<string, CatalogueEntry>;
@@ -62,6 +65,8 @@ export function SalesBoard({
    */
   openDays: ManualBookingDay[];
   tours: ManualBookingTour[];
+  /** The stage the board opens on, from `?fase=`. Unset opens on the first. */
+  initialStage?: RequestStatus;
 }) {
   const columns = groupByStage(records);
 
@@ -96,9 +101,11 @@ export function SalesBoard({
             <Badge variant="secondary">{countsByStatus[column.status] ?? 0}</Badge>
           </header>
 
-          <div className="flex flex-col gap-2 p-3">
+          {/* One column on a phone. From `md` up as many card columns as fit,
+              each at least 17rem, about the card width of the old 304px column. */}
+          <div className="flex flex-col gap-2 p-3 md:grid md:grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] md:items-start">
             {column.records.length === 0 ? (
-              <p className="px-1 pb-2 text-sm text-muted-foreground">
+              <p className="px-1 pb-2 text-sm text-muted-foreground md:col-span-full">
                 {/* The stage name keeps its capital: `Novo`, `Orçamentado` and the
                     rest are the column's name here, not adjectives in a sentence. */}
                 Nada em {meta.label} de momento.
@@ -154,6 +161,14 @@ export function SalesBoard({
                 <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                   {record.value ? (
                     <span className="font-semibold text-primary">{record.value}</span>
+                  ) : null}
+                  {/*
+                    Money asked for and not yet paid: a payment link the team
+                    sent, or a checkout still open. The card stays in its stage
+                    until the payment lands, so this is what tells it apart.
+                  */}
+                  {record.payment === "Awaiting payment" ? (
+                    <Badge variant="secondary">Pagamento pendente</Badge>
                   ) : null}
                   {record.partySize ? (
                     <span className="text-muted-foreground">
@@ -216,5 +231,5 @@ export function SalesBoard({
     };
   });
 
-  return <SalesStagePager stages={stages} />;
+  return <SalesStagePager stages={stages} initialStage={initialStage} />;
 }

@@ -6,12 +6,15 @@ import {
   formValues,
   quoteDraftSchema,
   blockDaysSchema,
-  dayRosterSchema,
+  DAY_BLOCK_EFFECTS,
+  DAY_BLOCKS,
+  dayNoteSchema,
   quoteRequestSchema,
   refundQuotePaymentSchema,
+  scratchQuoteSchema,
 } from "@/lib/form-schemas";
 import { REFUND_CONFIRMATION } from "@/lib/admin-format";
-import { DEFAULT_DRIVERS, MAX_DRIVERS, todayKey } from "@/lib/availability";
+import { DEFAULT_DRIVERS, todayKey } from "@/lib/availability";
 import { shiftDays } from "@/lib/quotes";
 
 /**
@@ -149,8 +152,16 @@ describe("blockDaysSchema", () => {
     expect(parsed.data).toMatchObject({ from: "2026-12-28", to: "2027-01-03" });
   });
 
-  it("knows the four buttons and nothing else", () => {
-    for (const block of ["day", "morning", "afternoon", "none"]) {
+  it("knows the seven buttons and nothing else", () => {
+    for (const block of [
+      "day",
+      "morning",
+      "afternoon",
+      "none",
+      "one-driver-day",
+      "one-driver-morning",
+      "one-driver-afternoon",
+    ]) {
       expect(blockDaysSchema.safeParse({ from: "2026-08-15", block }).success).toBe(true);
     }
     expect(blockDaysSchema.safeParse({ from: "2026-08-15", block: "open" }).success).toBe(
@@ -181,33 +192,78 @@ describe("blockDaysSchema", () => {
   });
 });
 
-describe("dayRosterSchema", () => {
-  const roster = (overrides: Record<string, unknown> = {}) => ({
+/**
+ * What each bar button writes — "Só um condutor" and the "Desbloquear" that
+ * undoes it (`one-driver-off-per-departure`).
+ */
+describe("DAY_BLOCK_EFFECTS", () => {
+  it("has one write for every button", () => {
+    expect(Object.keys(DAY_BLOCK_EFFECTS).sort()).toEqual([...DAY_BLOCKS].sort());
+  });
+
+  it("puts the morning on sale with one driver and leaves the afternoon alone", () => {
+    expect(DAY_BLOCK_EFFECTS["one-driver-morning"]).toEqual({
+      closed: [],
+      open: ["morning"],
+      drivers: 1,
+    });
+    expect(DAY_BLOCK_EFFECTS["one-driver-afternoon"]).toEqual({
+      closed: [],
+      open: ["afternoon"],
+      drivers: 1,
+    });
+  });
+
+  it("takes one driver off both departures for the whole day", () => {
+    expect(DAY_BLOCK_EFFECTS["one-driver-day"]).toEqual({
+      closed: [],
+      open: ["morning", "afternoon"],
+      drivers: 1,
+    });
+  });
+
+  it("never sets zero drivers — zero is a block", () => {
+    for (const effect of Object.values(DAY_BLOCK_EFFECTS)) {
+      if (effect.drivers !== undefined) expect(effect.drivers).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("puts both departures back on sale with two drivers on Desbloquear", () => {
+    expect(DAY_BLOCK_EFFECTS.none).toEqual({
+      closed: [],
+      open: ["morning", "afternoon"],
+      drivers: DEFAULT_DRIVERS,
+    });
+  });
+
+  /** A block keeps each departure's roster, as it always did (D-8). */
+  it("keeps the roster on a block", () => {
+    for (const block of ["day", "morning", "afternoon"] as const) {
+      expect(DAY_BLOCK_EFFECTS[block].drivers).toBeUndefined();
+    }
+  });
+});
+
+describe("dayNoteSchema", () => {
+  const note = (overrides: Record<string, unknown> = {}) => ({
     date: "2026-08-15",
-    drivers: String(DEFAULT_DRIVERS),
     note: "",
     ...overrides,
   });
 
-  it("clamps the roster to the drivers that exist", () => {
-    // A third driver is AGORA-019's question, not this form's — a crafted
-    // request gets the nearest legal number, not a person who does not exist.
-    expect(dayRosterSchema.parse(roster({ drivers: "9" })).drivers).toBe(MAX_DRIVERS);
-    expect(dayRosterSchema.parse(roster({ drivers: "0" })).drivers).toBe(1);
-    expect(dayRosterSchema.parse(roster({ drivers: "two" })).drivers).toBe(DEFAULT_DRIVERS);
-  });
-
   it("clears the note when the panel posts an empty one", () => {
-    expect(dayRosterSchema.parse(roster({ note: "  " })).note).toBeNull();
+    expect(dayNoteSchema.parse(note({ note: "  " })).note).toBeNull();
   });
 
   it("keeps a note the panel did post", () => {
-    expect(dayRosterSchema.parse(roster({ note: "  Casamento  " })).note).toBe("Casamento");
+    expect(dayNoteSchema.parse(note({ note: "  Casamento  " })).note).toBe("Casamento");
   });
 
-  /** Saving "Mais opções" never changes whether a departure is blocked. */
-  it("carries no status, whatever the form posts", () => {
-    expect(dayRosterSchema.parse(roster({ status: "closed" }))).not.toHaveProperty("status");
+  /** Saving "Mais opções" never changes whether a departure is blocked or its roster. */
+  it("carries no status and no roster, whatever the form posts", () => {
+    const parsed = dayNoteSchema.parse(note({ status: "closed", drivers: "1" }));
+    expect(parsed).not.toHaveProperty("status");
+    expect(parsed).not.toHaveProperty("drivers");
   });
 });
 
@@ -230,7 +286,7 @@ function quote(overrides: Record<string, unknown> = {}) {
     phone: "+351912345678",
     preferredDate: "2027-06-12",
     venue: "Igreja de São Pedro, Mafra",
-    serviceHours: "full-day",
+    ceremonyTime: "15:30",
     preferredCar: "citroen-2cv",
     partySize: "80",
     message: "Queremos chegar de 2CV.",
@@ -250,7 +306,9 @@ describe("quoteRequestSchema", () => {
       phone: "+351912345678",
       preferredDate: "2027-06-12",
       venue: "Igreja de São Pedro, Mafra",
-      serviceHours: "full-day",
+      // The wedding form asks no hours of service.
+      serviceHours: null,
+      ceremonyTime: "15:30",
       preferredCar: "citroen-2cv",
       partySize: 80,
       message: "Queremos chegar de 2CV.",
@@ -270,6 +328,7 @@ describe("quoteRequestSchema", () => {
       venue: null,
       preferredDate: null,
       serviceHours: null,
+      ceremonyTime: null,
       preferredCar: null,
       partySize: null,
       message: null,
@@ -295,6 +354,29 @@ describe("quoteRequestSchema", () => {
     // Dropped, never rejected: a stale tab is still a lead worth having.
     expect(parsed.success).toBe(true);
     expect(parsed.data).toMatchObject({ serviceHours: null, preferredCar: null });
+  });
+
+  it("keeps the hours of service the event form posts", () => {
+    const parsed = quoteRequestSchema.safeParse(
+      quote({ kind: "event", ceremonyTime: undefined, serviceHours: "full-day" }),
+    );
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toMatchObject({ serviceHours: "full-day", ceremonyTime: null });
+  });
+
+  it("stores a ceremony time as HH:MM, seconds dropped", () => {
+    const parsed = quoteRequestSchema.safeParse(quote({ ceremonyTime: "09:05:00" }));
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toMatchObject({ ceremonyTime: "09:05" });
+  });
+
+  it("drops a ceremony time no time field could post", () => {
+    for (const ceremonyTime of ["25:00", "3pm", "15h30", "9:05"]) {
+      const parsed = quoteRequestSchema.safeParse(quote({ ceremonyTime }));
+      // Dropped, never rejected, like an unknown service-hours option.
+      expect(parsed.success).toBe(true);
+      expect(parsed.data).toMatchObject({ ceremonyTime: null });
+    }
   });
 
   it("files a forged or missing kind as an event rather than losing the lead", () => {
@@ -411,6 +493,109 @@ describe("quoteDraftSchema", () => {
         form([["Carro", "1", "750"]], { eventDate: shiftDays(todayKey(), 7) }),
       ).success,
     ).toBe(true);
+  });
+
+  it("reads no hold from a wedding form, which never posts the two fields", () => {
+    expect(quoteDraftSchema.parse(form([["Carro", "1", "750"]])).hold).toBeUndefined();
+  });
+
+  it("reads a tour draft's departure and car", () => {
+    const parsed = quoteDraftSchema.parse(
+      form([["Passeio", "1", "300"]], { holdSlot: "full_day", holdVehicleClass: "classic-van" }),
+    );
+
+    expect(parsed.hold).toEqual({ slot: "full_day", vehicleClass: "classic-van" });
+  });
+
+  it("refuses a departure or a car it does not know rather than drop the hold", () => {
+    const badSlot = quoteDraftSchema.safeParse(
+      form([["Passeio", "1", "300"]], { holdSlot: "night", holdVehicleClass: "classic-van" }),
+    );
+    const badCar = quoteDraftSchema.safeParse(
+      form([["Passeio", "1", "300"]], { holdSlot: "morning", holdVehicleClass: "bus" }),
+    );
+
+    expect(badSlot.error?.issues[0]?.message).toBe("Escolha a partida do passeio.");
+    expect(badCar.error?.issues[0]?.message).toBe("Escolha o carro do passeio.");
+  });
+});
+
+/**
+ * "Novo orçamento" — the customer, the kind and the quote in one form. A tour
+ * takes one payment and needs its departure and car; a wedding or event keeps
+ * the deposit share and holds no car.
+ */
+describe("scratchQuoteSchema", () => {
+  const FUTURE = "2099-08-15";
+
+  function form(extra: Record<string, string> = {}) {
+    const data = new FormData();
+    data.set("name", "Marta Silva");
+    data.set("email", "Marta@Example.com");
+    data.set("phone", "");
+    data.set("locale", "en");
+    data.set("kind", "tour");
+    data.set("eventDate", FUTURE);
+    data.set("venue", "");
+    data.set("depositPercent", "30");
+    data.set("holdSlot", "morning");
+    data.set("holdVehicleClass", "classic-small");
+    data.append("lineLabel", "Passeio personalizado, 4 horas");
+    data.append("lineQuantity", "1");
+    data.append("lineUnit", "320");
+    for (const [key, value] of Object.entries(extra)) data.set(key, value);
+    return formValues(data);
+  }
+
+  it("reads a tour: one payment, its departure and car, the customer's language", () => {
+    const parsed = scratchQuoteSchema.parse(form());
+
+    expect(parsed.customer).toEqual({
+      name: "Marta Silva",
+      email: "marta@example.com",
+      phone: null,
+      locale: "en",
+    });
+    expect(parsed.kind).toBe("tour");
+    expect(parsed.input).toMatchObject({
+      eventDate: FUTURE,
+      venue: null,
+      // The form's 30 is ignored: a tour quote is paid in one payment.
+      depositPercent: 100,
+      hold: { slot: "morning", vehicleClass: "classic-small" },
+      lineItems: [{ label: "Passeio personalizado, 4 horas", unitCents: 32_000, quantity: 1 }],
+    });
+  });
+
+  it("refuses a tour with no departure", () => {
+    const data = form();
+    delete data.holdSlot;
+
+    expect(scratchQuoteSchema.safeParse(data).error?.issues[0]?.message).toBe(
+      "Escolha a partida do passeio.",
+    );
+  });
+
+  it("reads a wedding with its deposit share and no car", () => {
+    const parsed = scratchQuoteSchema.parse(form({ kind: "wedding", depositPercent: "40" }));
+
+    expect(parsed.input.depositPercent).toBe(40);
+    expect(parsed.input.hold).toBeNull();
+  });
+
+  it("refuses a wedding with a deposit outside 1–100", () => {
+    expect(scratchQuoteSchema.safeParse(form({ kind: "event", depositPercent: "0" })).success).toBe(
+      false,
+    );
+  });
+
+  it("refuses a customer with no name or a malformed email", () => {
+    expect(scratchQuoteSchema.safeParse(form({ name: "" })).error?.issues[0]?.message).toBe(
+      "Diga o nome do cliente.",
+    );
+    expect(scratchQuoteSchema.safeParse(form({ email: "marta" })).error?.issues[0]?.message).toBe(
+      "Escreva um endereço de email válido.",
+    );
   });
 });
 

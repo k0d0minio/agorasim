@@ -64,7 +64,7 @@ import "server-only";
 
 import { timingSafeEqual } from "node:crypto";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, isNotNull } from "drizzle-orm";
 
 import {
   bookings,
@@ -77,15 +77,21 @@ import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { bookingContent } from "@/content/booking";
 import { t, type Locale } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
-import { formatDay, type DateKey } from "@/lib/availability";
+import {
+  formatDay,
+  todayKey,
+  type DateKey,
+  type SlotCheck,
+  type SlotRefusal,
+} from "@/lib/availability";
 import { bookingRef, holdExpiryFrom } from "@/lib/bookings";
+import { withDepartureLock } from "@/lib/departure-lock";
 import {
   cancellationPath,
   isCancellationTokenConfigured,
   issueCancellationToken,
 } from "@/lib/cancellation-token";
 import { BOOKING_CURRENCY, formatPrice } from "@/lib/money";
-import type { VehicleClass } from "@/lib/fleet";
 import type { BookingMode, PartyCount, PricedLine } from "@/lib/pricing";
 import {
   bookingLogisticsFacts,
@@ -111,9 +117,16 @@ import {
  *
  * Returns the session's client secret, which the browser mounts Stripe's form
  * with — the secret is scoped to this one session and is what Stripe's own
- * hosted page would have carried in its URL. Throws only for genuinely unexpected
- * failures — the expected ones (day gone, nothing priced) are decided by the
- * caller before it gets here.
+ * hosted page would have carried in its URL. Returns the refusal instead when
+ * the departure re-check says no. Throws only for genuinely unexpected
+ * failures — a basket with nothing priced is refused by the caller before it
+ * gets here.
+ *
+ * **The re-check and the hold run under the departure's lock**
+ * (`lib/departure-lock.ts`), so two guests paying for the last seat in the
+ * same second give one hold and one refusal. The Stripe call comes after the
+ * lock is released: the hold is already written, and a slow Stripe must not
+ * keep the next guest waiting for the departure.
  */
 export async function startBookingCheckout(options: {
   guest: {
@@ -129,22 +142,19 @@ export async function startBookingCheckout(options: {
   mode: BookingMode;
   party: PartyCount;
   /**
-   * Which class of car this booking takes out of the pool, as decided by the
-   * availability re-check that just ran. Passed in rather than recomputed here:
-   * the car that was checked as free is the car that must be committed, and a
-   * second call to the rule is a second chance for the two to disagree.
+   * The departure re-check (`checkSlotAvailable`, with its occupancy read),
+   * run here under the departure's lock. Its fit is what the hold writes: the
+   * class of car taken out of the pool, and the open car a per-person party
+   * rides in — the car it joins, or a fresh id when it opens one. The car that
+   * was checked as free is the car that is committed, with no other writer in
+   * between.
    */
-  vehicleClass: VehicleClass;
-  /**
-   * The open car a per-person party rides in, from the same re-check: the car
-   * it joins, or a fresh id when it opens one. Null for a private group.
-   */
-  sharedCarId: string | null;
+  assign: () => Promise<SlotCheck>;
   experience: Experience;
   addOns: Experience[];
   lines: PricedLine[];
   totalCents: number;
-}): Promise<{ clientSecret: string; bookingId: string }> {
+}): Promise<{ ok: true; clientSecret: string; bookingId: string } | SlotRefusal> {
   const {
     guest,
     locale,
@@ -152,8 +162,7 @@ export async function startBookingCheckout(options: {
     slot,
     mode,
     party,
-    vehicleClass,
-    sharedCarId,
+    assign,
     experience,
     addOns,
     lines,
@@ -189,56 +198,66 @@ export async function startBookingCheckout(options: {
     );
   }
 
-  const [lead] = await db
-    .insert(tourRequests)
-    .values({
-      name: guest.name,
-      email: guest.email,
-      phone: guest.phone,
-      locale,
-      kind: "tour",
-      experienceSlug: experience.slug,
-      addOns: addOns.map((entry) => entry.slug),
-      partySize,
-      preferredDate: date,
-      message: guest.message,
-      // "New", not "Booked": nothing has been paid yet. The webhook moves it.
-      status: "new",
-      // Distinguishes a checkout from a plain enquiry on the Sales board, and
-      // is what makes "how many people started paying?" answerable.
-      source: "booking",
-      marketingConsent: guest.marketingConsent,
-      marketingConsentAt: guest.marketingConsent ? now : null,
-      marketingConsentVersion: guest.marketingConsent ? MARKETING_CONSENT_VERSION : null,
-    })
-    .returning({ id: tourRequests.id });
+  const held = await withDepartureLock(date, slot, async () => {
+    const fit = await assign();
+    if (!fit.ok) return fit;
+    const { vehicleClass, sharedCarId } = fit;
 
-  const [booking] = await db
-    .insert(bookings)
-    .values({
-      tourRequestId: lead.id,
-      date,
-      slot,
-      mode,
-      adults: party.adults,
-      children: party.children,
-      infants: party.infants,
-      // One driver and one car of this class, out of the departure's shared
-      // pool — see the occupancy rule in lib/bookings.ts. A per-person party
-      // that joins an open car takes a seat in it and no car of its own.
-      vehicleClass,
-      sharedCarId,
-      experienceSlug: experience.slug,
-      addOns: addOns.map((entry) => entry.slug),
-      partySize,
-      amountCents: totalCents,
-      currency: BOOKING_CURRENCY,
-      priceBreakdown: lines,
-      locale,
-      holdExpiresAt,
-      cancellationTokenHash,
-    })
-    .returning({ id: bookings.id });
+    const [lead] = await db
+      .insert(tourRequests)
+      .values({
+        name: guest.name,
+        email: guest.email,
+        phone: guest.phone,
+        locale,
+        kind: "tour",
+        experienceSlug: experience.slug,
+        addOns: addOns.map((entry) => entry.slug),
+        partySize,
+        preferredDate: date,
+        message: guest.message,
+        // "New", not "Booked": nothing has been paid yet. The webhook moves it.
+        status: "new",
+        // Distinguishes a checkout from a plain enquiry on the Sales board, and
+        // is what makes "how many people started paying?" answerable.
+        source: "booking",
+        marketingConsent: guest.marketingConsent,
+        marketingConsentAt: guest.marketingConsent ? now : null,
+        marketingConsentVersion: guest.marketingConsent ? MARKETING_CONSENT_VERSION : null,
+      })
+      .returning({ id: tourRequests.id });
+
+    const [booking] = await db
+      .insert(bookings)
+      .values({
+        tourRequestId: lead.id,
+        date,
+        slot,
+        mode,
+        adults: party.adults,
+        children: party.children,
+        infants: party.infants,
+        // One driver and one car of this class, out of the departure's shared
+        // pool — see the occupancy rule in lib/bookings.ts. A per-person party
+        // that joins an open car takes a seat in it and no car of its own.
+        vehicleClass,
+        sharedCarId,
+        experienceSlug: experience.slug,
+        addOns: addOns.map((entry) => entry.slug),
+        partySize,
+        amountCents: totalCents,
+        currency: BOOKING_CURRENCY,
+        priceBreakdown: lines,
+        locale,
+        holdExpiresAt,
+        cancellationTokenHash,
+      })
+      .returning({ id: bookings.id });
+
+    return { ok: true as const, booking, vehicleClass };
+  });
+  if (!held.ok) return held;
+  const { booking, vehicleClass } = held;
 
   /**
    * The platform's commission on this sale, as an application fee — and only
@@ -350,7 +369,7 @@ export async function startBookingCheckout(options: {
       .set({ stripeSessionId: session.id, updatedAt: new Date() })
       .where(eq(bookings.id, booking.id));
 
-    return { clientSecret: session.client_secret, bookingId: booking.id };
+    return { ok: true, clientSecret: session.client_secret, bookingId: booking.id };
   } catch (err) {
     // The hold would lapse on its own in half an hour, but a car held for a
     // checkout that never started is a car nobody can book for no reason.
@@ -722,6 +741,27 @@ export async function closeUnpaidBooking(options: {
   status: "expired" | "cancelled";
 }): Promise<void> {
   const now = new Date();
+
+  /*
+    A payment link outlives its checkout. The customer opened the form and
+    left, or a delayed payment failed: the link still works until the
+    departure is past, so the booking stays `pending` and only gives the car
+    back. The next tap on the link opens a new session (`lib/payment-link.ts`).
+  */
+  const [released] = await db
+    .update(bookings)
+    .set({ stripeSessionId: null, holdExpiresAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(bookings.stripeSessionId, options.sessionId),
+        eq(bookings.status, "pending"),
+        isNotNull(bookings.paymentLinkTokenHash),
+        gte(bookings.date, todayKey(now)),
+      ),
+    )
+    .returning({ id: bookings.id });
+  if (released) return;
+
   const [closed] = await db
     .update(bookings)
     .set({

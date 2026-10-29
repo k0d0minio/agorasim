@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { departureLabel } from "@/content/logistics";
 import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import { EVENT_CANCEL_CONFIRMATION, REFUND_CONFIRMATION } from "@/lib/admin-format";
 import { formatDay } from "@/lib/availability";
+import { sendBalanceRequestNow } from "@/lib/balance-request";
 import { moveBookingToDeparture } from "@/lib/booking-move";
 import { setNoShow } from "@/lib/booking-no-show";
 import { cancelAndRefundBooking } from "@/lib/booking-refund";
@@ -16,14 +18,22 @@ import {
   cancelHeldQuoteSchema,
   formValues,
   moveBookingSchema,
+  paymentLinkBookingSchema,
   quoteDraftSchema,
   quoteIdSchema,
   refundQuotePaymentSchema,
   resendQuoteSchema,
+  scratchQuoteSchema,
 } from "@/lib/form-schemas";
 import { formatPrice } from "@/lib/money";
 import {
+  sendPaymentLink,
+  voidPaymentLink,
+  type PaymentLinkSendOutcome,
+} from "@/lib/payment-link";
+import {
   createDraftForLead,
+  createQuoteFromScratch,
   discardQuoteDraft,
   resendQuote,
   saveDraft,
@@ -185,6 +195,90 @@ export async function setBookingNoShow(
   }
 }
 
+export type PaymentLinkActionState = { ok?: boolean; error?: string; message?: string };
+
+/**
+ * "Reenviar link" on a booking that waits on its payment link: a new link, a
+ * new email. The old link stops working — only a digest is kept, so the same
+ * link cannot be sent twice (`lib/payment-link.ts`). `requireAdmin()`: it is
+ * the day job, like registering the booking was.
+ */
+export async function resendPaymentLink(
+  _prevState: PaymentLinkActionState,
+  formData: FormData,
+): Promise<PaymentLinkActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = paymentLinkBookingSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Essa reserva já não existe." };
+
+  let outcome: PaymentLinkSendOutcome;
+  try {
+    outcome = await sendPaymentLink({
+      bookingId: parsed.data.bookingId,
+      actorUserId: actor.id,
+      resend: true,
+    });
+  } catch (err) {
+    console.error("[admin] couldn't resend a payment link", err);
+    return { error: "Não foi possível reenviar o link — tente novamente." };
+  }
+  switch (outcome.status) {
+    case "sent":
+      return { ok: true, message: "Link novo enviado. O anterior deixou de funcionar." };
+    case "email-failed":
+      return {
+        error: "O link foi renovado, mas o email não saiu. Tente de novo daqui a pouco.",
+      };
+    case "not-found":
+      return { error: "Essa reserva já não existe." };
+    case "not-pending":
+      return { error: "Esta reserva já não espera pagamento." };
+    case "unconfigured":
+      return { error: "Os links de pagamento não estão configurados." };
+  }
+}
+
+/**
+ * "Anular link": cancel a link booking nobody has paid. The customer's link
+ * then reads that the booking was cancelled. No money moved, so there is
+ * nothing to refund and no email: the team is already talking to the person.
+ */
+export async function cancelPaymentLink(
+  _prevState: PaymentLinkActionState,
+  formData: FormData,
+): Promise<PaymentLinkActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = paymentLinkBookingSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Essa reserva já não existe." };
+
+  try {
+    const outcome = await voidPaymentLink({
+      bookingId: parsed.data.bookingId,
+      actorUserId: actor.id,
+    });
+    switch (outcome.status) {
+      case "cancelled":
+        // An open payment could have been holding a car until a moment ago.
+        revalidatePath("/", "layout");
+        return { ok: true, message: "Link anulado. A reserva ficou cancelada." };
+      case "not-found":
+        return { error: "Essa reserva já não existe." };
+      case "not-pending":
+        return { error: "Esta reserva já não espera pagamento." };
+      case "in-payment":
+        return {
+          error:
+            "O cliente já iniciou um pagamento por Multibanco. Espere pelo resultado antes de anular.",
+        };
+    }
+  } catch (err) {
+    console.error("[admin] couldn't cancel a payment link", err);
+    return { error: "Não foi possível anular o link — tente novamente." };
+  }
+}
+
 export type MoveBookingState = {
   ok?: boolean;
   error?: string;
@@ -317,7 +411,11 @@ function draftMessage(outcome: DraftOutcome, saved: string): QuoteActionState {
     case "not-found":
       return { error: "Esse pedido ou orçamento já não existe." };
     case "not-quotable":
-      return { error: "Só se fazem orçamentos para casamentos e eventos com os dados do cliente." };
+      return {
+        error:
+          "Só se fazem orçamentos para casamentos, eventos e passeios criados em " +
+          "“Novo orçamento”, com os dados do cliente.",
+      };
     case "already-quoted":
       // Also the second of two phones pressing "Criar" at once.
       return { error: "Este pedido já tem um orçamento. Recarregue a página." };
@@ -326,14 +424,54 @@ function draftMessage(outcome: DraftOutcome, saved: string): QuoteActionState {
         error: "Este orçamento já não é um rascunho — foi enviado ou descartado entretanto. Recarregue a página.",
       };
     case "invalid":
-      return {
-        error: outcome.problems.includes("zero-total")
-          ? "O total do orçamento tem de ser maior que zero."
-          : outcome.problems.includes("no-lines")
-            ? "Acrescente pelo menos uma linha ao orçamento."
-            : "O orçamento tem dados inválidos. Reveja as linhas e a data.",
-      };
+      return { error: invalidDraftMessage(outcome.problems) };
+    case "no-car":
+      return { error: noCarMessage(outcome.reason) };
   }
+}
+
+/** Why the builder refused a draft's figures, in one sentence. */
+function invalidDraftMessage(problems: string[]): string {
+  if (problems.includes("zero-total")) return "O total do orçamento tem de ser maior que zero.";
+  if (problems.includes("no-lines")) return "Acrescente pelo menos uma linha ao orçamento.";
+  if (problems.includes("no-hold")) return "Escolha a partida e o carro do passeio.";
+  if (problems.includes("too-small")) {
+    return "Um passeio pago por link precisa de um total de pelo menos 0,50 €.";
+  }
+  return "O orçamento tem dados inválidos. Reveja as linhas e a data.";
+}
+
+/** A tour quote's departure with no car of its class left, or a count that failed. */
+function noCarMessage(reason: "unavailable" | "unreadable"): string {
+  return reason === "unreadable"
+    ? "Não foi possível confirmar a disponibilidade — tente novamente."
+    : "Essa partida já não tem condutor ou carro dessa classe livre. Escolha outra partida, outro carro ou outra data.";
+}
+
+/**
+ * "Novo orçamento" — the customer and the quote in one form, with no enquiry
+ * behind it. On success the lead's page opens, with the draft ready to send.
+ */
+export async function createScratchQuote(
+  _prevState: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = scratchQuoteSchema.safeParse(formValues(formData));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Reveja o orçamento." };
+  }
+
+  const outcome = await createQuoteFromScratch({ ...parsed.data, actorUserId: actor.id });
+  if (outcome.status === "saved") {
+    revalidatePath("/admin/sales");
+    // Outside any try: `redirect` throws to navigate.
+    redirect(`/admin/sales/${outcome.leadId}`);
+  }
+  return outcome.status === "invalid"
+    ? { error: invalidDraftMessage(outcome.problems) }
+    : { error: noCarMessage(outcome.reason) };
 }
 
 /** "Criar orçamento" or "Guardar" — the builder's form, create or edit. */
@@ -472,6 +610,55 @@ export async function resendLeadQuote(
     actorUserId: actor.id,
   });
   return sendMessage(outcome, "Orçamento reenviado com um novo link. O link anterior deixou de funcionar.");
+}
+
+/**
+ * "Enviar pedido do restante" — the balance request, now, with a new link
+ * (`lib/balance-request.ts`). The daily job still sends its own at T−15.
+ */
+export async function sendBalanceRequest(
+  _prevState: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = quoteIdSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Pedido inválido." };
+
+  const outcome = await sendBalanceRequestNow({
+    quoteId: parsed.data.quoteId,
+    actorUserId: actor.id,
+  });
+  switch (outcome.status) {
+    case "sent":
+      return {
+        ok: true,
+        message: "Pedido do restante enviado com um novo link. Os links anteriores deixaram de funcionar.",
+      };
+    case "not-found":
+      return { error: "Esse orçamento já não existe." };
+    case "not-open":
+      return { error: "O restante deste orçamento já não está por pagar. Recarregue a página." };
+    case "closed":
+      return {
+        error: "O prazo do restante já terminou e a página do orçamento já não o aceita. Fale com o cliente.",
+      };
+    case "no-recipient":
+      return { error: "Este pedido não tem o email do cliente — não é possível enviar." };
+    case "unconfigured":
+      return {
+        error:
+          "O envio de emails ou de links não está configurado neste ambiente. Nada foi enviado.",
+      };
+    case "duplicate":
+      return {
+        error: "Outro envio mudou o link no mesmo momento. Recarregue a página antes de enviar outra vez.",
+      };
+    case "failed":
+      return {
+        error: "O email não saiu, e o link anterior pode já não funcionar. Tente outra vez.",
+      };
+  }
 }
 
 /**

@@ -83,8 +83,8 @@ export const bookingEmails = {
     },
     /** How the departure was sold, appended to the experience row. */
     modeWords: {
-      public: { pt: "por pessoa", en: "per person" } as Localized,
-      private: { pt: "por grupo", en: "per group" } as Localized,
+      public: { pt: "grupo aberto", en: "open group tour" } as Localized,
+      private: { pt: "grupo privado", en: "private group tour" } as Localized,
     },
     next: {
       title: { pt: "O que acontece a seguir", en: "What happens next" } as Localized,
@@ -676,8 +676,8 @@ export const bookingEmails = {
     next: {
       title: { pt: "Como reservar a data", en: "How to hold the date" } as Localized,
       body: {
-        pt: "A data fica reservada com o pagamento do sinal, na página do orçamento. O restante é pedido automaticamente {days} dias antes do evento.",
-        en: "The date is held once the deposit is paid, on the quote page. The balance is requested automatically {days} days before the event.",
+        pt: "A data fica reservada com o pagamento do sinal, na página do orçamento. Depois do sinal, pode pagar o restante na mesma página a qualquer momento, até à véspera do evento. Enviamos-lhe também o link {days} dias antes do evento.",
+        en: "The date is held once the deposit is paid, on the quote page. After the deposit, you can pay the balance on the same page at any time, up to the day before the event. We also send you the link {days} days before the event.",
       } as Localized,
       /** A 100% deposit: nothing is collected automatically later. */
       bodyFull: {
@@ -704,16 +704,99 @@ export const bookingEmails = {
       pt: "Recebeu este email porque pediu um orçamento em {site}.",
       en: "You are receiving this email because you asked for a quote at {site}.",
     } as Localized,
+    /**
+     * A tour quote (`lib/tour-quote.ts`): one payment, one car, the tour terms.
+     * Each key replaces the event wording above; the rest is shared.
+     */
+    tour: {
+      preheader: {
+        pt: "{total} · o passeio fica confirmado com o pagamento",
+        en: "{total} · your tour is confirmed once you pay",
+      } as Localized,
+      lead: {
+        pt: "Obrigado pelo contacto. Preparámos o seu passeio à medida — os detalhes estão abaixo.",
+        en: "Thank you for getting in touch. Here is the tour we prepared for you — the details are below.",
+      } as Localized,
+      date: { pt: "Data do passeio", en: "Tour date" } as Localized,
+      departure: { pt: "Partida", en: "Departure" } as Localized,
+      payment: { pt: "Pagamento", en: "Payment" } as Localized,
+      next: {
+        title: { pt: "Como confirmar", en: "How to confirm" } as Localized,
+        body: {
+          pt: "O passeio fica confirmado com o pagamento, na página do orçamento. Até lá, o carro não fica guardado: se a partida esgotar entretanto, a página avisa e falamos consigo.",
+          en: "Your tour is confirmed once you pay, on the quote page. Until then the car is not held: if the departure sells out first, the page says so and we will be in touch.",
+        } as Localized,
+      },
+      /** The tour terms' own line (`terms.ts`, "Cancelamento e reembolso"). */
+      termsNote: {
+        pt: "Cancelamento gratuito até 48h antes da experiência. Com mau tempo, reagendamos — ou reembolsamos em condições extremas.",
+        en: "Free cancellation up to 48h before the experience. In bad weather we reschedule — or refund in extreme conditions.",
+      } as Localized,
+    },
   },
 
   /**
-   * The balance, asked for — `balance-request` at T−14 and, if it is still
-   * unpaid, one `balance-reminder` at T−7 (`lib/cron/balance-scheduler.ts`).
+   * The payment link — `booking-payment-link`, sent when the team registers a
+   * tour with "Enviar link de pagamento", and again on "Reenviar link"
+   * (`lib/payment-link.ts`). The booking is confirmed only on payment and holds
+   * no car until then, so the mail says both before the button.
+   *
+   * Ungendered Portuguese, as every guest line: see `guest.lead`.
+   */
+  paymentLink: {
+    subject: {
+      pt: "Pagamento da sua reserva — {experience}, {date}",
+      en: "Payment for your booking — {experience}, {date}",
+    } as Localized,
+    preheader: {
+      pt: "{total} · a reserva fica confirmada com o pagamento",
+      en: "{total} · your booking is confirmed once you pay",
+    } as Localized,
+    banner: { pt: "Pagamento da reserva", en: "Booking payment" } as Localized,
+    greeting: { pt: "Olá {name},", en: "Hello {name}," } as Localized,
+    lead: {
+      pt: "Obrigado pelo contacto. Preparámos a sua reserva — os detalhes estão abaixo. Para a confirmar, basta pagar no link.",
+      en: "Thank you for getting in touch. We have prepared your booking — the details are below. To confirm it, pay through the link.",
+    } as Localized,
+    detailsHeading: { pt: "A sua reserva", en: "Your booking" } as Localized,
+    totalLabel: { pt: "Total a pagar", en: "Total to pay" } as Localized,
+    next: {
+      title: { pt: "Como confirmar", en: "How to confirm" } as Localized,
+      body: {
+        pt: "A reserva só fica confirmada depois do pagamento. Até lá, os lugares não ficam guardados: se a partida esgotar entretanto, a página avisa e falamos consigo.",
+        en: "Your booking is confirmed only once you pay. Until then the seats are not held: if the departure sells out first, the page says so and we will be in touch.",
+      } as Localized,
+    },
+    cta: { pt: "Pagar a reserva", en: "Pay for your booking" } as Localized,
+    ctaTextLine: { pt: "Pagar a reserva: {url}", en: "Pay for your booking: {url}" } as Localized,
+    replacesNote: {
+      pt: "Este link substitui qualquer link anterior para esta reserva.",
+      en: "This link replaces any earlier link for this booking.",
+    } as Localized,
+    questions: {
+      pt: "Alguma dúvida? Responda a este email ou ligue-nos:",
+      en: "Any questions? Reply to this email or call us:",
+    } as Localized,
+    signoff: {
+      pt: "Até breve,\nDiogo e Rita\nAgorasim",
+      en: "See you soon,\nDiogo and Rita\nAgorasim",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque combinou um passeio com a equipa de {site}.",
+      en: "You are receiving this email because you arranged a tour with the team at {site}.",
+    } as Localized,
+  },
+
+  /**
+   * The balance, asked for — `balance-request` at T−15, `balance-request-manual`
+   * when the team sends it from the quote card, and, if it is still unpaid, one
+   * `balance-reminder` at T−7 (`lib/cron/balance-scheduler.ts`,
+   * `lib/balance-request.ts`). The manual send is the request's own text.
    *
    * Each carries a fresh link to the quote page — the only way an email sent
    * later can carry one, since only a digest of the token is kept — so each
    * says that it replaces the earlier ones. The page takes the balance from
-   * its due date; the mail's job is to say how much, by when, and where.
+   * the deposit on; the mail's job is to say how much, by when, and where.
    *
    * Ungendered Portuguese, as every guest line: see `guest.lead`.
    */
@@ -739,8 +822,8 @@ export const bookingEmails = {
     greeting: { pt: "Olá {name},", en: "Hello {name}," } as Localized,
     lead: {
       request: {
-        pt: "O seu evento está quase a chegar. Como combinado, o restante do valor é pago agora — pode fazê-lo na página do seu orçamento.",
-        en: "Your event is getting close. As agreed, the balance is paid now — you can pay it on your quote page.",
+        pt: "O seu evento está a aproximar-se. Pode pagar já o restante do valor, na página do seu orçamento, até à véspera do evento.",
+        en: "Your event is getting close. You can pay the balance now on your quote page, up to the day before the event.",
       } as Localized,
       reminder: {
         pt: "Ainda não recebemos o pagamento do restante do seu evento. Pode pagá-lo na página do seu orçamento.",
@@ -804,8 +887,8 @@ export const bookingEmails = {
     },
     preheader: {
       deposit: {
-        pt: "Recebemos {amount} · o restante é pedido até {due}",
-        en: "We received {amount} · the balance is due by {due}",
+        pt: "Recebemos {amount} · pode pagar já o restante, até {due}",
+        en: "We received {amount} · you can pay the balance now, by {due}",
       } as Localized,
       balance: {
         pt: "Recebemos {amount} · está tudo pago",
@@ -846,8 +929,8 @@ export const bookingEmails = {
     next: {
       title: { pt: "O que acontece a seguir", en: "What happens next" } as Localized,
       body: {
-        pt: "Enviamos-lhe o link para pagar o restante {days} dias antes do evento. Até lá, o seu orçamento continua disponível no link do email em que o recebeu.",
-        en: "We will send you the link to pay the balance {days} days before the event. Until then, your quote stays available at the link in the email you received it with.",
+        pt: "Pode pagar já o restante, na página do seu orçamento — o link está no email em que o recebeu. O prazo é {due}, a véspera do evento. Enviamos-lhe também um novo link {days} dias antes do evento.",
+        en: "You can pay the balance now on your quote page — the link is in the email you received it with. It is due by {due}, the day before the event. We also send you a new link {days} days before the event.",
       } as Localized,
     },
     /** Heading over the events terms, reproduced verbatim below it. */
@@ -875,6 +958,31 @@ export const bookingEmails = {
       pt: "Recebeu este email porque pagou um orçamento em {site}.",
       en: "You are receiving this email because you paid a quote at {site}.",
     } as Localized,
+    /**
+     * A tour quote's one payment (`lib/tour-quote.ts`). It replaces the
+     * deposit wording above; the terms below it are the tour's own sections.
+     */
+    tour: {
+      subject: {
+        pt: "Pagamento recebido — o seu passeio de {date} está confirmado",
+        en: "Payment received — your tour on {date} is confirmed",
+      } as Localized,
+      preheader: {
+        pt: "Recebemos {amount} · está tudo pago",
+        en: "We received {amount} · everything is paid",
+      } as Localized,
+      banner: { pt: "Passeio confirmado", en: "Tour confirmed" } as Localized,
+      lead: {
+        pt: "Recebemos o seu pagamento — o seu passeio está confirmado. Obrigado!",
+        en: "We have received your payment — your tour is confirmed. Thank you!",
+      } as Localized,
+      date: { pt: "Data do passeio", en: "Tour date" } as Localized,
+      paid: { pt: "Valor pago", en: "Amount paid" } as Localized,
+      termsHeading: {
+        pt: "As condições do seu passeio (versão de {version})",
+        en: "The conditions of your tour (version of {version})",
+      } as Localized,
+    },
   },
 
   /** To Diogo & Rita. Portuguese — an instalment of a quote was paid. */
@@ -915,6 +1023,14 @@ export const bookingEmails = {
     cta: "Ver no painel",
     ctaLine: "Ver no painel: {adminUrl}",
     footerNote: "Notificação automática do site — responda para escrever ao cliente.",
+    /** A tour quote's one payment: the car is held, and the fee is the tour's (§4). */
+    tour: {
+      subject: "Passeio pago — {name} · {date}",
+      banner: "Passeio pago",
+      heading: "O orçamento de passeio {ref} foi pago — o carro está reservado.",
+      date: "Data do passeio",
+      fee: "Comissão (4%, mín. 10 €, máx. 50 €)",
+    },
   },
 
   /**
@@ -999,6 +1115,39 @@ export const bookingEmails = {
       pt: "Recebeu este email porque pagou um orçamento em {site}.",
       en: "You are receiving this email because you paid a quote at {site}.",
     } as Localized,
+    /**
+     * A tour quote (`lib/tour-quote.ts`): one payment for a tour, so the
+     * event and sinal words above give way to passeio and pagamento.
+     */
+    tour: {
+      subject: {
+        held: {
+          pt: "Reembolso do seu passeio — {date}",
+          en: "A refund on your tour — {date}",
+        } as Localized,
+        cancelled: {
+          pt: "Passeio cancelado e reembolso — {date}",
+          en: "Tour cancelled and refunded — {date}",
+        } as Localized,
+      },
+      banner: {
+        cancelled: { pt: "Passeio cancelado", en: "Tour cancelled" } as Localized,
+      },
+      lead: {
+        held: {
+          pt: "Devolvemos {amount} do pagamento do seu passeio de {date}. O seu passeio continua marcado.",
+          en: "We have returned {amount} of the payment for your tour on {date}. Your tour is still booked.",
+        } as Localized,
+        cancelled: {
+          pt: "O seu passeio de {date} foi cancelado e devolvemos {amount} do pagamento.",
+          en: "Your tour on {date} has been cancelled and we have returned {amount} of the payment.",
+        } as Localized,
+      },
+      date: { pt: "Data do passeio", en: "Tour date" } as Localized,
+      status: { pt: "O passeio", en: "The tour" } as Localized,
+      /** The one payment, in place of "Sinal". */
+      instalment: { pt: "Pagamento único", en: "Single payment" } as Localized,
+    },
   },
 
   /**
@@ -1034,6 +1183,27 @@ export const bookingEmails = {
       en: "Your event on {date} has been cancelled. The refund of {totalRefunded} has already been made.",
     } as Localized,
     detailsHeading: { pt: "O seu evento", en: "Your event" } as Localized,
+    /** A tour quote (`lib/tour-quote.ts`): the same notice in tour words. */
+    tour: {
+      subject: {
+        pt: "Passeio cancelado — {date}",
+        en: "Tour cancelled — {date}",
+      } as Localized,
+      preheader: {
+        pt: "Referência {ref} · o seu passeio foi cancelado",
+        en: "Reference {ref} · your tour has been cancelled",
+      } as Localized,
+      banner: { pt: "Passeio cancelado", en: "Tour cancelled" } as Localized,
+      lead: {
+        pt: "O seu passeio de {date} foi cancelado. O reembolso de {totalRefunded} já foi feito — enviámos-lhe os detalhes num email anterior.",
+        en: "Your tour on {date} has been cancelled. The refund of {totalRefunded} has already been made — we sent you its details in an earlier email.",
+      } as Localized,
+      leadNoEarlierEmail: {
+        pt: "O seu passeio de {date} foi cancelado. O reembolso de {totalRefunded} já foi feito.",
+        en: "Your tour on {date} has been cancelled. The refund of {totalRefunded} has already been made.",
+      } as Localized,
+      detailsHeading: { pt: "O seu passeio", en: "Your tour" } as Localized,
+    },
   },
 
   /** To Diogo & Rita. Portuguese — a new enquiry has arrived. */
@@ -1077,6 +1247,7 @@ export const bookingEmails = {
       labels: {
         venue: "Local",
         hours: "Horas de serviço",
+        ceremonyTime: "Hora da cerimónia",
         car: "Carro preferido",
       },
     },

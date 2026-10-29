@@ -30,7 +30,12 @@ import {
   type Booking,
   type BookingStatus,
 } from "@/db";
-import { applyEventHolds, eventHoldKeysBetween } from "@/lib/event-holds";
+import {
+  applyEventHolds,
+  eventHoldKeysBetween,
+  tourHoldGroups,
+  tourQuoteHoldsBetween,
+} from "@/lib/event-holds";
 import {
   isVehicleClass,
   noVehicles,
@@ -38,6 +43,7 @@ import {
   type VehicleCounts,
 } from "@/lib/fleet";
 import type { DateKey } from "@/lib/availability";
+import { todayKey } from "@/lib/date-keys";
 
 /**
  * How long a car is held while the guest is on Stripe's payment page.
@@ -126,6 +132,21 @@ export function holdsCapacity(
   return booking.holdExpiresAt.getTime() > now.getTime();
 }
 
+/**
+ * Whether one booking waits for its customer to pay through a payment link
+ * (`lib/payment-link.ts`).
+ *
+ * Not a capacity rule: such a booking holds no car while it waits — only the
+ * 30 minutes of an open payment do, through {@link holdsCapacity} like any
+ * checkout. It is the Sales board's "Pagamento pendente", and what keeps the
+ * expiry paths from closing a booking whose link still works.
+ */
+export function awaitsLinkPayment(
+  booking: Pick<Booking, "status" | "paymentLinkTokenHash">,
+): boolean {
+  return booking.status === "pending" && booking.paymentLinkTokenHash !== null;
+}
+
 /** The capacity rule, in SQL. Keep in step with {@link holdsCapacity}. */
 function holdsCapacitySql(now: Date) {
   return or(
@@ -136,7 +157,8 @@ function holdsCapacitySql(now: Date) {
 
 /**
  * Occupancy per (day, departure) between two dates, across every tour — and
- * every deposit-paid event, which takes its whole day (`lib/event-holds.ts`).
+ * every deposit-paid event, which takes its whole day, and every paid tour
+ * quote, which takes one car (`lib/event-holds.ts`).
  *
  * The map is what the calendars pass to `describeMonth` as `occupancy`, keyed
  * with `occupancySlotKey` from `lib/availability.ts`; a departure missing from
@@ -151,7 +173,7 @@ export async function countSlotOccupancy(options: {
 }): Promise<Map<string, SlotOccupancy>> {
   const { from, to, now = new Date() } = options;
 
-  const [rows, holds] = await Promise.all([
+  const [rows, holds, tourHolds] = await Promise.all([
     db
       .select({
         date: bookings.date,
@@ -174,9 +196,12 @@ export async function countSlotOccupancy(options: {
         bookings.experienceSlug,
       ),
     eventHoldKeysBetween({ from, to }),
+    tourQuoteHoldsBetween({ from, to }),
   ]);
 
-  return applyEventHolds(tallyOccupancy(rows), holds);
+  // A paid tour quote is one more private car on its departure, counted in the
+  // same tally as the bookings (`lib/tour-quote.ts`).
+  return applyEventHolds(tallyOccupancy([...rows, ...tourHoldGroups(tourHolds)]), holds);
 }
 
 /**
@@ -484,7 +509,15 @@ export async function expireLapsedHolds(now: Date = new Date()): Promise<number>
   const rows = await db
     .update(bookings)
     .set({ status: "expired", updatedAt: now })
-    .where(and(eq(bookings.status, "pending"), lt(bookings.holdExpiresAt, now)))
+    .where(
+      and(
+        eq(bookings.status, "pending"),
+        lt(bookings.holdExpiresAt, now),
+        // A payment link holds nothing and still works until its departure is
+        // past: only then is the booking over (`lib/payment-link.ts`).
+        or(isNull(bookings.paymentLinkTokenHash), lt(bookings.date, todayKey(now))),
+      ),
+    )
     .returning({ id: bookings.id });
 
   return rows.length;

@@ -115,7 +115,7 @@ export async function saveExperience(
     return { fieldErrors: fieldErrorsOf(parsed.error) };
   }
 
-  const { id, ...entry } = parsed.data;
+  const { id, ...parsedEntry } = parsed.data;
 
   // Checked here so the operator gets an inline message; the unique index is
   // what actually guarantees it.
@@ -124,14 +124,34 @@ export async function saveExperience(
     .from(experienceCatalogue)
     .where(
       id
-        ? and(eq(experienceCatalogue.slug, entry.slug), ne(experienceCatalogue.id, id))
-        : eq(experienceCatalogue.slug, entry.slug),
+        ? and(eq(experienceCatalogue.slug, parsedEntry.slug), ne(experienceCatalogue.id, id))
+        : eq(experienceCatalogue.slug, parsedEntry.slug),
     )
     .limit(1);
 
   if (clash) {
     return { fieldErrors: { slug: "Já há outra experiência com esse endereço." } };
   }
+
+  // A tick names a tour by slug, and the form only draws the tours there are —
+  // but a page left open across a rename could post one that is gone. Keep the
+  // slugs of tours that exist, so an add-on never names a tour nobody can book.
+  // No tick, no lookup: there is nothing to check.
+  const tourSlugs =
+    parsedEntry.attachesTo.length === 0
+      ? new Set<string>()
+      : new Set(
+          (
+            await db
+              .select({ slug: experienceCatalogue.slug })
+              .from(experienceCatalogue)
+              .where(eq(experienceCatalogue.kind, "signature"))
+          ).map((row) => row.slug),
+        );
+  const entry = {
+    ...parsedEntry,
+    attachesTo: parsedEntry.attachesTo.filter((slug) => tourSlugs.has(slug)),
+  };
 
   // The image the row held before this save, so a replaced upload can be
   // cleaned up once the write lands — `returning()` only reports post-update
@@ -177,6 +197,8 @@ export async function saveExperience(
       // Money changed by whom, and to what — the one field on this table an
       // operator will be asked about after the fact.
       priceCents: entry.priceCents,
+      // Which tours sell it — the other field that changes what a guest pays.
+      attachesTo: entry.attachesTo,
     },
   });
 

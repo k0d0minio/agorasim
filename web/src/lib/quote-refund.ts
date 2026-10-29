@@ -87,6 +87,7 @@ import {
   recordPaymentRefundFee,
 } from "@/lib/quotes";
 import { isStripeConfigured, onOwningAccount, stripe } from "@/lib/stripe";
+import { isTourQuote } from "@/lib/tour-quote";
 
 /** Who asked for the refund — the audit row's `via`. */
 export type QuoteRefundVia = "admin" | "stripe";
@@ -689,7 +690,7 @@ export type CancelHeldQuoteOutcome =
 /**
  * "Cancelar evento" — call off a quote whose deposit has gone back in full but
  * which is still held: a dashboard refund, or a refund whose dialog left the
- * event on. Left alone it would still have its balance asked for at T−14.
+ * event on. Left alone it would still have its balance asked for at T−15.
  *
  * Only in that state, on purpose: cancelling a paid event with its money still
  * held is a refund decision, and belongs in the refund dialog.
@@ -860,6 +861,7 @@ async function sendRefundNotice(options: {
           amount: latest.money(options.refundedNowCents),
           totalRefunded: latest.money(latest.totalRefunded),
           eventCancelled: latest.quote.status === "cancelled",
+          tour: isTourQuote(latest.quote),
         });
       },
     );
@@ -908,6 +910,7 @@ async function sendEventCancelledNotice(quoteId: string): Promise<void> {
         venue: quote.venue,
         totalRefunded: money(totalRefunded),
         refundNoticeSent,
+        tour: isTourQuote(quote),
       }),
     );
 

@@ -100,12 +100,36 @@ vi.mock("@/lib/message-log", () => ({
   sendLoggedEmail: (...args: unknown[]) => sendLoggedEmail(...args),
 }));
 
+// The departure lock, as a recorder: which departure each call held, and the
+// queries made while it was held. `fail` makes it throw, as a lock wait that
+// ran out does. `lib/departure-lock.test.ts` proves the lock itself.
+const lock = {
+  inside: false,
+  fail: false,
+  held: [] as { departure: string; calls: { method: string; args: unknown[] }[] }[],
+};
+vi.mock("@/lib/departure-lock", () => ({
+  withDepartureLock: async (date: string, slot: string, run: () => Promise<unknown>) => {
+    if (lock.fail) throw new Error("canceling statement due to lock timeout");
+    const entry = { departure: `${date}:${slot}`, calls: [] as typeof calls };
+    lock.held.push(entry);
+    const before = calls.length;
+    lock.inside = true;
+    try {
+      return await run();
+    } finally {
+      lock.inside = false;
+      entry.calls = calls.slice(before);
+    }
+  },
+}));
+
 // Dynamic, like the mocked modules above: a static import here would resolve
 // `@/lib/availability` (which itself imports `@/db`) while this file's own
 // top-level statements are still running — before `fakeDb` and the other
 // `const`s above are initialised — and vitest's hoisted `vi.mock` calls would
 // then throw "Cannot access '...' before initialization".
-const { isMovable, moveBookingToDeparture, viableMoveTargets } = await import(
+const { isMovable, moveBookingToCar, moveBookingToDeparture, viableMoveTargets } = await import(
   "@/lib/booking-move"
 );
 const { describeSlot, TOUR_SLOTS } = await import("@/lib/availability");
@@ -396,6 +420,69 @@ describe("moveBookingToDeparture", () => {
     recordAuditOrWarn.mockResolvedValue(undefined);
     sendLoggedEmail.mockReset();
     sendLoggedEmail.mockResolvedValue({ status: "sent", providerMessageId: "re_1" });
+    lock.held = [];
+    lock.fail = false;
+  });
+
+  it("re-checks and moves under the target departure's lock, and mails after it", async () => {
+    let checkedInside = false;
+    checkSlotAvailable.mockImplementationOnce(async () => {
+      checkedInside = lock.inside;
+      return { ok: true, vehicleClass: "classic-small", sharedCarId: null };
+    });
+    let mailedInside = true;
+    sendLoggedEmail.mockImplementationOnce(async () => {
+      mailedInside = lock.inside;
+      return { status: "sent", providerMessageId: "re_1" };
+    });
+    queueMove({ date: "2026-08-01" }, { date: "2026-08-15", moveSeq: 1 });
+
+    const outcome = await moveBookingToDeparture({
+      bookingId: BOOKING_ID,
+      date: "2026-08-15",
+      slot: "morning",
+      actorUserId: "op-1",
+    });
+
+    expect(outcome.status).toBe("moved");
+    expect(checkedInside).toBe(true);
+    expect(mailedInside).toBe(false);
+    // The target is locked, never the departure it leaves: leaving frees room.
+    expect(lock.held.map((entry) => entry.departure)).toEqual(["2026-08-15:morning"]);
+    expect(lock.held[0].calls.some((call) => call.method === "update")).toBe(true);
+  });
+
+  it("refuses when the check under the lock finds the target full, and moves nothing", async () => {
+    checkSlotAvailable.mockResolvedValueOnce({ ok: false, reason: "no-vehicle" });
+    queueResult([bookingRow()]);
+
+    const outcome = await moveBookingToDeparture({
+      bookingId: BOOKING_ID,
+      date: "2026-08-15",
+      slot: "morning",
+      actorUserId: "op-1",
+    });
+
+    expect(outcome).toEqual({ status: "unavailable", reason: "no-vehicle" });
+    expect(calls.some((c) => c.method === "update")).toBe(false);
+  });
+
+  it("answers 'try again' when the departure cannot be held, and moves nothing", async () => {
+    lock.fail = true;
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    queueResult([bookingRow()]);
+
+    const outcome = await moveBookingToDeparture({
+      bookingId: BOOKING_ID,
+      date: "2026-08-15",
+      slot: "morning",
+      actorUserId: "op-1",
+    });
+
+    expect(outcome).toEqual({ status: "unavailable", reason: "unreadable" });
+    expect(checkSlotAvailable).not.toHaveBeenCalled();
+    expect(calls.some((c) => c.method === "update")).toBe(false);
+    quiet.mockRestore();
   });
 
   it("re-checks the target as the team, so a blocked or next-day departure can take it", async () => {
@@ -472,6 +559,82 @@ describe("moveBookingToDeparture", () => {
     // The guard that makes this a no-op is `sameDeparture`, before any write:
     // a retried request never reaches the update, so it never has a second
     // move-seq to claim under.
+    expect(calls.some((c) => c.method === "update")).toBe(false);
+  });
+});
+
+describe("moveBookingToCar", () => {
+  const BOOKING_ID = "cccccccc-0000-4000-8000-000000000077";
+  const CAR_A = "eeeeeeee-0000-4000-8000-00000000000a";
+  const CAR_B = "eeeeeeee-0000-4000-8000-00000000000b";
+
+  const party = {
+    id: BOOKING_ID,
+    date: "2026-08-01",
+    slot: "morning",
+    experienceSlug: CLASSIC_TOUR,
+    mode: "public",
+    status: "confirmed",
+    partySize: 2,
+    vehicleClass: "classic-small",
+    sharedCarId: CAR_A,
+  };
+
+  beforeEach(() => {
+    calls = [];
+    results = [];
+    lock.held = [];
+    lock.fail = false;
+    recordAuditOrWarn.mockReset();
+    recordAuditOrWarn.mockResolvedValue(undefined);
+    slotOccupancyOn.mockReset();
+    slotOccupancyOn.mockImplementation(async () => {
+      // Read under the lock, or a guest's checkout could fill car B between
+      // this count and the write.
+      expect(lock.inside).toBe(true);
+      return {
+        ...committed("classic-small", "classic-small"),
+        openCars: [
+          { id: CAR_A, experienceSlug: CLASSIC_TOUR, vehicleClass: "classic-small", seatsTaken: 2 },
+          { id: CAR_B, experienceSlug: CLASSIC_TOUR, vehicleClass: "classic-small", seatsTaken: 0 },
+        ],
+      };
+    });
+  });
+
+  it("reads the departure, chooses the car and writes it under the departure's lock", async () => {
+    queueResult([party]);
+    queueResult([row("2026-08-01", "morning")]);
+    queueResult([{ ...party, sharedCarId: CAR_B }]);
+
+    const outcome = await moveBookingToCar({
+      bookingId: BOOKING_ID,
+      target: CAR_B,
+      actorUserId: "op-1",
+      today: "2026-07-01",
+    });
+
+    expect(outcome.status).toBe("moved");
+    expect(lock.held.map((entry) => entry.departure)).toEqual(["2026-08-01:morning"]);
+    const locked = lock.held[0].calls.map((call) => call.method);
+    // The day's row is read and the booking updated, both while it is held.
+    expect(locked).toContain("select");
+    expect(locked).toContain("update");
+    expect(recordAuditOrWarn).toHaveBeenCalledTimes(1);
+  });
+
+  it("says no room when the car it asked for is gone, and writes nothing", async () => {
+    queueResult([party]);
+    queueResult([row("2026-08-01", "morning")]);
+
+    const outcome = await moveBookingToCar({
+      bookingId: BOOKING_ID,
+      target: "eeeeeeee-0000-4000-8000-0000000000ff",
+      actorUserId: "op-1",
+      today: "2026-07-01",
+    });
+
+    expect(outcome).toEqual({ status: "no-room" });
     expect(calls.some((c) => c.method === "update")).toBe(false);
   });
 });

@@ -45,7 +45,12 @@ export type ExperienceFormValues = {
   /** One highlight per line. */
   highlights: { pt: string; en: string };
   faqs: { question: { pt: string; en: string }; answer: { pt: string; en: string } }[];
+  /** On an add-on: the slugs of the tours it joins. */
+  attachesTo: string[];
 };
+
+/** A tour an add-on can be attached to, as the checkbox list names it. */
+export type ExperienceFormTour = { slug: string; title: string };
 
 /** What a brand-new entry starts as. */
 export const EMPTY_EXPERIENCE: ExperienceFormValues = {
@@ -64,6 +69,7 @@ export const EMPTY_EXPERIENCE: ExperienceFormValues = {
   description: { pt: "", en: "" },
   highlights: { pt: "", en: "" },
   faqs: [],
+  attachesTo: [],
 };
 
 function SubmitButton({ editing }: { editing: boolean }) {
@@ -148,6 +154,49 @@ function LocalizedField({
           );
         })}
       </div>
+    </fieldset>
+  );
+}
+
+/**
+ * The tours an add-on joins: one tick per tour. The booking page offers the
+ * add-on on a private departure of each ticked tour, and on no other.
+ */
+function TourAttachments({
+  tours,
+  defaultValue,
+}: {
+  tours: ExperienceFormTour[];
+  defaultValue: string[];
+}) {
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-sm font-medium">Junta-se a</legend>
+      <p className="text-xs text-muted-foreground">
+        Os passeios onde este extra se pode reservar, sempre numa partida privada. Sem
+        nenhum passeio marcado, o extra não aparece na reserva.
+      </p>
+      {tours.length > 0 ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {tours.map((tour) => (
+            <label
+              key={tour.slug}
+              className="flex min-h-11 items-center gap-2.5 rounded-lg border px-3 text-sm"
+            >
+              <input
+                type="checkbox"
+                name="attachesTo"
+                value={tour.slug}
+                defaultChecked={defaultValue.includes(tour.slug)}
+                className="size-4 rounded border-border accent-primary"
+              />
+              {tour.title}
+            </label>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Ainda não há passeios no catálogo.</p>
+      )}
     </fieldset>
   );
 }
@@ -303,14 +352,19 @@ function FaqEditor({ defaultValue }: { defaultValue: FaqDraft[] }) {
  */
 export function ExperienceForm({
   values,
+  tours,
   pricingSummary,
 }: {
   values: ExperienceFormValues;
+  /** The tours in the catalogue, for an add-on's "Junta-se a" ticks. */
+  tours: ExperienceFormTour[];
   /** The entry's price list in one sentence, formatted server-side. */
   pricingSummary?: string | null;
 }) {
   const router = useRouter();
   const editing = Boolean(values.id);
+  // Watched, not only posted: the tour ticks belong to an add-on alone.
+  const [entryKind, setEntryKind] = useState(values.kind);
   const [state, formAction] = useActionState<ExperienceFormState, FormData>(
     saveExperience,
     {},
@@ -363,7 +417,14 @@ export function ExperienceForm({
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="kind">Tipo</Label>
-              <Select id="kind" name="kind" defaultValue={values.kind}>
+              <Select
+                id="kind"
+                name="kind"
+                defaultValue={values.kind}
+                onChange={(event) =>
+                  setEntryKind(event.target.value === "signature" ? "signature" : "complement")
+                }
+              >
                 {EXPERIENCE_KINDS.map((kind) => (
                   <option key={kind} value={kind}>
                     {experienceKindMeta[kind].label}
@@ -371,7 +432,7 @@ export function ExperienceForm({
                 ))}
               </Select>
               <p className="text-xs text-muted-foreground">
-                {experienceKindMeta[values.kind].hint}
+                {experienceKindMeta[entryKind].hint}
               </p>
             </div>
 
@@ -421,6 +482,10 @@ export function ExperienceForm({
               </label>
             </div>
           </div>
+
+          {entryKind === "complement" ? (
+            <TourAttachments tours={tours} defaultValue={values.attachesTo} />
+          ) : null}
 
           <IconPicker defaultValue={values.icon} />
         </CardContent>

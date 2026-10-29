@@ -40,26 +40,22 @@ export const bookingContent = {
     } as Localized,
 
     /**
-     * The two halves of the price list — and no longer a promise about who
-     * else is in the car.
+     * The two halves of the price list, named as the price tables name them.
      *
-     * These used to read "Shared: you join other travellers". Since AGORA-012
-     * nobody is put in a car with strangers: whether two parties may share a
-     * departure is an open question with the team (AGORA-019), and until it is
-     * answered every booking has its own vehicle. The tiers are untouched — one
-     * is priced per person, the other per group — so what changed is the
-     * sentence, which had stopped being true.
+     * An open group is priced per person, and per-person bookings on the same
+     * departure share a car up to its seats (`lib/fleet.ts`). A private group
+     * pays one figure and never shares its car.
      */
     mode: { pt: "Como querem ir?", en: "How would you like to go?" } as Localized,
-    modePublic: { pt: "Preço por pessoa", en: "Per person" } as Localized,
+    modePublic: { pt: "Grupo aberto", en: "Open group tour" } as Localized,
     modePublicHint: {
-      pt: "Paga-se por pessoa. O carro é sempre só do vosso grupo.",
-      en: "Priced per person. The car is still yours alone.",
+      pt: "Paga-se por pessoa. Outras pessoas podem juntar-se ao mesmo carro.",
+      en: "Priced per person. Other guests can join the same car.",
     } as Localized,
-    modePrivate: { pt: "Preço por grupo", en: "Per group" } as Localized,
+    modePrivate: { pt: "Grupo privado", en: "Private group tour" } as Localized,
     modePrivateHint: {
-      pt: "Um valor único para o grupo — e é aqui que os complementos entram.",
-      en: "One figure for the whole group — and where the add-ons come in.",
+      pt: "Um valor único para o grupo. O carro é só vosso, e é aqui que os complementos entram.",
+      en: "One price for the whole group. The car is yours alone, and this is where the add-ons come in.",
     } as Localized,
 
     partySize: { pt: "Quem vem?", en: "Who's coming?" } as Localized,
@@ -116,12 +112,12 @@ export const bookingContent = {
 
     addOns: { pt: "Complete o seu dia", en: "Complete your day" } as Localized,
     addOnsHint: {
-      pt: "Paragens extra de sabores da região — disponíveis nas partidas por grupo da Rural Saloia.",
-      en: "Extra stops for regional flavours — available on per-group Rural Saloia departures.",
+      pt: "Paragens extra de sabores da região — disponíveis no grupo privado deste passeio.",
+      en: "Extra stops for regional flavours — available on a private group tour of this route.",
     } as Localized,
     addOnsPublicNote: {
-      pt: "Os complementos juntam-se apenas ao preço por grupo — mude para \"Preço por grupo\" para os adicionar.",
-      en: "Add-ons join the per-group price only — switch to \"Per group\" to add them.",
+      pt: "Os complementos juntam-se apenas ao grupo privado — mude para \"Grupo privado\" para os adicionar.",
+      en: "Add-ons join a private group tour only — switch to \"Private group tour\" to add them.",
     } as Localized,
     addOnMinAdults: {
       pt: "mín. {min} adultos",

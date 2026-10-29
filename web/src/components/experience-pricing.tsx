@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { t, type Locale } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
-import { fill, pricingContent as copy, tierLabel } from "@/content/pricing";
+import { fill, listOfTours, pricingContent as copy, tierLabel } from "@/content/pricing";
 import { MAX_PARTY_ONLINE } from "@/lib/fleet";
 import { formatPrice } from "@/lib/money";
 import { maxAdultsOf, type AddOnPricing, type TourModePricing } from "@/lib/pricing";
@@ -39,14 +39,14 @@ import {
 export function ExperiencePrices({
   experience,
   addOns,
-  signatureTitle,
+  tourTitles,
   locale,
 }: {
   experience: Experience;
-  /** The add-on entries, for a tour whose private departures take them. */
+  /** On a tour: the add-ons attached to it, which its private departures take. */
   addOns?: Experience[];
-  /** The tour an add-on belongs to, named on the add-on's own page. */
-  signatureTitle?: string;
+  /** On an add-on: the tours it joins, named on its own page. */
+  tourTitles?: string[];
   locale: Locale;
 }) {
   const pricing = experience.pricing;
@@ -61,7 +61,7 @@ export function ExperiencePrices({
       </h2>
 
       {pricing.type === "addon" ? (
-        <AddOnPrice pricing={pricing} signatureTitle={signatureTitle} locale={locale} />
+        <AddOnPrice pricing={pricing} tourTitles={tourTitles} locale={locale} />
       ) : (
         <>
           {/* Answer-first, before any table: the figures a guest came for. */}
@@ -82,7 +82,9 @@ export function ExperiencePrices({
             {pricing.private ? (
               <ModePricing
                 mode={pricing.private}
-                title={t(copy.perGroupTitle, locale)}
+                title={fill(copy.perGroupTitle, locale, {
+                  price: formatPrice(privateMinimum(pricing.private), locale),
+                })}
                 hint={t(copy.perGroupHint, locale)}
                 caption={fill(copy.captionPerGroup, locale, { experience: name })}
                 locale={locale}
@@ -100,7 +102,7 @@ export function ExperiencePrices({
             </p>
           ) : null}
 
-          {pricing.private?.allowsAddOns && addOns && addOns.length > 0 ? (
+          {pricing.private && addOns && addOns.length > 0 ? (
             <AddOnList addOns={addOns} locale={locale} />
           ) : null}
         </>
@@ -151,6 +153,17 @@ function leadFor(experience: Experience, locale: Locale): string {
     );
   }
   return sentences.join(" ");
+}
+
+/**
+ * The least a private group pays: the cheapest tier for its smallest party.
+ * A per-adult tier counts at its own minimum of adults, so the figure is one a
+ * group can really book (220 € on Rural Saloia, 360 € on Óbidos).
+ */
+function privateMinimum(mode: TourModePricing): number {
+  return Math.min(
+    ...mode.tiers.map((tier) => tier.groupCents ?? (tier.perAdultCents ?? 0) * tier.minAdults),
+  );
 }
 
 /** One mode's table: its tiers, then the two age bands that apply to all of them. */
@@ -306,7 +319,7 @@ function AddOnList({ addOns, locale }: { addOns: Experience[]; locale: Locale })
                 <p className="mt-1 font-medium tabular-nums">
                   +{formatPrice(pricing.perAdultCents, locale)}{" "}
                   <span className="font-normal text-muted-foreground">
-                    {t(copy.perAdultUnit, locale)}
+                    {t(copy.perAdultUnit, locale)} · {t(entry.duration, locale)}
                   </span>
                 </p>
               </div>
@@ -358,11 +371,11 @@ function AddOnNotes({ pricing, locale }: { pricing: AddOnPricing; locale: Locale
 /** An add-on's own page: its one price, and what it cannot be bought without. */
 function AddOnPrice({
   pricing,
-  signatureTitle,
+  tourTitles,
   locale,
 }: {
   pricing: AddOnPricing;
-  signatureTitle?: string;
+  tourTitles?: string[];
   locale: Locale;
 }) {
   return (
@@ -375,8 +388,8 @@ function AddOnPrice({
       </p>
       <AddOnNotes pricing={pricing} locale={locale} />
       <p className="text-sm text-muted-foreground">
-        {signatureTitle
-          ? fill(copy.addOnGatedNamed, locale, { tour: signatureTitle })
+        {tourTitles && tourTitles.length > 0
+          ? fill(copy.addOnGatedNamed, locale, { tours: listOfTours(tourTitles, locale) })
           : t(copy.addOnGated, locale)}
       </p>
     </Card>

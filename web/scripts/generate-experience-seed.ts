@@ -51,6 +51,7 @@ const rows = experiences.map((experience, index) => {
     quote(experience.image),
     jsonb(experience.imageAlt),
     experience.pricing ? jsonb(experience.pricing) : "NULL",
+    jsonb(experience.attachesTo ?? []),
     String(index),
   ];
   return `(\n  ${values.join(",\n  ")}\n)`;
@@ -61,7 +62,7 @@ process.stdout.write(
 INSERT INTO "experiences" (
   "slug", "kind", "icon",
   "title", "tagline", "summary", "description", "duration", "highlights", "faqs",
-  "image", "image_alt", "pricing", "sort_order"
+  "image", "image_alt", "pricing", "attaches_to", "sort_order"
 ) VALUES
 ${rows.join(",\n")}
 ON CONFLICT ("slug") DO NOTHING;

@@ -39,7 +39,7 @@ import {
   type TourRequest,
 } from "@/db";
 import { REQUEST_STATUSES } from "@/lib/admin-format";
-import { bookingRef, holdsCapacity } from "@/lib/bookings";
+import { awaitsLinkPayment, bookingRef, holdsCapacity } from "@/lib/bookings";
 import { CLASS_SEATS } from "@/lib/fleet";
 import { formatPrice } from "@/lib/money";
 
@@ -292,10 +292,11 @@ export async function listSalesBoard(q?: string): Promise<SalesBoardData> {
 /**
  * The money against a page of leads, in one query.
  *
- * Only bookings that are `confirmed` or still holding a live `pending` seat
- * are shown. An expired hold is not money — putting "€340 · awaiting payment"
- * on a card for a checkout somebody abandoned in March would have the team
- * chasing a payment nobody owes.
+ * Only bookings that are `confirmed`, still holding a live `pending` seat, or
+ * waiting on a payment link the team sent are shown. A link holds no car, but
+ * it is money the customer was asked for. An expired hold is not money —
+ * putting "€340 · awaiting payment" on a card for a checkout somebody
+ * abandoned in March would have the team chasing a payment nobody owes.
  *
  * A lead with several attempts (they came back and paid the second time) keeps
  * the last one, which is the one that matters.
@@ -315,7 +316,8 @@ export async function bookingSummaries(
   const now = new Date();
   const live = new Map<string, Booking>();
   for (const row of rows) {
-    if (!row.tourRequestId || !holdsCapacity(row, now)) continue;
+    if (!row.tourRequestId) continue;
+    if (!holdsCapacity(row, now) && !awaitsLinkPayment(row)) continue;
     live.set(row.tourRequestId, row);
   }
 

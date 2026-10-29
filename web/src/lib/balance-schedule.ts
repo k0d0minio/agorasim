@@ -4,13 +4,15 @@
  *
  * Three moments, all counted in Lisbon calendar days before the event:
  *
- * - **T−14, the request** — the proposal's "a second link 14 days before"
- *   (`BALANCE_DUE_DAYS_BEFORE`). Which quotes are due is
+ * - **T−15, the request** — Diogo's "the link 15 days before"
+ *   (`BALANCE_REQUEST_DAYS_BEFORE`). Which quotes are due is
  *   `listQuotesDueForBalance`'s query; this module only says the event is
- *   still at least a day away.
- * - **T−7, one reminder** — only if the request reached the couple at least
+ *   still at least a day away. The couple may pay before it: the quote page
+ *   takes the balance from the deposit on, up to its due date (T−1).
+ * - **T−7, one reminder** — only if a request reached the couple at least
  *   {@link BALANCE_REMINDER_GAP_DAYS} days earlier, so a deposit paid late
- *   does not get the request and the chaser a day apart.
+ *   does not get the request and the chaser a day apart. A request the team
+ *   sent by hand counts ({@link lastRequestSentAt}).
  * - **T−3, the team's flag** — the Sales board's "Saldo por pagar" panel and
  *   the badge on the lead's quote card read {@link isBalanceFlagged}, the one
  *   predicate both show. It is computed, not stored: nothing has to run for a
@@ -40,7 +42,7 @@ import {
 } from "@/lib/quote-math";
 import type { Quote, QuotePayment } from "@/db";
 
-// The three numbers live in `lib/quote-math.ts`, beside the T−14 they count
+// The three numbers live in `lib/quote-math.ts`, beside the T−15 they count
 // like, so `lib/quotes.ts` can query with them without importing this module.
 export {
   BALANCE_FLAG_DAYS_BEFORE,
@@ -67,7 +69,7 @@ export function balanceOf<P extends Pick<QuotePayment, "kind">>(payments: readon
 }
 
 /**
- * Whether the T−14 request may go out today for a quote the due query
+ * Whether the T−15 request may go out today for a quote the due query
  * returned. The query reaches back (`<=`) so a missed morning is caught up, but
  * only as far as the day before the event: a request on the morning itself,
  * or after the party, is not one anybody wants — that balance is the team's,
@@ -80,9 +82,9 @@ export function isRequestInWindow(eventDate: DateKey, today: DateKey): boolean {
 /**
  * Whether the T−7 reminder is due today.
  *
- * `requestSentAt` is when the request reached the couple (the log's `sent_at`),
- * or null if it never did — in which case there is nothing to remind them of,
- * and the request itself is what goes out.
+ * `requestSentAt` is when the latest request reached the couple (the log's
+ * `sent_at`, {@link lastRequestSentAt}), or null if none did — in which case
+ * there is nothing to remind them of, and the request itself is what goes out.
  */
 export function isReminderDue(options: {
   eventDate: DateKey;
@@ -129,17 +131,28 @@ export function holdsBalanceClaim(
   return (messages ?? []).some((message) => message.kind === kind && message.status !== "failed");
 }
 
-/** When this kind reached the couple, or null if it never did. */
+/** The latest time one of these kinds reached the couple, or null if none did. */
 export function balanceMessageSentAt(
   messages: readonly QuoteBalanceMessage[] | undefined,
-  kind: QuoteBalanceKind,
+  ...kinds: QuoteBalanceMessage["kind"][]
 ): Date | null {
+  let latest: Date | null = null;
   for (const message of messages ?? []) {
-    if (message.kind === kind && message.status === "sent" && message.sentAt) {
-      return message.sentAt;
-    }
+    if (!kinds.includes(message.kind) || message.status !== "sent" || !message.sentAt) continue;
+    if (!latest || message.sentAt > latest) latest = message.sentAt;
   }
-  return null;
+  return latest;
+}
+
+/**
+ * When the latest balance request reached the couple — the daily job's, or
+ * one the team sent by hand — or null if none did. What the reminder's gap
+ * counts from.
+ */
+export function lastRequestSentAt(
+  messages: readonly QuoteBalanceMessage[] | undefined,
+): Date | null {
+  return balanceMessageSentAt(messages, "balance-request", "balance-request-manual");
 }
 
 /** How far off the event is, in the team's words — "Hoje", "Daqui a 2 dias", "Há 3 dias". */
@@ -152,11 +165,21 @@ export function eventWhenLabel(eventDate: DateKey, today: DateKey): string {
   return `Há ${-days} dias`;
 }
 
-/** What has gone to the couple about their balance, newest first, in one line. */
+/** How each balance message reads in {@link balanceMessagesLabel}. */
+const SENT_LABEL: Record<QuoteBalanceMessage["kind"], string> = {
+  "balance-request": "Pedido enviado",
+  "balance-request-manual": "Pedido enviado pela equipa",
+  "balance-reminder": "Lembrete enviado",
+};
+
+/** The last thing that went to the couple about their balance, in one line. */
 export function balanceMessagesLabel(messages: readonly QuoteBalanceMessage[] | undefined): string {
-  const reminder = balanceMessageSentAt(messages, "balance-reminder");
-  if (reminder) return `Lembrete enviado a ${formatDateTime(reminder)}`;
-  const request = balanceMessageSentAt(messages, "balance-request");
-  if (request) return `Pedido enviado a ${formatDateTime(request)}`;
-  return "Pedido não enviado";
+  let last: QuoteBalanceMessage | null = null;
+  for (const message of messages ?? []) {
+    if (message.status !== "sent" || !message.sentAt) continue;
+    if (!last?.sentAt || message.sentAt > last.sentAt) last = message;
+  }
+  return last?.sentAt
+    ? `${SENT_LABEL[last.kind]} a ${formatDateTime(last.sentAt)}`
+    : "Pedido não enviado";
 }

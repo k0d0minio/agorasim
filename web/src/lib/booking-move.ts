@@ -53,6 +53,7 @@ import {
   todayKey,
   type DateKey,
   type DaySlots,
+  type SlotRefusal,
 } from "@/lib/availability";
 import {
   groupDepartures,
@@ -63,6 +64,7 @@ import {
 } from "@/lib/departure-window";
 import { bookingLogisticsFacts, guestMoveEmail, titleFromCatalogue } from "@/lib/booking-emails";
 import { bookingRef, slotOccupancyOn } from "@/lib/bookings";
+import { withDepartureLock } from "@/lib/departure-lock";
 import { assignVehicle, carChoices, type SeatingMode } from "@/lib/fleet";
 import {
   cancellationPath,
@@ -238,64 +240,85 @@ export async function moveBookingToDeparture(options: {
   const to: MoveTarget = { date, slot };
   if (sameDeparture(from, to)) return { status: "same-departure", booking: existing };
 
-  // The same check the checkout runs, against the same occupancy count. The
-  // booking's own driver and car are committed on the departure it is leaving,
-  // never on this one, so nothing has to be subtracted here.
-  const check = await checkSlotAvailable({
-    experienceSlug: existing.experienceSlug,
-    date,
-    slot,
-    partySize: existing.partySize,
-    // A per-person party joins or opens an open car on the new departure.
-    mode: seatingOf(existing),
-    occupancy: await slotOccupancyOn(date, slot),
-    today,
-    // The team moving a booking, like the team selling one (D-13).
-    audience: "team",
-  });
+  /*
+    The check and the write, under the target departure's lock
+    (`lib/departure-lock.ts`): a guest checking out for the last seat of that
+    departure in the same second waits for this move, then reads it. Only the
+    target is locked — leaving a departure frees room and never overfills it.
+  */
+  type Claim = { refused: SlotRefusal["reason"] } | { moved: Booking | undefined };
+  let claim: Claim;
+  try {
+    claim = await withDepartureLock<Claim>(date, slot, async () => {
+      // The same check the checkout runs, against the same occupancy count. The
+      // booking's own driver and car are committed on the departure it is leaving,
+      // never on this one, so nothing has to be subtracted here.
+      const check = await checkSlotAvailable({
+        experienceSlug: existing.experienceSlug,
+        date,
+        slot,
+        partySize: existing.partySize,
+        // A per-person party joins or opens an open car on the new departure.
+        mode: seatingOf(existing),
+        occupancy: await slotOccupancyOn(date, slot),
+        today,
+        // The team moving a booking, like the team selling one (D-13).
+        audience: "team",
+      });
 
-  if (!check.ok) {
-    return check.reason === "invalid"
-      ? { status: "invalid" }
-      : { status: "unavailable", reason: check.reason };
+      if (!check.ok) return { refused: check.reason };
+
+      const now = new Date();
+      const [row] = await db
+        .update(bookings)
+        .set({
+          date,
+          slot,
+          // Re-stated from the check rather than carried over: the class a booking
+          // holds is the class that was just verified free, and reusing the stored
+          // one would be trusting a decision made against a different departure.
+          vehicleClass: check.vehicleClass,
+          // The open car on the new departure — the one it left stays behind.
+          sharedCarId: check.sharedCarId,
+          // Bumped from the snapshot this function read, not a raw increment: the
+          // guard below only matches a row still on `from`, so a concurrent mover
+          // that wins this race leaves the loser's `existing.moveSeq` stale and
+          // its update unmatched — the same protection `date`/`slot` already have.
+          // What this buys is a departure `message_log`'s date-bound kinds can key
+          // on alongside `subject_date`, so a booking moved back onto a date it
+          // already left (`X → A → B → A`) is not mistaken for the visit that
+          // came before it (`lib/message-log.ts` → `DATE_BOUND_KINDS`).
+          moveSeq: existing.moveSeq + 1,
+          // A no-show mark belongs to the departure the guest missed, not to the
+          // booking: moved to a new day, they are owed that day's thank-you
+          // (`lib/booking-no-show.ts`).
+          noShowAt: null,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(bookings.id, existing.id),
+            eq(bookings.status, "confirmed"),
+            eq(bookings.date, from.date),
+            eq(bookings.slot, from.slot),
+          ),
+        )
+        .returning();
+      return { moved: row };
+    });
+  } catch (err) {
+    console.error(
+      `[booking] couldn't hold ${date} ${slot} to move ${bookingRef(bookingId)}`,
+      err,
+    );
+    return { status: "unavailable", reason: "unreadable" };
   }
-
-  const now = new Date();
-  const [moved] = await db
-    .update(bookings)
-    .set({
-      date,
-      slot,
-      // Re-stated from the check rather than carried over: the class a booking
-      // holds is the class that was just verified free, and reusing the stored
-      // one would be trusting a decision made against a different departure.
-      vehicleClass: check.vehicleClass,
-      // The open car on the new departure — the one it left stays behind.
-      sharedCarId: check.sharedCarId,
-      // Bumped from the snapshot this function read, not a raw increment: the
-      // guard below only matches a row still on `from`, so a concurrent mover
-      // that wins this race leaves the loser's `existing.moveSeq` stale and
-      // its update unmatched — the same protection `date`/`slot` already have.
-      // What this buys is a departure `message_log`'s date-bound kinds can key
-      // on alongside `subject_date`, so a booking moved back onto a date it
-      // already left (`X → A → B → A`) is not mistaken for the visit that
-      // came before it (`lib/message-log.ts` → `DATE_BOUND_KINDS`).
-      moveSeq: existing.moveSeq + 1,
-      // A no-show mark belongs to the departure the guest missed, not to the
-      // booking: moved to a new day, they are owed that day's thank-you
-      // (`lib/booking-no-show.ts`).
-      noShowAt: null,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(bookings.id, existing.id),
-        eq(bookings.status, "confirmed"),
-        eq(bookings.date, from.date),
-        eq(bookings.slot, from.slot),
-      ),
-    )
-    .returning();
+  if ("refused" in claim) {
+    return claim.refused === "invalid"
+      ? { status: "invalid" }
+      : { status: "unavailable", reason: claim.refused };
+  }
+  const { moved } = claim;
 
   // Somebody else moved or cancelled it between the read and the write. The
   // row that is there now is the truth, not the one this request set out with.
@@ -377,55 +400,68 @@ export async function moveBookingToCar(options: {
     return { status: "not-movable" };
   }
 
-  const [row, occupancy] = await Promise.all([
-    readDay(existing.date, existing.slot),
-    slotOccupancyOn(existing.date, existing.slot),
-  ]);
-  const departure = describeSlot({
-    date: existing.date,
-    slot: existing.slot,
-    row,
-    occupancy,
-    today,
-    audience: "team",
-  });
-  if (departure.past) return { status: "not-movable" };
+  /*
+    The read, the choice and the write, under the departure's lock
+    (`lib/departure-lock.ts`): a new car takes a driver and a car out of the
+    same pool a guest's checkout reads.
+  */
+  const outcome = await withDepartureLock<CarMoveOutcome>(
+    existing.date,
+    existing.slot,
+    async () => {
+      const [row, occupancy] = await Promise.all([
+        readDay(existing.date, existing.slot),
+        slotOccupancyOn(existing.date, existing.slot),
+      ]);
+      const departure = describeSlot({
+        date: existing.date,
+        slot: existing.slot,
+        row,
+        occupancy,
+        today,
+        audience: "team",
+      });
+      if (departure.past) return { status: "not-movable" };
 
-  const choices = carChoices({
-    cars: departure.openCars,
-    party: {
-      sharedCarId: current,
-      experienceSlug: existing.experienceSlug,
-      partySize: existing.partySize,
+      const choices = carChoices({
+        cars: departure.openCars,
+        party: {
+          sharedCarId: current,
+          experienceSlug: existing.experienceSlug,
+          partySize: existing.partySize,
+        },
+        free: departure,
+      });
+
+      let next: { sharedCarId: string; vehicleClass: Booking["vehicleClass"] };
+      if (target === "new") {
+        const assignment = assignVehicle(existing.experienceSlug, existing.partySize);
+        if (!choices.canOpenNew || !assignment.ok) return { status: "no-room" };
+        next = { sharedCarId: crypto.randomUUID(), vehicleClass: assignment.vehicleClass };
+      } else {
+        const car = choices.join.find((entry) => entry.id === target);
+        if (!car) return { status: "no-room" };
+        next = { sharedCarId: car.id, vehicleClass: car.vehicleClass };
+      }
+
+      // Guarded on the car it leaves, like the departure move: two operators
+      // pressing at once produce one change, and the loser is told it moved.
+      const [moved] = await db
+        .update(bookings)
+        .set({ ...next, updatedAt: new Date() })
+        .where(
+          and(
+            eq(bookings.id, existing.id),
+            eq(bookings.status, "confirmed"),
+            eq(bookings.sharedCarId, current),
+          ),
+        )
+        .returning();
+      return moved ? { status: "moved", booking: moved } : { status: "not-movable" };
     },
-    free: departure,
-  });
-
-  let next: { sharedCarId: string; vehicleClass: Booking["vehicleClass"] };
-  if (target === "new") {
-    const assignment = assignVehicle(existing.experienceSlug, existing.partySize);
-    if (!choices.canOpenNew || !assignment.ok) return { status: "no-room" };
-    next = { sharedCarId: crypto.randomUUID(), vehicleClass: assignment.vehicleClass };
-  } else {
-    const car = choices.join.find((entry) => entry.id === target);
-    if (!car) return { status: "no-room" };
-    next = { sharedCarId: car.id, vehicleClass: car.vehicleClass };
-  }
-
-  // Guarded on the car it leaves, like the departure move: two operators
-  // pressing at once produce one change, and the loser is told it moved.
-  const [moved] = await db
-    .update(bookings)
-    .set({ ...next, updatedAt: new Date() })
-    .where(
-      and(
-        eq(bookings.id, existing.id),
-        eq(bookings.status, "confirmed"),
-        eq(bookings.sharedCarId, current),
-      ),
-    )
-    .returning();
-  if (!moved) return { status: "not-movable" };
+  );
+  if (outcome.status !== "moved") return outcome;
+  const { booking: moved } = outcome;
 
   await recordAuditOrWarn({
     actorUserId,

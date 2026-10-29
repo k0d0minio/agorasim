@@ -228,7 +228,11 @@ export async function startCheckout(
 
   const priced = priceBooking({
     tour: { slug: experience.slug, pricing: experience.pricing },
-    addOns: knownAddOns.map((entry) => ({ slug: entry.slug, pricing: entry.pricing })),
+    addOns: knownAddOns.map((entry) => ({
+      slug: entry.slug,
+      pricing: entry.pricing,
+      attachesTo: entry.attachesTo,
+    })),
     mode: booking.mode,
     party,
     date: booking.date,
@@ -255,36 +259,26 @@ export async function startCheckout(
    * route is free, counting bookings on every route, and it hands back which
    * car was assigned so the booking row can record it. A per-person party may
    * instead take seats in an open car of its tour, and is handed that car.
+   *
+   * It runs inside `startBookingCheckout`, under the departure's lock, with the
+   * occupancy read inside it too: a count taken before the lock is a count
+   * another guest's hold can already have made stale.
    */
-  const check = await checkSlotAvailable({
-    experienceSlug: experience.slug,
-    date: booking.date,
-    slot: booking.slot,
-    partySize: priced.seats,
-    mode: booking.mode,
-    occupancy: await slotOccupancyOn(booking.date, booking.slot),
-    // A guest: the block, two days' notice and the six-month window all bind.
-    audience: "online",
-  });
+  const assign = async () =>
+    checkSlotAvailable({
+      experienceSlug: experience.slug,
+      date: booking.date,
+      slot: booking.slot,
+      partySize: priced.seats,
+      mode: booking.mode,
+      occupancy: await slotOccupancyOn(booking.date, booking.slot),
+      // A guest: the block, two days' notice and the six-month window all bind.
+      audience: "online",
+    });
 
-  if (!check.ok) {
-    // Three different noes, three different sentences. "The car for a group
-    // your size is taken" points at another day; "groups above eight" points
-    // at a phone call; everything else is the day simply being gone.
-    if (check.reason === "party-too-large") {
-      return { fieldErrors: { party: t(c.groupTooLarge, locale) }, values: entered };
-    }
-    return {
-      fieldErrors: {
-        date: t(check.reason === "no-vehicle" ? c.carGone : c.dayGone, locale),
-      },
-      values: entered,
-    };
-  }
-
-  let clientSecret: string;
+  let started: Awaited<ReturnType<typeof startBookingCheckout>>;
   try {
-    const started = await startBookingCheckout({
+    started = await startBookingCheckout({
       guest: {
         name: booking.name,
         email: booking.email,
@@ -297,22 +291,35 @@ export async function startCheckout(
       slot: booking.slot,
       mode: booking.mode,
       party,
-      vehicleClass: check.vehicleClass,
-      sharedCarId: check.sharedCarId,
+      assign,
       experience,
       addOns: knownAddOns,
       lines: priced.lines,
       totalCents: priced.totalCents,
     });
-    clientSecret = started.clientSecret;
   } catch (err) {
-    console.error("[checkout] could not start a Stripe session", err);
+    console.error("[checkout] could not hold the departure or start a Stripe session", err);
     return { error: t(c.generic, locale), values: entered };
+  }
+
+  if (!started.ok) {
+    // Three different noes, three different sentences. "The car for a group
+    // your size is taken" points at another day; "groups above eight" points
+    // at a phone call; everything else is the day simply being gone.
+    if (started.reason === "party-too-large") {
+      return { fieldErrors: { party: t(c.groupTooLarge, locale) }, values: entered };
+    }
+    return {
+      fieldErrors: {
+        date: t(started.reason === "no-vehicle" ? c.carGone : c.dayGone, locale),
+      },
+      values: entered,
+    };
   }
 
   return {
     payment: {
-      clientSecret,
+      clientSecret: started.clientSecret,
       publishableKey: publishableKey(),
       stripeAccount: connectedAccountId(),
     },

@@ -120,12 +120,12 @@ export const CLASS_SEATS: Record<VehicleClass, number> = VEHICLE_CLASSES.reduce(
  *
  * Rita can lower it for one departure from the calendar (someone is at a
  * wedding, someone is ill). She cannot raise it: a third driver is precisely
- * the open question in AGORA-019, and a stepper that went to three would be
- * this file quietly answering it.
+ * the open question in AGORA-019, and a button that set three would be this
+ * file quietly answering it.
  */
 export const DRIVERS_PER_SLOT = 2;
 
-/** The ceiling the roster stepper stops at. See {@link DRIVERS_PER_SLOT}. */
+/** The ceiling any roster write stops at. See {@link DRIVERS_PER_SLOT}. */
 export const MAX_DRIVERS_PER_SLOT = DRIVERS_PER_SLOT;
 
 /**
