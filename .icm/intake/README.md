@@ -22,7 +22,6 @@ true of this backlog.
 Set by Jamie on 2026-10-27.
 
 1. triage
-2. wedding-quotes
 
 ## The loop
 
