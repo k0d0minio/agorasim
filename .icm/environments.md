@@ -2,7 +2,7 @@
 
 | Environment | Address | Vercel project | Database | Moves on |
 |---|---|---|---|---|
-| Production | <agorasim.pt is not on the Vercel project on 2026-10-29. Its one production domain is https://agorasim.jamienisbet.com> | `agorasim` | the default branch of the Neon project `agorasim` | `promote.sh run --tag <tag>`, on Jamie's word |
+| Production | https://prod.agorasim.pt. `agorasim.pt` moves to Vercel at the first promotion to production, after the client's approval | `agorasim` | the default branch of the Neon project `agorasim` | `promote.sh run --tag <tag>`, on Jamie's word |
 | UAT | https://uat.agorasim.pt | `agorasim` | the default branch of the Neon project `uat-agorasim` | every merge to `main` |
 | Preview | the pull request's Vercel preview | `agorasim` | the Neon branch `preview/<branch>` in `uat-agorasim`, made by the Neon integration | every push to the branch |
 
