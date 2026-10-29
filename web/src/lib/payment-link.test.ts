@@ -113,6 +113,30 @@ vi.mock("@/lib/audit", () => ({ recordAuditOrWarn: vi.fn() }));
 vi.mock("@/lib/message-log", () => ({ sendLoggedEmail: vi.fn() }));
 vi.mock("@/lib/observability", () => ({ captureAlert: vi.fn(), captureError: vi.fn() }));
 
+// The departure lock, as a recorder: which departure each call held, and the
+// writes made while it was held. `fail` makes it throw, as a lock wait that
+// ran out does. `lib/departure-lock.test.ts` proves the lock itself.
+const lock = {
+  inside: false,
+  fail: false,
+  held: [] as { departure: string; writes: string[] }[],
+};
+vi.mock("@/lib/departure-lock", () => ({
+  withDepartureLock: async (date: string, slot: string, run: () => Promise<unknown>) => {
+    if (lock.fail) throw new Error("canceling statement due to lock timeout");
+    const entry = { departure: `${date}:${slot}`, writes: [] as string[] };
+    lock.held.push(entry);
+    const before = writes.length;
+    lock.inside = true;
+    try {
+      return await run();
+    } finally {
+      lock.inside = false;
+      entry.writes = writes.slice(before).map((write) => write.op);
+    }
+  },
+}));
+
 process.env.BOOKING_TOKEN_SECRET = "test-secret-for-payment-links";
 
 const { paymentLinkPath, paymentLinkState, startPaymentLinkCheckout } = await import(
@@ -179,6 +203,8 @@ beforeEach(async () => {
   sessionsExpire.mockReset();
   checkSlotAvailable.mockReset();
   connectedAccount = null;
+  lock.held = [];
+  lock.fail = false;
   token = (await issueCancellationToken()).token;
 });
 
@@ -264,6 +290,42 @@ describe("startPaymentLinkCheckout", () => {
       op: "update",
       values: expect.objectContaining({ stripeSessionId: SESSION_ID }),
     });
+  });
+
+  it("re-checks and claims the hold under the departure's lock, and calls Stripe after it", async () => {
+    const held = linkBooking();
+    answers.push([held], [lead], [held], []);
+    let checkedInside = false;
+    checkSlotAvailable.mockImplementation(async () => {
+      checkedInside = lock.inside;
+      return { ok: true, vehicleClass: "classic-small", sharedCarId: null };
+    });
+    let stripeInside = true;
+    sessionsCreate.mockImplementation(async () => {
+      stripeInside = lock.inside;
+      return { id: SESSION_ID, client_secret: `${SESSION_ID}_secret_x` };
+    });
+
+    const outcome = await startPaymentLinkCheckout({ token, locale: "en" });
+
+    expect(outcome.status).toBe("embedded");
+    expect(checkedInside).toBe(true);
+    expect(stripeInside).toBe(false);
+    expect(lock.held).toEqual([{ departure: `${held.date}:${held.slot}`, writes: ["update"] }]);
+  });
+
+  it("fails before any hold or money when the departure cannot be held", async () => {
+    lock.fail = true;
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    answers.push([linkBooking()], [lead]);
+
+    const outcome = await startPaymentLinkCheckout({ token, locale: "pt" });
+
+    expect(outcome).toEqual({ status: "failed" });
+    expect(checkSlotAvailable).not.toHaveBeenCalled();
+    expect(writes).toEqual([]);
+    expect(sessionsCreate).not.toHaveBeenCalled();
+    quiet.mockRestore();
   });
 
   it("hands back an open session under a live hold instead of holding a second car", async () => {

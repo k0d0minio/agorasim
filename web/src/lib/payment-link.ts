@@ -32,6 +32,7 @@ import { bookings, db, tourRequests, type Booking, type TourRequest } from "@/db
 import type { Locale, Localized } from "@/i18n/config";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { checkSlotAvailable, formatDay, todayKey } from "@/lib/availability";
+import { withDepartureLock } from "@/lib/departure-lock";
 import {
   bookingLogisticsFacts,
   guestPaymentLinkEmail,
@@ -297,40 +298,59 @@ export async function startPaymentLinkCheckout(options: {
     }
   }
 
-  const fit = await checkSlotAvailable({
-    experienceSlug: booking.experienceSlug,
-    date: booking.date,
-    slot: booking.slot,
-    partySize: booking.partySize,
-    mode: booking.mode,
-    occupancy: await slotOccupancyOn(booking.date, booking.slot, now),
-    // The team sold this departure: the notice and the six-month window were
-    // theirs to waive. Capacity still binds, as at "Registar reserva".
-    audience: "team",
-  });
-  if (!fit.ok) return { status: fit.reason === "unreadable" ? "failed" : "full" };
-
-  // The hold, claimed under a guard: only a row with no live hold takes one,
-  // so a second tap racing this one finds nothing to claim.
+  /*
+    The re-check and the hold, under the departure's lock
+    (`lib/departure-lock.ts`): a guest paying for the last seat at
+    `/reservar` in the same second waits for this hold, then reads it.
+  */
   const holdExpiresAt = holdExpiryFrom(now);
-  const [held] = await db
-    .update(bookings)
-    .set({
-      holdExpiresAt,
-      vehicleClass: fit.vehicleClass,
-      sharedCarId: fit.sharedCarId,
-      stripeSessionId: null,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(bookings.id, booking.id),
-        eq(bookings.status, "pending"),
-        lte(bookings.holdExpiresAt, now),
-      ),
-    )
-    .returning();
-  if (!held) return { status: "failed" };
+  type Claim = { status: "held"; held: Booking } | { status: "full" | "failed" };
+  let claim: Claim;
+  try {
+    claim = await withDepartureLock<Claim>(booking.date, booking.slot, async () => {
+      const fit = await checkSlotAvailable({
+        experienceSlug: booking.experienceSlug,
+        date: booking.date,
+        slot: booking.slot,
+        partySize: booking.partySize,
+        mode: booking.mode,
+        occupancy: await slotOccupancyOn(booking.date, booking.slot, now),
+        // The team sold this departure: the notice and the six-month window were
+        // theirs to waive. Capacity still binds, as at "Registar reserva".
+        audience: "team",
+      });
+      if (!fit.ok) return { status: fit.reason === "unreadable" ? "failed" : "full" };
+
+      // The hold, claimed under a guard: only a row with no live hold takes one,
+      // so a second tap racing this one finds nothing to claim.
+      const [held] = await db
+        .update(bookings)
+        .set({
+          holdExpiresAt,
+          vehicleClass: fit.vehicleClass,
+          sharedCarId: fit.sharedCarId,
+          stripeSessionId: null,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(bookings.id, booking.id),
+            eq(bookings.status, "pending"),
+            lte(bookings.holdExpiresAt, now),
+          ),
+        )
+        .returning();
+      return held ? { status: "held", held } : { status: "failed" };
+    });
+  } catch (err) {
+    console.error(
+      `[payment-link] couldn't hold the departure for ${bookingRef(booking.id)}`,
+      err,
+    );
+    return { status: "failed" };
+  }
+  if (claim.status !== "held") return { status: claim.status };
+  const { held } = claim;
 
   const catalogue = new Map((await listCatalogue()).map((entry) => [entry.slug, entry]));
   const facts = bookingLogisticsFacts(held, titleFromCatalogue(catalogue), locale);

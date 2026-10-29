@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Experience } from "@/content/experiences";
+import type { SlotCheck } from "@/lib/availability";
 
 /**
  * The booking's embedded checkout, at its Stripe boundary: the session it
@@ -94,6 +95,27 @@ vi.mock("@/lib/email", () => ({
 }));
 vi.mock("@/lib/observability", () => ({ captureAlert: vi.fn(), captureError: vi.fn() }));
 
+// ---------------------------------------------------------------------------
+// The departure lock, as a recorder: which departure each call held, and the
+// writes made while it was held. `lib/departure-lock.test.ts` proves the lock.
+// ---------------------------------------------------------------------------
+
+const lock = { inside: false, calls: [] as { departure: string; writes: string[] }[] };
+vi.mock("@/lib/departure-lock", () => ({
+  withDepartureLock: async (date: string, slot: string, run: () => Promise<unknown>) => {
+    const call = { departure: `${date}:${slot}`, writes: [] as string[] };
+    lock.calls.push(call);
+    const before = writes.length;
+    lock.inside = true;
+    try {
+      return await run();
+    } finally {
+      lock.inside = false;
+      call.writes = writes.slice(before).map((write) => write.op);
+    }
+  },
+}));
+
 const {
   closeUnpaidBooking,
   releaseBookingCheckout,
@@ -118,7 +140,15 @@ const tour = {
   tagline: { pt: "O campo saloio", en: "The Saloia countryside" },
 } as unknown as Experience;
 
-function start() {
+/** The departure re-check's answer: a free car, and a seat in a new open car. */
+const fits: SlotCheck = {
+  ok: true,
+  slot: {} as Extract<SlotCheck, { ok: true }>["slot"],
+  vehicleClass: "classic-small",
+  sharedCarId: "eeeeeeee-0000-4000-8000-000000000001",
+};
+
+function start(assign: () => Promise<SlotCheck> = async () => fits) {
   return startBookingCheckout({
     guest: {
       name: "Ana",
@@ -132,8 +162,7 @@ function start() {
     slot: "morning",
     mode: "public",
     party: { adults: 2, children: 0, infants: 0 },
-    vehicleClass: "classic-small",
-    sharedCarId: "eeeeeeee-0000-4000-8000-000000000001",
+    assign,
     experience: tour,
     addOns: [],
     lines: [{ slug: "rural-saloia", kind: "tour", unit: "adult", unitCents: 9_500, quantity: 2 }],
@@ -149,6 +178,7 @@ beforeEach(() => {
   sessionsCreate.mockReset();
   sessionsRetrieve.mockReset();
   sessionsExpire.mockReset();
+  lock.calls.length = 0;
 });
 
 // ---------------------------------------------------------------------------
@@ -167,7 +197,7 @@ describe("startBookingCheckout — the embedded session", () => {
 
     const started = await start();
 
-    expect(started).toEqual({ clientSecret: CLIENT_SECRET, bookingId: BOOKING_ID });
+    expect(started).toEqual({ ok: true, clientSecret: CLIENT_SECRET, bookingId: BOOKING_ID });
     const [params] = sessionsCreate.mock.calls[0];
     expect(params.ui_mode).toBe("embedded_page");
     // Paying ends on our own confirmation page, never a stripe.com address…
@@ -218,6 +248,43 @@ describe("startBookingCheckout — the embedded session", () => {
     [params, options] = sessionsCreate.mock.calls[1];
     expect(params.payment_intent_data).not.toHaveProperty("application_fee_amount");
     expect(options).toBeUndefined();
+  });
+
+  it("re-checks and holds the car under the departure's lock, and calls Stripe after it", async () => {
+    queueInserts();
+    let checkedInside = false;
+    let stripeInside = true;
+    sessionsCreate.mockImplementation(async () => {
+      stripeInside = lock.inside;
+      return { id: SESSION_ID, client_secret: CLIENT_SECRET };
+    });
+
+    await start(async () => {
+      checkedInside = lock.inside;
+      return fits;
+    });
+
+    expect(lock.calls).toEqual([
+      { departure: "2026-11-14:morning", writes: ["insert", "insert"] },
+    ]);
+    expect(checkedInside).toBe(true);
+    // The hold is written; a slow Stripe must not keep the next guest waiting.
+    expect(stripeInside).toBe(false);
+    const booking = writes.find(
+      (write) => write.op === "insert" && "vehicleClass" in (write.values as object),
+    );
+    expect(booking?.values).toMatchObject({
+      vehicleClass: "classic-small",
+      sharedCarId: "eeeeeeee-0000-4000-8000-000000000001",
+    });
+  });
+
+  it("returns the re-check's refusal, and writes nothing and opens no session", async () => {
+    const started = await start(async () => ({ ok: false, reason: "no-vehicle" }));
+
+    expect(started).toEqual({ ok: false, reason: "no-vehicle" });
+    expect(writes).toEqual([]);
+    expect(sessionsCreate).not.toHaveBeenCalled();
   });
 
   it("refuses a session that came back without a client secret, and frees the car", async () => {
