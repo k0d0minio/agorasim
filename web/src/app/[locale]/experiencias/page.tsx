@@ -64,12 +64,19 @@ export default async function ExperiencesPage({
       </Section>
 
       {/* Every signature tour gets equal billing — full-width feature blocks
-          with alternating image placement for visual variety. */}
+          with alternating image placement for visual variety. The text always
+          comes first in the DOM, so the one-column phone layout never puts two
+          photos back to back; `lg:order-first` moves the photo left on wide
+          screens only. */}
       {signatures.map((tour, i) => {
         const price = fromPriceLabel(tour.pricing, l);
         const imageOnRight = i % 2 === 0;
         const imageBlock = (
-          <Media src={tour.image} label={t(tour.imageAlt, l)} className="aspect-4/3 w-full" />
+          <Media
+            src={tour.image}
+            label={t(tour.imageAlt, l)}
+            className={imageOnRight ? "aspect-4/3 w-full" : "aspect-4/3 w-full lg:order-first"}
+          />
         );
         const contentBlock = (
           <div>
@@ -102,17 +109,8 @@ export default async function ExperiencesPage({
         return (
           <Section key={tour.slug}>
             <div className="grid items-center gap-10 lg:grid-cols-2">
-              {imageOnRight ? (
-                <>
-                  {contentBlock}
-                  {imageBlock}
-                </>
-              ) : (
-                <>
-                  {imageBlock}
-                  {contentBlock}
-                </>
-              )}
+              {contentBlock}
+              {imageBlock}
             </div>
           </Section>
         );
