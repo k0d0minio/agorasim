@@ -2,9 +2,9 @@
 
 | Environment | Address | Vercel project | Database | Moves on |
 |---|---|---|---|---|
-| Production | <the production domain> | <the Vercel project of one app> | the default branch of the Neon project `agorasim` | `promote.sh run --tag <tag>`, on Jamie's word |
-| UAT | <https://uat.the production domain> | <the Vercel project of one app> | the default branch of the Neon project `uat-agorasim` | every merge to `main` |
-| Preview | the pull request's Vercel preview | <the Vercel project of one app> | the Neon branch `preview/<branch>` in `uat-agorasim`, made by the Neon integration | every push to the branch |
+| Production | https://prod.agorasim.pt. `agorasim.pt` moves to Vercel at the first promotion to production, after the client's approval | `agorasim` | the default branch of the Neon project `agorasim` | `promote.sh run --tag <tag>`, on Jamie's word |
+| UAT | https://uat.agorasim.pt | `agorasim` | the default branch of the Neon project `uat-agorasim` | every merge to `main` |
+| Preview | the pull request's Vercel preview | `agorasim` | the Neon branch `preview/<branch>` in `uat-agorasim`, made by the Neon integration | every push to the branch |
 
 This table is the one home of where the build runs. The blueprint's files read it and never
 repeat it. The blueprint owns this file: `copier update` merges a new tag into it three ways,
