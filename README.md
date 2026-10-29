@@ -23,13 +23,7 @@ pnpm lint
 
 ## Environments
 
-| Environment | Address | Database | Moves on |
-|---|---|---|---|
-| Production | https://agorasim.pt | the default branch of the Neon project `agorasim` | Jamie's dispatch of `promote.yml` with the release tag |
-| UAT | https://uat.agorasim.pt | the default branch of the Neon project `uat-agorasim` | every merge to `main` |
-| Preview | the pull request's Vercel preview | the Neon branch `preview/<branch>` in `uat-agorasim` | every push to the branch |
-
-The contract: `.icm/uat/CONTEXT.md`.
+Where the build runs: `.icm/environments.md`.
 
 ## The website (`web/`)
 
