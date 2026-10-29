@@ -16,6 +16,7 @@ import {
   resolveQuoteToken,
   type QuoteReturn,
 } from "@/lib/quote-checkout";
+import { resolveRetiredQuoteReturn } from "@/lib/quote-return";
 import { DEAD_QUOTE_TOKEN } from "@/lib/quote-token";
 import {
   dueInstalment,
@@ -80,6 +81,13 @@ import { fillTemplate } from "@/lib/fill-template";
  * if it is this quote's — is paid, and if so runs the webhook's own idempotent
  * recording. Whichever of the two arrives first records it and sends the
  * receipts; the other finds it done.
+ *
+ * **A link retired while the couple paid** — a balance email or a re-send
+ * rotated it between the tap and the return — opens on the session instead:
+ * `proxy.ts` lets it through and this page renders the quote that
+ * `resolveRetiredQuoteReturn` (`lib/quote-return.ts`) finds behind the
+ * session, without a pay form (the token in the URL is dead) and with a line
+ * pointing at the newest email.
  */
 export const dynamic = "force-dynamic";
 
@@ -122,13 +130,19 @@ export default async function QuotePage({
     return <InvalidPanel locale={l} reason="throttled" />;
   }
 
-  let quote = await resolveQuoteToken(token);
-  if (!quote) return <InvalidPanel locale={l} />;
-
   // A string or nothing: a repeated `?session_id=` arrives as an array, and
   // the query string is the visitor's to type.
   const rawSessionId = (await searchParams).session_id;
   const sessionId = typeof rawSessionId === "string" ? rawSessionId.trim() : undefined;
+
+  let quote = await resolveQuoteToken(token);
+  let retired = false;
+  if (!quote && sessionId) {
+    const quoteId = await resolveRetiredQuoteReturn(sessionId);
+    quote = quoteId ? await getQuote(quoteId) : null;
+    retired = quote !== null;
+  }
+  if (!quote) return <InvalidPanel locale={l} />;
   const returned = sessionId ? await reconcileQuoteReturn(sessionId, quote.id) : null;
   if (returned) quote = (await getQuote(quote.id)) ?? quote;
 
@@ -149,6 +163,7 @@ export default async function QuotePage({
       quote={quote}
       name={lead?.name ?? null}
       returnState={returnState}
+      retired={retired}
     />
   );
 }
@@ -159,12 +174,15 @@ function QuoteView({
   quote,
   name,
   returnState,
+  retired,
 }: {
   locale: Locale;
   token: string;
   quote: QuoteWithPayments;
   name: string | null;
   returnState: QuoteReturn;
+  /** Opened on a Stripe return after a later email retired `token`: no pay form. */
+  retired: boolean;
 }) {
   const c = quotePageContent;
   const money = (cents: number) => formatPrice(cents, locale, quote.currency);
@@ -285,7 +303,7 @@ function QuoteView({
               title={t(c[returnState.kind].title, locale)}
               body={t(c[returnState.kind].body, locale)}
             />
-          ) : due.kind === "due" ? (
+          ) : due.kind === "due" && !retired ? (
             <QuotePayForm
               locale={locale}
               token={token}
@@ -303,6 +321,9 @@ function QuoteView({
               title={fillTemplate(t(c.closed.title, locale), { date: formatDay(due.dueDate, locale) })}
               body={t(c.closed.body, locale)}
             />
+          ) : null}
+          {retired ? (
+            <p className="mt-4 text-sm text-muted-foreground">{t(c.retired, locale)}</p>
           ) : null}
         </div>
 

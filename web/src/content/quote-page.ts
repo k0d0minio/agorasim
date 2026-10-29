@@ -121,6 +121,15 @@ export const quotePageContent = {
       en: "Stripe has told us — the confirmation arrives in a moment, and the receipt follows by email. You can refresh this page.",
     } as Localized,
   },
+  /**
+   * Back from Stripe on a link that a later email replaced while the couple
+   * paid (`lib/quote-return.ts`): the page shows the quote, but takes no
+   * payment on the dead link.
+   */
+  retired: {
+    pt: "Este link foi substituído por um mais recente. Para voltar a este orçamento ou pagar o que falta, use o link do último email que lhe enviámos.",
+    en: "This link has been replaced by a newer one. To come back to this quote or pay what is left, use the link in the latest email we sent you.",
+  } as Localized,
   /** A delayed method (Multibanco): the money is on its way. */
   awaiting: {
     title: { pt: "A aguardar o pagamento", en: "Waiting for your payment" } as Localized,

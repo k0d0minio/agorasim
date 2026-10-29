@@ -16,4 +16,4 @@ Investigate. One option: resolve the quote from the Checkout `session_id` on ret
 ## Acceptance criteria
 
 - [ ] A couple who pays, then returns with a token that a later balance email retired, sees the paid state of their quote, not the invalid-link panel.
-- [ ] A dead token without a matching paid `session_id` still gets the invalid-link panel with a 404.
+- [ ] A dead token without a matching complete `session_id` still gets the invalid-link panel with a 404.
