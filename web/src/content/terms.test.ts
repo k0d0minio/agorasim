@@ -39,6 +39,17 @@ describe("termsSection", () => {
     }
   });
 
+  // A tour quote has no self-serve cancel link, so the section it quotes must
+  // name the way its customer cancels: email or phone.
+  it("tells a tour quote's customer to cancel by email or phone", () => {
+    const pt = termsSection("cancellation", "pt").body.join(" ");
+    const en = termsSection("cancellation", "en").body.join(" ");
+    expect(pt).toContain("através de um orçamento, não há link");
+    expect(pt).toContain("info@agorasim.pt ou telefone-nos");
+    expect(en).toContain("through a quote, there is no link");
+    expect(en).toContain("info@agorasim.pt or call us");
+  });
+
   it("states when the balance is due and no withdrawal right for a dated event", () => {
     const pt = termsSection("events", "pt").body.join(" ");
     const en = termsSection("events", "en").body.join(" ");
