@@ -18,3 +18,5 @@ dist/
 !.icm/raw/_processed/.gitkeep
 .icm/processed/**
 !.icm/processed/.gitkeep
+.vercel
+.env*
