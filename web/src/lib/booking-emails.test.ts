@@ -1408,6 +1408,70 @@ describe("guestQuoteRefundEmail — quote-refunded", () => {
     // The couple's names are escaped in the HTML part, as every name is.
     expect(mail.html).toContain("Inês &amp; Tomás");
   });
+
+  it("says passeio and pagamento on a tour quote, never evento or sinal, in Portuguese", () => {
+    const pt = guestQuoteRefundEmail(
+      refundFacts({
+        tour: true,
+        venue: null,
+        paid: "320 €",
+        amount: "120 €",
+        totalRefunded: "120 €",
+      }),
+    );
+
+    expect(pt.subject).toBe("Reembolso do seu passeio — sábado, 15 de agosto de 2026");
+    expect(pt.text).toContain(
+      "Devolvemos 120 € do pagamento do seu passeio de sábado, 15 de agosto de 2026. O seu passeio continua marcado.",
+    );
+    expect(pt.text).toContain("Data do passeio: sábado, 15 de agosto de 2026");
+    expect(pt.text).toContain("O passeio: Continua marcado");
+    expect(pt.text).toContain("Pagamento: Pagamento único");
+    expect(pt.text).not.toMatch(/evento|sinal/i);
+    expect(pt.html).not.toMatch(/evento|sinal/i);
+
+    const cancelled = guestQuoteRefundEmail(
+      refundFacts({ tour: true, venue: null, eventCancelled: true }),
+    );
+    expect(cancelled.subject).toBe("Passeio cancelado e reembolso — sábado, 15 de agosto de 2026");
+    expect(cancelled.text).toContain(
+      "O seu passeio de sábado, 15 de agosto de 2026 foi cancelado e devolvemos 243 € do pagamento.",
+    );
+    expect(cancelled.text).toContain("O passeio: Cancelado");
+    expect(cancelled.html).toContain("Passeio cancelado");
+    expect(cancelled.text).not.toMatch(/evento|sinal/i);
+    expect(cancelled.html).not.toMatch(/evento|sinal/i);
+  });
+
+  it("says tour and payment on a tour quote, never event or deposit, in English", () => {
+    const en = guestQuoteRefundEmail(
+      refundFacts({
+        tour: true,
+        locale: "en",
+        venue: null,
+        date: "Saturday, 15 August 2026",
+        amount: "€243",
+        totalRefunded: "€243",
+        eventCancelled: true,
+      }),
+    );
+
+    expect(en.subject).toBe("Tour cancelled and refunded — Saturday, 15 August 2026");
+    expect(en.text).toContain(
+      "Your tour on Saturday, 15 August 2026 has been cancelled and we have returned €243 of the payment.",
+    );
+    expect(en.text).toContain("Tour date: Saturday, 15 August 2026");
+    expect(en.text).toContain("The tour: Cancelled");
+    expect(en.text).toContain("Payment: Single payment");
+    expect(en.text).not.toMatch(/event|deposit/i);
+    expect(en.html).not.toMatch(/event|deposit/i);
+
+    const held = guestQuoteRefundEmail(
+      refundFacts({ tour: true, locale: "en", venue: null, date: "Saturday, 15 August 2026" }),
+    );
+    expect(held.subject).toBe("A refund on your tour — Saturday, 15 August 2026");
+    expect(held.text).toContain("Your tour is still booked.");
+  });
 });
 
 describe("guestQuoteEventCancelledEmail — quote-event-cancelled", () => {
@@ -1491,6 +1555,48 @@ describe("guestQuoteEventCancelledEmail — quote-event-cancelled", () => {
   it("leaves the venue row out when the quote has none", () => {
     const pt = guestQuoteEventCancelledEmail(cancelledFacts({ venue: null }));
     expect(pt.text).not.toContain("Local:");
+  });
+
+  it("says passeio on a tour quote, never evento, in Portuguese", () => {
+    const pt = guestQuoteEventCancelledEmail(cancelledFacts({ tour: true, venue: null }));
+
+    expect(pt.subject).toBe("Passeio cancelado — sábado, 15 de agosto de 2026");
+    expect(pt.text).toContain(
+      "O seu passeio de sábado, 15 de agosto de 2026 foi cancelado. O reembolso de 486 € já foi feito — enviámos-lhe os detalhes num email anterior.",
+    );
+    expect(pt.text).toContain("Data do passeio: sábado, 15 de agosto de 2026");
+    expect(pt.text).toContain("O passeio: Cancelado");
+    expect(pt.html).toContain("O seu passeio");
+    expect(pt.text).not.toMatch(/evento/i);
+    expect(pt.html).not.toMatch(/evento/i);
+
+    const noEarlier = guestQuoteEventCancelledEmail(
+      cancelledFacts({ tour: true, venue: null, refundNoticeSent: false }),
+    );
+    expect(noEarlier.text).toContain(
+      "O seu passeio de sábado, 15 de agosto de 2026 foi cancelado. O reembolso de 486 € já foi feito.",
+    );
+  });
+
+  it("says tour on a tour quote, never event, in English", () => {
+    const en = guestQuoteEventCancelledEmail(
+      cancelledFacts({
+        tour: true,
+        locale: "en",
+        venue: null,
+        date: "Saturday, 15 August 2026",
+        totalRefunded: "€486",
+      }),
+    );
+
+    expect(en.subject).toBe("Tour cancelled — Saturday, 15 August 2026");
+    expect(en.text).toContain(
+      "Your tour on Saturday, 15 August 2026 has been cancelled. The refund of €486 has already been made — we sent you its details in an earlier email.",
+    );
+    expect(en.text).toContain("Tour date: Saturday, 15 August 2026");
+    expect(en.text).toContain("The tour: Cancelled");
+    expect(en.text).not.toMatch(/event/i);
+    expect(en.html).not.toMatch(/event/i);
   });
 });
 

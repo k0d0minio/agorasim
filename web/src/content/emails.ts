@@ -1115,6 +1115,39 @@ export const bookingEmails = {
       pt: "Recebeu este email porque pagou um orçamento em {site}.",
       en: "You are receiving this email because you paid a quote at {site}.",
     } as Localized,
+    /**
+     * A tour quote (`lib/tour-quote.ts`): one payment for a tour, so the
+     * event and sinal words above give way to passeio and pagamento.
+     */
+    tour: {
+      subject: {
+        held: {
+          pt: "Reembolso do seu passeio — {date}",
+          en: "A refund on your tour — {date}",
+        } as Localized,
+        cancelled: {
+          pt: "Passeio cancelado e reembolso — {date}",
+          en: "Tour cancelled and refunded — {date}",
+        } as Localized,
+      },
+      banner: {
+        cancelled: { pt: "Passeio cancelado", en: "Tour cancelled" } as Localized,
+      },
+      lead: {
+        held: {
+          pt: "Devolvemos {amount} do pagamento do seu passeio de {date}. O seu passeio continua marcado.",
+          en: "We have returned {amount} of the payment for your tour on {date}. Your tour is still booked.",
+        } as Localized,
+        cancelled: {
+          pt: "O seu passeio de {date} foi cancelado e devolvemos {amount} do pagamento.",
+          en: "Your tour on {date} has been cancelled and we have returned {amount} of the payment.",
+        } as Localized,
+      },
+      date: { pt: "Data do passeio", en: "Tour date" } as Localized,
+      status: { pt: "O passeio", en: "The tour" } as Localized,
+      /** The one payment, in place of "Sinal". */
+      instalment: { pt: "Pagamento único", en: "Single payment" } as Localized,
+    },
   },
 
   /**
@@ -1150,6 +1183,27 @@ export const bookingEmails = {
       en: "Your event on {date} has been cancelled. The refund of {totalRefunded} has already been made.",
     } as Localized,
     detailsHeading: { pt: "O seu evento", en: "Your event" } as Localized,
+    /** A tour quote (`lib/tour-quote.ts`): the same notice in tour words. */
+    tour: {
+      subject: {
+        pt: "Passeio cancelado — {date}",
+        en: "Tour cancelled — {date}",
+      } as Localized,
+      preheader: {
+        pt: "Referência {ref} · o seu passeio foi cancelado",
+        en: "Reference {ref} · your tour has been cancelled",
+      } as Localized,
+      banner: { pt: "Passeio cancelado", en: "Tour cancelled" } as Localized,
+      lead: {
+        pt: "O seu passeio de {date} foi cancelado. O reembolso de {totalRefunded} já foi feito — enviámos-lhe os detalhes num email anterior.",
+        en: "Your tour on {date} has been cancelled. The refund of {totalRefunded} has already been made — we sent you its details in an earlier email.",
+      } as Localized,
+      leadNoEarlierEmail: {
+        pt: "O seu passeio de {date} foi cancelado. O reembolso de {totalRefunded} já foi feito.",
+        en: "Your tour on {date} has been cancelled. The refund of {totalRefunded} has already been made.",
+      } as Localized,
+      detailsHeading: { pt: "O seu passeio", en: "Your tour" } as Localized,
+    },
   },
 
   /** To Diogo & Rita. Portuguese — a new enquiry has arrived. */
