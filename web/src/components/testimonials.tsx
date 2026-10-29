@@ -19,7 +19,8 @@ import { cn } from "@/lib/utils";
  *
  * The photos are group shots rather than portraits (hosts, guests and the dog,
  * all in frame), so each one gets a full-width 4:3 crop above its quote instead
- * of the round avatar the shape usually implies.
+ * of the round avatar the shape usually implies. A portrait photo keeps its own
+ * 3:4 frame: a 4:3 crop of it cuts the faces at the top and the bottom.
  */
 export function Testimonials({
   locale,
@@ -68,7 +69,7 @@ export function Testimonials({
                 src={entry.photo}
                 label={t(entry.photoAlt, locale)}
                 rounded={false}
-                className="aspect-4/3 w-full"
+                className={cn("w-full", entry.portrait ? "aspect-3/4" : "aspect-4/3")}
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               />
               <div className="flex flex-1 flex-col p-6">

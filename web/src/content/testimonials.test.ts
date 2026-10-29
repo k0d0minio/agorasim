@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -31,6 +31,16 @@ describe("the guest testimonials", () => {
     }
   });
 
+  it("flags a portrait photo, so its card does not crop the faces", () => {
+    for (const entry of testimonials) {
+      const { width, height } = jpegSize(readFileSync(`${publicDir}${entry.photo}`));
+      expect({ photo: entry.photo, portrait: entry.portrait === true }).toEqual({
+        photo: entry.photo,
+        portrait: height > width,
+      });
+    }
+  });
+
   it("is written in both languages", () => {
     for (const entry of testimonials) {
       for (const locale of locales) {
@@ -49,3 +59,18 @@ describe("the guest testimonials", () => {
     expect(testimonialsFor("obidos-medieval-villages")).toHaveLength(0);
   });
 });
+
+/** The pixel size from a JPEG's start-of-frame segment, read without an image library. */
+function jpegSize(bytes: Buffer): { width: number; height: number } {
+  let at = 2; // past the SOI marker
+  while (at < bytes.length) {
+    const marker = bytes[at + 1];
+    const length = bytes.readUInt16BE(at + 2);
+    // SOF0..SOF15 hold the size, except DHT (C4), JPG (C8) and DAC (CC).
+    if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+      return { height: bytes.readUInt16BE(at + 5), width: bytes.readUInt16BE(at + 7) };
+    }
+    at += 2 + length;
+  }
+  throw new Error("no start-of-frame segment in the JPEG");
+}
