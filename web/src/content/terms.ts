@@ -59,7 +59,7 @@ export const seller = {
  * page prints (`terms.test.ts`): change the terms, change both, or the test
  * says the version and the page have come apart.
  */
-export const TERMS_VERSION = "2026-10-28";
+export const TERMS_VERSION = "2026-10-29";
 
 /**
  * One section of the terms. `id` names the few sections something other than
@@ -95,7 +95,7 @@ export const termsContent = {
   } as Localized,
 
   lastUpdatedLabel: { pt: "Última atualização", en: "Last updated" } as Localized,
-  lastUpdated: { pt: "28 de outubro de 2026", en: "28 October 2026" } as Localized,
+  lastUpdated: { pt: "29 de outubro de 2026", en: "29 October 2026" } as Localized,
 
   /**
    * The seller block, rendered as a definition list under its own heading so
@@ -150,9 +150,9 @@ export const termsContent = {
         heading: "Cancelamento e reembolso",
         body: [
           "Cancelamento gratuito até 48h antes da experiência. Com mau tempo, reagendamos — ou reembolsamos em condições extremas.",
-          "Como cancelar: o email de confirmação inclui um link para cancelar a reserva. Se precisar de cancelar, pode fazê-lo aí até 48 horas antes da partida — sem custos e com devolução do valor total. Também pode escrever-nos para info@agorasim.pt ou telefonar-nos; nesse caso, o pedido conta a partir do momento em que o recebemos.",
+          "Como cancelar: se reservou online, o email de confirmação inclui um link para cancelar a reserva. Se precisar de cancelar, pode fazê-lo aí até 48 horas antes da partida — sem custos e com devolução do valor total. Se pagou um passeio através de um orçamento, não há link: escreva-nos para info@agorasim.pt ou telefone-nos até 48 horas antes da partida, nas mesmas condições. Também pode cancelar uma reserva online por email ou telefone. Quando nos escreve ou telefona, o pedido conta a partir do momento em que o recebemos.",
           "Devolvemos o reembolso para o mesmo cartão ou método com que pagou. O valor costuma aparecer em 5 a 10 dias úteis, consoante o banco.",
-          "A menos de 48 horas da partida, o cancelamento gratuito online já não está disponível e o valor pago não é reembolsado automaticamente. Ligue-nos ou mande mensagem — falamos consigo e vemos o que é possível. Não comparecer à partida sem aviso equivale a um cancelamento fora do prazo.",
+          "A menos de 48 horas da partida, o cancelamento gratuito já não está disponível e o valor pago não é reembolsado automaticamente. Ligue-nos ou mande mensagem — falamos consigo e vemos o que é possível. Não comparecer à partida sem aviso equivale a um cancelamento fora do prazo.",
         ],
       },
       {
@@ -238,9 +238,9 @@ export const termsContent = {
         heading: "Cancellation and refunds",
         body: [
           "Free cancellation up to 48h before the experience. In bad weather we reschedule — or refund in extreme conditions.",
-          "How to cancel: your confirmation email includes a link to cancel the booking. If you need to cancel, you can do it there up to 48 hours before departure — free of charge, with the full amount returned. You can also write to info@agorasim.pt or call us; in that case the request counts from the moment we receive it.",
+          "How to cancel: if you booked online, your confirmation email includes a link to cancel the booking. If you need to cancel, you can do it there up to 48 hours before departure — free of charge, with the full amount returned. If you paid for a tour through a quote, there is no link: write to info@agorasim.pt or call us up to 48 hours before departure, on the same terms. You can also cancel an online booking by email or phone. When you write or call, the request counts from the moment we receive it.",
           "We return the refund to the same card or method you paid with. It usually appears within 5 to 10 working days, depending on your bank.",
-          "Less than 48 hours before departure, free online cancellation is no longer available and the amount paid is not refunded automatically. Call or message us — we'll talk it through and see what we can do. Not turning up for the departure without notice counts as a late cancellation.",
+          "Less than 48 hours before departure, free cancellation is no longer available and the amount paid is not refunded automatically. Call or message us — we'll talk it through and see what we can do. Not turning up for the departure without notice counts as a late cancellation.",
         ],
       },
       {
