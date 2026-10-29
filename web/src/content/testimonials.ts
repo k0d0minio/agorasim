@@ -24,6 +24,12 @@ export type Testimonial = {
   /** What the photo shows — written from the photo, not from the quote. */
   photoAlt: Localized;
   /**
+   * The photo is taller than it is wide. Its card then shows it in its own 3:4
+   * frame: the usual 4:3 crop keeps only the middle of a portrait and cuts the
+   * faces at the top and the bottom of a group selfie.
+   */
+  portrait?: true;
+  /**
    * Catalogue slugs this quote can honestly stand under, beyond the home page.
    * A quote only lists an experience the guests actually had: the Óbidos tour
    * is neither a classic-car day nor a Saloia one, so nothing here speaks for
@@ -62,6 +68,7 @@ export const testimonials: readonly Testimonial[] = [
       pt: "Madeline e Elliot muito juntos numa selfie ao fim do dia com o Diogo e a Rita, os quatro a rir, com o cão da casa ao colo da Rita.",
       en: "Madeline and Elliot pressed together for an end-of-day selfie with Diogo and Rita, all four laughing, the house Jack Russell in Rita's arms.",
     },
+    portrait: true,
     experiences: ["rural-saloia"],
   },
   {
