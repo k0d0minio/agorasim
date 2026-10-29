@@ -2155,6 +2155,12 @@ export type QuoteRefundEmailFacts = {
   totalRefunded: string;
   /** Whether the event was called off with it. */
   eventCancelled: boolean;
+  /**
+   * A tour quote (`lib/tour-quote.ts`): the tour's wording, passeio and
+   * pagamento, in place of the event's and the sinal's. Absent is a wedding
+   * or event.
+   */
+  tour?: boolean;
 };
 
 /**
@@ -2177,17 +2183,22 @@ export function guestQuoteRefundEmail(facts: QuoteRefundEmailFacts): EmailMessag
     site: siteUrl(),
   };
 
-  const subject = fillTemplate(t(c.subject[state], l), values);
+  const tour = facts.tour === true;
+  const subject = fillTemplate(t(tour ? c.tour.subject[state] : c.subject[state], l), values);
   const greeting = fillTemplate(t(c.greeting, l), values);
-  const lead = fillTemplate(t(c.lead[state], l), values);
+  const lead = fillTemplate(t(tour ? c.tour.lead[state] : c.lead[state], l), values);
   const moneyNote = { title: t(c.moneyNote.title, l), body: t(c.moneyNote.body, l) };
+  // A tour quote's one payment is its deposit row: name it as the payment it is.
+  const instalment =
+    tour && facts.instalment === "deposit" ? c.tour.instalment : c.instalment[facts.instalment];
+  const banner = tour && state === "cancelled" ? c.tour.banner.cancelled : c.banner[state];
 
   const rows: DetailRow[] = [
     { label: t(c.labels.reference, l), value: facts.ref, mono: true },
-    { label: t(c.labels.date, l), value: facts.date },
+    { label: t(tour ? c.tour.date : c.labels.date, l), value: facts.date },
     ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
-    { label: t(c.labels.status, l), value: t(c.status[state], l) },
-    { label: t(c.labels.instalment, l), value: t(c.instalment[facts.instalment], l) },
+    { label: t(tour ? c.tour.status : c.labels.status, l), value: t(c.status[state], l) },
+    { label: t(c.labels.instalment, l), value: t(instalment, l) },
     { label: t(c.labels.paid, l), value: facts.paid },
     { label: t(c.labels.totalRefunded, l), value: facts.totalRefunded },
     { label: t(c.labels.refund, l), value: facts.amount, emphasis: true },
@@ -2199,7 +2210,7 @@ export function guestQuoteRefundEmail(facts: QuoteRefundEmailFacts): EmailMessag
     greeting,
     lead,
     preheader: fillTemplate(t(c.preheader, l), values),
-    banner: t(c.banner[state], l),
+    banner: t(banner, l),
     detailsHeading: t(c.detailsHeading, l),
     rows,
     note: moneyNote,
@@ -2235,6 +2246,8 @@ export type QuoteEventCancelledEmailFacts = {
    * for one that does not refer to an earlier email.
    */
   refundNoticeSent: boolean;
+  /** A tour quote (`lib/tour-quote.ts`): the tour's wording. Absent is a wedding or event. */
+  tour?: boolean;
 };
 
 /**
@@ -2255,15 +2268,22 @@ export function guestQuoteEventCancelledEmail(facts: QuoteEventCancelledEmailFac
     site: siteUrl(),
   };
 
-  const subject = fillTemplate(t(c.subject, l), values);
+  const tour = facts.tour === true;
+  // The tour's wording where it has its own, the event's otherwise.
+  const w = tour ? { ...c, ...c.tour } : c;
+  const subject = fillTemplate(t(w.subject, l), values);
   const greeting = fillTemplate(t(c.greeting, l), values);
-  const lead = fillTemplate(t(facts.refundNoticeSent ? c.lead : c.leadNoEarlierEmail, l), values);
+  const lead = fillTemplate(t(facts.refundNoticeSent ? w.lead : w.leadNoEarlierEmail, l), values);
 
   const rows: DetailRow[] = [
     { label: t(r.labels.reference, l), value: facts.ref, mono: true },
-    { label: t(r.labels.date, l), value: facts.date },
+    { label: t(tour ? r.tour.date : r.labels.date, l), value: facts.date },
     ...(facts.venue ? [{ label: t(r.labels.venue, l), value: facts.venue }] : []),
-    { label: t(r.labels.status, l), value: t(r.status.cancelled, l), emphasis: true },
+    {
+      label: t(tour ? r.tour.status : r.labels.status, l),
+      value: t(r.status.cancelled, l),
+      emphasis: true,
+    },
     { label: t(r.labels.totalRefunded, l), value: facts.totalRefunded },
   ];
 
@@ -2272,9 +2292,9 @@ export function guestQuoteEventCancelledEmail(facts: QuoteEventCancelledEmailFac
     subject,
     greeting,
     lead,
-    preheader: fillTemplate(t(c.preheader, l), values),
-    banner: t(c.banner, l),
-    detailsHeading: t(c.detailsHeading, l),
+    preheader: fillTemplate(t(w.preheader, l), values),
+    banner: t(w.banner, l),
+    detailsHeading: t(w.detailsHeading, l),
     rows,
   });
 

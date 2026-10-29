@@ -87,6 +87,7 @@ import {
   recordPaymentRefundFee,
 } from "@/lib/quotes";
 import { isStripeConfigured, onOwningAccount, stripe } from "@/lib/stripe";
+import { isTourQuote } from "@/lib/tour-quote";
 
 /** Who asked for the refund — the audit row's `via`. */
 export type QuoteRefundVia = "admin" | "stripe";
@@ -860,6 +861,7 @@ async function sendRefundNotice(options: {
           amount: latest.money(options.refundedNowCents),
           totalRefunded: latest.money(latest.totalRefunded),
           eventCancelled: latest.quote.status === "cancelled",
+          tour: isTourQuote(latest.quote),
         });
       },
     );
@@ -908,6 +910,7 @@ async function sendEventCancelledNotice(quoteId: string): Promise<void> {
         venue: quote.venue,
         totalRefunded: money(totalRefunded),
         refundNoticeSent,
+        tour: isTourQuote(quote),
       }),
     );
 
