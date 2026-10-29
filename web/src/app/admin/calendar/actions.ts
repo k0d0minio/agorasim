@@ -15,9 +15,11 @@ import {
   todayKey,
   TOUR_SLOTS,
   type DateKey,
+  type SlotRefusal,
 } from "@/lib/availability";
 import { bookingRef, bookingsBetween, slotOccupancyOn } from "@/lib/bookings";
 import { moveBookingToCar } from "@/lib/booking-move";
+import { withDepartureLock } from "@/lib/departure-lock";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { issueCancellationToken } from "@/lib/cancellation-token";
 import { listCatalogue } from "@/lib/experience-catalogue";
@@ -308,6 +310,32 @@ export type ManualBookingActionState = {
 };
 
 /**
+ * What the operator reads when the departure re-check refuses a manual
+ * booking.
+ */
+function manualRefusalState(reason: SlotRefusal["reason"]): ManualBookingActionState {
+  switch (reason) {
+    case "no-vehicle":
+      return {
+        fieldErrors: { slot: "O carro que esta partida precisa já está reservado." },
+      };
+    case "party-too-large":
+      return {
+        fieldErrors: { party: "Esta partida já não tem lugar para este grupo." },
+      };
+    case "bad-party":
+      return { fieldErrors: { party: "Diga quantos adultos vêm (1 a 8)." } };
+    case "unreadable":
+      return {
+        error: "Não foi possível confirmar a disponibilidade — tente novamente.",
+      };
+    case "invalid":
+    case "unavailable":
+      return { fieldErrors: { slot: "Esta partida não está à venda." } };
+  }
+}
+
+/**
  * Record a sale that never touched Stripe.
  *
  * Every row in `bookings` is born inside Checkout and owns a payment intent;
@@ -490,40 +518,6 @@ export async function createManualBooking(
     }
   }
 
-  const fit = await checkSlotAvailable({
-    experienceSlug: tour.slug,
-    date,
-    slot,
-    partySize: quoted.seats,
-    // Per person, the phone sale joins an open car the same way a checkout does.
-    mode,
-    occupancy: await slotOccupancyOn(date, slot),
-    // The phone booking skips the notice, the six-month window and the block;
-    // capacity still binds (D-4).
-    audience: "team",
-  });
-  if (!fit.ok) {
-    switch (fit.reason) {
-      case "no-vehicle":
-        return {
-          fieldErrors: { slot: "O carro que esta partida precisa já está reservado." },
-        };
-      case "party-too-large":
-        return {
-          fieldErrors: { party: "Esta partida já não tem lugar para este grupo." },
-        };
-      case "bad-party":
-        return { fieldErrors: { party: "Diga quantos adultos vêm (1 a 8)." } };
-      case "unreadable":
-        return {
-          error: "Não foi possível confirmar a disponibilidade — tente novamente.",
-        };
-      case "invalid":
-      case "unavailable":
-        return { fieldErrors: { slot: "Esta partida não está à venda." } };
-    }
-  }
-
   const agreedCents = amount ?? quoted.totalCents;
   // Stripe takes no charge under €0.50. A cash deal can be anything.
   if (byLink && agreedCents < 50) {
@@ -556,113 +550,138 @@ export async function createManualBooking(
   let bookingId: string;
   try {
     /*
-      One person, one card. Opened from a day in the Calendar there is no
-      enquiry behind the call, so the lead is born here — `source = 'phone'`,
-      `status = 'booked'`, which keeps the board from mistaking a sold booking
-      for an unanswered lead ("booking" belongs to the checkout's machine
-      writes). Opened from the Sales board there already *is* one, and
-      inserting a second would put the same couple on the board twice: one
-      card carrying the money and one still sitting in `Novo`. So that row is
-      moved on instead — and its `source` is left exactly as it was, because
-      where a lead came from is a fact about the past, not about who closed it.
-
-      Either way the contact details written are the ones just submitted: the
-      operator is on the phone with this person, and the mistyped address they
-      have just read back is the whole reason the fields are editable.
-
-      On the moved lead the route, the party, the day and the add-ons are set
-      to what was *sold*, not to what was asked for — the card is read as the
-      booking from here on, and a card still showing the Manzwine stop this
-      sale does not include is how a driver sets off for a winery nobody paid
-      for. The enquiry as it arrived survives in the audit trail and in the
-      guest's own message, which is where "what did they originally want?"
-      belongs.
+      The re-check and the write, under the departure's lock
+      (`lib/departure-lock.ts`): a guest checking out for the last seat of
+      this departure in the same second waits for this booking, then reads it.
     */
-    const [lead] = source
-      ? await db
-          .update(tourRequests)
-          .set({
-            name,
-            email,
-            phone,
-            experienceSlug: tour.slug,
-            addOns,
-            partySize: quoted.seats,
-            preferredDate: date,
-            // A link leaves the lead in its stage: it is booked when it is
-            // paid, and `confirmPaidBooking` moves it then.
-            ...(byLink ? {} : { status: "booked" as const }),
-            updatedAt: now,
-          })
-          .where(eq(tourRequests.id, source.id))
-          .returning({ id: tourRequests.id })
-      : await db
-          .insert(tourRequests)
-          .values({
-            name,
-            email,
-            phone,
-            locale: "pt",
-            kind: "tour",
-            experienceSlug: tour.slug,
-            addOns,
-            partySize: quoted.seats,
-            preferredDate: date,
-            status: "booked",
-            source: "phone",
-          })
-          .returning({ id: tourRequests.id });
-
-    // The lead was deleted between the read above and this write. Rare, and
-    // worth its own sentence: the generic "tente novamente" would have the
-    // operator retry a sale that can never land.
-    if (!lead) return { error: "Esse pedido já não existe." };
-
-    const [booking] = await db
-      .insert(bookings)
-      .values({
-        tourRequestId: lead.id,
+    type Held = { state: ManualBookingActionState } | { leadId: string; bookingId: string };
+    const held = await withDepartureLock<Held>(date, slot, async () => {
+      const fit = await checkSlotAvailable({
+        experienceSlug: tour.slug,
         date,
         slot,
-        experienceSlug: tour.slug,
-        addOns,
-        mode,
-        adults,
-        children,
-        infants,
-        vehicleClass: fit.vehicleClass,
-        sharedCarId: fit.sharedCarId,
         partySize: quoted.seats,
-        amountCents: agreedCents,
-        currency: BOOKING_CURRENCY,
-        priceBreakdown: lines,
-        // The language this guest is written to in. A lead knows it; a call
-        // that arrived without one is Portuguese, as it always was here.
-        locale: source?.locale ?? "pt",
-        // Held until `now`, which is to say not held: a cash sale is
-        // confirmed, and a link holds no car until the customer opens it.
-        holdExpiresAt: now,
-        ...(byLink
-          ? {
-              status: "pending" as const,
-              paymentMethod: "stripe" as const,
-              paymentLinkTokenHash: linkDigest,
-              cancellationTokenHash,
-            }
-          : {
-              status: "confirmed" as const,
-              paymentMethod: "cash" as const,
-              confirmedAt: now,
-            }),
-      })
-      .returning({ id: bookings.id });
-    bookingId = booking.id;
+        // Per person, the phone sale joins an open car the same way a checkout does.
+        mode,
+        occupancy: await slotOccupancyOn(date, slot),
+        // The phone booking skips the notice, the six-month window and the block;
+        // capacity still binds (D-4).
+        audience: "team",
+      });
+      if (!fit.ok) return { state: manualRefusalState(fit.reason) };
+
+      /*
+        One person, one card. Opened from a day in the Calendar there is no
+        enquiry behind the call, so the lead is born here — `source = 'phone'`,
+        `status = 'booked'`, which keeps the board from mistaking a sold booking
+        for an unanswered lead ("booking" belongs to the checkout's machine
+        writes). Opened from the Sales board there already *is* one, and
+        inserting a second would put the same couple on the board twice: one
+        card carrying the money and one still sitting in `Novo`. So that row is
+        moved on instead — and its `source` is left exactly as it was, because
+        where a lead came from is a fact about the past, not about who closed it.
+
+        Either way the contact details written are the ones just submitted: the
+        operator is on the phone with this person, and the mistyped address they
+        have just read back is the whole reason the fields are editable.
+
+        On the moved lead the route, the party, the day and the add-ons are set
+        to what was *sold*, not to what was asked for — the card is read as the
+        booking from here on, and a card still showing the Manzwine stop this
+        sale does not include is how a driver sets off for a winery nobody paid
+        for. The enquiry as it arrived survives in the audit trail and in the
+        guest's own message, which is where "what did they originally want?"
+        belongs.
+      */
+      const [lead] = source
+        ? await db
+            .update(tourRequests)
+            .set({
+              name,
+              email,
+              phone,
+              experienceSlug: tour.slug,
+              addOns,
+              partySize: quoted.seats,
+              preferredDate: date,
+              // A link leaves the lead in its stage: it is booked when it is
+              // paid, and `confirmPaidBooking` moves it then.
+              ...(byLink ? {} : { status: "booked" as const }),
+              updatedAt: now,
+            })
+            .where(eq(tourRequests.id, source.id))
+            .returning({ id: tourRequests.id })
+        : await db
+            .insert(tourRequests)
+            .values({
+              name,
+              email,
+              phone,
+              locale: "pt",
+              kind: "tour",
+              experienceSlug: tour.slug,
+              addOns,
+              partySize: quoted.seats,
+              preferredDate: date,
+              status: "booked",
+              source: "phone",
+            })
+            .returning({ id: tourRequests.id });
+
+      // The lead was deleted between the read above and this write. Rare, and
+      // worth its own sentence: the generic "tente novamente" would have the
+      // operator retry a sale that can never land.
+      if (!lead) return { state: { error: "Esse pedido já não existe." } };
+
+      const [booking] = await db
+        .insert(bookings)
+        .values({
+          tourRequestId: lead.id,
+          date,
+          slot,
+          experienceSlug: tour.slug,
+          addOns,
+          mode,
+          adults,
+          children,
+          infants,
+          vehicleClass: fit.vehicleClass,
+          sharedCarId: fit.sharedCarId,
+          partySize: quoted.seats,
+          amountCents: agreedCents,
+          currency: BOOKING_CURRENCY,
+          priceBreakdown: lines,
+          // The language this guest is written to in. A lead knows it; a call
+          // that arrived without one is Portuguese, as it always was here.
+          locale: source?.locale ?? "pt",
+          // Held until `now`, which is to say not held: a cash sale is
+          // confirmed, and a link holds no car until the customer opens it.
+          holdExpiresAt: now,
+          ...(byLink
+            ? {
+                status: "pending" as const,
+                paymentMethod: "stripe" as const,
+                paymentLinkTokenHash: linkDigest,
+                cancellationTokenHash,
+              }
+            : {
+                status: "confirmed" as const,
+                paymentMethod: "cash" as const,
+                confirmedAt: now,
+              }),
+        })
+        .returning({ id: bookings.id });
+
+      return { leadId: lead.id, bookingId: booking.id };
+    });
+    if ("state" in held) return held.state;
+    bookingId = held.bookingId;
 
     await recordAuditOrWarn({
       actorUserId: actor.id,
       action: "booking.created",
       entityType: "booking",
-      entityId: booking.id,
+      entityId: bookingId,
       after: {
         date,
         slot,
@@ -673,8 +692,8 @@ export async function createManualBooking(
         // Which enquiry this sale came out of — the id and the handle the team
         // quotes, never the person. `bookings` holds no name, email or phone by
         // design, and this entry keeps that property.
-        sourceEnquiryId: source?.id ?? lead.id,
-        sourceEnquiryRef: enquiryRef(source?.id ?? lead.id),
+        sourceEnquiryId: source?.id ?? held.leadId,
+        sourceEnquiryRef: enquiryRef(source?.id ?? held.leadId),
         /*
           Whether the enquiry was already there. A phone call with no lead
           behind it creates one, and an audit trail that showed both the same
@@ -701,7 +720,7 @@ export async function createManualBooking(
         entityType: "tour_request",
         entityId: source.id,
         before: { status: source.status },
-        after: { status: "booked", bookingRef: bookingRef(booking.id) },
+        after: { status: "booked", bookingRef: bookingRef(bookingId) },
       });
     }
   } catch (err) {

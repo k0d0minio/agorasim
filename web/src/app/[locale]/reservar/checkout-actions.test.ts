@@ -123,6 +123,7 @@ describe("startCheckout — paying on the booking page", () => {
     payable();
     vi.stubEnv("STRIPE_CONNECTED_ACCOUNT_ID", "");
     startBookingCheckout.mockResolvedValue({
+      ok: true,
       clientSecret: "cs_test_1_secret_2",
       bookingId: "booking-1",
     });
@@ -144,12 +145,63 @@ describe("startCheckout — paying on the booking page", () => {
   it("names the connected account Stripe.js must look for a direct charge on", async () => {
     payable();
     vi.stubEnv("STRIPE_CONNECTED_ACCOUNT_ID", "acct_test_agorasim");
-    startBookingCheckout.mockResolvedValue({ clientSecret: "cs_test_1_secret_2", bookingId: "b" });
+    startBookingCheckout.mockResolvedValue({
+      ok: true,
+      clientSecret: "cs_test_1_secret_2",
+      bookingId: "b",
+    });
     const { startCheckout } = await load();
 
     const state = await startCheckout({}, validForm());
 
     expect(state.payment?.stripeAccount).toBe("acct_test_agorasim");
+  });
+
+  it("hands the departure re-check to the checkout, to run under the departure's lock", async () => {
+    payable();
+    startBookingCheckout.mockResolvedValue({ ok: true, clientSecret: "cs", bookingId: "b" });
+    const { startCheckout } = await load();
+    const { checkSlotAvailable } = await import("@/lib/availability");
+    const { slotOccupancyOn } = await import("@/lib/bookings");
+    vi.mocked(checkSlotAvailable).mockClear();
+    vi.mocked(slotOccupancyOn).mockClear();
+
+    await startCheckout({}, validForm());
+
+    // Nothing is counted before the lock: the count and the check both wait
+    // for `startBookingCheckout` to call `assign` with the departure held.
+    expect(slotOccupancyOn).not.toHaveBeenCalled();
+    expect(checkSlotAvailable).not.toHaveBeenCalled();
+    const [{ assign, date, slot }] = startBookingCheckout.mock.calls[0];
+    expect({ date, slot }).toEqual({ date: "2026-11-14", slot: "morning" });
+
+    await expect(assign()).resolves.toMatchObject({ ok: true, vehicleClass: "classic-small" });
+    expect(slotOccupancyOn).toHaveBeenCalledWith("2026-11-14", "morning");
+    expect(checkSlotAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({ date: "2026-11-14", slot: "morning", partySize: 2 }),
+    );
+  });
+
+  it("tells the guest the car is gone when the check under the lock says so", async () => {
+    payable();
+    startBookingCheckout.mockResolvedValue({ ok: false, reason: "no-vehicle" });
+    const { startCheckout } = await load();
+
+    const state = await startCheckout({}, validForm());
+
+    expect(state.payment).toBeUndefined();
+    expect(state.fieldErrors?.date).toBe(bookingContent.errors.carGone.en);
+    expect(state.values).toMatchObject({ name: "Ana", email: "ana@example.com" });
+  });
+
+  it("tells the guest the day is gone when the last seat went to someone else", async () => {
+    payable();
+    startBookingCheckout.mockResolvedValue({ ok: false, reason: "unavailable" });
+    const { startCheckout } = await load();
+
+    const state = await startCheckout({}, validForm());
+
+    expect(state.fieldErrors?.date).toBe(bookingContent.errors.dayGone.en);
   });
 
   it("refuses with the payments-off message when the browser key is missing", async () => {

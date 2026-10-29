@@ -139,6 +139,24 @@ vi.mock("@/lib/bookings", async () => {
   };
 });
 
+// The departure lock, as a recorder: which departure each call held, and the
+// queries made while it was held. `lib/departure-lock.test.ts` proves the lock.
+const lock = { inside: false, held: [] as { departure: string; calls: QueryCall[] }[] };
+vi.mock("@/lib/departure-lock", () => ({
+  withDepartureLock: async (date: string, slot: string, run: () => Promise<unknown>) => {
+    const entry = { departure: `${date}:${slot}`, calls: [] as QueryCall[] };
+    lock.held.push(entry);
+    const before = calls.length;
+    lock.inside = true;
+    try {
+      return await run();
+    } finally {
+      lock.inside = false;
+      entry.calls = calls.slice(before);
+    }
+  },
+}));
+
 // The payment link's own work — the token rotation and the email — is
 // `lib/payment-link.ts`'s. What is under test here is the booking it is sent for.
 const sendPaymentLink = vi.fn<(options: unknown) => Promise<{ status: "sent" }>>(
@@ -259,6 +277,7 @@ beforeEach(() => {
   findAdminUserById.mockReset();
   sendPaymentLink.mockClear();
   paymentLinkConfigured = true;
+  lock.held = [];
 });
 
 describe("createManualBooking from the Sales board", () => {
@@ -449,6 +468,45 @@ describe("createManualBooking per person", () => {
     );
     const booking = insertedValues().find((values) => values.paymentMethod === "cash");
     expect(booking).toMatchObject({ mode: "private", sharedCarId: null });
+  });
+});
+
+describe("createManualBooking under the departure's lock", () => {
+  it("re-checks the departure and writes the lead and the booking while it is held", async () => {
+    await signIn();
+    let checkedInside = false;
+    vi.mocked(checkSlotAvailable).mockImplementationOnce(async () => {
+      checkedInside = lock.inside;
+      return { ok: true, slot: {} as never, vehicleClass: "classic-small", sharedCarId: null };
+    });
+    queueBoardSale();
+
+    const state = await createManualBooking({}, sale({ leadId: LEAD_ID }));
+
+    expect(state.ok).toBe(true);
+    expect(checkedInside).toBe(true);
+    expect(lock.held.map((entry) => entry.departure)).toEqual(["2026-08-15:morning"]);
+    const written = lock.held[0].calls
+      .filter((call) => call.method === "values" || call.method === "set")
+      .map((call) => call.args[0] as Record<string, unknown>);
+    // The lead moved to booked, then the booking: both under the lock. The
+    // audit entries come after it, and hold no departure up.
+    expect(written).toEqual([
+      expect.objectContaining({ status: "booked" }),
+      expect.objectContaining({ paymentMethod: "cash", date: "2026-08-15" }),
+    ]);
+  });
+
+  it("refuses when the check under the lock finds the car taken, and writes nothing", async () => {
+    await signIn();
+    vi.mocked(checkSlotAvailable).mockResolvedValueOnce({ ok: false, reason: "no-vehicle" });
+    queueResult([]);
+
+    const state = await createManualBooking({}, sale());
+
+    expect(state.fieldErrors?.slot).toBe("O carro que esta partida precisa já está reservado.");
+    expect(insertedValues()).toEqual([]);
+    expect(updatedValues()).toEqual([]);
   });
 });
 

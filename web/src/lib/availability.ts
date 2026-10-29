@@ -888,6 +888,12 @@ export async function checkSlotAvailable(options: {
   };
 }
 
+/** What {@link checkSlotAvailable} answers: the fit to write, or why not. */
+export type SlotCheck = Awaited<ReturnType<typeof checkSlotAvailable>>;
+
+/** A {@link SlotCheck} that said no. */
+export type SlotRefusal = Extract<SlotCheck, { ok: false }>;
+
 /**
  * Whether any departure of a day could still take *someone*.
  *
