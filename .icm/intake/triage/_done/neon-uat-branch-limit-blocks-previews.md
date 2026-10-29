@@ -11,8 +11,8 @@ Every push on branch `claude/optimistic-ptolemy-wi4mpz` (PR #147, and its predec
 `ae219e4` before this run's own code changes) failed the Vercel `Vercel` status with
 `errorCode: BUILD_FAILED`, `errorMessage: "Resource provisioning failed"` — not a code error,
 confirmed by reading the deployment directly (`mcp__Vercel__get_deployment`). The Neon project
-behind UAT and previews, `uat-agorasim` (`lingering-frog-97017403`, `database.neon.nonprod_project_id`
-in `.icm/project.json`), is a `free_v3` org plan with `branches_limit: 10`
+behind UAT and previews, `uat-agorasim` (`lingering-frog-97017403`),
+is a `free_v3` org plan with `branches_limit: 10`
 (`mcp__Neon__describe_project`), and at the time of the failure it already carried exactly 10
 branches: `main`, four `run/<slug>` branches (other in-flight runs) and five
 `preview/claude/<branch>` branches (other sessions' open PRs). Vercel's Neon integration cannot
