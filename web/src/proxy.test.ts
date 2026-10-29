@@ -14,6 +14,13 @@ vi.mock("@/lib/quotes", () => ({
   getQuoteByAccessTokenHash: (...args: unknown[]) => getQuoteByAccessTokenHash(...args),
 }));
 
+// The session check a dead link's Stripe return gets — its own rules are
+// tested in `lib/quote-return.test.ts`.
+const resolveRetiredQuoteReturn = vi.fn();
+vi.mock("@/lib/quote-return", () => ({
+  resolveRetiredQuoteReturn: (...args: unknown[]) => resolveRetiredQuoteReturn(...args),
+}));
+
 let throttled = false;
 vi.mock("@/lib/rate-limit", () => ({
   QUOTE_LOOKUP_RATE_LIMIT: { limit: 20, windowSeconds: 600 },
@@ -151,6 +158,7 @@ function rewriteTarget(response: Response): string | null {
 describe("proxy — dead quote links", () => {
   beforeEach(() => {
     getQuoteByAccessTokenHash.mockReset();
+    resolveRetiredQuoteReturn.mockReset();
     throttled = false;
   });
 
@@ -184,6 +192,46 @@ describe("proxy — dead quote links", () => {
 
     expect(rewriteTarget(response)).toBeNull();
     expect(response.status).toBe(200);
+  });
+
+  it("passes a dead link through when Stripe returns a finished session of a live quote", async () => {
+    // A balance email retired the link while the couple paid.
+    getQuoteByAccessTokenHash.mockResolvedValue(null);
+    resolveRetiredQuoteReturn.mockResolvedValue("aaaaaaaa-1111-4111-8111-111111111111");
+
+    const response = await proxy(
+      request(`/pt/orcamento/${SHAPED_TOKEN}?session_id=cs_test_paid_balance`),
+    );
+
+    expect(rewriteTarget(response)).toBeNull();
+    expect(resolveRetiredQuoteReturn).toHaveBeenCalledWith("cs_test_paid_balance");
+  });
+
+  it("still rewrites a dead link whose session_id names no finished session", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue(null);
+    resolveRetiredQuoteReturn.mockResolvedValue(null);
+
+    const response = await proxy(request(`/pt/orcamento/${SHAPED_TOKEN}?session_id=cs_test_guess`));
+
+    expect(rewriteTarget(response)).toBe(`${ORIGIN}/pt/orcamento/${DEAD_QUOTE_TOKEN}`);
+  });
+
+  it("does not check a session for a dead link without one, or for a malformed token", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue(null);
+    await proxy(request(`/pt/orcamento/${SHAPED_TOKEN}`));
+
+    const response = await proxy(request("/pt/orcamento/too-short?session_id=cs_test_paid_balance"));
+
+    expect(rewriteTarget(response)).toBe(`${ORIGIN}/pt/orcamento/${DEAD_QUOTE_TOKEN}`);
+    expect(resolveRetiredQuoteReturn).not.toHaveBeenCalled();
+  });
+
+  it("does not check a session for a live link", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue({ status: "deposit_paid" });
+
+    await proxy(request(`/pt/orcamento/${SHAPED_TOKEN}?session_id=cs_test_paid_balance`));
+
+    expect(resolveRetiredQuoteReturn).not.toHaveBeenCalled();
   });
 
   it("passes a throttled lookup through unchanged, never touching the database", async () => {
