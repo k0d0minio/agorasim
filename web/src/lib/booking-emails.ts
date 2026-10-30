@@ -684,7 +684,7 @@ export type ThankYouEmailFacts = {
  * never from here.
  *
  * **It carries its own way out.** This is the one guest mail that is not about
- * a booking (soft opt-in, D24): the footer's opt-out line links the confirm
+ * a booking (soft opt-in, .icm/intake/README.md § Decisions): the footer's opt-out line links the confirm
  * page, and the `List-Unsubscribe` / `List-Unsubscribe-Post` headers let a mail
  * client offer its own one-click unsubscribe (RFC 8058) against the endpoint.
  */
@@ -1401,7 +1401,7 @@ export type QuoteSentEmailFacts = {
   balance: { amount: string; dueDate: string } | null;
   /** How many days before the event the balance request is sent. */
   balanceRequestDaysBefore: number;
-  /** The non-refundable window the quote was written under (D9). */
+  /** The non-refundable window the quote was written under (.icm/intake/README.md § Decisions). */
   termsWindowDays: number;
   /**
    * The quote page, absolute, carrying the plaintext token this mail is the

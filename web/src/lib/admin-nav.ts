@@ -50,7 +50,7 @@ export type AdminNavItem = {
    * Bottom-toolbar label, where horizontal space is tight. Falls back to `label`.
    *
    * The toolbar gives each of its five slots `(width - 32px) / 5`: 68.6px at
-   * 375px and **57.6px at the 320px reflow floor** (spec D2/D3). A label wider
+   * 375px and **57.6px at the 320px reflow floor**. A label wider
    * than that truncates, and N1 says these are always labelled. So a
    * `shortLabel` here is a width decision, not a translation: the sidebar, the
    * "Mais" sheet and the page `<h1>` all keep `label`. Measured in the rendered

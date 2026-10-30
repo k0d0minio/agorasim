@@ -75,7 +75,7 @@ import { isOptedOut } from "@/lib/email-opt-out";
 
 /**
  * The kinds sent on the soft opt-in rather than as contract performance
- * (register D24): {@link sendLoggedEmail} checks the suppression list for them
+ * (.icm/intake/README.md § Decisions): {@link sendLoggedEmail} checks the suppression list for them
  * before the claim, so no sender can forget to. A new marketing-basis kind is
  * added here; booking mail never is — an opt-out does not stop the contract.
  */

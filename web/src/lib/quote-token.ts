@@ -66,7 +66,7 @@ export const DEAD_QUOTE_TOKEN = "invalido";
  * Where the emailed link points: `/pt/orcamento/<token>`.
  *
  * One function so the mail that mints the link and the page that reads it
- * (`quote-flow/quote-page-and-deposit-link`, D25) agree on one string. The
+ * (`quote-flow/quote-page-and-deposit-link`, .icm/intake/README.md § Decisions) agree on one string. The
  * token is in the path, not a query string, for the reason the cancel link's
  * is — see `cancellationPath`.
  */

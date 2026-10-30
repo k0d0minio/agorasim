@@ -33,10 +33,10 @@ export function AdminPagination({
   return (
     // `flex-wrap`, because Portuguese spends width the English didn't:
     // "Anterior"/"Seguinte" are both longer than "Previous"/"Next", and at the
-    // 320px reflow floor (D2) the button row plus a three-digit page counter
+    // 320px reflow floor the button row plus a three-digit page counter
     // leaves the range line almost nothing. Buttons are `shrink-0
     // whitespace-nowrap` by primitive, so without a wrap here the overflow
-    // would be the page's, not the nav's — which is the one thing D2 forbids.
+    // would be the page's, not the nav's — which is the one thing the reflow floor forbids.
     <nav
       aria-label={label}
       className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2"

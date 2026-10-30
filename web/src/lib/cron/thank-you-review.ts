@@ -17,7 +17,7 @@
  * booking is still inside the window. The date read is the booking's current
  * one, so a moved booking is thanked only after its new date.
  *
- * **Not contract performance — the soft opt-in (register D24).** So every
+ * **Not contract performance — the soft opt-in (.icm/intake/README.md § Decisions).** So every
  * address is checked against the suppression list before its claim — by
  * `sendLoggedEmail` itself, `thank-you-review` being a `MARKETING_KINDS` member
  * (`lib/message-log.ts`): an opted-out address is counted and never claimed,

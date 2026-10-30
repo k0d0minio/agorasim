@@ -30,7 +30,7 @@
  * A booking created on the morning of its own tour, after this run, is not
  * reminded: the next run is after the departure. Accepted by the spec.
  *
- * Contract performance (Art. 6(1)(b), register D24): no opt-in, no opt-out line.
+ * Contract performance (Art. 6(1)(b), .icm/intake/README.md § Decisions): no opt-in, no opt-out line.
  */
 import "server-only";
 

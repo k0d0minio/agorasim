@@ -1,7 +1,8 @@
 -- ---------------------------------------------------------------------------
 -- The blog stops being a preview: two columns the publish path needs.
 --
--- `blog_post_drafts` was shaped before anything wrote to it (D11), and two
+-- `blog_post_drafts` was shaped before anything wrote to it
+-- (.icm/intake/README.md § Decisions), and two
 -- things the public page cannot do without were never on it:
 --
 --   * `published_at` — the moment someone tapped Publicar. `status` says
@@ -10,7 +11,7 @@
 --     `updated_at` instead would have re-shuffled the whole blog every time a
 --     typo was fixed in an old post.
 --   * `hero_image_alt` — alt text per locale for `hero_image`. The public site
---     is held to WCAG 2.2 AA (D14), and there was no field an author could put
+--     is held to WCAG 2.2 AA (.icm/intake/README.md § Decisions), and there was no field an author could put
 --     a description in; the alternative was inventing one from the title, which
 --     is a caption of the heading rather than a description of the photograph.
 --

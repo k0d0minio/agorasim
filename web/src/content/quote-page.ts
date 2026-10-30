@@ -2,7 +2,7 @@ import type { Localized } from "@/i18n/config";
 
 /**
  * The couple's quote page — `/[locale]/orcamento/[token]` — and the words on
- * the pay button that page mints a Checkout session from (D25).
+ * the pay button that page mints a Checkout session from (.icm/intake/README.md § Decisions).
  *
  * The terms themselves are not here: the page renders the events and
  * complaints sections of `terms.ts` verbatim, so what the couple read under

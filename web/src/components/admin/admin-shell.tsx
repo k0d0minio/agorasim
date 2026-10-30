@@ -170,7 +170,8 @@ function MobileBottomNav({
             id={sheetId}
             side="bottom"
             // The primitive is shared with the public site's bilingual nav, so
-            // it defaults to English — this console is Portuguese (D4).
+            // it defaults to English — this console is Portuguese
+            // (.icm/intake/README.md § Decisions).
             closeLabel="Fechar"
             className="rounded-t-2xl pb-[max(env(safe-area-inset-bottom),1rem)]"
           >

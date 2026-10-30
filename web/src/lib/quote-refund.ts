@@ -46,7 +46,7 @@
  * deferral's fallback, or "Cancelar evento" after an earlier refund — they get
  * a `quote-event-cancelled` notice, once per quote.
  *
- * Nothing here decides what the terms allow (D9's 30 days, the `[LAWYER]`
+ * Nothing here decides what the terms allow (the register's 30 days, .icm/intake/README.md § Decisions, the `[LAWYER]`
  * items). The amount is the team's judgement, as on the tour dialog.
  */
 import "server-only";

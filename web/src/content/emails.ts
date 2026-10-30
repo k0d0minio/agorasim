@@ -414,7 +414,7 @@ export const bookingEmails = {
    * agreement with the guest.
    *
    * **Not transactional, so it carries an opt-out.** A review ask is not about
-   * the booking; it goes out under the soft opt-in (D24), which is only lawful
+   * the booking; it goes out under the soft opt-in (.icm/intake/README.md § Decisions), which is only lawful
    * with a way out in every message. `optOut` is that line; the footer says
    * why the guest got the mail. No money, no cancel link, no booking details
    * beyond the tour's name.
@@ -631,7 +631,7 @@ export const bookingEmails = {
 
   /**
    * To the couple: the quote Rita built on the Sales board, and the link to
-   * the page where the deposit holds the date (D25).
+   * the page where the deposit holds the date (.icm/intake/README.md § Decisions).
    *
    * The money is stated in full here — the total, the deposit, the balance and
    * when it falls due — because this mail is the offer, the thing a couple
@@ -687,7 +687,7 @@ export const bookingEmails = {
     },
     cta: { pt: "Ver o orçamento", en: "View your quote" } as Localized,
     ctaTextLine: { pt: "Ver o orçamento: {url}", en: "View your quote: {url}" } as Localized,
-    /** D9 — the default deposit terms, until the client's lawyer answers. */
+    /** The 30-day default deposit terms (.icm/intake/README.md § Decisions), until the client's lawyer answers. */
     termsNote: {
       pt: "O sinal não é reembolsável a menos de {days} dias do evento; a data pode ser alterada sem custos, sujeita a disponibilidade.",
       en: "The deposit is non-refundable within {days} days of the event; the date can be changed free of charge, subject to availability.",

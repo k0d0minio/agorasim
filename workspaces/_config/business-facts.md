@@ -9,7 +9,8 @@ Use these facts verbatim. Do not invent prices, dates or claims not listed here.
 - Languages: Portuguese (default) and English.
 - Booking: the website's booking flow with calendar + card payment (`/reservar`). Enquiries by
   phone/email. Domain: **agorasim.pt** — always the address content cites. The domain is moving
-  registrar (to the Portuguese registrar, registrant the company — decision D18) and the site goes
+  registrar (to the Portuguese registrar, registrant the company — the registrar transfer,
+  2026-09-11) and the site goes
   live there the day the transfer lands; until then it serves at an interim address that content
   never names.
 - Contacts: Diogo +351 926 210 707 · Rita +351 919 272 077 · info@agorasim.pt
