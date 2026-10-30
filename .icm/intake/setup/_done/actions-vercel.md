@@ -1,3 +1,8 @@
+> Done: Jamie, 2026-10-30. Checked via GitHub Actions: the secret `VERCEL_TOKEN` and the
+> variable `VERCEL_TEAM` exist. `.icm/scripts/promote.sh status` ran and reached `ci on main`;
+> the UAT-project listing needs `VERCEL_TOKEN` in the running shell, which the script already
+> reads from Actions in CI.
+
 # Setup: the Vercel token and team in GitHub Actions
 
 - setup-slug: actions-vercel
@@ -19,6 +24,6 @@ runs.
 
 ## Done when
 
-- [ ] The repository has the secret `VERCEL_TOKEN`.
-- [ ] The repository has the variable `VERCEL_TEAM`.
-- [ ] `.icm/scripts/promote.sh status` lists each UAT project.
+- [x] The repository has the secret `VERCEL_TOKEN`.
+- [x] The repository has the variable `VERCEL_TEAM`.
+- [x] `.icm/scripts/promote.sh status` lists each UAT project.

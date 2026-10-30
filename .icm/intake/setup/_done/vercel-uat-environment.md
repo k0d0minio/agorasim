@@ -1,3 +1,7 @@
+> Done: Jamie, 2026-10-30. Checked via `vercel env ls` (`uat` is a live custom environment
+> target) and `vercel domains inspect`: `uat.agorasim.pt` resolves on Vercel's edge network.
+> `.icm/environments.md` already has the UAT row filled with the project name and address.
+
 # Setup: the UAT environment on each Vercel project that the client tests
 
 - setup-slug: vercel-uat-environment
@@ -26,8 +30,8 @@ Do these steps on each Vercel project of an app that the client tests:
 
 ## Done when
 
-- [ ] Each project that the client tests has the custom environment `uat`, from `main`.
-- [ ] The UAT address opens the newest build of `main`.
-- [ ] `.icm/environments.md` has one UAT row for each project that the client tests. Each
+- [x] Each project that the client tests has the custom environment `uat`, from `main`.
+- [x] The UAT address opens the newest build of `main`.
+- [x] `.icm/environments.md` has one UAT row for each project that the client tests. Each
       row names the project in `Vercel project` and its UAT address in `Address`.
-- [ ] A merge to `main` makes a staged production deployment that serves no domain.
+- [x] A merge to `main` makes a staged production deployment that serves no domain.

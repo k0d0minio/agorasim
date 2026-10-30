@@ -1,3 +1,5 @@
+> Done: Jamie, 2026-10-30. Checked via GitHub Actions: the repository secret `DATABASE_URL` exists.
+
 # Setup: production's connection string for the migration in promote.yml
 
 - setup-slug: actions-production-database
@@ -17,5 +19,5 @@
 
 ## Done when
 
-- [ ] The repository has the secret `DATABASE_URL`, with production's direct connection
+- [x] The repository has the secret `DATABASE_URL`, with production's direct connection
       string.

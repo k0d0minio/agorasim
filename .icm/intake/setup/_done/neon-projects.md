@@ -1,3 +1,6 @@
+> Done: Jamie, 2026-10-30. Checked via the Neon API: the projects `agorasim` and
+> `uat-agorasim` exist, both `aws-eu-central-1`. `.icm/environments.md` already names both.
+
 # Setup: the Neon projects
 
 - setup-slug: neon-projects
@@ -20,6 +23,6 @@ production's data never reaches a preview.
 
 ## Done when
 
-- [ ] The project `agorasim` exists.
-- [ ] The project `uat-agorasim` exists, with test data only.
-- [ ] The column `Database` of `.icm/environments.md` names `agorasim` and `uat-agorasim`.
+- [x] The project `agorasim` exists.
+- [x] The project `uat-agorasim` exists, with test data only.
+- [x] The column `Database` of `.icm/environments.md` names `agorasim` and `uat-agorasim`.
