@@ -1,3 +1,7 @@
+> Done: Jamie, 2026-10-30. Checked via the GitHub API: `delete_branch_on_merge` is `true`.
+> The Neon project `uat-agorasim` holds only `main` and one live preview branch — no branch
+> of a closed pull request.
+
 # Setup: GitHub deletes the head branch after a merge
 
 - setup-slug: github-delete-head-branches
@@ -16,5 +20,5 @@ that stays after the merge keeps its Neon branch, and the project fills up with 
 
 ## Done when
 
-- [ ] After a merge, the head branch is gone from GitHub.
-- [ ] Its Neon branch `preview/<git branch>` is gone from the Neon project.
+- [x] After a merge, the head branch is gone from GitHub.
+- [x] Its Neon branch `preview/<git branch>` is gone from the Neon project.

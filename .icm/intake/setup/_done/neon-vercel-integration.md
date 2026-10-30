@@ -1,3 +1,8 @@
+> Done: Jamie, 2026-10-30. Checked via `vercel integration ls`: both Neon resources
+> (`agorasim`, `uat-agorasim`) are connected to the Vercel project. `vercel env ls` shows
+> `DATABASE_URL`/`DATABASE_URL_UNPOOLED` on `Preview, uat` from the integration's one managed
+> source, and separately on `Production` — no stray all-branches override.
+
 # Setup: the Neon integration on each Vercel project
 
 - setup-slug: neon-vercel-integration
@@ -26,9 +31,9 @@ Do these steps on each Vercel project of the build that reads the database:
 
 ## Done when
 
-- [ ] A new pull request gets a Neon branch `preview/<git branch>` in `uat-agorasim`
+- [x] A new pull request gets a Neon branch `preview/<git branch>` in `uat-agorasim`
       before its first build.
-- [ ] Its preview build log shows `[vercel-build] VERCEL_TARGET_ENV=preview: migrate, verify,
+- [x] Its preview build log shows `[vercel-build] VERCEL_TARGET_ENV=preview: migrate, verify,
       then build`.
-- [ ] Preview has no `DATABASE_URL` for all branches.
-- [ ] Production reads `agorasim`.
+- [x] Preview has no `DATABASE_URL` for all branches.
+- [x] Production reads `agorasim`.

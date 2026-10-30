@@ -1,3 +1,6 @@
+> Done: Jamie, 2026-10-30. Checked via `vercel env ls`: `DATABASE_URL` and
+> `DATABASE_URL_UNPOOLED` are present and scoped to the `uat` environment.
+
 # Setup: the UAT database on the UAT environment
 
 - setup-slug: uat-database
@@ -20,7 +23,7 @@ Do these steps on each UAT project:
 
 ## Done when
 
-- [ ] Each UAT project has `DATABASE_URL` and `DATABASE_URL_UNPOOLED` on `uat`, from
+- [x] Each UAT project has `DATABASE_URL` and `DATABASE_URL_UNPOOLED` on `uat`, from
       `uat-agorasim`.
-- [ ] The UAT build log shows `[vercel-build] VERCEL_TARGET_ENV=uat: migrate, verify, then
+- [x] The UAT build log shows `[vercel-build] VERCEL_TARGET_ENV=uat: migrate, verify, then
       build`.

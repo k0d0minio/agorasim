@@ -1,3 +1,7 @@
+> Done: Jamie, 2026-10-30. Checked via `vercel env ls`: the `uat` environment carries the
+> app's own names (`STRIPE_*`, `ADMIN_SESSION_SECRET`, `BOOKING_*`, the email vars,
+> `NEXT_PUBLIC_SITE_URL`, and more).
+
 # Setup: the application's variables on the UAT environment
 
 - setup-slug: uat-variables
@@ -18,5 +22,5 @@ UAT build, and the client tests a broken page.
 
 ## Done when
 
-- [ ] Each UAT project has each name of `.env.example` that `uat` needs.
-- [ ] No variable on `uat` holds a live key.
+- [x] Each UAT project has each name of `.env.example` that `uat` needs.
+- [x] No variable on `uat` holds a live key.
