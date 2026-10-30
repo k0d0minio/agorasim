@@ -23,6 +23,53 @@ Set by Jamie on 2026-10-27.
 
 1. triage
 
+## Decisions
+
+Rules that bind every epic. Restored on 2026-10-30 from the project register of 2026-09-18
+(`git show 5c8eef6^:.icm/project.md`).
+
+- Agorasim runs no referral programme (why: never contracted, never requested · Jamie,
+  2026-08-29).
+- The admin console is Portuguese-only and mobile-first to Apple's HIG; the public site
+  gets only targeted accessibility fixes (why: Rita's phone is the reference device ·
+  Jamie, 2026-08-29).
+- Lifecycle messages run through email only; SMS waits until after launch (why: email
+  carries every message type without a new channel · Jamie, 2026-08-29).
+- A guest cancels a booking through their own signed link, and the system refunds
+  automatically outside the 48-hour window (why: self-serve keeps Rita out of the common
+  case · Jamie, 2026-08-29).
+- Every experience page shows the real price table and carries Offer JSON-LD (why: a
+  guest and a search engine both read the one true price · Jamie, 2026-08-29).
+- A wedding or event deposit is 30%, non-refundable inside 30 days, with a free date
+  change subject to availability, as the default until the client confirms (why: the
+  client has not answered the sinal question yet · Jamie, 2026-08-29).
+- One quote flow serves both doors, casamentos and eventos, through the `enquiry_kind`
+  column (why: one builder, one page, two intents · Jamie, 2026-08-29).
+- Jamie runs the blog pipeline by hand, drafts land in `blog_post_drafts`, and the client
+  publishes with one tap in the Blog studio (why: the client owns the publish moment, not
+  the pipeline · Jamie, 2026-08-29).
+- The social generator writes drafts for manual posting; the Meta auto-poster waits on the
+  client's Instagram and Facebook access (why: auto-posting needs a credential the client
+  has not given · Jamie, 2026-08-29).
+- Gift vouchers stay out of scope; interest is logged, not built (why: a dead proposal,
+  never contracted · Jamie, 2026-08-29).
+- The public site holds to WCAG 2.2 AA (why: the accessibility bar the client agreed to ·
+  Jamie, 2026-08-29).
+- A tour's price tier and its minimum count adults only; a child or an infant rides free
+  of the headcount (why: the client's own answer, and `pricing.ts` already matched it ·
+  client, 2026-09-11).
+- Lifecycle messages and the weddings quote flow shipped first after launch; the blog's
+  first batch, the social auto-poster, the admin extras and SMS stay parked (why: the
+  smallest money-moving features went first · Jamie, 2026-09-18).
+- Agorasim runs no web analytics and sets no cookie beyond the admin session (why: the
+  privacy policy's "nothing to consent to" claim stays true · Jamie, 2026-09-18).
+- Every guest gets one post-tour thank-you email under a soft opt-in with an opt-out line;
+  the day-before reminder goes to every guest as contract performance (why: the thank-you
+  needs consent, the reminder does not · Jamie, 2026-09-18).
+- A wedding or event's deposit and balance are paid from a token-gated quote page that
+  mints a Checkout session on tap, never a long-lived Stripe Payment Link (why: one page,
+  one session, no stale link · Jamie, 2026-09-18).
+
 ## The loop
 
 `.icm/scripts/new-run.sh <epic>/<slug>` starts a stub: it moves the stub into `_done/` and opens
