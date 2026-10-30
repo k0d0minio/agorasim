@@ -25,8 +25,7 @@ with each other exactly:
 | `workspaces/_config/business-facts.md` | **updated this run** — price list, meeting points and cancellation terms added |
 
 Olaria MZ was already absent and stays absent. Two things the brief deliberately does **not**
-let the drafts state, because the business has not answered them (the open questions of the project register,
-removed 2026-10-27; see the git history of `.icm/project.md`):
+let the drafts state, because the business has not answered them:
 
 - **Óbidos departure times.** One morning and one afternoon departure; the hour is confirmed
   after booking. Articles say exactly that and no more — never an invented clock time.
