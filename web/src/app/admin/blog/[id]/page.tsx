@@ -112,7 +112,7 @@ export default async function AdminBlogPostPage({
         </div>
       ) : row.heroImage ? (
         /* An undescribed photograph is dropped by the public page (WCAG 2.2
-           AA — D14), so say here that it will be. */
+           AA, .icm/intake/README.md § Decisions), so say here that it will be. */
         <div className="mb-6 rounded-xl border border-accent-foreground/20 bg-accent/50 p-4 text-sm">
           <p className="font-semibold text-accent-foreground">
             A fotografia deste artigo não vai aparecer no site

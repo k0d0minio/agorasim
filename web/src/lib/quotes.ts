@@ -77,7 +77,7 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * How many days before the event the deposit stops being refundable (D9).
+ * How many days before the event the deposit stops being refundable (.icm/intake/README.md § Decisions).
  *
  * A default, not a decision: the client asked for 30 and the lawyer has flagged
  * the *sinal* regime around it. Every quote stores its own window, so moving
@@ -544,7 +544,7 @@ export async function listUpcomingQuotes(options: {
  * The date only brings a row into view; it does not make the send once-only.
  * That is the message log's claim (`balance-request`, keyed on the quote —
  * `lib/cron/balance-scheduler.ts`), because the scheduler never stamps
- * `issued_at`: the quote page does, when it mints the session (D25).
+ * `issued_at`: the quote page does, when it mints the session (.icm/intake/README.md § Decisions).
  *
  * `issued` is in view, as for the reminder below. The page takes the balance
  * from the deposit on, so a couple may open Checkout weeks before T−15 and walk

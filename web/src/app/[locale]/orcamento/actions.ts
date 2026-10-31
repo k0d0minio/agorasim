@@ -10,7 +10,7 @@ import { clientIp } from "@/lib/request-ip";
 import { isEmbeddedCheckoutConfigured, publishableKey } from "@/lib/stripe";
 
 /**
- * The quote page's one write: the pay button (D25).
+ * The quote page's one write: the pay button (.icm/intake/README.md § Decisions).
  *
  * Unauthenticated, like the cancel link — the token in the body is the whole
  * of the authorisation, and it is checked where the work happens

@@ -35,7 +35,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { fillTemplate } from "@/lib/fill-template";
 
 /**
- * The couple's quote: `/[locale]/orcamento/<token>` (D25).
+ * The couple's quote: `/[locale]/orcamento/<token>` (.icm/intake/README.md § Decisions).
  *
  * **Never cached, never prerendered.** The URL carries a credential and the
  * page renders one couple's event — the one thing `AGENTS.md` says must not go

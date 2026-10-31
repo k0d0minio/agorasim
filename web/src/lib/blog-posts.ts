@@ -51,7 +51,7 @@ export type BlogPost = {
  *
  * `heroImageAlt` gates `heroImage` rather than the other way round: a
  * photograph nobody described has no accessible name, and the public bar is
- * WCAG 2.2 AA (D14). Dropping the image is a smaller loss than shipping an
+ * WCAG 2.2 AA (.icm/intake/README.md § Decisions). Dropping the image is a smaller loss than shipping an
  * unlabelled one, and the loader refuses the combination anyway — this is the
  * belt for rows edited later by hand.
  */

@@ -54,7 +54,7 @@ function DialogContent({
   children,
   showCloseButton = true,
   // Every consumer of this primitive is the admin, which is hardcoded
-  // Portuguese (D4) — so the close button's accessible name is Portuguese by
+  // Portuguese (.icm/intake/README.md § Decisions) — so the close button's accessible name is Portuguese by
   // default rather than by each caller remembering to pass it. It stays a prop
   // so a future public, bilingual consumer can hand in its own word.
   closeLabel = "Fechar",

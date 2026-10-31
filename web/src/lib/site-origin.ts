@@ -14,7 +14,7 @@
  *   would invite a crawler to index the preview.
  * - **The origin serving this deployment** is what a link has to use if
  *   somebody is going to click it *today*. Until the registrar transfer lands
- *   and the nameservers move (register decision D18), `agorasim.pt` still
+ *   and the nameservers move (2026-09-11), `agorasim.pt` still
  *   serves the old site, so anything resolved against it — the logo in an
  *   email, the footer link — lands somewhere else.
  *

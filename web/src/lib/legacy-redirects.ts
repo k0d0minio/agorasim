@@ -2,7 +2,7 @@
  * The old WordPress site's URL map, 301'd onto the new routes.
  *
  * agorasim.pt serves a WordPress site until the cutover — the day the registrar
- * transfer lands and the nameservers move (register decision D18). Its
+ * transfer lands and the nameservers move (the registrar transfer, 2026-09-11). Its
  * navigation is small and locale-less — Portuguese paths at the root — and
  * every inbound link, search result and Instagram bio points at one of them.
  * The moment DNS moves, each would otherwise be a 404, and a soft one at that:

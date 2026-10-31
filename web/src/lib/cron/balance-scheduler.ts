@@ -41,7 +41,7 @@
  * another fresh link.
  *
  * `issued` stays the quote page's word: the page mints the Checkout session on
- * tap (D25) and stamps the row; a session minted here at 06:00 would have
+ * tap (.icm/intake/README.md § Decisions) and stamps the row; a session minted here at 06:00 would have
  * expired long before the couple read the mail (`QUOTE_SESSION_TTL_MINUTES`).
  *
  * Personal data: logs name a quote by its ref, never an address or a token.

@@ -96,7 +96,7 @@ describe("listPublishedPosts", () => {
   });
 
   it("drops a photograph nobody described", async () => {
-    // WCAG 2.2 AA (D14): the alternative to an undescribed hero image is no
+    // WCAG 2.2 AA (.icm/intake/README.md § Decisions): the alternative to an undescribed hero image is no
     // hero image, not an unlabelled one.
     const post = (await withRows([row({ heroImageAlt: null })]))[0];
     expect(post.heroImage).toBeNull();

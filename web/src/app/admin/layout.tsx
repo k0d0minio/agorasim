@@ -40,8 +40,8 @@ export const viewport: Viewport = {
 };
 
 /**
- * Root shell for the admin area. Deliberately monolingual — Portuguese, per D4
- * — and stripped of the public site chrome: it sits outside `[locale]` and is
+ * Root shell for the admin area. Deliberately monolingual — Portuguese, per
+ * `.icm/intake/README.md` § Decisions — and stripped of the public site chrome: it sits outside `[locale]` and is
  * gated by `proxy.ts`.
  * The per-page dashboard chrome (sidebar/topbar) lives in `AdminShell`, so the
  * login screen can opt out of it.

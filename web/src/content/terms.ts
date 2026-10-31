@@ -339,9 +339,9 @@ export function termsSection(id: TermsSectionId, locale: Locale): Section {
  */
 export const legalOpenItems: readonly string[] = [
   "TODO(legal): confirmar o regime de IVA aplicável (taxa e eventual isenção) e o emissor da fatura. Se a Agorasim estiver obrigada a emitir fatura com o número de contribuinte do cliente, acrescentar aqui como e quando é pedido.",
-  "TODO(legal): confirmar o prazo de 30 dias com o cliente (decisão D9, valor por defeito) e verificar o enquadramento do sinal no regime legal português.",
+  "TODO(legal): confirmar o prazo de 30 dias com o cliente (decisão: .icm/intake/README.md § Decisions, valor por defeito) e verificar o enquadramento do sinal no regime legal português.",
   "TODO(legal): confirmar a cobertura do seguro de acidentes pessoais e de responsabilidade civil (obrigatório para agentes de animação turística) e indicar aqui a seguradora e a apólice.",
   "TODO(legal): confirm the VAT regime that applies (rate and any exemption) and who issues the invoice. If Agorasim must issue an invoice carrying the guest's tax number, add here how and when it is requested.",
-  "TODO(legal): confirm the 30-day window with the client (decision D9, the default) and check how the deposit sits under the Portuguese sinal regime.",
+  "TODO(legal): confirm the 30-day window with the client (decision: .icm/intake/README.md § Decisions, the default) and check how the deposit sits under the Portuguese sinal regime.",
   "TODO(legal): confirm the personal-accident and civil-liability insurance cover (mandatory for tourism-activity operators) and name the insurer and policy here.",
 ];

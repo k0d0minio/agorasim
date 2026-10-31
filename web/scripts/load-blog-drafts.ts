@@ -6,7 +6,7 @@
  *   pnpm blog:load --dry-run  # parse and report, write nothing
  *   pnpm blog:load um-dia-perfeito-na-ericeira   # just these slugs
  *
- * The ingestion half of the publish path (D11). Jamie runs it after reviewing a
+ * The ingestion half of the publish path (.icm/intake/README.md § Decisions). Jamie runs it after reviewing a
  * `workspaces/geo-content` batch into `src/content/generated/blog/`; Diogo &
  * Rita then publish from `/admin/blog`. Nothing about it is automatic, and that
  * is the design: the pipeline writes files a human has read, this puts them in

@@ -129,7 +129,7 @@ export default async function BlogArticlePage({
 
         {/* No photograph, or one nobody described, and the article simply opens
             on its words — an unlabelled hero image is not the alternative
-            (WCAG 2.2 AA — D14). */}
+            (WCAG 2.2 AA, .icm/intake/README.md § Decisions). */}
         {post.heroImage && post.heroImageAlt ? (
           <div className="relative mx-auto mt-10 aspect-video max-w-4xl overflow-hidden rounded-2xl">
             <Image

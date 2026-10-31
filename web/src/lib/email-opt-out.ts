@@ -4,7 +4,7 @@
  *
  * **One check, one write.** {@link isOptedOut} is the question every
  * marketing-basis send asks before it claims a message — today only the
- * post-tour thank-you (D24), and any future sender that is not about one of
+ * post-tour thank-you (.icm/intake/README.md § Decisions), and any future sender that is not about one of
  * the guest's own bookings must ask it too. It is never asked of booking mail:
  * the confirmation, the day-before reminder, a cancellation or a move are the
  * contract, and an opt-out does not stop them. {@link recordOptOut} is the one

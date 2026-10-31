@@ -17,7 +17,7 @@
  * actions hand them straight to a field's `role="alert"` paragraph (spec §8
  * E6), so an untranslated one is an English sentence on a Portuguese screen.
  * Everything down to the *Public tour-request form* heading is admin, and is
- * therefore Portuguese (D4). The two public schemas below it carry no messages
+ * therefore Portuguese (.icm/intake/README.md § Decisions). The two public schemas below it carry no messages
  * at all — the guest forms word their own errors, bilingually, from
  * `content/` — and must stay that way.
  */
@@ -805,7 +805,7 @@ const depositPercentField = z
  * The total is not a field: it is the sum of the lines (D-3, settled at
  * Define), so there is no figure to disagree with them. The deposit share is a
  * whole percentage, 30 by default in the form; the non-refundable window is
- * not offered at all and stays at D9's 30 days.
+ * not offered at all and stays at the register's 30 days (.icm/intake/README.md § Decisions).
  */
 export const quoteDraftSchema = z
   .object({

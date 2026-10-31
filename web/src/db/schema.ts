@@ -1469,7 +1469,7 @@ export type OptOutVia = (typeof optOutViaEnum.enumValues)[number];
 
 /**
  * Addresses that asked not to receive any email that is not about one of their
- * bookings — today the post-tour thank-you, sent under the soft opt-in (D24).
+ * bookings — today the post-tour thank-you, sent under the soft opt-in (.icm/intake/README.md § Decisions).
  *
  * **Keyed by address, not by enquiry**, because the objection is the person's
  * and outlives any one lead: a guest who opts out and books again next summer
@@ -1627,7 +1627,7 @@ export const quotes = pgTable("quotes", {
   /**
    * How many days before the event the deposit stops being refundable.
    *
-   * 30 by default (D9), and a column rather than a constant because the client
+   * 30 by default (.icm/intake/README.md § Decisions), and a column rather than a constant because the client
    * asked for the window and the lawyer has flagged the *sinal* regime around
    * it: the number is going to move, and a quote already accepted must keep
    * evidencing the window it was accepted under.
@@ -1920,7 +1920,7 @@ export const blogPostDrafts = pgTable("blog_post_drafts", {
   /**
    * Alt text for {@link heroImage}, per locale. Nullable because a row may not
    * carry a photograph at all; when there is one, the public page refuses to
-   * render it without this (WCAG 2.2 AA — D14).
+   * render it without this (WCAG 2.2 AA, .icm/intake/README.md § Decisions).
    */
   heroImageAlt: jsonb("hero_image_alt").$type<Localized>(),
 

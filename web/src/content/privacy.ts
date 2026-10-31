@@ -10,7 +10,8 @@ import type { Localized } from "@/i18n/config";
  * data never touches this app; the client's account is merchant of record and
  * the platform takes an application fee, see `lib/booking-checkout.ts`) and
  * Resend (email, EU-west/Ireland region, see `lib/email.ts` — the booking mail,
- * and the one post-tour thank-you sent under the soft opt-in, D24).
+ * and the one post-tour thank-you sent under the soft opt-in,
+ * .icm/intake/README.md § Decisions).
  * When a processor is added or removed, this file changes in the same PR.
  *
  * ⚠️ **DRAFT LEGAL TEXT — NOT REVIEWED.** Everything below was written by an
@@ -272,10 +273,10 @@ export const legalOpenItems: readonly string[] = [
   "PROPOSTA, A CONFIRMAR: prazo de conservação de 24 meses a contar do último contacto para pedidos não convertidos — ainda não decidido pelo cliente (.icm/docs/data-protection.md).",
   "TODO(legal): confirmar os prazos legais de conservação dos dados de reservas efetivamente realizadas (por exemplo, obrigações fiscais).",
   "TODO(legal): confirmar as regiões de alojamento da Vercel e da Neon, a entidade Stripe contratante (Stripe Payments Europe, Irlanda, para contas em Portugal) e, quando existam transferências para fora do Espaço Económico Europeu, o mecanismo aplicável (por exemplo, cláusulas contratuais-tipo).",
-  "TODO(legal): confirmar a redação do fundamento do email de agradecimento (interesse legítimo, artigo 6.º, n.º 1, alínea f), e o regime de contactos a clientes existentes da Lei n.º 41/2004) e se o aviso no momento da recolha deve também constar do email de confirmação da reserva (registo D24).",
+  "TODO(legal): confirmar a redação do fundamento do email de agradecimento (interesse legítimo, artigo 6.º, n.º 1, alínea f), e o regime de contactos a clientes existentes da Lei n.º 41/2004) e se o aviso no momento da recolha deve também constar do email de confirmação da reserva (registo: .icm/intake/README.md § Decisions).",
   "TODO(legal): confirm the basis stated for the enquiry itself, and whether any further processing (for example tax obligations attached to bookings that actually happen) needs describing under \"Why we process it\".",
   "PROPOSED, NOT YET DECIDED: a 24-month retention period from the last contact for unconverted enquiries — not yet signed off by the client (.icm/docs/data-protection.md).",
   "TODO(legal): confirm the statutory retention periods for data attached to bookings that took place (for example tax record-keeping).",
-  "TODO(legal): confirm the wording of the basis for the thank-you email (legitimate interest, Art. 6(1)(f), and the existing-customer rule of Portuguese Law 41/2004) and whether the collection-time notice should also appear in the booking confirmation email (register D24).",
+  "TODO(legal): confirm the wording of the basis for the thank-you email (legitimate interest, Art. 6(1)(f), and the existing-customer rule of Portuguese Law 41/2004) and whether the collection-time notice should also appear in the booking confirmation email (register: .icm/intake/README.md § Decisions).",
   "TODO(legal): confirm the hosting regions for Vercel and Neon, the contracting Stripe entity (Stripe Payments Europe, Ireland, for Portuguese accounts) and, where any transfer outside the European Economic Area occurs, the safeguard relied on (for example standard contractual clauses).",
 ];

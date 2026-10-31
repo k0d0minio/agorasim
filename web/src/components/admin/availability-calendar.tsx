@@ -76,7 +76,7 @@ import {
  * Built mobile-first because it is used standing next to a car, one-handed:
  *
  * - Every day cell is a ≥44px target (T1) laid out in a 7-column grid that
- *   still fits the 320px reflow floor (D2).
+ *   still fits the 320px reflow floor.
  * - A day reads the way it does in Google Calendar or on Airbnb
  *   (`admin-calendar-plain-tiles`): a plain tile is free, a gray tile is
  *   blocked, a small slash in the corner means only one departure is
@@ -1086,7 +1086,7 @@ function BlockBar({
 
       {/* "Só um condutor": the label names the row, the three buttons say for
           what. Three across still leaves each ≥44px tall and wide enough for
-          "Manhã" at the 320px floor (D2). */}
+          "Manhã" at the 320px floor. */}
       <div role="group" aria-labelledby="one-driver-label" className="flex flex-col gap-1.5">
         <span id="one-driver-label" className="text-xs font-medium text-muted-foreground">
           Só um condutor
@@ -1302,7 +1302,7 @@ export function AvailabilityCalendar({
   return (
     <div className="flex flex-col gap-4">
       {/* `p-2` on a phone rather than `p-3`, and a half-step grid gap: seven
-          ≥44px-tall cells have to fit across the 320px reflow floor (D2), and
+          ≥44px-tall cells have to fit across the 320px reflow floor, and
           the "+n" beside four booking dots is the widest thing one carries. */}
       <Card className="gap-3 p-2 sm:p-4">
         <div className="flex items-center justify-between gap-2">

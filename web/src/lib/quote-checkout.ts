@@ -2,7 +2,7 @@
  * Paying a quote — the Checkout session the quote page mints on tap, and the
  * record of the money once it lands.
  *
- * D25 fixes the shape: no long-lived Stripe Payment Link objects and no raw
+ * `.icm/intake/README.md` § Decisions fixes the shape: no long-lived Stripe Payment Link objects and no raw
  * session in any email. The couple open their quote page whenever they like —
  * days after the quote was sent — and a tap on its one button creates the
  * session for whichever instalment is due right then (`dueInstalment`). A
