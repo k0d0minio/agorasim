@@ -236,7 +236,9 @@ function QuoteView({
                   value={t(c.tour.departures[hold.slot], locale)}
                 />
               ) : null}
-              {quote.venue ? <Row label={t(c.labels.venue, locale)} value={quote.venue} /> : null}
+              {quote.venue ? (
+                <Row label={t(hold ? c.tour.venue : c.labels.venue, locale)} value={quote.venue} />
+              ) : null}
             </dl>
             <ul className="mt-4 space-y-2 border-t pt-4 text-sm">
               {quote.lineItems.map((line, index) => (

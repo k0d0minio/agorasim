@@ -181,6 +181,7 @@ export const quotePageContent = {
     },
     date: { pt: "Data do passeio", en: "Tour date" } as Localized,
     departure: { pt: "Partida", en: "Departure" } as Localized,
+    venue: { pt: "Ponto de encontro", en: "Meeting point" } as Localized,
     departures: {
       morning: { pt: "Manhã (10:00)", en: "Morning (10:00)" } as Localized,
       afternoon: { pt: "Tarde (14:00)", en: "Afternoon (14:00)" } as Localized,
