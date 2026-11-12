@@ -28,7 +28,10 @@ vi.mock("@/lib/rate-limit", async (importOriginal) => ({
 vi.mock("@/lib/request-ip", () => ({ clientIp: vi.fn(async () => "203.0.113.1") }));
 vi.mock("@/lib/message-log", () => ({ sendLoggedEmail }));
 vi.mock("@/lib/email", () => ({ teamRecipients: () => ["team@example.com"] }));
-vi.mock("@/lib/site-origin", () => ({ siteUrl: () => "https://uat.agorasim.pt" }));
+vi.mock("@/lib/site-origin", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/site-origin")>()),
+  siteUrl: () => "https://uat.agorasim.pt",
+}));
 vi.mock("@/lib/booking-emails", () => ({
   guestEnquiryAckEmail: vi.fn(() => ({})),
   teamEnquiryEmail: vi.fn(() => ({})),
