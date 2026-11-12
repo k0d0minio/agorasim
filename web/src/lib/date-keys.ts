@@ -130,8 +130,9 @@ const DAY_MONTH_YEAR_RE = /^(\d{1,2})[/.\- ](\d{1,2})[/.\- ](\d{4})$/;
  * is not a real calendar day.
  */
 export function parseDayInput(value: string): DateKey | null {
-  // Typed `string`, so the type guard below does not narrow it to `never`.
-  const trimmed: string = value.trim();
+  // The guard `isDateKey` stays inside the ternary. After an `if` on it,
+  // `trimmed` narrows to `never`, because `DateKey` is `string`.
+  const trimmed = value.trim();
   if (DATE_KEY_RE.test(trimmed)) return isDateKey(trimmed) ? trimmed : null;
   // Eight digits and nothing else: a phone keypad with no separator key.
   const digits = /^\d{8}$/.test(trimmed)
