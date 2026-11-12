@@ -125,13 +125,14 @@ const DAY_MONTH_YEAR_RE = /^(\d{1,2})[/.\- ](\d{1,2})[/.\- ](\d{4})$/;
  *
  * Day first in both languages, because Portugal and the UK write it so. The
  * separator can be `/`, `.`, `-` or a space, or none at all (`12062027`). A
- * `YYYY-MM-DD` key passes as it
- * is, so a form posted by an older tab still arrives. Null for anything that
+ * `YYYY-MM-DD` key passes as it is, so a form posted by an older tab still
+ * arrives. Null for anything that
  * is not a real calendar day.
  */
 export function parseDayInput(value: string): DateKey | null {
-  const trimmed = value.trim();
-  if (isDateKey(trimmed)) return trimmed;
+  // Typed `string`, so the type guard below does not narrow it to `never`.
+  const trimmed: string = value.trim();
+  if (DATE_KEY_RE.test(trimmed)) return isDateKey(trimmed) ? trimmed : null;
   // Eight digits and nothing else: a phone keypad with no separator key.
   const digits = /^\d{8}$/.test(trimmed)
     ? `${trimmed.slice(0, 2)}/${trimmed.slice(2, 4)}/${trimmed.slice(4)}`
