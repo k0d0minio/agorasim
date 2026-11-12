@@ -90,3 +90,5 @@ The tree was purged on 2026-09-11 (every earlier epic, triage stub and `_done/` 
 to leave only the go-live work; `git log -- .icm/intake` holds the rest. On 2026-10-23 the
 `go-live/` epic was deleted (Jamie's decision) and the backlog was cut again from the client's
 feedback round 1 of 2026-10-12 (Drive, `feedback-round-1.pdf`): five epics and six triage stubs.
+On 2026-11-12 the client's feedback round 2 (Diogo and Rita, pasted by Jamie) became the epic
+`seats-and-holds` and five triage stubs, after a session reproduced each item on UAT.
