@@ -16,7 +16,7 @@ import { slotOccupancyOn } from "@/lib/bookings";
 import { listExperiences } from "@/lib/experience-catalogue";
 import { priceBooking, type PricingFailure } from "@/lib/pricing";
 import { bookingCheckoutSchema, formValues, type BookingCheckoutField } from "@/lib/form-schemas";
-import { HONEYPOT_FIELD } from "@/lib/honeypot";
+import { isHoneypotHit } from "@/lib/honeypot";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import {
@@ -175,7 +175,7 @@ export async function startCheckout(
   const ip = await clientIp();
 
   // Honeypot: report nothing useful, do nothing at all.
-  if (String(values[HONEYPOT_FIELD] ?? "").trim()) {
+  if (isHoneypotHit(values)) {
     console.warn(`[checkout] discarded honeypot submission from ${ip}`);
     return { error: t(c.generic, locale) };
   }

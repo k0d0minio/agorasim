@@ -31,7 +31,7 @@ import {
 } from "@/lib/pricing";
 import { formatPrice } from "@/lib/money";
 import { href } from "@/lib/routes";
-import { HONEYPOT_FIELD } from "@/lib/honeypot";
+import { HONEYPOT_FIELD, HONEYPOT_INPUT_PROPS, HONEYPOT_LABEL } from "@/lib/honeypot";
 import {
   draftFromFormData,
   noCheckoutEntry,
@@ -592,14 +592,11 @@ export function BookingCheckoutForm({
           aria-hidden="true"
           className="pointer-events-none absolute -left-[9999px] h-0 w-0 overflow-hidden"
         >
-          <label htmlFor={HONEYPOT_FIELD}>Company website</label>
+          <label htmlFor={HONEYPOT_FIELD}>{HONEYPOT_LABEL}</label>
           <input
             id={HONEYPOT_FIELD}
             name={HONEYPOT_FIELD}
-            type="text"
-            tabIndex={-1}
-            autoComplete="off"
-            defaultValue=""
+            {...HONEYPOT_INPUT_PROPS}
           />
         </div>
 
