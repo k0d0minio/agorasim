@@ -39,9 +39,12 @@ vi.mock("@/lib/booking-emails", () => ({
 vi.mock("@/lib/experience-catalogue", () => ({
   listExperiences: vi.fn(async () => [{ slug: "rural-saloia" }]),
 }));
-vi.mock("@/lib/bookings", () => ({ countSlotOccupancy: vi.fn(async () => ({})) }));
-vi.mock("@/lib/availability", () => ({
-  isDateKey: () => false,
+vi.mock("@/lib/bookings", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/bookings")>()),
+  countSlotOccupancy: vi.fn(async () => ({})),
+}));
+vi.mock("@/lib/availability", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/availability")>()),
   checkDayBookable: vi.fn(async () => true),
 }));
 
