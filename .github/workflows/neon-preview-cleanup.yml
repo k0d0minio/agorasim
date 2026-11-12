@@ -1,0 +1,84 @@
+# neon-preview-cleanup: delete the Neon branch of each closed preview.
+#
+# The Neon integration on Vercel makes the branch preview/<git branch> in the UAT project
+# uat-agorasim for each preview. It deletes that branch only when Vercel deletes the preview
+# deployment, not when the git branch goes. This workflow deletes it:
+#
+#   - when a pull request closes, the branch of its head (no race with GitHub's head delete),
+#   - each day, and by hand, every preview/* branch that has no live git branch.
+#
+# It never deletes the default branch, a protected branch, or a branch without the preview/
+# prefix. NEON_PROJECT_ID is an id, not a secret. NEON_API_KEY is an Actions secret.
+name: neon-preview-cleanup
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neon-preview-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: lingering-frog-97017403
+      CLOSED_HEAD: ${{ github.event_name == 'pull_request' && github.head_ref || '' }}
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Delete orphan preview branches
+        run: |
+          set -euo pipefail
+          if [ -z "${NEON_API_KEY}" ]; then
+            echo "::error::The Actions secret NEON_API_KEY is empty."
+            exit 1
+          fi
+          api="https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches"
+
+          git_branches="$(gh api --paginate "repos/${REPO}/branches?per_page=100" --jq '.[].name')"
+          [ -n "${git_branches}" ] || { echo "::error::The git branch list is empty."; exit 1; }
+
+          neon_json="$(curl -fsS -H "Authorization: Bearer ${NEON_API_KEY}" -H "Accept: application/json" "${api}")"
+          candidates="$(jq -r '.branches[]
+            | select(.default != true and .protected != true and (.name | startswith("preview/")))
+            | "\(.id)\t\(.name)"' <<<"${neon_json}")"
+
+          kept=0
+          deleted=0
+          failed=0
+          while IFS=$'\t' read -r id name; do
+            [ -n "${id}" ] || continue
+            head="${name#preview/}"
+            reason=""
+            if [ -n "${CLOSED_HEAD}" ] && [ "${head}" = "${CLOSED_HEAD}" ]; then
+              reason="pull request closed"
+            elif ! grep -Fxq -- "${head}" <<<"${git_branches}"; then
+              reason="no git branch"
+            fi
+            if [ -z "${reason}" ]; then
+              echo "keep ${name}"
+              kept=$((kept + 1))
+              continue
+            fi
+            if curl -fsS -X DELETE -H "Authorization: Bearer ${NEON_API_KEY}" -H "Accept: application/json" \
+              "${api}/${id}" >/dev/null; then
+              echo "delete ${name} (${reason})"
+              deleted=$((deleted + 1))
+            else
+              echo "::error::delete ${name} (${reason}) failed"
+              failed=$((failed + 1))
+            fi
+          done <<<"${candidates}"
+
+          echo "kept ${kept}, deleted ${deleted}, failed ${failed}"
+          [ "${failed}" -eq 0 ]
