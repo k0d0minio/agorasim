@@ -124,18 +124,36 @@ const DAY_MONTH_YEAR_RE = /^(\d{1,2})[/.\- ](\d{1,2})[/.\- ](\d{4})$/;
  * A date a person typed, day first, as a key: `12/06/2027` → `2027-06-12`.
  *
  * Day first in both languages, because Portugal and the UK write it so. The
- * separator can be `/`, `.`, `-` or a space. A `YYYY-MM-DD` key passes as it
+ * separator can be `/`, `.`, `-` or a space, or none at all (`12062027`). A
+ * `YYYY-MM-DD` key passes as it
  * is, so a form posted by an older tab still arrives. Null for anything that
  * is not a real calendar day.
  */
 export function parseDayInput(value: string): DateKey | null {
   const trimmed = value.trim();
   if (isDateKey(trimmed)) return trimmed;
-  const match = DAY_MONTH_YEAR_RE.exec(trimmed);
+  // Eight digits and nothing else: a phone keypad with no separator key.
+  const digits = /^\d{8}$/.test(trimmed)
+    ? `${trimmed.slice(0, 2)}/${trimmed.slice(2, 4)}/${trimmed.slice(4)}`
+    : trimmed;
+  const match = DAY_MONTH_YEAR_RE.exec(digits);
   if (!match) return null;
   const [, day, month, year] = match;
   const key = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
   return isDateKey(key) ? key : null;
+}
+
+/**
+ * What the date field shows while the guest types digits: `1206` → `12/06`,
+ * `12062027` → `12/06/2027`. A value with any other character is the guest's
+ * own and comes back as it is.
+ */
+export function maskDayInput(value: string): string {
+  if (!/^[\d/]*$/.test(value)) return value;
+  const digits = value.replace(/\//g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
 
 /**

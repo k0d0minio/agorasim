@@ -358,6 +358,8 @@ describe("quoteRequestSchema", () => {
       `${day}/${month}/${year}`,
       `${day}.${month}.${year}`,
       `${day}-${month}-${year}`,
+      // A phone keypad with no separator key.
+      `${day}${month}${year}`,
       // A form posted by a tab opened before the fix.
       WEDDING_DAY,
     ]) {

@@ -12,7 +12,7 @@ import {
   SERVICE_HOURS,
   type QuoteFormCopy,
 } from "@/content/quote-request";
-import { parseDayInput } from "@/lib/date-keys";
+import { maskDayInput, parseDayInput } from "@/lib/date-keys";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { href } from "@/lib/routes";
 import { submitQuoteRequest, type QuoteRequestState } from "@/app/[locale]/quote-actions";
@@ -199,7 +199,16 @@ export function QuoteRequestForm({
             aria-describedby={
               dateMessage ? "preferredDate-hint preferredDate-error" : "preferredDate-hint"
             }
-            onChange={() => setDateError(null)}
+            onChange={(event) => {
+              setDateError(null);
+              // The numeric keypad on a phone has no "/" key, so the field
+              // adds it. Only when the caret is at the end: an edit in the
+              // middle keeps the guest's caret where it is.
+              const field = event.currentTarget;
+              if (field.selectionStart !== field.value.length) return;
+              const masked = maskDayInput(field.value);
+              if (masked !== field.value) field.value = masked;
+            }}
             onBlur={(event) => {
               const value = event.currentTarget.value.trim();
               if (!value) {
