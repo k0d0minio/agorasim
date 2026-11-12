@@ -120,6 +120,16 @@ export const quoteRequestShared = {
 
   placeholders: {
     partySize: { pt: "Ex.: 40", en: "e.g. 40" } as Localized,
+    /** The date field's format, day first in both languages. */
+    date: { pt: "DD/MM/AAAA", en: "DD/MM/YYYY" } as Localized,
+  },
+
+  hints: {
+    /** Said under the date field, so the format is not only a placeholder. */
+    date: {
+      pt: "Dia, mês e ano, por exemplo 12/06/2027.",
+      en: "Day, month and year, for example 12/06/2027.",
+    } as Localized,
   },
 
   success: {
@@ -135,6 +145,10 @@ export const quoteRequestShared = {
     email: {
       pt: "Indique um email válido.",
       en: "Please enter a valid email address.",
+    } as Localized,
+    date: {
+      pt: "Indique uma data a partir de hoje, no formato DD/MM/AAAA.",
+      en: "Please enter a date from today on, as DD/MM/YYYY.",
     } as Localized,
     generic: {
       pt: "Não foi possível enviar o pedido. Tente novamente.",

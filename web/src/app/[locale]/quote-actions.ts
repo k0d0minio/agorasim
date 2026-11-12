@@ -72,6 +72,7 @@ export async function submitQuoteRequest(
     const state: QuoteRequestState["fieldErrors"] = {};
     if (fieldErrors.name) state.name = t(c.errors.name, locale);
     if (fieldErrors.email) state.email = t(c.errors.email, locale);
+    if (fieldErrors.preferredDate) state.preferredDate = t(c.errors.date, locale);
     return { fieldErrors: state };
   }
 

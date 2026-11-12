@@ -47,6 +47,7 @@ import {
   todayKey,
   TOUR_SLOTS,
 } from "@/lib/availability";
+import { parseDayInput } from "@/lib/date-keys";
 import { isVehicleClass, MAX_PARTY_ONLINE } from "@/lib/fleet";
 import { parseAmountInput, parsePriceInput } from "@/lib/money";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
@@ -1113,8 +1114,23 @@ export const quoteRequestSchema = z.object({
   name: text.min(1),
   email: text.regex(EMAIL_RE),
   phone: optionalText,
-  /** A `type="date"` field, so `YYYY-MM-DD` — stored in `preferred_date`. */
-  preferredDate: optionalText,
+  /**
+   * A text field the guest types day first (`DD/MM/AAAA`), stored in
+   * `preferred_date` as `YYYY-MM-DD`. Not `type="date"`: a native picker draws
+   * the browser's locale, not the page's, and showed MM/DD/YYYY on the PT page.
+   * Empty is fine. A date that is not a real day, or a day before today in
+   * Portugal, is refused — the guest can fix it, and a quote for a past day
+   * is no lead.
+   */
+  preferredDate: optionalText.transform((value, ctx) => {
+    if (!value) return null;
+    const key = parseDayInput(value);
+    if (!key || key < todayKey()) {
+      ctx.addIssue({ code: "custom", message: "preferredDate" });
+      return z.NEVER;
+    }
+    return key;
+  }),
   venue: optionalText,
   /**
    * A key from {@link SERVICE_HOURS}, never the label the guest saw. An
@@ -1145,7 +1161,7 @@ export const quoteRequestSchema = z.object({
 });
 
 /** Field names `submitQuoteRequest` can report an inline error against. */
-export type QuoteRequestField = "name" | "email";
+export type QuoteRequestField = "name" | "email" | "preferredDate";
 
 // ---------------------------------------------------------------------------
 // Public booking checkout

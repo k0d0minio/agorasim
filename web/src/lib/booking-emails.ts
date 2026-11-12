@@ -27,6 +27,7 @@ import { ceremonyTimeLabel, serviceHoursLabel } from "@/content/quote-request";
 import { termsContent, termsSection } from "@/content/terms";
 import type { Booking, EnquiryKind } from "@/db/schema";
 import { t, type Locale, type Localized } from "@/i18n/config";
+import { formatDay } from "@/lib/date-keys";
 import type { EmailMessage } from "@/lib/email";
 import {
   emailButton,
@@ -206,7 +207,7 @@ export type BookingLogisticsFacts = Pick<
 /**
  * The logistics facts of a booking, formatted for reading — one place, so the
  * confirmation, the move notice and the reminder cannot disagree about where
- * and when to meet. The date is the caller's (`formatDay` is server-only).
+ * and when to meet. The date is the caller's.
  */
 export function bookingLogisticsFacts(
   booking: LogisticsBooking,
@@ -1266,9 +1267,12 @@ export function teamEnquiryEmail(
   const c = bookingEmails.teamEnquiry;
   const isQuote = facts.kind !== "tour";
 
+  // The team reads Portuguese: a stored `YYYY-MM-DD` becomes a day in words.
+  // A tour's free-text date is not a key, and `formatDay` keeps it as typed.
+  const date = facts.preferredDate ? formatDay(facts.preferredDate, "pt") : "—";
   const values: Record<string, string> = {
     name: facts.guestName,
-    date: facts.preferredDate || "—",
+    date,
     experience: facts.experience || "—",
     venue: facts.venue || "—",
     party: facts.partySize ? String(facts.partySize) : "—",
@@ -1303,14 +1307,14 @@ export function teamEnquiryEmail(
     : [];
   const enquiryRows: DetailRow[] = isQuote
     ? [
-        { label: c.labels.date, value: facts.preferredDate || "—" },
+        { label: c.labels.date, value: date },
         { label: c.quote.labels.venue, value: facts.venue || "—" },
         whenRow,
         { label: c.quote.labels.car, value: carLabel(facts.preferredCar) ?? "—" },
         ...partyRows,
       ]
     : [
-        { label: c.labels.date, value: facts.preferredDate || "—" },
+        { label: c.labels.date, value: date },
         { label: c.labels.experience, value: facts.experience || "—" },
         ...partyRows,
       ];

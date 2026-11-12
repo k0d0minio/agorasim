@@ -277,6 +277,10 @@ describe("dayNoteSchema", () => {
  * it. Every field but the name and the e-mail has to survive being left empty.
  */
 
+/** A wedding day that is never "in the past" for the schema's check, typed day first. */
+const WEDDING_DAY = shiftDays(todayKey(), 400);
+const WEDDING_DAY_TYPED = WEDDING_DAY.split("-").reverse().join("/");
+
 /** What `/casamentos` posts when every box is filled in. */
 function quote(overrides: Record<string, unknown> = {}) {
   return {
@@ -284,7 +288,7 @@ function quote(overrides: Record<string, unknown> = {}) {
     name: "Sofia & Miguel",
     email: "sofia@example.com",
     phone: "+351912345678",
-    preferredDate: "2027-06-12",
+    preferredDate: WEDDING_DAY_TYPED,
     venue: "Igreja de São Pedro, Mafra",
     ceremonyTime: "15:30",
     preferredCar: "citroen-2cv",
@@ -304,7 +308,8 @@ describe("quoteRequestSchema", () => {
       name: "Sofia & Miguel",
       email: "sofia@example.com",
       phone: "+351912345678",
-      preferredDate: "2027-06-12",
+      // Typed day first, stored as a key.
+      preferredDate: WEDDING_DAY,
       venue: "Igreja de São Pedro, Mafra",
       // The wedding form asks no hours of service.
       serviceHours: null,
@@ -345,6 +350,36 @@ describe("quoteRequestSchema", () => {
       "email",
       "name",
     ]);
+  });
+
+  it("stores the date as YYYY-MM-DD, however the day-first date was typed", () => {
+    const [year, month, day] = WEDDING_DAY.split("-");
+    for (const preferredDate of [
+      `${day}/${month}/${year}`,
+      `${day}.${month}.${year}`,
+      `${day}-${month}-${year}`,
+      // A form posted by a tab opened before the fix.
+      WEDDING_DAY,
+    ]) {
+      const parsed = quoteRequestSchema.safeParse(quote({ preferredDate }));
+      expect(parsed.success).toBe(true);
+      expect(parsed.data?.preferredDate).toBe(WEDDING_DAY);
+    }
+  });
+
+  it("refuses a day in the past, and a day that does not exist", () => {
+    const yesterday = shiftDays(todayKey(), -1).split("-").reverse().join("/");
+    for (const preferredDate of [yesterday, "31/02/2030", "06/12", "amanhã"]) {
+      const parsed = quoteRequestSchema.safeParse(quote({ preferredDate }));
+      expect(parsed.success).toBe(false);
+      if (parsed.success) continue;
+      expect(Object.keys(z.flattenError(parsed.error).fieldErrors)).toEqual(["preferredDate"]);
+    }
+  });
+
+  it("takes today", () => {
+    const today = todayKey().split("-").reverse().join("/");
+    expect(quoteRequestSchema.safeParse(quote({ preferredDate: today })).success).toBe(true);
   });
 
   it("drops a service-hours option and a car this build does not offer", () => {

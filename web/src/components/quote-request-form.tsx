@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
@@ -12,6 +12,7 @@ import {
   SERVICE_HOURS,
   type QuoteFormCopy,
 } from "@/content/quote-request";
+import { parseDayInput } from "@/lib/date-keys";
 import { HONEYPOT_FIELD } from "@/lib/honeypot";
 import { href } from "@/lib/routes";
 import { submitQuoteRequest, type QuoteRequestState } from "@/app/[locale]/quote-actions";
@@ -58,7 +59,7 @@ export function QuoteRequestForm({
   locale: Locale;
   kind: "wedding" | "event";
   copy: QuoteFormCopy;
-  /** Today in Portugal, `YYYY-MM-DD` — the floor on the date picker. */
+  /** Today in Portugal, `YYYY-MM-DD` — the first day the date field takes. */
   today: string;
 }) {
   const [state, formAction] = useActionState<QuoteRequestState, FormData>(
@@ -73,6 +74,10 @@ export function QuoteRequestForm({
     if (state.ok) successRef.current?.focus();
   }, [state.ok]);
   const optional = t(shared.labels.optional, locale);
+  // Checked on blur, so the guest sees a bad date before the send. The action
+  // checks it again: this is a courtesy, not the rule.
+  const [dateError, setDateError] = useState<string | null>(null);
+  const dateMessage = dateError ?? state.fieldErrors?.preferredDate ?? null;
 
   if (state.ok) {
     return (
@@ -176,8 +181,43 @@ export function QuoteRequestForm({
             The column behind this is `preferred_date`, the same free-text one
             the tour enquiry writes — so the Sales board already leads the card
             with it and nothing downstream had to learn a second date.
+
+            A text field, not `type="date"`: a native picker draws the
+            browser's locale, not the page's, so a US-English browser showed
+            MM/DD/YYYY on the PT page. The guest types day first, and the
+            action stores `YYYY-MM-DD` (`quoteRequestSchema`).
           */}
-          <Input id="preferredDate" name="preferredDate" type="date" min={today} />
+          <Input
+            id="preferredDate"
+            name="preferredDate"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={10}
+            placeholder={t(shared.placeholders.date, locale)}
+            aria-invalid={Boolean(dateMessage)}
+            aria-describedby={
+              dateMessage ? "preferredDate-hint preferredDate-error" : "preferredDate-hint"
+            }
+            onChange={() => setDateError(null)}
+            onBlur={(event) => {
+              const value = event.currentTarget.value.trim();
+              if (!value) {
+                setDateError(null);
+                return;
+              }
+              const key = parseDayInput(value);
+              setDateError(key && key >= today ? null : t(shared.errors.date, locale));
+            }}
+          />
+          <p id="preferredDate-hint" className="text-xs text-muted-foreground">
+            {t(shared.hints.date, locale)}
+          </p>
+          {dateMessage ? (
+            <p id="preferredDate-error" className="text-sm text-destructive" role="alert">
+              {dateMessage}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-1.5 sm:col-span-2">

@@ -102,6 +102,43 @@ export function parseDateKey(key: string): Date | null {
 }
 
 /**
+ * `2026-08-15` → "Saturday, 15 August 2026" / "sábado, 15 de agosto de 2026".
+ * Anything that is not a key comes back as it is, so a free-text date a guest
+ * typed on an older form still reads as something.
+ */
+export function formatDay(key: DateKey, locale: "pt" | "en"): string {
+  const date = parseDateKey(key);
+  if (!date) return key;
+  return new Intl.DateTimeFormat(locale === "pt" ? "pt-PT" : "en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+const DAY_MONTH_YEAR_RE = /^(\d{1,2})[/.\- ](\d{1,2})[/.\- ](\d{4})$/;
+
+/**
+ * A date a person typed, day first, as a key: `12/06/2027` → `2027-06-12`.
+ *
+ * Day first in both languages, because Portugal and the UK write it so. The
+ * separator can be `/`, `.`, `-` or a space. A `YYYY-MM-DD` key passes as it
+ * is, so a form posted by an older tab still arrives. Null for anything that
+ * is not a real calendar day.
+ */
+export function parseDayInput(value: string): DateKey | null {
+  const trimmed = value.trim();
+  if (isDateKey(trimmed)) return trimmed;
+  const match = DAY_MONTH_YEAR_RE.exec(trimmed);
+  if (!match) return null;
+  const [, day, month, year] = match;
+  const key = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  return isDateKey(key) ? key : null;
+}
+
+/**
  * The key `days` calendar days after `key` (negative goes back).
  *
  * Arithmetic on UTC midnights, never on "now": a key is a day in Sintra, and

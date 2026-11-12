@@ -1111,6 +1111,19 @@ describe("teamEnquiryEmail", () => {
     expect(message.text).not.toContain("Hora da cerimónia");
   });
 
+  it("writes a quote's date in words, never as the stored key", () => {
+    const message = teamEnquiryEmail(weddingEnquiry(), recipients);
+    for (const part of [message.text, message.html!]) {
+      expect(part).toContain("sábado, 12 de junho de 2027");
+      expect(part).not.toContain("2027-06-12");
+    }
+  });
+
+  it("keeps a tour's free-text date as the guest typed it", () => {
+    const message = teamEnquiryEmail(enquiry(), recipients);
+    expect(message.text).toContain("Data preferida: 15 de agosto");
+  });
+
   it("drops the experience row a quote never fills in", () => {
     const quote = teamEnquiryEmail(weddingEnquiry(), recipients);
     expect(quote.text).not.toContain("Experiência");
