@@ -37,8 +37,8 @@ const BOOKABLE_STAGES = new Set(["new", "contacted", "quoted"]);
  * turns on: how old it is and what it's worth.
  *
  * On a phone the columns are pages of a swipeable stage pager. From `md` up
- * they stack, each a full-width section with its cards in a grid — see
- * `SalesStagePager` for why. Moving a card is the status picker on the card
+ * the board shows one column at a time, a full-width section with its cards in
+ * a grid, and the chips on top choose it — see `SalesStagePager` for why. Moving a card is the status picker on the card
  * itself, on every screen size: the preview's drag-and-drop was desktop-only
  * and had a separate "move to…" menu bolted on for touch; one control that
  * works everywhere beats two that each work somewhere.

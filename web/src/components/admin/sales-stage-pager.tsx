@@ -13,26 +13,29 @@ export type StageSlide = {
 };
 
 /**
- * The board's layout: a horizontal snap rail of stages on a phone, the
- * stages one under the other from `md` up.
+ * The board's layout: a chip rail of stages at every width, over a horizontal
+ * snap rail of stages on a phone and over the selected stage alone from `md`
+ * up.
  *
  * On a phone each stage is a full-width slide and a chip rail sits on top —
  * the board used to stack all five stages vertically there, so triaging a
  * Booked lead meant scrolling past every card in New, Contacted and Quoted
  * first. Now any stage costs one tap (its chip) or one swipe, and every
- * stage's count is visible at all times (spec §9 L4). From `md` up the chips
- * disappear and the stages stack as full-width sections: five 304px columns
- * side by side made a laptop scroll sideways (Diogo, feedback round 1), and a
- * laptop has the width for a grid of cards in each stage instead.
+ * stage's count is visible at all times (spec §9 L4). From `md` up the same
+ * chips sit on top and the board shows the selected stage alone, as one
+ * full-width section with a grid of cards. Five 304px columns side by side made
+ * a laptop scroll sideways (Diogo, feedback round 1). The stages stacked one
+ * under the other after that, and "Reservado" started 2,270px down the page
+ * (Rita, feedback round 2). One stage at a time puts every stage one tap away.
  *
  * Plain CSS scroll-snap does the paging; the only JavaScript is keeping the
  * active chip in step with the scroll position and scrolling a tapped chip's
  * slide into view. Slides are fixed-width, which is the case `mandatory`
  * snapping is safe for.
  *
- * `initialStage` (a slide's `key`) opens the rail on that stage: its chip is
- * active from the first render, and the rail scrolls to its slide on mount.
- * From `md` up the page scrolls to that stage's section instead.
+ * `initialStage` (a slide's `key`) opens the board on that stage: its chip is
+ * active from the first render. On a phone the rail scrolls to its slide on
+ * mount. From `md` up it is the one stage shown. Unset opens on the first.
  */
 export function SalesStagePager({
   stages,
@@ -41,6 +44,7 @@ export function SalesStagePager({
   stages: StageSlide[];
   initialStage?: string;
 }) {
+  const board = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const initialIndex = Math.max(
     0,
@@ -59,13 +63,9 @@ export function SalesStagePager({
     if (!el || initialIndex === 0) return;
     const slide = el.querySelectorAll<HTMLElement>("[data-stage-slide]")[initialIndex];
     if (!slide) return;
-    // From `md` up the stages stack, so the requested one is further down
-    // the page and the page itself is what scrolls. Tailwind's `md` is 48rem.
-    // The html element's scroll padding keeps it clear of the app bar.
-    if (window.matchMedia("(min-width: 48rem)").matches) {
-      slide.scrollIntoView({ block: "start" });
-      return;
-    }
+    // From `md` up only the active stage shows, so there is nothing to
+    // scroll to. Tailwind's `md` is 48rem.
+    if (window.matchMedia("(min-width: 48rem)").matches) return;
     el.scrollLeft = slide.offsetLeft - (parseFloat(getComputedStyle(el).scrollPaddingLeft) || 0);
     // Mount only: a later change of stage is the reader's own swipe or tap.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,6 +96,16 @@ export function SalesStagePager({
   function jumpTo(index: number) {
     const el = scroller.current;
     if (!el) return;
+    // From `md` up the tap swaps the stage shown. If the reader had scrolled
+    // down into the old stage, bring the top of the board back, so the new
+    // stage's first cards sit under the chips. The html element's scroll
+    // padding keeps the board clear of the app bar.
+    if (window.matchMedia("(min-width: 48rem)").matches) {
+      setActive(index);
+      const top = board.current?.getBoundingClientRect().top ?? 0;
+      if (top < 0) board.current?.scrollIntoView({ block: "start" });
+      return;
+    }
     const slide = el.querySelectorAll<HTMLElement>("[data-stage-slide]")[index];
     // block: "nearest" keeps the page from scrolling vertically as a side
     // effect; smooth only for people who haven't asked for reduced motion.
@@ -110,16 +120,16 @@ export function SalesStagePager({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={board} className="flex flex-col gap-3">
       {/*
         The stage rail: one ≥44px chip per stage with its true count. Sticky
         under the app bar so the way to any other stage never scrolls away
-        mid-triage. Phone only — from `md` up the stacked stages carry their
-        own headings and counts.
+        mid-triage. The same chips at every width: from `md` up they choose
+        the one stage the board shows.
       */}
       <nav
         aria-label="Fases"
-        className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 -mx-4 flex gap-2 overflow-x-auto bg-background/95 px-4 py-2 backdrop-blur supports-backdrop-filter:bg-background/85 md:hidden"
+        className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 -mx-4 flex gap-2 overflow-x-auto bg-background/95 px-4 py-2 backdrop-blur supports-backdrop-filter:bg-background/85 md:mx-0 md:px-0"
       >
         {stages.map((stage, index) => (
           <button
@@ -152,15 +162,16 @@ export function SalesStagePager({
         // sr-only spans, and without a positioned ancestor *inside* the scroll
         // container their boxes escape its clip and widen the page itself —
         // horizontal overflow on the html element, the exact thing this
-        // layout exists to prevent. From `md` up it is a plain column: no
-        // snap, no horizontal scroll, no bleed into the page gutter.
+        // layout exists to prevent. From `md` up it is a plain column that
+        // holds the active stage only: no snap, no horizontal scroll, no
+        // bleed into the page gutter.
         className="relative -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-px-4 px-4 pb-4 sm:-mx-6 sm:scroll-px-6 sm:px-6 md:mx-0 md:snap-none md:flex-col md:gap-4 md:overflow-x-visible md:px-0"
       >
-        {stages.map((stage) => (
+        {stages.map((stage, index) => (
           <div
             key={stage.key}
             data-stage-slide
-            className="w-full shrink-0 snap-start"
+            className={cn("w-full shrink-0 snap-start", index !== active && "md:hidden")}
           >
             {stage.content}
           </div>
