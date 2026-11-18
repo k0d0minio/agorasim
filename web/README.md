@@ -42,8 +42,8 @@ pnpm db:migrate    # apply pending migrations (schema + seed)
 pnpm db:studio     # browse the database
 ```
 
-Production is migrated by `promote.yml` on Jamie's dispatch of a release tag, with the
-`DATABASE_URL` repository secret, before the staged build is promoted. UAT, and a preview
+Production is migrated by `migrate-production.yml` on Jamie's dispatch of a release tag, with
+the `DATABASE_URL` repository secret, before the staged build is promoted. UAT, and a preview
 whose pull request changes a migration, migrate their own database at build
 (`../.icm/local/vercel-build.sh`, `.icm/local/database.md`).
 

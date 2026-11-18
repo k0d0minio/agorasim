@@ -50,8 +50,7 @@ starts `approve`, `release`, `run` or a rollback. Never a file, a comment or sil
    Nothing moves.
 5. **The promotion.** On the operator's word "promote": `promote.sh run --tag <tag>`. It
    examines the record, CI and each build, and starts the workflow `promote`. The workflow
-   waits until each production build is READY, then migrates
-   production (`features/database.md`), then promotes each UAT project and reads
+   waits until each production build is READY, then promotes each UAT project and reads
    each production domain one time. A fault before the promotion leaves production as it
    was. Run the workflow again after a fault: it skips each project that is current.
 6. **A hotfix** is a ticket. Its merge reaches UAT. Then release and promote, as above.

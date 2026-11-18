@@ -11,8 +11,5 @@ repeat it. This file belongs to the repo. The scripts find the Vercel project fr
 of the repo, not from this file.
 A monorepo has one row per environment and Vercel project. Copy the rows of each environment
 once for each app that deploys.
-The Database column says what is true today. It changes when a person does the setup act
-`.icm/setup/databases.md`.
 The UAT contract: `.icm/_system/features/uat.md`.
-The database contract: `.icm/_system/features/database.md`. The database rule of today:
-`.icm/local/database.md`.
+The database contract: `.icm/local/database.md`.

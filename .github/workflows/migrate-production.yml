@@ -1,0 +1,67 @@
+# migrate-production: migrate the production database for one release tag.
+#
+# This file belongs to the repo. The repo answered `database: none` to the BAXTER blueprint, so
+# the workflow `promote` of the blueprint has no migration. Before 2026-11-18 the job `migrate`
+# of the old promote.yml did this work. The steps are the same: db:migrate, then db:verify,
+# against production, with the repo secret DATABASE_URL (the direct connection string).
+#
+# Nothing starts it but a person, or a session on Jamie's word:
+#   gh workflow run migrate-production.yml -f tag=<v*>
+# Run it after the merge of the release pull request and before `promote.sh run --tag <v*>`,
+# when the release has a migration. A second run finds nothing to apply.
+# The rule is .icm/local/database.md.
+name: migrate-production
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release tag (v*) whose migrations apply to production
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TAG: ${{ inputs.tag }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: The tag is a release on main
+        run: |
+          case "$TAG" in
+            v*) ;;
+            *) echo "::error::'$TAG' is not a release tag (v*): nothing is migrated"; exit 1 ;;
+          esac
+          sha="$(git rev-parse --verify --quiet "refs/tags/${TAG}^{commit}" || true)"
+          [ -n "$sha" ] || { echo "::error::tag $TAG is not in the repository: nothing is migrated"; exit 1; }
+          git merge-base --is-ancestor "$sha" origin/main \
+            || { echo "::error::tag $TAG (${sha:0:7}) is not on main: nothing is migrated"; exit 1; }
+          [ -n "$DATABASE_URL" ] || { echo "::error::the repository secret DATABASE_URL is not set: nothing is migrated"; exit 1; }
+          git checkout --quiet --detach "$sha"
+          echo "release $TAG at ${sha:0:7}: migrate production, then verify"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Migrate production, then verify
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm run db:migrate
+          pnpm run db:verify

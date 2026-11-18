@@ -1,11 +1,9 @@
 # Database — the Neon projects, a branch for each preview, and the migration at build
 
-> This file belongs to the repo. It is the database rule of today (2026-11-18). The repo answered
-> `database: postgres` to the BAXTER blueprint, and the rule of the blueprint is
-> `.icm/_system/features/database.md`: fixed databases, and only CI migrates. That rule starts
-> when a person does the setup act `.icm/setup/databases.md`. Until then, each fact below stays
-> true. At step 5 of that act, this file, `.icm/local/vercel-build.sh` and
-> `.github/workflows/neon-preview-cleanup.yml` leave.
+> This file belongs to the repo. The repo answered `database: none` to the BAXTER blueprint: the
+> database model of the blueprint (fixed databases, and only CI migrates) is not adopted. Reason:
+> `web` has only the Neon serverless driver, and it cannot reach the plain Postgres of a CI job
+> (2026-11-18).
 
 This file is the database rule for
 every environment. Three rules make it: isolation by Neon project, a Neon branch for each
@@ -15,10 +13,10 @@ preview, and a migration at build that holds a lock.
 
 | Shape | Neon projects | Preview reads | UAT reads | Production reads | Production migrates |
 |---|---|---|---|---|---|
-| With UAT | `<slug>` and `uat-<slug>` | its own branch of `uat-<slug>` | the default branch of `uat-<slug>` | the default branch of `<slug>` | in `promote.yml`, on `promote.sh run` |
+| With UAT | `<slug>` and `uat-<slug>` | its own branch of `uat-<slug>` | the default branch of `uat-<slug>` | the default branch of `<slug>` | in `migrate-production.yml`, before `promote.sh run` |
 | Without UAT | `<slug>` | its own branch of `<slug>` | — | the default branch of `<slug>` | at the build of `main` |
 
-- **Isolation is by Neon project.** With UAT, only Vercel Production and `promote.yml` reach
+- **Isolation is by Neon project.** With UAT, only Vercel Production and `migrate-production.yml` reach
   `<slug>`. Each other deployment reads `uat-<slug>` (why: a separate project is the strongest
   wall between the client's production data and a preview · Jamie, 2026-10-28).
 - **Neon makes each preview's database.** The Neon integration on Vercel cuts the branch
@@ -44,8 +42,10 @@ line calls the script of this folder:
 
 - `.icm/local/vercel-build.sh` runs `db:migrate`, then `db:verify`, then the build command.
   With UAT it skips the migration when `VERCEL_TARGET_ENV` is `production`, because
-  production's build runs at the merge to `main`, before the sign-off. `promote.yml` migrates
-  production. Without UAT, every build migrates, production too.
+  production's build runs at the merge to `main`, before the sign-off. The workflow
+  `migrate-production.yml` migrates production: `gh workflow run migrate-production.yml -f
+  tag=<v*>`, on Jamie's word, after the merge of the release pull request and before
+  `promote.sh run`. The workflow `promote` of the blueprint does not migrate. Without UAT, every build migrates, production too.
 - Vercel sets `VERCEL_TARGET_ENV` at build, and no person sets it. Without it, the script stops.
 - The script gives `db:migrate` and `db:verify` `DATABASE_URL_UNPOOLED` as `DATABASE_URL` when
   it has a value: a migration needs a direct connection.
@@ -68,7 +68,7 @@ line calls the script of this folder:
 - A Neon branch `preview/<git branch>` for each git branch with a preview, while the git
   branch exists.
 - A migrated database for each deployment, before its build. Production with UAT: after the
-  sign-off, in `promote.yml`.
+  sign-off, in `migrate-production.yml`.
 
 ## Setup, once
 

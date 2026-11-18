@@ -7,8 +7,7 @@
 # A monorepo calls it from each app's vercel.json, and it migrates before turbo starts:
 #   "buildCommand": "bash ../../.icm/local/vercel-build.sh turbo run build"
 # The rule is .icm/local/database.md § The migration rule. This file belongs to the repo since
-# 2026-11-18: the BAXTER blueprint has no copy of it. It leaves at step 5 of the setup act
-# .icm/setup/databases.md, when the workflow ci migrates the databases.
+# 2026-11-18: the BAXTER blueprint has no copy of it.
 set -euo pipefail
 
 [ "$#" -gt 0 ] || { echo "vercel-build.sh: give the build command, for example: next build" >&2; exit 2; }
@@ -36,10 +35,10 @@ case "$pm" in
   *)             run=(npm run) ;;
 esac
 
-# Production migrates in promote.yml, after the client's sign-off. Its build runs at the merge
+# Production migrates in migrate-production.yml, after the client's sign-off. Its build runs at the merge
 # to main, before the sign-off, so it never migrates.
 if [ "$target" = production ]; then
-  echo "[vercel-build] VERCEL_TARGET_ENV=production: promote.yml migrates production, so this build only builds"
+  echo "[vercel-build] VERCEL_TARGET_ENV=production: migrate-production.yml migrates production, so this build only builds"
   exec "$@"
 fi
 : "${DATABASE_URL:?vercel-build.sh: DATABASE_URL is not set, so nothing can migrate. Read .icm/local/database.md § Setup}"

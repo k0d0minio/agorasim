@@ -17,7 +17,6 @@ A command is a word and one ticket. A ticket is a Linear key: `JAM-123`.
 | `release` and a ticket | `.icm/_system/stages/release/CONTEXT.md` |
 | `revise` and a ticket and a change | `.icm/_system/stages/define/CONTEXT.md`, section Revise |
 | `status`, `approve`, `release` with no ticket, `promote`, `rollback` | `.icm/_system/features/uat.md` |
-| A migration, or a reset of the preview database | `.icm/_system/features/database.md` |
 
 Start words: `new`, `pick up`, `start work on`, and the phrases in
 `.icm/_system/rules/triggers.txt`. The intent decides. A question about a ticket is not a

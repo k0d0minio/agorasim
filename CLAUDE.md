@@ -29,9 +29,9 @@ The router has the commands, the stages and the lanes. A ticket is a Linear key 
 | read product knowledge | `.icm/docs/` |
 | read where the build runs | `.icm/environments.md`, the one home of the addresses |
 | read the UAT batch, record the client's sign-off, promote, roll back | `.icm/_system/features/uat.md`, then `.icm/_system/scripts/promote.sh` |
-| change the database, or read where a preview's database comes from | `.icm/local/database.md` (the rule of today), then `.icm/_system/features/database.md` |
+| change the database, or read where a preview's database comes from | `.icm/local/database.md`, then `.icm/local/vercel-build.sh` |
 | do a setup act in Vercel, GitHub or the database provider | `.icm/setup/`: one file for each act. A person ticks its boxes |
-| change what CI checks or how a release is cut | the blueprint. `ci.yml`, `promote.yml`, `db-reset.yml` and `icm.yml` come from it |
+| change what CI checks or how a release is cut | the blueprint. `ci.yml`, `promote.yml` and `icm.yml` come from it |
 
 ## Release
 
@@ -40,7 +40,8 @@ release job keeps the release-please pull request open on `main`, and that pull 
 batch. Every merge to `main` deploys UAT at `uat.agorasim.pt` and builds a production deployment
 that stays staged. Production moves on a promotion, as `.icm/_system/features/uat.md` says: the
 client says yes on UAT, then Jamie says `release`, then Jamie says `promote`. The workflow
-`promote` migrates production and promotes the staged build. The UAT database is the default
+`promote` promotes the staged build and does not migrate. When the release has a migration,
+run `migrate-production.yml` with the tag before the promotion (`.icm/local/ROUTES.md`). The UAT database is the default
 branch of the Neon project `uat-agorasim`, the base of every preview
 (`.icm/local/database.md`).
 

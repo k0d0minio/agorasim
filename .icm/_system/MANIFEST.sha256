@@ -1,12 +1,11 @@
 6e3e6760a8a8f0677bc3ee7a577d65e6814974e7c8cf3667b29bb6cad96a4a60  .icm/_system/.gitignore
-3b1171bb9cbf225d38f6b3a516331dec4db43b48db0664292e3df4c536402c4e  .icm/_system/ROUTER.md
+2913ff357752ce12071a811fa50d41ce1930e3500c3d0bf8dcc4a8981adfc933  .icm/_system/ROUTER.md
 750cf46e76fa5007669cbcb4a4567169067bd2bd8c4e7d5456109f7ed2d34dcb  .icm/_system/VERSION
 6aaa2b5456b0cef9d0566d9f6d5595e8d33c4a6429222d0f1d2e46c339fa77a3  .icm/_system/agents/review-shots/CONTEXT.md
 398fcb4e60772416e0d70e873c03e515011b40c989d0bad53e0fe7e2a6cfec9f  .icm/_system/ci/check.sh
 d1e5e4a4de2b85e4beeb11bce85fc810d8b1a3322e485ffe9b1fa45194b79920  .icm/_system/ci/code.sh
 ca388bc331c8e06433753f8eaacd0d88a1e9e294535fbd74a29f8a050610321f  .icm/_system/ci/husky.sh
-ef434c4c2216de3b1f12f62b7d871b07acb4542f0ca75d5c2340ade7a1a378a8  .icm/_system/features/database.md
-48937a553238af72fb678dff5676bd2a894ca11cc0e79042333064b69f6ce12b  .icm/_system/features/uat.md
+d49c71eb3f0dedfc0a064e15a558ee25050cbb96b265f33e217bfc0c505fcf8a  .icm/_system/features/uat.md
 0acbec46347be4e843bcb6e88a5cd25e4431565c9e22582559dde786770dbb53  .icm/_system/hooks/dispatch.sh
 dc933987c8e274699df51fba885ad84ef0210ddc3765e598b88dc74d483f3418  .icm/_system/hooks/guard-system.sh
 ae6fab449e3301b40a41bbe202e51fe4797502634e68df7931fbd01658cde3ad  .icm/_system/hooks/route-request.sh
@@ -28,7 +27,6 @@ dd255db6dd0449327f86d8b8a65b4f774944f92b85894667e0c2dfcbb8e296dd  .icm/_system/r
 26b5b9c677ea7d09b2532d6b1480129b1736f29032edc78c2719488d3814e457  .icm/_system/rules/triggers.txt
 f7b30046a1c3257b926c0d468712fc17c01af2b5523be715e7188a3c1d29ea1e  .icm/_system/scripts/ci-status.sh
 78785e3c337e8d3dd6b11f14cdaeb2c8d1a85b25d81685318401c264fe939bb1  .icm/_system/scripts/close-out.sh
-85c9f9a4a1d19ed0e00a09cf6debc1954561455ebfcf23b72f892b0e0372103e  .icm/_system/scripts/db.sh
 d68d0e88c3a920a11eb99ed870755824dccc2b12ca343adba01faf301f6b8f74  .icm/_system/scripts/lib/gh.sh
 ef1b7ef5186b012855542feb95a43ea1e1145edb3cd263007eef27c21f708697  .icm/_system/scripts/lib/node.sh
 a61b1b76f77eab5a9710a863e1296fec95842dca884510ed07fad89e2a68a901  .icm/_system/scripts/lib/project.sh

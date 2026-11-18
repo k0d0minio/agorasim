@@ -23,10 +23,14 @@ A ticket is now a Linear key of the team `JAM`. A stub is not a ticket.
 
 ## The database
 
-The router sends a migration to `.icm/_system/features/database.md`. Read `.icm/local/database.md`
-first: it has the database rule of today, one Neon branch for each preview and a migration at
-the build of `web` (`.icm/local/vercel-build.sh`). The rule of the blueprint starts when a person
-does the setup act `.icm/setup/databases.md`. The two local files leave at step 5 of that act.
+`.icm/local/database.md` has the database rule: one Neon branch for each preview, a migration at
+the build of `web` (`.icm/local/vercel-build.sh`), and the workflow `migrate-production.yml` for
+production. The database model of the blueprint is not adopted: `web` has only the Neon
+serverless driver, which cannot reach the plain Postgres of a CI job.
+
+A release with a migration: after the merge of the release pull request and before
+`promote.sh run`, run `gh workflow run migrate-production.yml -f tag=<v*>` on Jamie's word, and
+read its result. The workflow `promote` does not migrate.
 
 ## The app
 
