@@ -1,8 +1,13 @@
 # Intake — Agorasim tickets
 
-Open work for this repo lives here as **epics and stubs**. The formats, the writing rules and
-the loop from stub to merge are in `CONTEXT.md`, the blueprint's contract. This file is what is
-true of this backlog.
+> Since 2026-11-18 the pipeline is the BAXTER blueprint (`.icm/_system/ROUTER.md`), and a ticket
+> is a Linear key of the team `JAM`. The markdown stubs of the epics and of `triage/` are the
+> backlog of before that date: `.icm/local/ROUTES.md` says how one becomes a ticket. The rules of
+> this folder are in `.icm/_system/rules/ticket.md`: `tickets/<KEY>.md` is the stub of a ticket in
+> work, and `_done/<KEY>.md` is the stub after the merge.
+
+The backlog of before 2026-11-18 is here as **epics and stubs**. This file is what is true of
+that backlog.
 
 ## Shape
 
@@ -72,8 +77,9 @@ Rules that bind every epic. Restored on 2026-10-30 from the project register of 
 
 ## The loop
 
-`.icm/scripts/new-run.sh <epic>/<slug>` starts a stub: it moves the stub into `_done/` and opens
-the draft pull request. `.icm/scripts/close-out.sh` moves a finished epic into `_done/`. The
+A stub does not start a run. The operator asks BAXTER for the Linear ticket of a stub, and the
+router starts the work from the Linear key (`.icm/local/ROUTES.md`). The pull request of that
+ticket moves the stub into `_done/`. The
 go-live choreography (DNS, Stripe, Resend, the switch) is not a ticket. It is the runbook at
 `.icm/docs/launch-runbook.md`, and Jamie drives it.
 

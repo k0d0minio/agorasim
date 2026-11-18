@@ -1,0 +1,55 @@
+# The blueprint owns this file. An update of the blueprint replaces it: do not edit it.
+# The reset of the shared preview database, on the operator's word:
+#   gh workflow run db-reset.yml -f ref=<the branch to test next>
+# The contract is .icm/_system/features/database.md.
+name: db-reset
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: The branch whose migrations apply after the reset
+        required: true
+        default: main
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: database-preview
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    # The image has the client of the same major version as the server. Correct the
+    # version when the server of the database changes.
+    runs-on: ubuntu-latest
+    container: postgres:17
+    env:
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+
+      SOURCE_DATABASE_URL: ${{ secrets.UAT_DATABASE_URL }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: bash .icm/_system/scripts/db.sh reset
+
+  migrate:
+    needs: reset
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      REQUIRED: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: |
+          . .icm/_system/scripts/lib/node.sh
+          node_install
+          bash .icm/_system/scripts/db.sh migrate
+
