@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-296/agorasim-icmproject-rulesmd-has-the-rules-of-the-repo-and-names-the
 - branch: contact/jam-296-agorasim-icmproject-rulesmd-has-the-rules-of
 - lane: chore
-- pr: pending
+- pr: #256
 - started: 2026-11-18
