@@ -2,11 +2,20 @@
 
 ## Next action
 
-<What the next session, or the operator, does first.>
+O operador lê `.icm/project-rules.md` no pull request #256, marca **Ready to merge** e diz
+`release JAM-296` ou carrega em "Merge now".
+
+## O que mudou
+
+`.icm/project-rules.md` era o modelo vazio do blueprint. Agora tem as regras deste repositório:
+a pasta de docs da lane `knowledge` (`.icm/docs/`), a app em `web/`, pnpm com `--filter web`,
+o texto bilingue, o driver Neon e as migrações. Nenhum ficheiro do produto mudou, por isso
+nenhum utilizador vê diferença.
 
 ## How to test
 
-<1 to 3 short sentences that can be said aloud: where to go on the preview, what to do, what the operator must see.>
+Abra o pull request 256 e leia o ficheiro project-rules. Confirme que cada regra é verdadeira
+para o agorasim.
 
 ## Blockers
 
