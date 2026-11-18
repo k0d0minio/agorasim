@@ -1,11 +1,11 @@
 # Agorasim — app
 
-Agorasim's site and booking platform, built by Legible Consulting: guided classic-car tours of
-the Saloia region (Sintra, Mafra, Ericeira), a bilingual PT/EN site with booking through Stripe
-Checkout and a phone-first admin console. One repository of several apps and shared packages,
-rendered from `legible-consulting/blueprint` and tracked through `.copier-answers.yml`. This
-file is identity and routing only. Copier writes it once: `copier update` never overwrites it,
-so the build's own rows go below.
+Agorasim's site and booking platform: guided classic-car tours of the Saloia region (Sintra,
+Mafra, Ericeira), a bilingual PT/EN site with booking through Stripe Checkout and a phone-first
+admin console. One repository of several apps and shared packages. The work pipeline is the
+BAXTER blueprint (`.icm/_system/`, version in `.icm/_system/VERSION`, answers in
+`.icm/.copier-answers.yml`). This file is identity and routing only. The rules live once, in the
+files that it points at.
 
 ## Apps and packages
 
@@ -16,50 +16,50 @@ so the build's own rows go below.
 
 ## Routing
 
+@.icm/_system/ROUTER.md
+
+The router has the commands, the stages and the lanes. A ticket is a Linear key of the team
+`JAM`. The files below belong to this repo.
+
 | You are asked to | Go to |
 |---|---|
-| build the next ticket, or any ticket | `.icm/intake/CONTEXT.md` (the loop), then the stub |
-| fix a bug, make a tweak or do a chore, with or without a stub | `.icm/lanes/<lane>/CONTEXT.md`: `bug`, `tweak` or `chore` |
-| fix a fault that production shows now | `.icm/lanes/hotfix/CONTEXT.md` |
-| do work that has no ticket | `.icm/intake/CONTEXT.md` § A request with no stub |
-| answer a question about the build, or review | read and answer. No stub, no branch, no pull request |
-| open, fill or finish a pull request | `.github/pull_request_template.md`. The gates sit at its top |
-| merge after the tick, release or promote | `.icm/intake/CONTEXT.md` § The loop, step 7, and § After the tick, then `.icm/uat/CONTEXT.md` |
-| plan new work | `.icm/intake/CONTEXT.md` (an epic with a breakdown), never a loose list |
-| understand the app, its stack and its data | `README.md` and `web/AGENTS.md` |
-| change what CI checks or how a release is cut | `legible-consulting/.github` (`check-client.yml`, `release.yml`). `ci.yml` here only calls them |
-| change a file the blueprint renders | the blueprint, then `copier update` here |
-| read the UAT batch, record the client's sign-off, roll back | `.icm/uat/CONTEXT.md` (the whole UAT contract), then its scripts |
-| change the database, or read where a preview's database comes from | `.icm/database/CONTEXT.md`, then `preview-db.sh` |
+| understand the app, its stack and its data, or write code | `README.md` and `web/AGENTS.md` |
+| answer a question about the build, or review | read and answer. No ticket, no branch, no pull request |
+| read a decision, an epic or a stub of the backlog of before 2026-11-18 | `.icm/intake/README.md`, and `.icm/local/ROUTES.md` for the markdown stubs |
+| read product knowledge | `.icm/docs/` |
+| read where the build runs | `.icm/environments.md`, the one home of the addresses |
+| read the UAT batch, record the client's sign-off, promote, roll back | `.icm/_system/features/uat.md`, then `.icm/_system/scripts/promote.sh` |
+| change the database, or read where a preview's database comes from | `.icm/local/database.md`, then `.icm/local/vercel-build.sh` |
+| do a setup act in Vercel, GitHub or the database provider | `.icm/setup/`: one file for each act. A person ticks its boxes |
+| change what CI checks or how a release is cut | the blueprint. `ci.yml`, `promote.yml` and `icm.yml` come from it |
 
 ## Release
 
-Every merge to `main` deploys UAT at `uat.agorasim.pt` and builds a production deployment that
-stays staged. The release-please pull request from `ci.yml` is the batch. Production moves on a
-promotion. The client says yes on UAT. On Jamie's word, the session records it with
-`.icm/scripts/promote.sh approve --by "<who>"`. On Jamie's word `release`, the session merges the
-release pull request with `.icm/scripts/release.sh`. That merge makes the tag and the changelog
-and moves nothing. On Jamie's word `promote`, the session dispatches `promote.yml` with that tag,
-through `.icm/scripts/promote.sh run`. That run migrates production and promotes the staged
-build. The rule is `.icm/uat/CONTEXT.md`. The UAT database is the default branch of the Neon
-project `uat-agorasim`, the base of every preview (`.icm/database/CONTEXT.md`).
+`ci.yml` runs the checks on each push to `main` and on each pull request that is ready. Its
+release job keeps the release-please pull request open on `main`, and that pull request is the
+batch. Every merge to `main` deploys UAT at `uat.agorasim.pt` and builds a production deployment
+that stays staged. Production moves on a promotion, as `.icm/_system/features/uat.md` says: the
+client says yes on UAT, then Jamie says `release`, then Jamie says `promote`. The workflow
+`promote` promotes the staged build and does not migrate. When the release has a migration,
+run `migrate-production.yml` with the tag before the promotion (`.icm/local/ROUTES.md`). The UAT database is the default
+branch of the Neon project `uat-agorasim`, the base of every preview
+(`.icm/local/database.md`).
 
 ## Rules
 
 - Client-facing text in `pt-PT`, with the `en` version kept in sync (the site is bilingual).
   Code, commits and notes in English.
-- Technical text (stubs, pull request bodies, commits, questions) in Simplified Technical
-  English: short active sentences, one instruction each, no semicolons. A question for Jamie
-  has a number and a default answer.
+- Technical text (pull request bodies, commits, questions) in Simplified Technical English:
+  short active sentences, one instruction each, no semicolons. A question for Jamie has a
+  number and a default answer.
 - CI is truth: never run build, lint, typecheck, test, format or dev locally. Push, then read
-  the `ci` run and the previews.
+  the `ci` run and the previews. `.claude/hooks/block-local-checks.sh` blocks the commands.
 - Secrets never in git: names only, values in GitHub or Vercel settings. Flag any plaintext
   credential found.
-- One ticket is one branch and one pull request. The pull request moves the stub to `_done/`.
+- One ticket is one run, one branch and one pull request.
 - `main` changes by pull request. Gates are human checkboxes: read them, never tick them.
-  Jamie ticks Ready to merge, and the session merges with `.icm/scripts/merge.sh`.
-  The release is Jamie's word `release` in the session: the session runs `.icm/scripts/release.sh`.
-- A ticket's merge reaches the UAT environment, where the client tests the batch. The merge of
-  the release pull request makes the release tag and moves nothing. Production moves when the
-  session dispatches `promote.yml` with `.icm/scripts/promote.sh run`, on Jamie's word, after the
-  session records the client's sign-off (`.icm/uat/CONTEXT.md`).
+  Jamie ticks Ready to merge. The Release stage merges.
+- A ticket's merge reaches the UAT environment, where the client tests the batch. Production
+  moves only on Jamie's word, after the client's sign-off (`.icm/_system/features/uat.md`).
+- Linear: BAXTER makes the tickets and moves their states. A session in this repo does not
+  write to Linear.
