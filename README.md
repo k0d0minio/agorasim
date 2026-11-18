@@ -59,5 +59,5 @@ transfer, live Stripe Connect, the sending domain, the €1 test) is
 
 ## How work ships
 
-Work flows through tickets in `.icm/intake/` and one pull request per ticket. The pipeline is
+Work flows through Linear tickets of the team `JAM` and one pull request per ticket. The pipeline is
 the BAXTER blueprint: `.icm/_system/ROUTER.md` has the commands, the stages and the lanes.

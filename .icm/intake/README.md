@@ -20,7 +20,6 @@ that backlog.
 - Optional dash-lines: `- priority: P0|P1|P2`, `- size:`, `- blocked: <reason>`,
   `- sources:`.
 - **`## Prompt` is optional**: the stub is its own brief.
-  session at the repo root and tell that session to read the stub file.
 
 ## Order
 
