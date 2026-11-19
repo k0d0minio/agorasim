@@ -10,7 +10,7 @@ import { privacyContent } from "@/content/privacy";
 import type { Experience } from "@/content/experiences";
 import type { PublicMonth } from "@/lib/availability";
 import { BookingDatePicker } from "@/components/booking-date-picker";
-import { HONEYPOT_FIELD } from "@/lib/honeypot";
+import { HONEYPOT_FIELD, HONEYPOT_INPUT_PROPS, HONEYPOT_LABEL } from "@/lib/honeypot";
 import { href } from "@/lib/routes";
 import { submitTourRequest, type TourRequestState } from "@/app/[locale]/reservar/actions";
 import { Button } from "@/components/ui/button";
@@ -80,14 +80,11 @@ export function TourRequestForm({
         side. `type="hidden"` would not work — bots skip hidden inputs.
       */}
       <div aria-hidden="true" className="pointer-events-none absolute -left-[9999px] h-0 w-0 overflow-hidden">
-        <label htmlFor={HONEYPOT_FIELD}>Company website</label>
+        <label htmlFor={HONEYPOT_FIELD}>{HONEYPOT_LABEL}</label>
         <input
           id={HONEYPOT_FIELD}
           name={HONEYPOT_FIELD}
-          type="text"
-          tabIndex={-1}
-          autoComplete="off"
-          defaultValue=""
+          {...HONEYPOT_INPUT_PROPS}
         />
       </div>
 

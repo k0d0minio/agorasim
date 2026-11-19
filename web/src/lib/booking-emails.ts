@@ -1477,7 +1477,9 @@ export function guestQuoteSentEmail(facts: QuoteSentEmailFacts): EmailMessage {
     { label: t(c.labels.reference, l), value: facts.ref, mono: true },
     { label: tour ? t(c.tour.date, l) : t(c.labels.date, l), value: facts.date },
     ...(tour ? [{ label: t(c.tour.departure, l), value: tour.departure }] : []),
-    ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
+    ...(facts.venue
+      ? [{ label: t(tour ? c.tour.venue : c.labels.venue, l), value: facts.venue }]
+      : []),
     ...facts.lines.map((line) => ({
       label:
         line.quantity > 1
@@ -1879,7 +1881,9 @@ export function guestQuoteReceiptEmail(facts: QuoteReceiptEmailFacts): EmailMess
   const rows: DetailRow[] = [
     { label: t(c.labels.reference, l), value: facts.ref, mono: true },
     { label: t(tour ? c.tour.date : c.labels.date, l), value: facts.date },
-    ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
+    ...(facts.venue
+      ? [{ label: t(tour ? c.tour.venue : c.labels.venue, l), value: facts.venue }]
+      : []),
     { label: t(c.labels.paidOn, l), value: facts.paidOn },
     { label: t(c.labels.total, l), value: facts.total },
     {
@@ -1996,7 +2000,9 @@ export function teamQuoteReceiptEmail(
   const rows: DetailRow[] = [
     { label: c.labels.reference, value: facts.ref, mono: true },
     { label: tour ? c.tour.date : c.labels.date, value: facts.date },
-    ...(facts.venue ? [{ label: c.labels.venue, value: facts.venue }] : []),
+    ...(facts.venue
+      ? [{ label: tour ? c.tour.venue : c.labels.venue, value: facts.venue }]
+      : []),
     { label: c.labels.total, value: facts.total },
     {
       label: c.labels.remaining,
@@ -2196,7 +2202,9 @@ export function guestQuoteRefundEmail(facts: QuoteRefundEmailFacts): EmailMessag
   const rows: DetailRow[] = [
     { label: t(c.labels.reference, l), value: facts.ref, mono: true },
     { label: t(tour ? c.tour.date : c.labels.date, l), value: facts.date },
-    ...(facts.venue ? [{ label: t(c.labels.venue, l), value: facts.venue }] : []),
+    ...(facts.venue
+      ? [{ label: t(tour ? c.tour.venue : c.labels.venue, l), value: facts.venue }]
+      : []),
     { label: t(tour ? c.tour.status : c.labels.status, l), value: t(c.status[state], l) },
     { label: t(c.labels.instalment, l), value: t(instalment, l) },
     { label: t(c.labels.paid, l), value: facts.paid },
@@ -2278,7 +2286,9 @@ export function guestQuoteEventCancelledEmail(facts: QuoteEventCancelledEmailFac
   const rows: DetailRow[] = [
     { label: t(r.labels.reference, l), value: facts.ref, mono: true },
     { label: t(tour ? r.tour.date : r.labels.date, l), value: facts.date },
-    ...(facts.venue ? [{ label: t(r.labels.venue, l), value: facts.venue }] : []),
+    ...(facts.venue
+      ? [{ label: t(tour ? r.tour.venue : r.labels.venue, l), value: facts.venue }]
+      : []),
     {
       label: t(tour ? r.tour.status : r.labels.status, l),
       value: t(r.status.cancelled, l),
