@@ -53,10 +53,6 @@ export const home = {
 /** Experiences page copy. */
 export const experiences = {
   title: { pt: "Experiências", en: "Experiences" } as Localized,
-  lead: {
-    pt: "Passeios guiados em carro clássico pela região Saloia, entre Sintra, Mafra e a Ericeira, e o passeio a Óbidos com partida de Lisboa — escolha o Rural Saloia ou o Óbidos & Aldeias Medievais e componha o seu dia com os nossos complementos.",
-    en: "Guided classic-car tours through the Saloia region, between Sintra, Mafra and Ericeira, and the Óbidos tour from Lisbon — choose Rural Saloia or Óbidos & Medieval Villages and compose your day with our add-ons.",
-  } as Localized,
   metaDescription: {
     pt: "Experiências guiadas: Rural Saloia, em carro clássico pela região Saloia, e Óbidos & Aldeias Medievais, com partida de Lisboa. Complementos de gastronomia e vinho.",
     en: "Guided experiences: Rural Saloia, by classic car through the Saloia region, and Óbidos & Medieval Villages, from Lisbon. Food and wine add-ons.",
