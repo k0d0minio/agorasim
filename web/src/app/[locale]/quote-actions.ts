@@ -5,7 +5,7 @@ import { db, tourRequests } from "@/db";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { quoteRequestShared } from "@/content/quote-request";
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
-import { HONEYPOT_FIELD } from "@/lib/honeypot";
+import { isHoneypotHit } from "@/lib/honeypot";
 import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { formValues, quoteRequestSchema, type QuoteRequestField } from "@/lib/form-schemas";
@@ -53,7 +53,7 @@ export async function submitQuoteRequest(
 
   // Honeypot: report success without writing anything, so a bot has no signal
   // that it was caught and nothing to tune against.
-  if (String(values[HONEYPOT_FIELD] ?? "").trim()) {
+  if (isHoneypotHit(values)) {
     console.warn(`[quote] discarded honeypot submission from ${ip}`);
     return { ok: true };
   }
