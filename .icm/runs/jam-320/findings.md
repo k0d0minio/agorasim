@@ -15,3 +15,18 @@
 - O quê: os campos não são controlados e a ação não devolve `values`. Quando o servidor devolve um
   erro de nome ou de email, o React repõe o formulário vazio. O formulário de `/reservar` devolve
   `values` para o evitar. Não verificado num browser: lido no código.
+
+## Possível falha do blueprint: `ci-status.sh` disse GREEN sem o `code` correr no último commit
+
+- Onde: `.icm/_system/scripts/ci-status.sh` e `ci.yml` (do blueprint), com o passo 6 de
+  `.icm/_system/rules/lane.md` ("Commit and push. Change the pull request to ready").
+- O quê: no pull request #261, o `git push` do commit `a29246e` e o `gh pr ready` foram feitos
+  no mesmo segundo. O run `ci` 44496315671 em `a29246e` (evento do push, pull request ainda em
+  rascunho) terminou `skipped`. O run `ci` 44496314784 (evento "ready") correu com sucesso, mas
+  no commit anterior `a290348`, que só muda `.icm`. Os jobs `code`, `secrets` e `workflows` não
+  correram no commit com a alteração de `web`.
+- `ci-status.sh 261 --watch` imprimiu "#261 at a29246e", `code ok` e `RESULT: GREEN`. Um job
+  `skipped` no último commit não devia contar como `ok`.
+- Proposta: o blueprint conta `skipped` de um job exigido como PENDING ou RED, ou a regra da lane
+  manda esperar pelo push antes de `gh pr ready`.
+- Nesta run: um novo push depois de "ready" deu um run `ci` verdadeiro no último commit.
