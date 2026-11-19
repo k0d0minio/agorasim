@@ -180,6 +180,8 @@ export const quotePageContent = {
       } as Localized,
     },
     date: { pt: "Data do passeio", en: "Tour date" } as Localized,
+    /** The venue row on a tour quote: the word the admin form uses for it. */
+    venue: { pt: "Ponto de encontro", en: "Meeting point" } as Localized,
     departure: { pt: "Partida", en: "Departure" } as Localized,
     departures: {
       morning: { pt: "Manhã (10:00)", en: "Morning (10:00)" } as Localized,
