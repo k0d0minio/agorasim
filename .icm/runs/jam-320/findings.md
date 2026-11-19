@@ -29,4 +29,9 @@
   `skipped` no último commit não devia contar como `ok`.
 - Proposta: o blueprint conta `skipped` de um job exigido como PENDING ou RED, ou a regra da lane
   manda esperar pelo push antes de `gh pr ready`.
-- Nesta run: um novo push depois de "ready" deu um run `ci` verdadeiro no último commit.
+- Segunda leitura errada: `ci-status.sh 261 --watch`, corrido logo a seguir ao `git push` de
+  `00a8aa9`, imprimiu de novo "#261 at a29246e" e `RESULT: GREEN`. O GitHub ainda não tinha o
+  novo commit como cabeça do pull request. O script devia comparar a cabeça do pull request com
+  o `HEAD` local e esperar quando são diferentes.
+- Nesta run: o run `ci` 44496852448 correu em `00a8aa9` depois de "ready", com `code`, `secrets`
+  e `workflows` a passar. Esse commit tem toda a alteração de `web`.
