@@ -718,6 +718,7 @@ export const bookingEmails = {
         en: "Thank you for getting in touch. Here is the tour we prepared for you — the details are below.",
       } as Localized,
       date: { pt: "Data do passeio", en: "Tour date" } as Localized,
+      venue: { pt: "Ponto de encontro", en: "Meeting point" } as Localized,
       departure: { pt: "Partida", en: "Departure" } as Localized,
       payment: { pt: "Pagamento", en: "Payment" } as Localized,
       next: {
@@ -977,6 +978,7 @@ export const bookingEmails = {
         en: "We have received your payment — your tour is confirmed. Thank you!",
       } as Localized,
       date: { pt: "Data do passeio", en: "Tour date" } as Localized,
+      venue: { pt: "Ponto de encontro", en: "Meeting point" } as Localized,
       paid: { pt: "Valor pago", en: "Amount paid" } as Localized,
       termsHeading: {
         pt: "As condições do seu passeio (versão de {version})",
@@ -1029,6 +1031,7 @@ export const bookingEmails = {
       banner: "Passeio pago",
       heading: "O orçamento de passeio {ref} foi pago — o carro está reservado.",
       date: "Data do passeio",
+      venue: "Ponto de encontro",
       fee: "Comissão (4%, mín. 10 €, máx. 50 €)",
     },
   },
@@ -1144,6 +1147,7 @@ export const bookingEmails = {
         } as Localized,
       },
       date: { pt: "Data do passeio", en: "Tour date" } as Localized,
+      venue: { pt: "Ponto de encontro", en: "Meeting point" } as Localized,
       status: { pt: "O passeio", en: "The tour" } as Localized,
       /** The one payment, in place of "Sinal". */
       instalment: { pt: "Pagamento único", en: "Single payment" } as Localized,

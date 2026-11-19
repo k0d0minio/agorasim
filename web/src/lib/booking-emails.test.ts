@@ -1255,6 +1255,20 @@ describe("guestQuoteSentEmail", () => {
     }
     expect(mail.text).toContain("A data fica reservada com o pagamento do sinal, na página do orçamento.");
   });
+
+  it("calls the venue the meeting point on a tour quote, and the venue on an event quote", () => {
+    const pt = guestQuoteSentEmail(quoteFacts({ tourDeparture: "Manhã (10:00)" }));
+    expect(pt.text).toContain("Ponto de encontro: Quinta do Hespanhol, Mafra");
+    expect(pt.html).toContain("Ponto de encontro");
+    expect(pt.text).not.toContain("Local:");
+
+    const en = guestQuoteSentEmail(quoteFacts({ locale: "en", tourDeparture: "Morning (10:00)" }));
+    expect(en.text).toContain("Meeting point: Quinta do Hespanhol, Mafra");
+    expect(en.text).not.toContain("Venue:");
+
+    expect(guestQuoteSentEmail(quoteFacts()).text).toContain("Local: Quinta do Hespanhol, Mafra");
+    expect(guestQuoteSentEmail(quoteFacts({ locale: "en" })).text).toContain("Venue: Quinta do Hespanhol, Mafra");
+  });
 });
 
 describe("the quote receipts — deposit-received and balance-paid", () => {
@@ -1340,6 +1354,22 @@ describe("the quote receipts — deposit-received and balance-paid", () => {
     );
     expect(platformOnly.subject).toMatch(/^Restante pago/);
     expect(platformOnly.text).toContain("Comissão (6%): —");
+  });
+
+  it("calls the venue the meeting point on a tour quote, and the venue on an event quote", () => {
+    const pt = guestQuoteReceiptEmail(receiptFacts({ tour: true }));
+    expect(pt.text).toContain("Ponto de encontro: Quinta do Hespanhol, Mafra");
+    expect(pt.text).not.toContain("Local:");
+
+    const en = guestQuoteReceiptEmail(receiptFacts({ tour: true, locale: "en" }));
+    expect(en.text).toContain("Meeting point: Quinta do Hespanhol, Mafra");
+    expect(en.text).not.toContain("Venue:");
+
+    const team = teamQuoteReceiptEmail(receiptFacts({ tour: true }), ["equipa@agorasim.pt"]);
+    expect(team.text).toContain("Ponto de encontro: Quinta do Hespanhol, Mafra");
+
+    expect(guestQuoteReceiptEmail(receiptFacts()).text).toContain("Local: Quinta do Hespanhol, Mafra");
+    expect(guestQuoteReceiptEmail(receiptFacts({ locale: "en" })).text).toContain("Venue: Quinta do Hespanhol, Mafra");
   });
 });
 
@@ -1472,6 +1502,19 @@ describe("guestQuoteRefundEmail — quote-refunded", () => {
     expect(held.subject).toBe("A refund on your tour — Saturday, 15 August 2026");
     expect(held.text).toContain("Your tour is still booked.");
   });
+
+  it("calls the venue the meeting point on a tour quote, and the venue on an event quote", () => {
+    const pt = guestQuoteRefundEmail(refundFacts({ tour: true }));
+    expect(pt.text).toContain("Ponto de encontro: Quinta do Hespanhol, Mafra");
+    expect(pt.text).not.toContain("Local:");
+
+    const en = guestQuoteRefundEmail(refundFacts({ tour: true, locale: "en" }));
+    expect(en.text).toContain("Meeting point: Quinta do Hespanhol, Mafra");
+    expect(en.text).not.toContain("Venue:");
+
+    expect(guestQuoteRefundEmail(refundFacts()).text).toContain("Local: Quinta do Hespanhol, Mafra");
+    expect(guestQuoteRefundEmail(refundFacts({ locale: "en" })).text).toContain("Venue: Quinta do Hespanhol, Mafra");
+  });
 });
 
 describe("guestQuoteEventCancelledEmail — quote-event-cancelled", () => {
@@ -1597,6 +1640,16 @@ describe("guestQuoteEventCancelledEmail — quote-event-cancelled", () => {
     expect(en.text).toContain("The tour: Cancelled");
     expect(en.text).not.toMatch(/event/i);
     expect(en.html).not.toMatch(/event/i);
+  });
+
+  it("calls the venue the meeting point on a tour quote", () => {
+    const pt = guestQuoteEventCancelledEmail(cancelledFacts({ tour: true }));
+    expect(pt.text).toContain("Ponto de encontro: Quinta do Hespanhol, Mafra");
+    expect(pt.text).not.toContain("Local:");
+
+    const en = guestQuoteEventCancelledEmail(cancelledFacts({ tour: true, locale: "en" }));
+    expect(en.text).toContain("Meeting point: Quinta do Hespanhol, Mafra");
+    expect(en.text).not.toContain("Venue:");
   });
 });
 
