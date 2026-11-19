@@ -1,5 +1,5 @@
 # Status jam-318
 
-- phase: define
-- blocked: yes — waits for the spec approval
+- phase: build
+- blocked: no
 - updated: 2026-11-19
