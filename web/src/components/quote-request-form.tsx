@@ -12,7 +12,7 @@ import {
   SERVICE_HOURS,
   type QuoteFormCopy,
 } from "@/content/quote-request";
-import { HONEYPOT_FIELD } from "@/lib/honeypot";
+import { HONEYPOT_FIELD, HONEYPOT_INPUT_PROPS, HONEYPOT_LABEL } from "@/lib/honeypot";
 import { href } from "@/lib/routes";
 import { submitQuoteRequest, type QuoteRequestState } from "@/app/[locale]/quote-actions";
 import { Button } from "@/components/ui/button";
@@ -114,14 +114,11 @@ export function QuoteRequestForm({
         aria-hidden="true"
         className="pointer-events-none absolute -left-[9999px] h-0 w-0 overflow-hidden"
       >
-        <label htmlFor={`${kind}-${HONEYPOT_FIELD}`}>Company website</label>
+        <label htmlFor={`${kind}-${HONEYPOT_FIELD}`}>{HONEYPOT_LABEL}</label>
         <input
           id={`${kind}-${HONEYPOT_FIELD}`}
           name={HONEYPOT_FIELD}
-          type="text"
-          tabIndex={-1}
-          autoComplete="off"
-          defaultValue=""
+          {...HONEYPOT_INPUT_PROPS}
         />
       </div>
 

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { bookingContent } from "@/content/booking";
+import { HONEYPOT_FIELD } from "@/lib/honeypot";
 
 /*
  * The checkout action's own refusal when Stripe is off. The page never renders
@@ -215,6 +216,51 @@ describe("startCheckout — paying on the booking page", () => {
     expect(state.error).toBe(bookingContent.errors.paymentsOff.en);
     expect(state.payment).toBeUndefined();
     expect(startBookingCheckout).not.toHaveBeenCalled();
+  });
+});
+
+describe("startCheckout — the honeypot", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    startBookingCheckout.mockReset();
+  });
+
+  function payable() {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "pk_test_123");
+    rateLimit.mockResolvedValue({ allowed: true });
+  }
+
+  it("discards a booking that filled the trap, and logs it", async () => {
+    payable();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { startCheckout } = await load();
+    const form = validForm();
+    form.set(HONEYPOT_FIELD, "http://spam.example");
+
+    const state = await startCheckout({}, form);
+
+    expect(state.error).toBe(bookingContent.errors.generic.en);
+    expect(state.payment).toBeUndefined();
+    expect(startBookingCheckout).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("discarded honeypot submission"));
+  });
+
+  it("starts the checkout when the trap is empty", async () => {
+    payable();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    startBookingCheckout.mockResolvedValue({ ok: true, clientSecret: "cs", bookingId: "b" });
+    const { startCheckout } = await load();
+    const form = validForm();
+    form.set(HONEYPOT_FIELD, "");
+
+    const state = await startCheckout({}, form);
+
+    expect(state.payment?.clientSecret).toBe("cs");
+    expect(startBookingCheckout).toHaveBeenCalledTimes(1);
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 
