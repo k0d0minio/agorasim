@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-320/agorasim-the-wedding-and-event-forms-show-the-date-as-day-month-year
 - branch: contact/jam-320-agorasim-the-wedding-and-event-forms-show
 - lane: bug
-- pr: pending
+- pr: #261
 - started: 2026-11-19
