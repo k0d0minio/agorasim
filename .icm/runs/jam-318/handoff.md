@@ -2,11 +2,11 @@
 
 ## Next action
 
-1. O operador responde à pergunta Q1 no cartão do HUD, ou no corpo do pull request #260.
-2. O operador diz `new JAM-318`. A sessão corre `.icm/_system/scripts/questions.sh JAM-318`,
-   põe a resposta em `spec.md`, faz commit e push, e corre
-   `.icm/_system/scripts/new-run.sh JAM-318 --refresh-body`.
-3. O operador marca **Spec approved** no pull request #260 e diz `build JAM-318`.
+1. O operador marca **Spec approved** no pull request #260.
+2. O operador diz `build JAM-318`.
+
+Decisão do operador (Q1, 2026-11-19, no chat da sessão): de `md` para cima, o quadro mostra
+uma fase de cada vez. `spec.md` e o corpo do pull request têm a resposta.
 
 Define não escreveu código de produto. O ramo saiu de `main` (c0132ff). O ramo e o código do
 pull request #249 não foram restaurados.
@@ -19,9 +19,6 @@ cartões logo por baixo.
 
 ## Blockers
 
-- A pergunta Q1 espera a resposta do operador: uma fase de cada vez (por omissão), ou saltar
-  para a fase numa página com todas as fases. Se a resposta for "saltar", os critérios 2 e 5
-  e a secção Proposed change de `spec.md` mudam antes da aprovação.
 - A caixa **Spec approved** do pull request #260 espera o operador.
 
 ## Do not touch

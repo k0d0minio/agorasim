@@ -18,7 +18,8 @@ Contactado, Orçamentado, Reservado, Arquivado. Os controlos aparecem em todas a
 têm o mesmo aspeto no telemóvel e nos ecrãs maiores.
 
 - Um toque num controlo mostra essa fase. De `md` para cima, o quadro mostra só a fase
-  escolhida, com a sua grelha de cartões (resposta por omissão da pergunta Q1).
+  escolhida, com a sua grelha de cartões. As outras fases não estão na página (decisão do
+  operador na pergunta Q1, 2026-11-19).
 - O quadro abre em "Novo" quando o endereço não nomeia uma fase. O endereço
   `/admin/sales?fase=<fase>` continua a abrir o quadro nessa fase, porque os cartões de
   acesso rápido do início da consola usam-no.
