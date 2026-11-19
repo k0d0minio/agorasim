@@ -47,6 +47,7 @@ import {
   todayKey,
   TOUR_SLOTS,
 } from "@/lib/availability";
+import { parseDayFirst } from "@/lib/date-keys";
 import { isVehicleClass, MAX_PARTY_ONLINE } from "@/lib/fleet";
 import { parseAmountInput, parsePriceInput } from "@/lib/money";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
@@ -1113,8 +1114,15 @@ export const quoteRequestSchema = z.object({
   name: text.min(1),
   email: text.regex(EMAIL_RE),
   phone: optionalText,
-  /** A `type="date"` field, so `YYYY-MM-DD` — stored in `preferred_date`. */
-  preferredDate: optionalText,
+  /**
+   * The date as the form shows it, day first (`12/06/2027`), stored in
+   * `preferred_date` as `YYYY-MM-DD`. Text that is not a date is kept as the
+   * person wrote it, not rejected: the column is free text, and a lead with an
+   * odd date is still a lead.
+   */
+  preferredDate: optionalText.transform((value) =>
+    value ? (parseDayFirst(value) ?? value) : null,
+  ),
   venue: optionalText,
   /**
    * A key from {@link SERVICE_HOURS}, never the label the guest saw. An

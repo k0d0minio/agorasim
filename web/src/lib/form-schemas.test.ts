@@ -316,6 +316,20 @@ describe("quoteRequestSchema", () => {
     });
   });
 
+  it("stores the day-first date of the form as a date key", () => {
+    const parsed = quoteRequestSchema.safeParse(quote({ preferredDate: "12/06/2027" }));
+    expect(parsed.data?.preferredDate).toBe("2027-06-12");
+    // Day first, always: the sixth of December, not the twelfth of June.
+    const december = quoteRequestSchema.safeParse(quote({ preferredDate: "06/12/2027" }));
+    expect(december.data?.preferredDate).toBe("2027-12-06");
+  });
+
+  it("keeps a date that is not a date, and does not refuse the enquiry", () => {
+    const parsed = quoteRequestSchema.safeParse(quote({ preferredDate: "junho de 2027" }));
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.preferredDate).toBe("junho de 2027");
+  });
+
   it("takes an enquiry that knows nothing but a name and an e-mail", () => {
     const parsed = quoteRequestSchema.safeParse({
       kind: "event",
