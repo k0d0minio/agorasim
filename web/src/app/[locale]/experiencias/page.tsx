@@ -59,7 +59,6 @@ export default async function ExperiencesPage({
       <Section>
         <div className="max-w-2xl">
           <h1 className="text-4xl font-semibold sm:text-5xl">{t(experiences.title, l)}</h1>
-          <p className="mt-4 text-lg text-muted-foreground">{t(experiences.lead, l)}</p>
         </div>
       </Section>
 
