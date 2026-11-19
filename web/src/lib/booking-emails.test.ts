@@ -1092,6 +1092,24 @@ describe("teamEnquiryEmail", () => {
     }
   });
 
+  it("writes the date of a quote enquiry in words, not as the stored key", () => {
+    for (const facts of [weddingEnquiry(), eventEnquiry(), weddingEnquiry({ locale: "en" })]) {
+      const message = teamEnquiryEmail(facts, recipients);
+      for (const part of [message.text, message.html!]) {
+        // Portuguese for each guest language: the team reads this mail.
+        expect(part).toContain("sábado, 12 de junho de 2027");
+        expect(part).not.toContain("2027-06-12");
+      }
+    }
+  });
+
+  it("keeps a date that the guest wrote in their own words", () => {
+    const message = teamEnquiryEmail(enquiry(), recipients);
+    expect(message.text).toContain("Data preferida: 15 de agosto");
+    const empty = teamEnquiryEmail(weddingEnquiry({ preferredDate: null }), recipients);
+    expect(empty.text).toContain("Data preferida: —");
+  });
+
   it("gives a wedding the ceremony time, not the hours of service", () => {
     const message = teamEnquiryEmail(weddingEnquiry(), recipients);
     expect(message.text).toContain("Hora da cerimónia: 15:30");

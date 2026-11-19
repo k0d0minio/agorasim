@@ -30,7 +30,7 @@ export async function generateMetadata({
 }
 
 /**
- * The page is otherwise static, but the wedding-date field's `min` is *today in
+ * The page is otherwise static, but the wedding-date field's floor is *today in
  * Portugal* — baked at build time it would drift a day further out of date with
  * every day the site is not redeployed. Re-rendering hourly keeps the floor
  * honest, exactly as `/reservar` does with the same clock.

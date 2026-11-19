@@ -120,6 +120,16 @@ export const quoteRequestShared = {
 
   placeholders: {
     partySize: { pt: "Ex.: 40", en: "e.g. 40" } as Localized,
+    /** The order of the date field, in the words of the page (JAM-320). */
+    date: { pt: "DD/MM/AAAA", en: "DD/MM/YYYY" } as Localized,
+  },
+
+  /** Read to a screen reader with the date field: the placeholder is not a label. */
+  hints: {
+    date: {
+      pt: "Formato: dia, mês, ano. Por exemplo, 12/06/2027.",
+      en: "Format: day, month, year. For example, 12/06/2027.",
+    } as Localized,
   },
 
   success: {
@@ -135,6 +145,14 @@ export const quoteRequestShared = {
     email: {
       pt: "Indique um email válido.",
       en: "Please enter a valid email address.",
+    } as Localized,
+    dateFormat: {
+      pt: "Escreva a data como DD/MM/AAAA. Por exemplo, 12/06/2027.",
+      en: "Write the date as DD/MM/YYYY. For example, 12/06/2027.",
+    } as Localized,
+    datePast: {
+      pt: "Essa data já passou. Escolha uma data a partir de hoje.",
+      en: "That date is in the past. Choose a date from today.",
     } as Localized,
     generic: {
       pt: "Não foi possível enviar o pedido. Tente novamente.",

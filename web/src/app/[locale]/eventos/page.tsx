@@ -25,7 +25,7 @@ export async function generateMetadata({
 }
 
 /**
- * Hourly, for the same reason `/casamentos` is: the date field's `min` is today
+ * Hourly, for the same reason `/casamentos` is: the date field's floor is today
  * in Portugal, and a floor baked at build time drifts a day further out of date
  * with every day the site is not redeployed.
  */

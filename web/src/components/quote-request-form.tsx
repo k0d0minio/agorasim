@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
@@ -12,6 +12,7 @@ import {
   SERVICE_HOURS,
   type QuoteFormCopy,
 } from "@/content/quote-request";
+import { maskDayFirst, parseDayFirst } from "@/lib/date-keys";
 import { HONEYPOT_FIELD, HONEYPOT_INPUT_PROPS, HONEYPOT_LABEL } from "@/lib/honeypot";
 import { href } from "@/lib/routes";
 import { submitQuoteRequest, type QuoteRequestState } from "@/app/[locale]/quote-actions";
@@ -58,7 +59,7 @@ export function QuoteRequestForm({
   locale: Locale;
   kind: "wedding" | "event";
   copy: QuoteFormCopy;
-  /** Today in Portugal, `YYYY-MM-DD` — the floor on the date picker. */
+  /** Today in Portugal, `YYYY-MM-DD` — the floor on the date field. */
   today: string;
 }) {
   const [state, formAction] = useActionState<QuoteRequestState, FormData>(
@@ -73,6 +74,33 @@ export function QuoteRequestForm({
     if (state.ok) successRef.current?.focus();
   }, [state.ok]);
   const optional = t(shared.labels.optional, locale);
+
+  /*
+   * The date field is text that this page controls, not a native date field.
+   * A browser draws a native one in the browser's own language, so a browser
+   * in US English showed month first on the Portuguese page (JAM-320). Here
+   * the order is day, month, year on both pages, and the server stores the
+   * same `YYYY-MM-DD` as before (`quoteRequestSchema`).
+   */
+  const [dateText, setDateText] = useState("");
+  const [dateError, setDateError] = useState<"dateFormat" | "datePast" | null>(null);
+  const dateRef = useRef<HTMLInputElement>(null);
+  /** Empty is good: the date is optional. A past date is refused, as before. */
+  function dateFault(value: string): "dateFormat" | "datePast" | null {
+    if (!value.trim()) return null;
+    const key = parseDayFirst(value);
+    if (!key) return "dateFormat";
+    return key < today ? "datePast" : null;
+  }
+  function refuseBadDate(event: { preventDefault(): void }) {
+    const fault = dateFault(dateText);
+    if (!fault) return;
+    // Stop the send, so the person corrects the date with the rest of the
+    // form still filled in.
+    event.preventDefault();
+    setDateError(fault);
+    dateRef.current?.focus();
+  }
 
   if (state.ok) {
     return (
@@ -99,7 +127,12 @@ export function QuoteRequestForm({
   }
 
   return (
-    <form action={formAction} className="mt-8 flex flex-col gap-5" noValidate>
+    <form
+      action={formAction}
+      onSubmit={refuseBadDate}
+      className="mt-8 flex flex-col gap-5"
+      noValidate
+    >
       <input type="hidden" name="locale" value={locale} />
       {/* Which door this is. See `quoteRequestSchema` for why it is only
           half-trusted — a forged value costs a badge, not a lead. */}
@@ -174,7 +207,32 @@ export function QuoteRequestForm({
             the tour enquiry writes — so the Sales board already leads the card
             with it and nothing downstream had to learn a second date.
           */}
-          <Input id="preferredDate" name="preferredDate" type="date" min={today} />
+          <Input
+            ref={dateRef}
+            id="preferredDate"
+            name="preferredDate"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={10}
+            placeholder={t(shared.placeholders.date, locale)}
+            value={dateText}
+            onChange={(event) => {
+              setDateText(maskDayFirst(event.target.value, dateText));
+              setDateError(null);
+            }}
+            onBlur={() => setDateError(dateFault(dateText))}
+            aria-invalid={Boolean(dateError)}
+            aria-describedby={dateError ? "preferredDate-error" : "preferredDate-hint"}
+          />
+          <p id="preferredDate-hint" className="sr-only">
+            {t(shared.hints.date, locale)}
+          </p>
+          {dateError ? (
+            <p id="preferredDate-error" className="text-sm text-destructive" role="alert">
+              {t(shared.errors[dateError], locale)}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-1.5 sm:col-span-2">

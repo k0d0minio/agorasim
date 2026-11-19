@@ -44,6 +44,7 @@ import {
   escapeHtml,
   type DetailRow,
 } from "@/lib/email-layout";
+import { formatDay } from "@/lib/date-keys";
 import { fillTemplate } from "@/lib/fill-template";
 import { href } from "@/lib/routes";
 import { siteUrl, siteUrlLabel } from "@/lib/site-origin";
@@ -206,7 +207,7 @@ export type BookingLogisticsFacts = Pick<
 /**
  * The logistics facts of a booking, formatted for reading — one place, so the
  * confirmation, the move notice and the reminder cannot disagree about where
- * and when to meet. The date is the caller's (`formatDay` is server-only).
+ * and when to meet. The date is the caller's.
  */
 export function bookingLogisticsFacts(
   booking: LogisticsBooking,
@@ -1266,9 +1267,14 @@ export function teamEnquiryEmail(
   const c = bookingEmails.teamEnquiry;
   const isQuote = facts.kind !== "tour";
 
+  // The date in words, in Portuguese like the rest of this mail. The stored
+  // value of a quote form is a date key (`2027-06-12`), which nobody reads at
+  // a glance (JAM-320). Free text from the tour form passes as it is.
+  const date = facts.preferredDate ? formatDay(facts.preferredDate, "pt") : "—";
+
   const values: Record<string, string> = {
     name: facts.guestName,
-    date: facts.preferredDate || "—",
+    date,
     experience: facts.experience || "—",
     venue: facts.venue || "—",
     party: facts.partySize ? String(facts.partySize) : "—",
@@ -1303,14 +1309,14 @@ export function teamEnquiryEmail(
     : [];
   const enquiryRows: DetailRow[] = isQuote
     ? [
-        { label: c.labels.date, value: facts.preferredDate || "—" },
+        { label: c.labels.date, value: date },
         { label: c.quote.labels.venue, value: facts.venue || "—" },
         whenRow,
         { label: c.quote.labels.car, value: carLabel(facts.preferredCar) ?? "—" },
         ...partyRows,
       ]
     : [
-        { label: c.labels.date, value: facts.preferredDate || "—" },
+        { label: c.labels.date, value: date },
         { label: c.labels.experience, value: facts.experience || "—" },
         ...partyRows,
       ];

@@ -135,3 +135,72 @@ export function shiftDays(key: DateKey, days: number): DateKey {
 export function firstOnlineDay(today: DateKey = todayKey()): DateKey {
   return addDays(today, ONLINE_NOTICE_DAYS);
 }
+
+/** `2026-08-15` → "Saturday, 15 August 2026" / "sábado, 15 de agosto de 2026". */
+export function formatDay(key: DateKey, locale: "pt" | "en"): string {
+  const date = parseDateKey(key);
+  if (!date) return key;
+  return new Intl.DateTimeFormat(locale === "pt" ? "pt-PT" : "en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+const DAY_FIRST_RE = /^(\d{1,2})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{4})$/;
+
+/**
+ * `12/06/2027` → `2027-06-12`. A date that a person typed day first, as the
+ * wedding and event forms ask for it (JAM-320).
+ *
+ * The forms used a native date field, and a browser draws that field in the
+ * browser's own language: a browser in US English showed month first on the
+ * Portuguese page. The field is now text that the page controls, and this is
+ * the one place that reads it. A value that is already a date key passes, so a
+ * page that a browser cached with the native field still posts a good date.
+ * A day that does not exist (`31/02/2027`) gives `null`.
+ */
+export function parseDayFirst(value: string): DateKey | null {
+  const trimmed = value.trim();
+  if (isDateKey(trimmed)) return trimmed;
+  const match = DAY_FIRST_RE.exec(trimmed);
+  if (!match) return null;
+  const key = `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+  return isDateKey(key) ? key : null;
+}
+
+/**
+ * What the day-first date field shows after each keystroke: the digits of a
+ * day, a month and a year, with the slashes put in for the person.
+ *
+ * The slashes are automatic because the numeric keyboard of a phone has no
+ * slash key. A separator typed after one digit closes that part, so `1/6/2027`
+ * becomes `01/06/2027`. A slash is added at the end of a full part only while
+ * the text grows (`previous` is the text before the keystroke): added on a
+ * deletion too, it would come back each time the person deletes it.
+ */
+export function maskDayFirst(raw: string, previous = ""): string {
+  const sizes = [2, 2, 4];
+  const parts = ["", "", ""];
+  let index = 0;
+  for (const char of raw) {
+    if (char >= "0" && char <= "9") {
+      if (parts[index].length === sizes[index]) {
+        if (index === 2) break;
+        index += 1;
+      }
+      parts[index] += char;
+    } else if (index < 2 && parts[index].length > 0) {
+      parts[index] = parts[index].padStart(2, "0");
+      index += 1;
+    }
+  }
+  const growing = raw.length > previous.length;
+  let out = parts[0];
+  if (index >= 1 || (growing && parts[0].length === 2)) out += "/";
+  out += parts[1];
+  if (index >= 2 || (growing && index === 1 && parts[1].length === 2)) out += "/";
+  return out + parts[2];
+}

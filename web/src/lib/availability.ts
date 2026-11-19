@@ -99,6 +99,7 @@ export {
   BUSINESS_TIME_ZONE,
   dateKey,
   firstOnlineDay,
+  formatDay,
   isDateKey,
   ONLINE_NOTICE_DAYS,
   parseDateKey,
@@ -263,19 +264,6 @@ export function formatMonth(month: MonthKey, locale: "pt" | "en"): string {
   }).format(new Date(Date.UTC(year, index - 1, 1)));
   // Portuguese lower-cases month names; as a heading it wants a capital.
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
-}
-
-/** `2026-08-15` → "15 August 2026" / "15 de agosto de 2026". */
-export function formatDay(key: DateKey, locale: "pt" | "en"): string {
-  const date = parseDateKey(key);
-  if (!date) return key;
-  return new Intl.DateTimeFormat(locale === "pt" ? "pt-PT" : "en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(date);
 }
 
 /**
