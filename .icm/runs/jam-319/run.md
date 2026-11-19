@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-319/agorasim-a-tour-quote-says-meeting-point-not-venue
 - branch: contact/jam-319-agorasim-a-tour-quote-says-meeting-point-not
 - lane: tweak
-- pr: pending
+- pr: #258
 - started: 2026-11-19
