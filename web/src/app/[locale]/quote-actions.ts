@@ -19,7 +19,55 @@ export type QuoteRequestState = {
   error?: string;
   /** Field-level errors keyed by input name, for inline display. */
   fieldErrors?: Partial<Record<QuoteRequestField, string>>;
+  /**
+   * What the guest typed, sent back with a refusal. React resets a form after
+   * its action runs, to each field's default value. The form uses these
+   * values as the defaults, so a refused enquiry keeps its fields and the
+   * guest corrects only the one that is wrong (JAM-487).
+   */
+  values?: QuoteFormValues;
 };
+
+/** The fields a guest can type in or choose, as the form posted them. */
+export type QuoteFormValues = {
+  name: string;
+  email: string;
+  phone: string;
+  preferredDate: string;
+  venue: string;
+  ceremonyTime: string;
+  serviceHours: string;
+  preferredCar: string;
+  partySize: string;
+  message: string;
+  marketingConsent: boolean;
+};
+
+/**
+ * The guest's fields from a posted form, as text. The hidden fields and the
+ * honeypot are not here: the page sets those itself.
+ */
+function quoteFormValues(
+  values: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+): QuoteFormValues {
+  const text = (key: string) => {
+    const value = values[key];
+    return typeof value === "string" ? value : "";
+  };
+  return {
+    name: text("name"),
+    email: text("email"),
+    phone: text("phone"),
+    preferredDate: text("preferredDate"),
+    venue: text("venue"),
+    ceremonyTime: text("ceremonyTime"),
+    serviceHours: text("serviceHours"),
+    preferredCar: text("preferredCar"),
+    partySize: text("partySize"),
+    message: text("message"),
+    marketingConsent: text("marketingConsent") === "on",
+  };
+}
 
 /**
  * Handle the wedding and event quote forms (`/casamentos`, `/eventos`).
@@ -63,7 +111,7 @@ export async function submitQuoteRequest(
     console.warn(
       `[quote] throttled submission from ${ip} — retry in ${throttle.retryAfterSeconds}s`,
     );
-    return { error: t(c.errors.rateLimited, locale) };
+    return { error: t(c.errors.rateLimited, locale), values: quoteFormValues(values) };
   }
 
   const parsed = quoteRequestSchema.safeParse(values);
@@ -72,7 +120,7 @@ export async function submitQuoteRequest(
     const state: QuoteRequestState["fieldErrors"] = {};
     if (fieldErrors.name) state.name = t(c.errors.name, locale);
     if (fieldErrors.email) state.email = t(c.errors.email, locale);
-    return { fieldErrors: state };
+    return { fieldErrors: state, values: quoteFormValues(values) };
   }
 
   try {
@@ -127,7 +175,7 @@ export async function submitQuoteRequest(
     }
   } catch (err) {
     console.error("[quote] failed to store quote request", err);
-    return { error: t(c.errors.generic, locale) };
+    return { error: t(c.errors.generic, locale), values: quoteFormValues(values) };
   }
 
   return { ok: true };

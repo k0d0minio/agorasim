@@ -74,6 +74,14 @@ export function QuoteRequestForm({
     if (state.ok) successRef.current?.focus();
   }, [state.ok]);
   const optional = t(shared.labels.optional, locale);
+  /*
+   * What the guest typed, when the server refused the enquiry. React resets
+   * the form after the action, to each field's default. These values are the
+   * defaults, so the fields keep what the guest typed (JAM-487). A select
+   * reads its default only when it mounts, so each select has its value as
+   * its key: a new value mounts the select again with that default.
+   */
+  const typed = state.values;
 
   /*
    * The date field is text that this page controls, not a native date field.
@@ -82,7 +90,9 @@ export function QuoteRequestForm({
    * the order is day, month, year on both pages, and the server stores the
    * same `YYYY-MM-DD` as before (`quoteRequestSchema`).
    */
-  const [dateText, setDateText] = useState("");
+  // Without JavaScript the page renders again from the refusal, so the date
+  // starts from what the guest typed.
+  const [dateText, setDateText] = useState(typed?.preferredDate ?? "");
   const [dateError, setDateError] = useState<"dateFormat" | "datePast" | null>(null);
   const dateRef = useRef<HTMLInputElement>(null);
   /** Empty is good: the date is optional. A past date is refused, as before. */
@@ -163,6 +173,7 @@ export function QuoteRequestForm({
             name="name"
             required
             autoComplete="name"
+            defaultValue={typed?.name}
             aria-invalid={Boolean(state.fieldErrors?.name)}
             aria-describedby={state.fieldErrors?.name ? "name-error" : undefined}
           />
@@ -181,6 +192,7 @@ export function QuoteRequestForm({
             type="email"
             required
             autoComplete="email"
+            defaultValue={typed?.email}
             aria-invalid={Boolean(state.fieldErrors?.email)}
             aria-describedby={state.fieldErrors?.email ? "email-error" : undefined}
           />
@@ -195,7 +207,13 @@ export function QuoteRequestForm({
           <Label htmlFor="phone">
             {t(copy.labels.phone, locale)} {optional}
           </Label>
-          <Input id="phone" name="phone" type="tel" autoComplete="tel" />
+          <Input
+            id="phone"
+            name="phone"
+            type="tel"
+            autoComplete="tel"
+            defaultValue={typed?.phone}
+          />
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -243,6 +261,7 @@ export function QuoteRequestForm({
             id="venue"
             name="venue"
             placeholder={t(copy.labels.venuePlaceholder, locale)}
+            defaultValue={typed?.venue}
           />
         </div>
 
@@ -256,7 +275,12 @@ export function QuoteRequestForm({
             <Label htmlFor="ceremonyTime">
               {t(copy.labels.ceremonyTime, locale)} {optional}
             </Label>
-            <Input id="ceremonyTime" name="ceremonyTime" type="time" />
+            <Input
+              id="ceremonyTime"
+              name="ceremonyTime"
+              type="time"
+              defaultValue={typed?.ceremonyTime}
+            />
           </div>
         ) : null}
 
@@ -265,7 +289,12 @@ export function QuoteRequestForm({
             <Label htmlFor="serviceHours">
               {t(copy.labels.hours, locale)} {optional}
             </Label>
-            <Select id="serviceHours" name="serviceHours" defaultValue="">
+            <Select
+              key={typed?.serviceHours ?? ""}
+              id="serviceHours"
+              name="serviceHours"
+              defaultValue={typed?.serviceHours ?? ""}
+            >
               <option value="">—</option>
               {SERVICE_HOURS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -280,7 +309,12 @@ export function QuoteRequestForm({
           <Label htmlFor="preferredCar">
             {t(copy.labels.car, locale)} {optional}
           </Label>
-          <Select id="preferredCar" name="preferredCar" defaultValue="">
+          <Select
+            key={typed?.preferredCar ?? ""}
+            id="preferredCar"
+            name="preferredCar"
+            defaultValue={typed?.preferredCar ?? ""}
+          >
             <option value="">{t(copy.labels.carNone, locale)}</option>
             {classicCars.map((car) => (
               <option key={car.id} value={car.id}>
@@ -302,6 +336,7 @@ export function QuoteRequestForm({
               min={1}
               inputMode="numeric"
               placeholder={t(shared.placeholders.partySize, locale)}
+              defaultValue={typed?.partySize}
             />
           </div>
         ) : null}
@@ -316,6 +351,7 @@ export function QuoteRequestForm({
           name="message"
           rows={4}
           placeholder={t(copy.labels.messagePlaceholder, locale)}
+          defaultValue={typed?.message}
         />
       </div>
 
@@ -330,6 +366,7 @@ export function QuoteRequestForm({
             type="checkbox"
             name="marketingConsent"
             value="on"
+            defaultChecked={typed?.marketingConsent}
             className="mt-0.5 size-4 shrink-0 rounded border-border accent-primary"
           />
           <span>
