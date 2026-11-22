@@ -86,9 +86,9 @@ export async function submitTourRequest(
   /*
    * A date picked from the calendar is re-checked here, against the live rows.
    *
-   * The page that rendered the calendar is statically generated and revalidated
-   * hourly, so the grid a guest is looking at can be an hour stale — and even a
-   * fresh one is only a suggestion, because what a browser posts is whatever
+   * The page that rendered the calendar reads the seats at each request, but
+   * the guest can sit on it while another guest books — and even a fresh grid
+   * is only a suggestion, because what a browser posts is whatever
    * the person posting it wants. `checkDayBookable` is the check that counts.
    *
    * Only date-shaped values are checked. "late August, flexible" is still a

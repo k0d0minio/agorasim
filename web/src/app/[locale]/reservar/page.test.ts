@@ -57,6 +57,41 @@ async function load() {
   return import("./page");
 }
 
+/*
+ * JAM-293. A hold lapses by the clock and a guest's booking does not
+ * revalidate the page, so a cached calendar offered departures that were
+ * already full. The page must read the seats at each request, and give the
+ * count it reads to the calendar.
+ */
+describe("/reservar reads the seats left at each request", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("is rendered at request time, not from a cache", async () => {
+    const page = await load();
+    expect(page.dynamic).toBe("force-dynamic");
+    expect("revalidate" in page).toBe(false);
+  });
+
+  it("gives the calendar the seats it counts now, in both languages", async () => {
+    // `load` resets the modules: read the mocks after it, from the same registry.
+    const { default: BookingPage } = await load();
+    const { countSlotOccupancy } = await import("@/lib/bookings");
+    const { readPublicCalendar } = await import("@/lib/availability");
+    const full = new Map([["2026-11-28|afternoon", { bookings: 2 }]]);
+    vi.mocked(countSlotOccupancy).mockResolvedValue(full as never);
+
+    for (const locale of ["pt", "en"] as const) {
+      vi.mocked(readPublicCalendar).mockClear();
+      await BookingPage({ params: Promise.resolve({ locale }) });
+      expect(readPublicCalendar).toHaveBeenCalledWith(
+        expect.objectContaining({ locale, occupancy: full }),
+      );
+    }
+  });
+});
+
 describe("/reservar with no STRIPE_SECRET_KEY — the launch fallback", () => {
   beforeEach(() => {
     vi.stubEnv("STRIPE_SECRET_KEY", "");

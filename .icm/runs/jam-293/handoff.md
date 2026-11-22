@@ -1,12 +1,20 @@
 # Handoff jam-293
 
+## Cause
+
+`/pt/reservar` and `/en/reservar` were cached for one hour (`revalidate = 3600`), and no
+booking, payment or lapsed hold revalidates them. A hold lapses by the clock, so no event can
+revalidate the page. The page now renders at each request (`dynamic = "force-dynamic"`).
+
 ## Next action
 
-<What the next session, or the operator, does first.>
+The operator tests the preview and ticks **Ready to merge**. Then `release JAM-293`.
 
 ## How to test
 
-<1 to 3 short sentences that can be said aloud: where to go on the preview, what to do, what the operator must see.>
+On the preview, open `/pt/reservar` and start a checkout for a departure until both cars of
+that departure are held. Open `/en/reservar` in a new tab: that departure shows as unavailable
+for a party that does not fit. After the holds lapse, a fresh load shows the seats again.
 
 ## Blockers
 
@@ -14,4 +22,4 @@
 
 ## Do not touch
 
-- none
+- The checkout re-check in `checkout-actions.ts`. It stays the last guard.
