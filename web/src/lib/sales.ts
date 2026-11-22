@@ -40,8 +40,19 @@ import {
 } from "@/db";
 import { REQUEST_STATUSES } from "@/lib/admin-format";
 import { awaitsLinkPayment, bookingRef, holdsCapacity } from "@/lib/bookings";
+import { formatDay } from "@/lib/date-keys";
 import { CLASS_SEATS } from "@/lib/fleet";
 import { formatPrice } from "@/lib/money";
+
+/**
+ * A lead's date as the admin says it: `2027-06-12` → "sábado, 12 de junho de
+ * 2027", the format of every other date in the admin. Null when there is no
+ * date. Text that is not a `YYYY-MM-DD` date (a free-text answer from before
+ * the forms stored one) shows as the guest wrote it.
+ */
+export function leadDayLabel(date: string | null): string | null {
+  return date ? formatDay(date, "pt") : null;
+}
 
 /**
  * How far along the money is, as a card says it.
@@ -71,7 +82,10 @@ export type SalesRecord = {
   experienceSlug: string | null;
   addOns: string[];
   partySize: number | null;
-  /** The date in play: the guest's preferred day, or the booked one. */
+  /**
+   * The date in play, in words: the guest's preferred day, or the booked one.
+   * See {@link leadDayLabel}.
+   */
   when: string | null;
   /**
    * Where a wedding or an event happens. Null on a tour, which departs from
@@ -164,7 +178,7 @@ export function recordFromRequest(
     partySize: row.partySize,
     // The booked day where there is one: it is the day that was actually sold,
     // not the day the guest hoped for before anyone confirmed it.
-    when: booking?.date ?? row.preferredDate,
+    when: leadDayLabel(booking?.date ?? row.preferredDate),
     venue: row.venue,
     bookingRef: booking?.ref ?? null,
     value: booking?.value ?? null,

@@ -32,7 +32,13 @@ import {
   manualBookingPrefill,
   manualBookingTours,
 } from "@/lib/manual-booking";
-import { bookingsForLead, bookingSummaries, enquiryRef, recordFromRequest } from "@/lib/sales";
+import {
+  bookingsForLead,
+  bookingSummaries,
+  enquiryRef,
+  leadDayLabel,
+  recordFromRequest,
+} from "@/lib/sales";
 import { bookingClashesForDrafts, quoteEmailStates } from "@/lib/quote-builder";
 import {
   canCopyAsNewVersion,
@@ -393,7 +399,7 @@ export default async function AdminLeadPage({
                 <dt className="text-muted-foreground">
                   {isQuote ? "Data do evento" : "Data preferida"}
                 </dt>
-                <dd>{lead.preferredDate ?? "—"}</dd>
+                <dd>{leadDayLabel(lead.preferredDate) ?? "—"}</dd>
               </div>
 
               {/*
