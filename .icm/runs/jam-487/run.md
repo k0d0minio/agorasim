@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-487/agorasim-the-quote-form-keeps-what-the-guest-typed-when-a-field-is
 - branch: claude/jam-487-quote-form-keeps-fields-2c455d
 - lane: bug
-- pr: pending
+- pr: #264
 - started: 2026-11-22
