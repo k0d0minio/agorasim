@@ -153,7 +153,7 @@ describe("recordFromRequest", () => {
       kind: "wedding",
       venue: "Igreja de São Pedro, Mafra",
       // The two facts the card is triaged on, together.
-      when: "2027-06-12",
+      when: "sábado, 12 de junho de 2027",
     });
   });
 
@@ -167,7 +167,7 @@ describe("recordFromRequest", () => {
         date: "2027-06-13",
       },
     );
-    expect(record.when).toBe("2027-06-13");
+    expect(record.when).toContain("13 de junho de 2027");
     expect(record.venue).toBe("Quinta da Beloura");
   });
 });
