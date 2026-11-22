@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-293/agorasim-the-booking-calendar-shows-the-seats-left-now
 - branch: contact/jam-293-agorasim-the-booking-calendar-shows-the
 - lane: bug
-- pr: pending
+- pr: #263
 - started: 2026-11-22
