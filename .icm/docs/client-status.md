@@ -26,8 +26,8 @@ What is the cheapest way to give the client a status that stays true by itself?
   first. Its areas come from one list, `web/src/lib/admin-nav.ts`.
 - The release pull request (#214, v1.1.0) lists what is on UAT and not in production. Its
   lines are technical English commit titles, grouped by code area, not by the six features.
-- The Linear project agorasim exists. No milestone or label in it maps a ticket to one of the
-  six features of the guide.
+- The Linear project agorasim exists. Nothing in Linear maps a ticket to one of the six
+  features of the guide.
 - The client questions of seats-and-holds are in `.icm/intake/seats-and-holds/breakdown.md`,
   not in Linear.
 
@@ -58,12 +58,17 @@ moves each ticket through the Linear states. The page shows those states in Port
 | Label Waiting on a client or Waiting on content, in an open state | Espera por vocês |
 | Triage, Backlog, Canceled, Duplicate | Not shown |
 
-The six features come from six milestones of the Linear project agorasim, one for each feature
-of the guide. The state of a feature is the state of its tickets. The **next date** is the
-target date of the milestone in build. A milestone with no target date shows "Data por confirmar".
+Jamie said on 2026-11-23: "forget about milestones that is too complex a feature to be used
+with such a simple build". Thus the page needs no new Linear setting:
+
+- **The six features:** BAXTER writes one line `feature: <1 to 6>` at the top of each agorasim
+  ticket description (JAM-535). The state of a feature is the state of its tickets. A
+  ticket with no `feature:` line shows in the lists, not in the six features.
+- **The next date:** the earliest due date of an open agorasim ticket in Next up or in build.
+  With no due date, the page shows "Data por confirmar".
 
 The page shows only the tickets of the project agorasim. It shows the title, the state
-and the date. It never shows a description, a comment or a ticket of another project. Thus
+and the date. It never shows the rest of a description, a comment or a ticket of another project. Thus
 the other work of team `JAM` stays private.
 
 ## Mock-up (375 px, Portuguese)
@@ -114,16 +119,17 @@ of 2026-11-22. The two questions are examples from seats-and-holds. They show th
 "Abrir" opens `https://uat.agorasim.pt`. The dashboard card of the admin also shows the
 count of "Espera por vocês".
 
-## The build ticket draft
+## The build ticket (JAM-534)
 
 - **Title:** agorasim · The admin console shows the build status on a Progresso page
 - **Lane:** `new`. **Size:** 3 (Fibonacci), about 1.5 days.
 - **Scope:**
-  1. A server module reads Linear with GraphQL: the six milestones of the project agorasim,
-     their target dates, and their tickets (title, state, labels). Cache: 5 minutes. About 0.5 day.
+  1. A server module reads Linear with GraphQL: the tickets of the project agorasim (title,
+     state, labels, due date, and the `pt:` and `feature:` lines of the description).
+     Cache: 5 minutes. About 0.5 day.
   2. The page `/admin/progresso`, its entry in `web/src/lib/admin-nav.ts`, and the count on
      the dashboard. pt-PT text only (the admin is Portuguese only). About 0.5 day.
-  3. The map of the six features: a pt-PT name for each Linear milestone id. About 0.1 day.
+  3. The six features: a pt-PT name for each number 1 to 6. About 0.1 day.
   4. A fault of Linear shows "Estado indisponível" and the time of the last good read.
      The rest of the admin works. About 0.1 day.
   5. Tests of the state map and of the filter (no ticket of another project). About 0.3 day.
@@ -134,31 +140,27 @@ count of "Espera por vocês".
   - The page shows no ticket, description or comment outside the project agorasim.
   - The page works at 320 px and 375 px.
 - **Before the build (acts of a person, not of the ticket):**
-  1. The six milestones on the project agorasim, with target dates, and each open agorasim
-     ticket in one. This is a Linear change. The BAXTER Linear tool cannot make a milestone
-     today.
+  1. BAXTER adds the `feature:` line and a due date to each open agorasim ticket (JAM-535).
   2. Jamie makes a Linear API key with read access to team `JAM` only. Its name is
      `LINEAR_API_KEY`. Its value goes in the Vercel environments UAT and Production, never
      in git.
   3. Each client question becomes a Linear ticket with the labels Question and Waiting on
      a client. The seats-and-holds questions are the first ones.
 
-## Other follow-ups (drafts, not filed)
+## Follow-up tickets
 
-| Draft ticket | Repo | Size |
+| Ticket | Scope | Size |
 |---|---|---|
-| The BAXTER ticket stage writes a pt-PT title line (`pt:`) in each agorasim ticket. The page shows it, else the English title | BAXTER | 1 |
-| Each client question of seats-and-holds is a Linear ticket with Waiting on a client | process, no code | 1 |
-| Later: a weekly email with the count of "Espera por vocês" and a link to the page, sent on Jamie's yes | BAXTER | 2 |
+| JAM-534 | The build ticket above | 3 |
+| JAM-535 | The BAXTER ticket stage writes the `pt:` and `feature:` lines in each agorasim ticket. The page shows `pt:`, else the English title | 1 |
+| JAM-536 | Each client question of seats-and-holds is a Linear ticket with Waiting on a client | 1 |
+| Not filed | Later: a weekly email with the count of "Espera por vocês" and a link to the page, sent on Jamie's yes | 2 |
 
 ## Questions for Jamie
 
 1. Do Diogo and Rita each have an account on the UAT admin console? Default: yes. If not,
    the build ticket adds the two accounts as a setup act.
-2. The six features as six milestones of the project agorasim, or as one label group?
-   Default: milestones, because a milestone has a target date, and the date is the "next
-   date" of the page.
-3. English titles until the `pt:` line exists? Default: yes. The client reads the six
+2. English titles until the `pt:` line exists? Default: yes. The client reads the six
    features and "Espera por vocês" in Portuguese from the start, because the page writes
    those names itself.
 
@@ -169,4 +171,5 @@ count of "Espera por vocês".
 - When BAXTER moves a ticket to Done: at the client's sign-off, at the release or at the
   promotion. The section "Concluído" means "signed off" only if Done comes at the sign-off.
 - If the agorasim tickets have due dates in Linear. The BAXTER adapter does not return them.
+  The adapter can set one (`due`).
 - If the client wants a push (an email or WhatsApp) as well as the page.
