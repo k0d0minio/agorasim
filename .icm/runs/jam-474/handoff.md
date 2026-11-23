@@ -15,7 +15,7 @@ Confirme que o esboço mostra as seis funcionalidades, o que espera pelo cliente
 
 - `.icm/docs/client-status.md` (nova): a decisão do Jamie de 2026-11-23 (um filme em cada
   checkpoint, sem vista do Linear), os factos de hoje, cinco opções, os passos do checkpoint,
-  o esboço do filme com um exemplo, o ticket JAM-543, três perguntas e o que fica por saber.
+  o esboço do filme com um exemplo, o ticket JAM-543 e o que fica por saber.
 
 ## Blockers
 

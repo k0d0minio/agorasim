@@ -44,18 +44,23 @@ one batch. Nothing is built. No Linear setting changes.
 
 ## The checkpoint
 
-A checkpoint is one batch on UAT that the client must test. The gap between two
-checkpoints is one week or less. A week with no new batch still has a short film: what is
-in build and what waits on the client.
+A checkpoint is one batch on UAT that the client must test. Jamie starts each checkpoint by
+hand. It has no fixed day, and nothing starts it automatically.
 
+Jamie said on 2026-11-23: "the film is in english. and can be in portuguese upon request from
+diogo or rita. it goes in their client drive folder. No fixed day. A manual trigger by me is
+required".
+
+0. **Trigger.** Jamie says that a checkpoint starts.
 1. **Batch.** `promote.sh status` lists the batch on UAT. The tickets in To test are the
    same work.
 2. **Checktest.** Jamie tests each change of the batch on UAT, on a phone, in PT and in EN.
    A fault is a bug ticket. It is fixed before the film, or the film says it is known.
-3. **Film.** Jamie records the screen of the same run on the phone, with voice. Length:
-   5 minutes or less. The film follows the outline below.
-4. **Send.** Jamie sends the film, the UAT link and the list "what waits on you" in one
-   message.
+3. **Film.** Jamie records the screen of the same run on the phone, with voice, in English.
+   A film in Portuguese is made only when Diogo or Rita asks for it. Length: 5 minutes or
+   less. The film follows the outline below.
+4. **Deliver.** The film goes in the client's Drive folder, with the UAT link and the list
+   "what waits on you".
 5. **Review.** The client watches, tests the same steps on UAT, and answers in one batch
    (process guide §7). A yes is the sign-off of the batch (`promote.sh approve`).
 
@@ -66,7 +71,7 @@ in build and what waits on the client.
 | 1. The six features | 20 s | One line for each feature: signed off, on UAT to test, in build, or next |
 | 2. New on UAT | 2 to 3 min | Each change of the batch, on the phone, as the client will test it |
 | 3. What waits on you | 1 min | The tests of this batch, the open questions, the missing content |
-| 4. The next date | 20 s | The next checkpoint, and what it will hold |
+| 4. The next date | 20 s | What the next checkpoint will hold, and the date of the work in it |
 
 An example with the facts of 2026-11-23:
 
@@ -83,7 +88,7 @@ An example with the facts of 2026-11-23:
 3  Test the three changes above on uat.agorasim.pt
    Answer the seats-and-holds questions (breakdown questions 1 to 4 and 6)
    Send the drawing of each car (JAM-485)
-4  Next checkpoint: seats-and-holds on UAT, 2026-12-04 if the answers come this week
+4  Next: seats-and-holds on UAT, 2026-12-04 if the answers come this week
 ```
 
 ## Follow-up
@@ -93,14 +98,6 @@ An example with the facts of 2026-11-23:
 | JAM-543 | Checkpoint 1: the checktest of the v1.1.0 batch on UAT, and its film for Diogo and Rita | 1 |
 
 JAM-534, JAM-535 and JAM-536 (the Progresso page and its inputs) are canceled.
-
-## Questions for Jamie
-
-1. Which language for the film? Default: the language that Jamie and the client use today.
-   The site's own text is in PT on the film.
-2. Where does the film go? Default: the channel that the client uses today, for example
-   WhatsApp. A file larger than that channel permits goes as a link.
-3. A fixed day for each checkpoint? Default: Friday.
 
 ## Still unknown at the end of the time box
 
