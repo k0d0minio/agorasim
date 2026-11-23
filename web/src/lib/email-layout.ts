@@ -26,38 +26,48 @@ import { site } from "@/content/site";
 import { siteUrl } from "@/lib/site-origin";
 
 /**
- * `globals.css` `:root`, converted from oklch to sRGB.
+ * `globals.css` `:root`, converted from oklch to sRGB. The colours are the
+ * brand palette of `.icm/docs/brand.md`.
  *
  * Contrast against the surfaces they are used on (WCAG 2.1, sRGB): body text
- * 15.0:1, muted text 5.4:1, white-on-green 6.2:1 — all comfortably past AA,
- * which matters more in mail than on the site because a phone reading a
+ * 14.6:1 on the card, muted text 7.0:1 on the card, Off-white on Deep teal
+ * 8.1:1 (the button and the banners), Deep teal on the card 9.0:1 (links, the
+ * total), Ink on Warm sand 11.2:1 (the contact chips), Deep teal on the teal
+ * tint 8.0:1 and Ink on it 12.9:1 (the callout). All are past AA, which
+ * matters more in mail than on the site because a phone reading a
  * confirmation in a car park has no dark-mode escape hatch.
  */
 export const emailPalette = {
-  /** `--background` — the page behind the card. */
-  page: "#fdfaf4",
-  /** `--card` */
-  card: "#fffdfa",
-  /** `--foreground` */
-  text: "#2b221a",
-  /** `--muted-foreground` */
-  textMuted: "#72675c",
-  /** `--muted` */
-  surfaceMuted: "#f5efe6",
-  /** `--border` */
-  border: "#e5ddd1",
-  /** `--primary` — the countryside green everything green on the site uses. */
-  primary: "#3c6642",
-  /** A darker step of `--primary`, for the team notification's banner. */
-  primaryDark: "#234629",
-  /** `--primary-foreground` */
-  onPrimary: "#fbf8f0",
-  /** `--primary` at `--background` lightness — the tint behind callout panels. */
-  primaryTint: "#e3efe4",
-  /** `--secondary` — the warm sand the site uses for quiet chips. */
-  sand: "#f2e6d4",
-  /** `--accent-foreground` */
-  onSand: "#452d1c",
+  /** `--background` — Off-white, the page behind the card. */
+  page: "#F3E9D5",
+  /** `--card` — Paper. */
+  card: "#FAF6EE",
+  /** `--foreground` — Ink. */
+  text: "#2A211C",
+  /** `--muted-foreground` — Ink muted. */
+  textMuted: "#5E5249",
+  /** `--muted` — Warm sand. */
+  surfaceMuted: "#E6D9B2",
+  /** `--border` — Line. */
+  border: "#D9CBB0",
+  /** `--primary` — Deep teal, the main brand colour: links, buttons, the total. */
+  primary: "#164B50",
+  /**
+   * A darker step of `--primary`, oklch(0.31 0.045 204.1), for the team
+   * notification's banner. Off-white on it measures 10.7:1.
+   */
+  primaryDark: "#0D373B",
+  /** `--primary-foreground` — Off-white. */
+  onPrimary: "#F3E9D5",
+  /**
+   * `--primary` at a light step, oklch(0.93 0.018 204.1) — the tint behind
+   * callout panels.
+   */
+  primaryTint: "#DBECED",
+  /** `--secondary` — Warm sand, for the contact chips. */
+  sand: "#E6D9B2",
+  /** `--secondary-foreground` — Ink. */
+  onSand: "#2A211C",
 } as const;
 
 /**
