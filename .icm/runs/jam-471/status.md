@@ -1,5 +1,5 @@
 # Status jam-471
 
 - phase: release
-- blocked: yes — the Vercel preview fails (Neon uat-agorasim at 10 branches)
+- blocked: no
 - updated: 2026-11-23

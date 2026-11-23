@@ -25,12 +25,9 @@ data. Abra `.icm/docs/launch-runbook.md` e procure `intake/go-live`: não há ne
 
 ## Blockers
 
-- CI RED só no check `Vercel`: a pré-visualização falha a 0 ms, sem build (`db37616`). `code`,
-  `icm-check`, `secrets` e `workflows` estão verdes. Causa provável: o projeto Neon
-  `uat-agorasim` tem 10 ramos (o limite do plano), e a integração não cria
-  `preview/claude/jam-471-…`. O PR #275 falha da mesma maneira. Ato do Jamie: apagar um ramo
-  velho (por exemplo `local-test/2026-11-19`) e voltar a correr a pré-visualização. Esta sessão
-  não muda a Neon.
+- nenhum. A pré-visualização falhava porque a Neon `uat-agorasim` tinha 10 ramos. Com a
+  palavra do Jamie no chat (2026-11-23, "Yes, delete it"), a sessão apagou o ramo
+  `local-test/2026-11-19` e voltou a correr a pré-visualização. CI verde em `6c3f310`.
 
 ## Do not touch
 
