@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-482/agorasim-hill-edges-from-the-illustrations-join-the-sections-the-hero
 - branch: claude/jam-482-hill-edges-294d4f
 - lane: spine
-- pr: pending
+- pr: #281
 - started: 2026-11-23
