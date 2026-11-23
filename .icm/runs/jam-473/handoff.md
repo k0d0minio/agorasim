@@ -2,15 +2,24 @@
 
 ## Next action
 
-<What the next session, or the operator, does first.>
+O Jamie lê `.icm/docs/go-live-legal.md`. Envia ao Diogo as perguntas de
+`findings.md` §3 num só envio. Regista no Linear o comentário de §1 e os tickets de §2.
 
 ## How to test
 
-<1 to 3 short sentences that can be said aloud: where to go on the preview, what to do, what the operator must see.>
+Abra `.icm/docs/go-live-legal.md` no pull request. Cada item tem um estado, um dono e uma
+data. A decisão sobre as faturas está na secção "The fatura decision".
+
+## What changed
+
+- Página nova: `.icm/docs/go-live-legal.md` (add). Os itens legais de I §1.1 com estado,
+  dono e data, e a decisão sobre as faturas (à mão até o contabilista responder; a
+  integração é um pedido novo, tamanho M).
 
 ## Blockers
 
-- none
+- Nenhum para este pull request. O lançamento com reservas pagas espera pelo número RNAAT e
+  pelas apólices (Diogo).
 
 ## Do not touch
 
