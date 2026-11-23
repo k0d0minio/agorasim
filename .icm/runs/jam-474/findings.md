@@ -17,14 +17,19 @@ O BAXTER publicou o resumo no JAM-474. Texto do rascunho, em inglês:
 > dates, a read-only LINEAR_API_KEY in Vercel UAT and Production, client questions as
 > Linear tickets.
 
-## 2. Tickets de seguimento propostos (não criados)
+## 2. Tickets de seguimento (criados em 2026-11-23)
 
-Estado em 2026-11-23: não criados. A sessão tentou `create_issue` com a ferramenta BAXTER, e a
-verificação de permissões do Claude Code recusou a escrita no Linear. Cada ticket deve ter a
-relação `related` com JAM-474. Não há duplicados na lista dos tickets abertos de JAM.
-O ticket 4 ("Mais tarde": email semanal, tamanho 2) fica fora: é trabalho para depois.
+Criados com a ferramenta BAXTER, em Triage, cada um com a relação `related` com JAM-474.
+Não há duplicados na lista dos tickets abertos de JAM. O ticket 4 ("Mais tarde": email
+semanal, tamanho 2) fica fora: é trabalho para depois.
 
-### 1. agorasim · The admin console shows the build status on a Progresso page
+| Key | Título |
+|---|---|
+| JAM-534 | agorasim · The admin console shows the build status on a Progresso page |
+| JAM-535 | BAXTER · The ticket stage writes a pt-PT title line in each ticket of a pt-PT client |
+| JAM-536 | agorasim · Each open client question of seats-and-holds is a Linear ticket that waits on the client |
+
+### 1. JAM-534 · agorasim · The admin console shows the build status on a Progresso page
 
 projeto agorasim · Triage · prioridade 2 (high) · estimativa 3 · labels Feature, Client work, lane:new
 
@@ -64,7 +69,7 @@ Prerequisites (not part of this ticket):
 The client opens the admin on the phone and sees, in Portuguese, what is in build, what is on UAT to test and what waits on them. Nobody updates the page by hand.
 ````
 
-### 2. BAXTER · The ticket stage writes a pt-PT title line in each ticket of a pt-PT client
+### 2. JAM-535 · BAXTER · The ticket stage writes a pt-PT title line in each ticket of a pt-PT client
 
 sem projeto · Triage · prioridade 3 (medium) · estimativa 1 · labels Feature, Foundation
 
@@ -92,7 +97,7 @@ The agorasim admin page "Progresso" (follow-up of JAM-474) shows Linear ticket t
 The Progresso page shows each ticket in Portuguese, with the English title only as a fallback.
 ````
 
-### 3. agorasim · Each open client question of seats-and-holds is a Linear ticket that waits on the client
+### 3. JAM-536 · agorasim · Each open client question of seats-and-holds is a Linear ticket that waits on the client
 
 projeto agorasim · Triage · prioridade 2 (high) · estimativa 1 · labels Chore, Client work, lane:chore
 
