@@ -1,5 +1,5 @@
 # Status jam-481
 
-- phase: define
+- phase: build
 - blocked: no
 - updated: 2026-11-23
