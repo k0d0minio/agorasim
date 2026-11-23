@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-477/agorasim-spike-social-posts-meta-access-the-generator-and-the-auto
 - branch: claude/jam-477-spike-social-de24b7
 - lane: knowledge
-- pr: pending
+- pr: #270
 - started: 2026-11-23
