@@ -62,3 +62,16 @@ proposto, com o tamanho. O spike não criou nenhum ticket.
 - proposed: question para o Jamie · 0 dias de construção
 
 Total proposto de construção: F1 + F2 + F4 + F5 = 2 dias, mais o lote do blog.
+
+## Rascunho do comentário para JAM-478 (o operador publica-o no Linear)
+
+> Spike done (PR k0d0minio/agorasim#275). Baseline of 2026-11-23, old WordPress site:
+> Google shows agorasim.pt on page 1 for 2 of 10 fixed queries (only with the brand or the
+> old title). For "agorasim" alone only the business panel shows ("Agorasim Vintage", 5/5, 71
+> reviews, booking at €74 through a third party). ChatGPT names Agorasim for 3 of 5 prompts
+> (first for the Saloia classic-car tour) but with old prices ("from €30"). Perplexity knows
+> almost nothing. New site: robots, sitemap, hreflang, JSON-LD, llms.txt are ready. Gap: 12
+> old URLs have no redirect, among them the three tour pages that ChatGPT cites. Measures with
+> no cookie: Search Console + Bing (DNS), the monthly ten-query check (Jamie, first working day),
+> and a booking-source field (utm_source/referrer). Proposed tickets F1-F7 in
+> `.icm/runs/jam-478/findings.md`. Page: `.icm/docs/geo-baseline.md`.
