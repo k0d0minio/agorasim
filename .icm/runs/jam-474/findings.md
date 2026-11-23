@@ -17,96 +17,23 @@ O BAXTER publicou o resumo no JAM-474. Texto do rascunho, em inglês:
 > dates, a read-only LINEAR_API_KEY in Vercel UAT and Production, client questions as
 > Linear tickets.
 
-## 2. Tickets de seguimento (criados em 2026-11-23)
+## 2. Tickets de seguimento (2026-11-23)
 
-Criados com a ferramenta BAXTER, em Triage, cada um com a relação `related` com JAM-474.
-JAM-535 bloqueia JAM-534. Em 2026-11-23 o Jamie disse: "forget about milestones that is too
-complex a feature to be used with such a simple build". JAM-534 e JAM-535 foram atualizados:
-sem milestones, a linha `feature:` e as datas de entrega no lugar delas.
-Não há duplicados na lista dos tickets abertos de JAM. O ticket 4 ("Mais tarde": email
-semanal, tamanho 2) fica fora: é trabalho para depois.
+Em 2026-11-23 o Jamie disse: "we don't need to give them read only view over linear with a
+built in module that is crazy. Let's just set checkpoints where we checktest then create a
+film for them to review." Antes, no mesmo dia: "forget about milestones that is too complex a
+feature to be used with such a simple build".
 
-| Key | Título |
-|---|---|
-| JAM-534 | agorasim · The admin console shows the build status on a Progresso page |
-| JAM-535 | BAXTER · The ticket stage writes a pt-PT title line and a feature line in each agorasim ticket |
-| JAM-536 | agorasim · Each open client question of seats-and-holds is a Linear ticket that waits on the client |
+| Key | Título | Estado |
+|---|---|---|
+| JAM-543 | agorasim · Checkpoint 1: the checktest of the UAT batch and its film for Diogo and Rita | Triage, related JAM-474 |
+| JAM-534 | agorasim · The admin console shows the build status on a Progresso page | Canceled, com comentário |
+| JAM-535 | BAXTER · The ticket stage writes a pt-PT title line and a feature line in each agorasim ticket | Canceled, com comentário |
+| JAM-536 | agorasim · Each open client question of seats-and-holds is a Linear ticket that waits on the client | Canceled, com comentário |
 
-### 1. JAM-534 · agorasim · The admin console shows the build status on a Progresso page
+Não há duplicados na lista dos tickets abertos de JAM. O email semanal não foi criado.
 
-projeto agorasim · Triage · prioridade 2 (high) · estimativa 3 · labels Feature, Client work, lane:new
-
-````markdown
-* lane: new
-* size: 3 (about 1.5 days)
-* found-by: spike JAM-474 (`.icm/docs/client-status.md`, PR #269). BAXTER work item w-20261122-005.
-* depends on: JAM-474 merged. The prerequisites below.
-
-## Problem
-
-Diogo and Rita cannot see which feature is in build, which is on UAT to test, and what waits on them. The process guide §9 promises "a simple running status". The status exists in Linear, but the client cannot read Linear, and team JAM holds the work of other clients.
-
-## Proposed changes
-
-* A server module reads Linear with GraphQL: the tickets of the project agorasim (title, state, labels, due date, and the `pt:` and `feature:` lines of the description). Cache: 5 minutes.
-* A page `/admin/progresso`, its entry in `web/src/lib/admin-nav.ts`, and the count of "Espera por vocês" on the admin dashboard. pt-PT text only.
-* The state map of `.icm/docs/client-status.md`: In Progress, In Review, Changes requested = Em construção. To test = Para testar em UAT. Ready to ship = Aprovado, à espera de publicação. Done in the last 30 days = Concluído. Next up = A seguir. Label Waiting on a client or Waiting on content = Espera por vocês. Triage, Backlog, Canceled, Duplicate are not shown.
-* A pt-PT name for each of the six features (numbers 1 to 6) in the repo. A ticket belongs to the feature of its `feature:` line. A ticket with no `feature:` line shows in the lists only.
-* The next date is the earliest due date of an open agorasim ticket in Next up or in build, else "Data por confirmar".
-* No Linear milestone and no new Linear setting (Jamie, 2026-11-23: milestones are too complex for this build).
-* A fault of Linear shows "Estado indisponível" and the time of the last good read. The rest of the admin works.
-
-Prerequisites (not part of this ticket):
-
-* JAM-535: the `pt:` and `feature:` lines, and a due date, on each open agorasim ticket.
-* A Linear API key with read access to team JAM only, named `LINEAR_API_KEY`, in the Vercel environments UAT and Production. Never in git.
-
-## Acceptance criteria
-
-- [ ] The page shows the six features, "Espera por vocês", the next date and the sections of the state map.
-- [ ] A move of a ticket in Linear shows on the page in 5 minutes or less, with no deploy.
-- [ ] The page shows no comment, no description text other than the `pt:` line, and no ticket outside the project agorasim.
-- [ ] The page works at 320 px and 375 px.
-- [ ] A Linear fault shows "Estado indisponível", and the other admin pages still load.
-
-## Outcome
-
-The client opens the admin on the phone and sees, in Portuguese, what is in build, what is on UAT to test and what waits on them. Nobody updates the page by hand.
-````
-
-### 2. JAM-535 · BAXTER · The ticket stage writes a pt-PT title line and a feature line in each agorasim ticket
-
-sem projeto · Triage · prioridade 3 (medium) · estimativa 1 · labels Feature, Foundation
-
-````markdown
-* size: 1
-* found-by: spike JAM-474 (agorasim, `.icm/docs/client-status.md`, PR #269). BAXTER work item w-20261122-005.
-
-## Problem
-
-The agorasim admin page "Progresso" (follow-up of JAM-474) shows Linear ticket titles to the client, grouped by the six features of the process guide. The titles are in English. The client reads Portuguese, and the admin console is Portuguese only. Nothing in Linear says which feature a ticket belongs to.
-
-## Proposed changes
-
-* The BAXTER ticket stage writes two lines at the top of the description of each new agorasim ticket: `pt: <title in pt-PT>` and `feature: <1 to 6>` (1 Site + GEO, 2 Booking, 3 Payment links, 4 Email and SMS, 5 Blog, 6 Social). `pt:` applies to each ticket of a client whose language is pt-PT.
-* The ticket stage also sets a due date when the ticket has a promised date.
-* One pass adds the two lines and a due date to each open agorasim ticket.
-* No Linear milestone (Jamie, 2026-11-23: too complex for this build).
-* The `pt:` line is short, plain and client-facing: no file path, no ticket key, no technical word.
-
-## Acceptance criteria
-
-- [ ] A new agorasim ticket that BAXTER creates has a `pt:` line and a `feature:` line at the top of its description.
-- [ ] Each open agorasim ticket has the two lines after the one pass.
-- [ ] A ticket of a project with no pt-PT client has no `pt:` line.
-- [ ] The rule is in the BAXTER ticket stage contract, in one place.
-
-## Outcome
-
-The Progresso page shows each ticket in Portuguese under its feature, with the English title only as a fallback, and the next date from the due dates.
-````
-
-### 3. JAM-536 · agorasim · Each open client question of seats-and-holds is a Linear ticket that waits on the client
+## 3. JAM-536 · agorasim · Each open client question of seats-and-holds is a Linear ticket that waits on the client
 
 projeto agorasim · Triage · prioridade 2 (high) · estimativa 1 · labels Chore, Client work, lane:chore
 
