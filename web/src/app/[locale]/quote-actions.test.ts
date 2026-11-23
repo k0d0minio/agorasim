@@ -79,3 +79,80 @@ describe("submitQuoteRequest — the honeypot", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * A refused enquiry sends back what the guest typed (JAM-487). React resets
+ * the form after the action, and the form uses these values as its defaults,
+ * so the guest corrects one field and keeps the rest.
+ */
+describe("submitQuoteRequest — a refused field keeps the guest's values", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  /** An event enquiry with every field filled, and a name and email to vary. */
+  function eventForm(name: string, email: string, locale = "pt"): FormData {
+    const form = new FormData();
+    form.set("locale", locale);
+    form.set("kind", "event");
+    form.set(HONEYPOT_FIELD, "");
+    form.set("name", name);
+    form.set("email", email);
+    form.set("phone", "+351 912 345 678");
+    form.set("preferredDate", "12/06/2027");
+    form.set("venue", "Quinta da Regaleira");
+    form.set("serviceHours", "4h");
+    form.set("preferredCar", "car-x");
+    form.set("partySize", "40");
+    form.set("message", "Três carros, por favor.");
+    form.set("marketingConsent", "on");
+    return form;
+  }
+
+  const typed = {
+    phone: "+351 912 345 678",
+    preferredDate: "12/06/2027",
+    venue: "Quinta da Regaleira",
+    ceremonyTime: "",
+    serviceHours: "4h",
+    preferredCar: "car-x",
+    partySize: "40",
+    message: "Três carros, por favor.",
+    marketingConsent: true,
+  };
+
+  it.each(["pt", "en"])("returns every field with an invalid email (%s)", async (locale) => {
+    const state = await submitQuoteRequest({}, eventForm("Ana Lopes", "ana@", locale));
+
+    expect(state.fieldErrors?.email).toBeTruthy();
+    expect(state.fieldErrors?.name).toBeUndefined();
+    expect(state.values).toEqual({ name: "Ana Lopes", email: "ana@", ...typed });
+    expect(insert).not.toHaveBeenCalled();
+    expect(sendLoggedEmail).not.toHaveBeenCalled();
+  });
+
+  it.each(["pt", "en"])("returns every field with an empty name (%s)", async (locale) => {
+    const state = await submitQuoteRequest({}, eventForm("  ", "ana@example.com", locale));
+
+    expect(state.fieldErrors?.name).toBeTruthy();
+    expect(state.fieldErrors?.email).toBeUndefined();
+    expect(state.values).toEqual({ name: "  ", email: "ana@example.com", ...typed });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("does not send back the honeypot or the hidden fields", async () => {
+    const state = await submitQuoteRequest({}, eventForm("Ana Lopes", "ana@"));
+
+    expect(state.values).not.toHaveProperty(HONEYPOT_FIELD);
+    expect(state.values).not.toHaveProperty("locale");
+    expect(state.values).not.toHaveProperty("kind");
+  });
+
+  it("sends back no values when the enquiry is stored", async () => {
+    const state = await submitQuoteRequest({}, eventForm("Ana Lopes", "ana@example.com"));
+
+    expect(state).toEqual({ ok: true });
+    expect(insert).toHaveBeenCalledTimes(1);
+  });
+});
