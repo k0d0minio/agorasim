@@ -2,7 +2,7 @@
 
 ## Next action
 
-O Jamie lê `.icm/runs/jam-506/spec.md`, confirma as três respostas por omissão e marca **Spec
+O Jamie lê `.icm/runs/jam-506/spec.md`, confirma as respostas por omissão 1 e 3 e marca **Spec
 approved** em https://github.com/k0d0minio/agorasim/pull/277. Depois diz `build JAM-506`.
 
 O Build lê primeiro `README.md`, `web/AGENTS.md` e `.icm/local/database.md`. A migração tem o
@@ -11,6 +11,8 @@ número `0042`. O pull request diz esse número, porque outros tickets com uma m
 ## Decisões registadas
 
 - Jamie, 2026-11-23, no chat: "implement".
+- Jamie, 2026-11-23, no chat: "Use sessionStorage". A origem fica no `sessionStorage` do
+  separador até ao envio, não só na memória da página.
 - A pergunta do ticket ("Is this record compatible with the decision of 2026-09-18, no
   analytics and no cookie?") tem a resposta por omissão: sim. O Jamie confirma-a na aprovação
   da spec. Não é ainda uma resposta do Jamie.

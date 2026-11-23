@@ -1,7 +1,7 @@
 # Spec: agorasim · Each booking and enquiry records where the guest came from, with no cookie
 
 - ticket: JAM-506
-- touches: `web/src/db/schema.ts`, `web/drizzle/0042_*.sql` e `web/drizzle/meta/`, `web/src/lib/booking-source.ts` (novo), `web/src/app/[locale]/layout.tsx`, `web/src/components/booking-checkout-form.tsx` e os formulários de pedido, `web/src/app/[locale]/reservar/actions.ts`, `web/src/app/[locale]/reservar/checkout-actions.ts`, `web/src/app/[locale]/quote-actions.ts`, `web/src/lib/booking-checkout.ts`, `web/src/lib/sales.ts`, `web/src/components/admin/sales-board.tsx`, `web/src/app/admin/sales/page.tsx`, `web/src/app/admin/sales/[id]/page.tsx`, a exportação dos dados de um titular, `web/src/content/privacy.ts`
+- touches: `web/src/db/schema.ts`, `web/drizzle/0042_*.sql` e `web/drizzle/meta/`, `web/src/lib/booking-source.ts` (novo), `web/src/lib/checkout-draft.ts`, `web/src/app/[locale]/layout.tsx`, `web/src/components/booking-checkout-form.tsx` e os formulários de pedido, `web/src/app/[locale]/reservar/actions.ts`, `web/src/app/[locale]/reservar/checkout-actions.ts`, `web/src/app/[locale]/quote-actions.ts`, `web/src/lib/booking-checkout.ts`, `web/src/lib/sales.ts`, `web/src/components/admin/sales-board.tsx`, `web/src/app/admin/sales/page.tsx`, `web/src/app/admin/sales/[id]/page.tsx`, a exportação dos dados de um titular, `web/src/content/privacy.ts`
 - complexity: standard
 
 ## Problem
@@ -26,9 +26,11 @@ Quando o visitante envia uma reserva ou um pedido de orçamento (passeio, casame
 formulário envia estes dois valores com ele. O servidor valida-os e guarda-os no pedido e na
 reserva. Um valor que não é válido é ignorado, e a reserva continua.
 
-**Onde o navegador guarda os valores até ao envio.** Na memória da página, e em mais nenhum
-lugar. O site não escreve cookie, `localStorage` nem `sessionStorage` para a origem. Efeito: se o
-visitante recarrega uma página interior, o `utm_source` perde-se e fica só o host do referrer.
+**Onde o navegador guarda os valores até ao envio.** No `sessionStorage` do separador, numa
+chave própria, ao lado do rascunho da reserva. O site escreve a chave uma vez, na primeira página
+do separador, e não a muda depois. A chave tem só o `utm_source` e o host do referrer. Morre
+quando o visitante fecha o separador. O site não escreve cookie nem `localStorage` para a
+origem. Efeito: a origem fica depois de um recarregamento.
 
 **O que Diogo e Rita veem na consola (em português, primeiro no telemóvel).**
 
@@ -47,26 +49,26 @@ EN em sincronia:
 > Quando faz uma reserva ou um pedido, guardamos com ele a origem da sua visita: o nome do site
 > que o trouxe até nós (por exemplo, google.com) e, quando a ligação a indica, a etiqueta de
 > origem (por exemplo, chatgpt.com). Não guardamos o endereço completo da página de onde veio
-> nem o que pesquisou. Para isto não usamos cookies, não guardamos nada no seu navegador e não o
-> seguimos entre visitas. Usamos esta informação para saber que canais trazem reservas
+> nem o que pesquisou. Para isto não usamos cookies. Estes dois valores ficam no separador do
+> seu navegador até à reserva, e desaparecem quando fecha o separador. Não o seguimos entre
+> visitas. Usamos esta informação para saber que canais trazem reservas
 > (interesse legítimo). Fica guardada com a reserva, pelo mesmo prazo.
 
 **A base de dados.** A migração `0042` junta duas colunas de texto, que aceitam vazio, a
 `tour_requests` e a `bookings`. Não muda nenhuma coluna que existe. É compatível com o código
 que substitui.
 
-**Respostas por omissão, para o Jamie confirmar na aprovação da spec.**
+**Respostas e decisões, para o Jamie confirmar na aprovação da spec.**
 
 1. "Este registo é compatível com a decisão de 2026-09-18 (sem analytics, sem cookie)?"
    Resposta por omissão: sim. É um campo da reserva, não um tracker. Nenhum script de
    terceiros, nenhum cookie, nenhum identificador do visitante, nada entre visitas.
-2. "Onde ficam os valores no navegador até ao envio?" Resposta por omissão: só na memória da
-   página. O ticket diz "com o rascunho da reserva", e esse rascunho está no `sessionStorage`.
-   A spec não o segue neste ponto, por uma razão: a lei dos cookies (Lei 41/2004, art. 5.º)
-   aplica-se a qualquer armazenamento no dispositivo que não é estritamente necessário, não só
-   a cookies. A política diz hoje "não há nada a que consentir". Com a memória da página essa
-   frase continua verdadeira sem reservas. A alternativa (`sessionStorage`) guarda o
-   `utm_source` depois de um recarregamento, e enfraquece essa frase. Isto não é um parecer
+2. "Onde ficam os valores no navegador até ao envio?" Decidido: no `sessionStorage` do
+   separador, como o ticket diz ("com o rascunho da reserva"). Jamie, 2026-11-23, no chat:
+   "Use sessionStorage". A sessão disse antes da decisão: a lei dos cookies (Lei 41/2004,
+   art. 5.º) aplica-se a qualquer armazenamento no dispositivo que não é estritamente
+   necessário, não só a cookies, e a política diz "não há nada a que consentir". Por isso o
+   parágrafo novo da política diz que os dois valores ficam no separador. Isto não é um parecer
    jurídico.
 3. A contagem por mês conta reservas pagas. Um pedido sem pagamento mostra a sua origem no
    cartão, e não entra na contagem.
@@ -80,7 +82,8 @@ que substitui.
 - [ ] Um teste mostra que um valor de origem que não é válido é ignorado e que a reserva é criada. (verify: CI)
 - [ ] Um teste mostra os nomes: sem valores "Direta ou desconhecida", registo antigo "Sem registo", `utm_source` antes do referrer. (verify: CI)
 - [ ] A página Sales mostra a secção "Origem das reservas" com o número de reservas pagas de cada origem para cada um dos últimos 6 meses, legível num telemóvel. (verify: operator)
-- [ ] Depois de uma visita ao preview com `?utm_source=chatgpt.com` e de navegar até `/pt/reservar`, o navegador não tem cookie novo nem chave nova em `localStorage` ou `sessionStorage`. (verify: agent)
+- [ ] Depois de uma visita ao preview com `?utm_source=chatgpt.com` e de navegar até `/pt/reservar`, o navegador não tem cookie novo nem chave nova em `localStorage`, e o `sessionStorage` tem uma chave para a origem com só o `utm_source` e o host do referrer. (verify: agent)
+- [ ] Um teste mostra que a primeira página do separador decide a origem, e que um recarregamento ou uma página seguinte não a muda. (verify: CI)
 - [ ] A política de privacidade em `/pt/privacidade` e em `/en/privacy` diz o que é registado, com o mesmo conteúdo nas duas línguas. (verify: agent)
 - [ ] Um teste mostra que a exportação dos dados de um titular inclui a origem. (verify: CI)
 - [ ] A migração `0042` só junta colunas que aceitam vazio, e `db:migrate` e `db:verify` passam no build do preview. (verify: CI)
