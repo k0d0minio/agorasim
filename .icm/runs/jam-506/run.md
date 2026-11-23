@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-506
 - branch: claude/jam-506-booking-source-e151c6
 - lane: spine
-- pr: pending
+- pr: #277
 - started: 2026-11-23
