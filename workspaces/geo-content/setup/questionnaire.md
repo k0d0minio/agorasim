@@ -4,9 +4,12 @@ Answer these before running the pipeline. Kept as a file so the whole run is sel
 
 > **Run:** first blog batch (`.icm/intake/blog-engine/blog-pipeline-first-batch.md`) · 2026-08-31
 >
-> This run is a **batch of five articles**, not a single content block, so each question is
-> answered once for the batch and then per article. The stage outputs keep the filenames the
-> stage contracts declare (`research.md`, `draft.md`); each holds one section per article.
+> This run is a **batch of five articles**, so each question is answered once for the batch
+> and then per article. `research.md` holds one section per article. Stages 02 and 03 write
+> one file per article, `<slug>.md`, in the blog markdown format.
+>
+> The topics of a run come from the topic queue, `../topics.md`. This run took topics 1 to 5.
+> The brief was checked against the facts again on 2026-11-23 (JAM-508).
 
 - **Target query** (the exact question/phrase to win in AI search):
   One per article — five queries, chosen to cover the region, both tours and all three partners
@@ -21,9 +24,9 @@ Answer these before running the pipeline. Kept as a file so the whole run is sel
   | 5 | `obidos-a-partir-de-lisboa` | Óbidos day trip from Lisbon with food and wine | visitar Óbidos a partir de Lisboa |
 
 - **Target page** (where this block will live on the site):
-  `blog/<slug>` — the public blog, both locales. This batch takes the **blog handoff**
-  (`web/src/content/generated/blog/<slug>.md`, loaded with `pnpm blog:load`), not the
-  `generated/<slug>.json` block handoff. See stage 03 for why.
+  `blog/<slug>` — the public blog, both locales. The pipeline has one handoff, the **blog
+  handoff**: `web/src/content/generated/blog/<slug>.md`, loaded with `pnpm blog:load`. Stage 03
+  (`../stages/03_publish/CONTEXT.md`) says why it writes no `generated/<slug>.json` block.
 
 - **Locale scope**: PT + EN. PT is primary; EN is a parallel native version, not a translation.
 
@@ -37,12 +40,15 @@ Answer these before running the pipeline. Kept as a file so the whole run is sel
   None beyond it. `business-facts.md` was re-verified against `.icm/docs/prices.pdf` and
   `web/src/content/experiences.ts` on 2026-08-31 before drafting, and now carries the real
   price list, meeting points and cancellation terms. Olaria MZ is retired and appears nowhere.
+  The check of 2026-11-23 added the tours that each add-on joins and the seat rule. The brief
+  (`../stages/01_research/output/research.md`) lists what changed.
 
 - **Constraints** (optional): length, sections, anything to avoid:
   - **The blog body is plain paragraphs.** `lib/blog-markdown.ts` refuses headings, lists,
-    bold, blockquotes and backticks, because the renderer emits `<p>` and they would reach
-    readers verbatim. So the H2/H3 hierarchy the GEO checklist asks for cannot live inside an
-    article body — see the note at stage 03.
+    bold, italics, blockquotes and backticks, because the renderer emits `<p>` and they would
+    reach readers verbatim. So an article has no H2/H3 hierarchy and no FAQ block. Stage 02
+    (`../stages/02_draft/CONTEXT.md`) has the rules of the body, and
+    `../../shared/geo-checklist.md` says which GEO items a blog article meets.
   - 450–700 words per locale per article. Every article opens with 1–3 sentences that answer
     its target query outright.
   - No invented prices, dates, awards or claims. No Olaria MZ. No "amazing"/"unforgettable".
