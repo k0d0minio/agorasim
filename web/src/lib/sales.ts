@@ -42,7 +42,9 @@ import { REQUEST_STATUSES } from "@/lib/admin-format";
 import { awaitsLinkPayment, bookingRef, holdsCapacity } from "@/lib/bookings";
 import { formatDay } from "@/lib/date-keys";
 import { CLASS_SEATS } from "@/lib/fleet";
+import { paymentReminderLog, type PaymentReminderLog } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
+import { canRemind } from "@/lib/payment-reminder";
 
 /**
  * A lead's date as the admin says it: `2027-06-12` → "sábado, 12 de junho de
@@ -60,10 +62,14 @@ export function leadDayLabel(date: string | null): string | null {
  * Three states (JAM-291): the guest has paid; the guest is on the payment form
  * now, inside a live hold ("In checkout", the card's "A aguardar pagamento");
  * or the team sent a payment link that waits to be paid ("Awaiting payment",
- * the card's "Pagamento pendente"). A checkout whose hold lapsed is none of
- * them and shows nothing. Deposits are not modelled.
+ * the card's "Pagamento pendente"). Deposits are not modelled.
+ *
+ * A fourth since JAM-292: "Unpaid", the card's "Não paga". It is a checkout
+ * the guest left without paying, on a departure that is not past, and it is
+ * on the card because the card now has something to do about it: "Lembrar".
+ * It holds no seat. A checkout whose departure is past still shows nothing.
  */
-export type PaymentState = "Paid in full" | "In checkout" | "Awaiting payment";
+export type PaymentState = "Paid in full" | "In checkout" | "Awaiting payment" | "Unpaid";
 
 /** The one row shape the board renders. */
 export type SalesRecord = {
@@ -113,6 +119,16 @@ export type SalesRecord = {
   /** Money, where any is known — from the `bookings` row behind the lead. */
   value: string | null;
   payment: PaymentState | null;
+  /** The `bookings` row the card shows, which "Lembrar" acts on. Null with no booking. */
+  bookingId: string | null;
+  /**
+   * Whether the card offers "Lembrar" (JAM-292): the booking is an unpaid
+   * site checkout that can be reminded (`lib/payment-reminder.ts`), and the
+   * lead has an email to send it to.
+   */
+  canRemind: boolean;
+  /** When the last reminder went: the card's "Lembrete enviado 12/11 14:05". */
+  lastReminderAt: Date | null;
   /**
    * The open car the live booking rides in, when it rides in one: the card
    * says "Carro partilhado" and how full the car is. Null for a car of its own.
@@ -148,6 +164,12 @@ export type BookingSummary = {
   date: string;
   /** The open car it rides in, when it rides in one. */
   sharedCar?: SharedCarSummary | null;
+  /** The `bookings` row itself. */
+  bookingId?: string;
+  /** Whether the booking can be reminded of its payment, the lead's email aside. */
+  canRemind?: boolean;
+  /** When "Lembrar" last sent its email for this booking. */
+  lastReminderAt?: Date | null;
 };
 
 /** How full an open car is, across every party in it. */
@@ -185,6 +207,11 @@ export function recordFromRequest(
     bookingRef: booking?.ref ?? null,
     value: booking?.value ?? null,
     payment: booking?.payment ?? null,
+    bookingId: booking?.bookingId ?? null,
+    // The reminder is an email to this person: no address, no button. An
+    // anonymised lead has neither a name nor an address left.
+    canRemind: Boolean(booking?.canRemind && row.email && !row.anonymisedAt),
+    lastReminderAt: booking?.lastReminderAt ?? null,
     sharedCar: booking?.sharedCar ?? null,
     createdAt: row.createdAt,
     lastContactedAt: row.lastContactedAt,
@@ -308,14 +335,16 @@ export async function listSalesBoard(q?: string): Promise<SalesBoardData> {
 /**
  * The money against a page of leads, in one query.
  *
- * Only bookings that are `confirmed`, still holding a live `pending` seat, or
- * waiting on a payment link the team sent are shown. A link holds no car, but
- * it is money the customer was asked for. An expired hold is not money —
- * putting "€340 · awaiting payment" on a card for a checkout somebody
+ * Bookings that are `confirmed`, still holding a live `pending` seat, or
+ * waiting on a payment link are shown. A link holds no car, but it is money
+ * the customer was asked for. A checkout the guest left unpaid is shown as
+ * "Unpaid" while the team can still remind them of it (JAM-292): it is the
+ * lead's newest booking and its departure is not past. An older abandoned
+ * checkout is not money — putting "€340" on a card for a checkout somebody
  * abandoned in March would have the team chasing a payment nobody owes.
  *
  * A lead with several attempts (they came back and paid the second time) keeps
- * the last one, which is the one that matters.
+ * the last one, which is the one that matters ({@link cardBooking}).
  */
 export async function bookingSummaries(
   leadIds: string[],
@@ -330,27 +359,97 @@ export async function bookingSummaries(
     .orderBy(asc(bookings.createdAt));
 
   const now = new Date();
-  const live = new Map<string, Booking>();
+  const byLead = new Map<string, Booking[]>();
   for (const row of rows) {
     if (!row.tourRequestId) continue;
-    if (!holdsCapacity(row, now) && !awaitsLinkPayment(row)) continue;
-    live.set(row.tourRequestId, row);
+    const list = byLead.get(row.tourRequestId) ?? [];
+    list.push(row);
+    byLead.set(row.tourRequestId, list);
+  }
+
+  // Only a booking with a link can have had a reminder: the first one gives it its link.
+  const reminders = await paymentReminderLog(
+    [...byLead.values()].flatMap((list) => {
+      const newest = list.at(-1);
+      return newest?.paymentLinkTokenHash ? [newest.id] : [];
+    }),
+  );
+
+  const shown = new Map<string, CardBooking>();
+  for (const [leadId, list] of byLead) {
+    const card = cardBooking(list, reminders, now);
+    if (card) shown.set(leadId, card);
   }
 
   const cars = await sharedCarSummaries(
-    [...live.values()].flatMap((row) => (row.sharedCarId ? [row.sharedCarId] : [])),
+    [...shown.values()].flatMap(({ row, payment }) =>
+      row.sharedCarId && payment !== "Unpaid" ? [row.sharedCarId] : [],
+    ),
   );
-  for (const [leadId, row] of live) {
+  for (const [leadId, { row, payment, canRemind: remindable, lastReminderAt }] of shown) {
     summaries.set(leadId, {
       ref: bookingRef(row.id),
       value: formatPrice(row.amountCents, "en", row.currency),
-      payment: paymentStateOf(row, now),
+      payment,
       date: row.date,
-      sharedCar: row.sharedCarId ? (cars.get(row.sharedCarId) ?? null) : null,
+      // An unpaid checkout rides in no car, whatever id its checkout left on it.
+      sharedCar:
+        row.sharedCarId && payment !== "Unpaid" ? (cars.get(row.sharedCarId) ?? null) : null,
+      bookingId: row.id,
+      canRemind: remindable,
+      lastReminderAt,
     });
   }
 
   return summaries;
+}
+
+/** The booking one lead's card shows, and what the card says about its money. */
+export type CardBooking = {
+  row: Booking;
+  payment: PaymentState;
+  /** Whether "Lembrar" applies to it (`lib/payment-reminder.ts`). */
+  canRemind: boolean;
+  lastReminderAt: Date | null;
+};
+
+/**
+ * Which of one lead's bookings the card shows. `rows` are that lead's
+ * bookings, oldest first. Pure, so the rule can be tested without a database.
+ *
+ * The last live booking wins: paid, inside a live hold, or waiting on a link.
+ * With none, the newest booking is shown as "Unpaid" when the team can remind
+ * the guest of it. Only the newest booking is ever reminded: an older unpaid
+ * checkout is an attempt the guest already replaced.
+ */
+export function cardBooking(
+  rows: readonly Booking[],
+  reminders: ReadonlyMap<string, PaymentReminderLog>,
+  now: Date = new Date(),
+): CardBooking | null {
+  const newest = rows.at(-1);
+  if (!newest) return null;
+
+  const log = reminders.get(newest.id);
+  const remindable = canRemind(newest, { reminded: log !== undefined, now });
+
+  const live = rows.findLast((row) => holdsCapacity(row, now) || awaitsLinkPayment(row));
+  if (live) {
+    const isNewest = live.id === newest.id;
+    return {
+      row: live,
+      payment: paymentStateOf(live, now),
+      canRemind: isNewest && remindable,
+      lastReminderAt: isNewest ? (log?.lastSentAt ?? null) : null,
+    };
+  }
+  if (!remindable) return null;
+  return {
+    row: newest,
+    payment: "Unpaid",
+    canRemind: true,
+    lastReminderAt: log?.lastSentAt ?? null,
+  };
 }
 
 /**
@@ -362,7 +461,7 @@ export async function bookingSummaries(
 export function paymentStateOf(
   row: Pick<Booking, "status" | "holdExpiresAt">,
   now: Date = new Date(),
-): PaymentState {
+): Exclude<PaymentState, "Unpaid"> {
   if (row.status === "confirmed") return "Paid in full";
   return holdsCapacity(row, now) ? "In checkout" : "Awaiting payment";
 }

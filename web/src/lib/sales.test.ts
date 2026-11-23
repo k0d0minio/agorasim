@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  cardBooking,
   enquiryRef,
   groupByStage,
   leadDayLabel,
@@ -10,7 +11,7 @@ import {
   type SalesRecord,
 } from "@/lib/sales";
 import { REQUEST_STATUSES } from "@/lib/admin-format";
-import type { TourRequest } from "@/db";
+import type { Booking, TourRequest } from "@/db";
 
 /**
  * The Sales screen's pure half: how a database row becomes a card, and how
@@ -225,5 +226,109 @@ describe("only a paid booking takes a seat (JAM-291)", () => {
     expect(cars.get("car-1")).toEqual({ seatsTaken: 2, seats: 3, parties: 1 });
     // A car with only a checkout in it has no booked seat at all.
     expect(cars.has("car-2")).toBe(false);
+  });
+});
+
+describe("an unpaid checkout can be reminded (JAM-292)", () => {
+  const now = new Date("2026-11-12T14:00:00Z");
+  const lapsed = new Date("2026-11-12T13:00:00Z");
+  const live = new Date("2026-11-12T14:10:00Z");
+
+  function booking(overrides: Partial<Booking> = {}): Booking {
+    return {
+      id: "aaaaaaaa-1111-4111-8111-111111111111",
+      status: "expired",
+      date: "2026-11-28",
+      holdExpiresAt: lapsed,
+      paymentLinkTokenHash: null,
+      ...overrides,
+    } as Booking;
+  }
+
+  it("shows the lead's newest booking as unpaid, with the reminder on offer", () => {
+    const row = booking();
+    expect(cardBooking([row], new Map(), now)).toEqual({
+      row,
+      payment: "Unpaid",
+      canRemind: true,
+      lastReminderAt: null,
+    });
+    // Before the Stripe session closes it, the row is still pending.
+    expect(cardBooking([booking({ status: "pending" })], new Map(), now)?.payment).toBe(
+      "Unpaid",
+    );
+  });
+
+  it("shows nothing for an unpaid checkout whose departure is past, or a cancelled one", () => {
+    expect(cardBooking([booking({ date: "2026-11-11" })], new Map(), now)).toBeNull();
+    expect(cardBooking([booking({ status: "cancelled" })], new Map(), now)).toBeNull();
+    expect(cardBooking([], new Map(), now)).toBeNull();
+  });
+
+  it("offers no reminder while the guest is on the payment form", () => {
+    const row = booking({ status: "pending", holdExpiresAt: live });
+    expect(cardBooking([row], new Map(), now)).toMatchObject({
+      payment: "In checkout",
+      canRemind: false,
+    });
+  });
+
+  it("keeps the paid booking when the guest came back and paid", () => {
+    const abandoned = booking();
+    const paid = booking({ id: "bbbbbbbb-2222-4222-8222-222222222222", status: "confirmed" });
+    expect(cardBooking([abandoned, paid], new Map(), now)).toMatchObject({
+      row: paid,
+      payment: "Paid in full",
+      canRemind: false,
+    });
+  });
+
+  it("does not remind an older attempt behind a newer one", () => {
+    const paid = booking({ status: "confirmed" });
+    const newer = booking({ id: "bbbbbbbb-2222-4222-8222-222222222222", date: "2026-11-01" });
+    // The newest booking is past, so nothing can be reminded: the card keeps the paid one.
+    expect(cardBooking([paid, newer], new Map(), now)).toMatchObject({
+      row: paid,
+      canRemind: false,
+    });
+  });
+
+  it("shows a reminded booking as awaiting payment, with the time of the last reminder", () => {
+    const sentAt = new Date("2026-11-12T14:05:00Z");
+    const row = booking({ status: "pending", paymentLinkTokenHash: "hmac-sha256$x" });
+    expect(
+      cardBooking([row], new Map([[row.id, { sent: 1, lastSentAt: sentAt }]]), now),
+    ).toEqual({ row, payment: "Awaiting payment", canRemind: true, lastReminderAt: sentAt });
+  });
+
+  it("leaves a link the team registered to its own button", () => {
+    const row = booking({ status: "pending", paymentLinkTokenHash: "hmac-sha256$x" });
+    expect(cardBooking([row], new Map(), now)).toMatchObject({
+      payment: "Awaiting payment",
+      canRemind: false,
+      lastReminderAt: null,
+    });
+  });
+
+  it("puts the button on the card only for a lead with an email", () => {
+    const summary = {
+      ref: "AG-AAAAAA",
+      value: "€120",
+      payment: "Unpaid" as const,
+      date: "2026-11-28",
+      bookingId: "aaaaaaaa-1111-4111-8111-111111111111",
+      canRemind: true,
+      lastReminderAt: null,
+    };
+    expect(recordFromRequest(tourRequest(), summary)).toMatchObject({
+      bookingId: summary.bookingId,
+      payment: "Unpaid",
+      canRemind: true,
+    });
+    expect(recordFromRequest(tourRequest({ email: "" }), summary).canRemind).toBe(false);
+    expect(
+      recordFromRequest(tourRequest({ anonymisedAt: new Date() }), summary).canRemind,
+    ).toBe(false);
+    expect(recordFromRequest(tourRequest()).canRemind).toBe(false);
   });
 });

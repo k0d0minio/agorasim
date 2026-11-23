@@ -28,8 +28,10 @@ import {
 import { formatPrice } from "@/lib/money";
 import {
   sendPaymentLink,
+  sendPaymentReminder,
   voidPaymentLink,
   type PaymentLinkSendOutcome,
+  type PaymentReminderOutcome,
 } from "@/lib/payment-link";
 import {
   createDraftForLead,
@@ -236,6 +238,61 @@ export async function resendPaymentLink(
       return { error: "Esta reserva já não espera pagamento." };
     case "unconfigured":
       return { error: "Os links de pagamento não estão configurados." };
+  }
+}
+
+/** Why "Lembrar" refused a booking, as the team reads it. */
+const REMINDER_REFUSALS: Record<
+  Extract<PaymentReminderOutcome, { status: "not-remindable" }>["reason"],
+  string
+> = {
+  paid: "Esta reserva já está paga.",
+  closed: "Esta reserva foi cancelada.",
+  past: "A partida desta reserva já passou.",
+  "in-checkout":
+    "O cliente está agora no formulário de pagamento. Tente de novo daqui a uns minutos.",
+  "team-link": "Esta reserva tem um link de pagamento da equipa. Use «Reenviar link».",
+  "no-email": "Este pedido não tem email para onde enviar o lembrete.",
+  superseded: "O cliente tem uma reserva mais recente. Lembre essa.",
+};
+
+/**
+ * "Lembrar" on a site checkout the guest did not pay (JAM-292): an email with
+ * the departure, the party, the total and a new payment link. Each tap is one
+ * email, and the link of an earlier reminder stops working
+ * (`sendPaymentReminder` in `lib/payment-link.ts`). `requireAdmin()`: chasing a
+ * payment is the day job, like resending a link.
+ */
+export async function remindUnpaidBooking(
+  _prevState: PaymentLinkActionState,
+  formData: FormData,
+): Promise<PaymentLinkActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = paymentLinkBookingSchema.safeParse(formValues(formData));
+  if (!parsed.success) return { error: "Essa reserva já não existe." };
+
+  let outcome: PaymentReminderOutcome;
+  try {
+    outcome = await sendPaymentReminder({
+      bookingId: parsed.data.bookingId,
+      actorUserId: actor.id,
+    });
+  } catch (err) {
+    console.error("[admin] couldn't send a payment reminder", err);
+    return { error: "Não foi possível enviar o lembrete — tente novamente." };
+  }
+  switch (outcome.status) {
+    case "sent":
+      return { ok: true, message: "Lembrete enviado ao cliente, com um link de pagamento novo." };
+    case "email-failed":
+      return { error: "O email do lembrete não saiu. Tente de novo daqui a pouco." };
+    case "not-found":
+      return { error: "Essa reserva já não existe." };
+    case "not-remindable":
+      return { error: REMINDER_REFUSALS[outcome.reason] };
+    case "unconfigured":
+      return { error: "Os lembretes de pagamento não estão configurados." };
   }
 }
 
