@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-292
 - branch: claude/jam-292-remind-unpaid-booking-b9de60
 - lane: spine
-- pr: pending
+- pr: #279
 - started: 2026-11-23
