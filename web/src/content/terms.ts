@@ -58,7 +58,7 @@ export const seller = {
  * page prints (`terms.test.ts`): change the terms, change both, or the test
  * says the version and the page have come apart.
  */
-export const TERMS_VERSION = "2026-10-29";
+export const TERMS_VERSION = "2026-11-23";
 
 /**
  * One section of the terms. `id` names the few sections something other than
@@ -94,7 +94,7 @@ export const termsContent = {
   } as Localized,
 
   lastUpdatedLabel: { pt: "Última atualização", en: "Last updated" } as Localized,
-  lastUpdated: { pt: "29 de outubro de 2026", en: "29 October 2026" } as Localized,
+  lastUpdated: { pt: "23 de novembro de 2026", en: "23 November 2026" } as Localized,
 
   /**
    * The seller block, rendered as a definition list under its own heading so
@@ -134,7 +134,7 @@ export const termsContent = {
         body: [
           "Compra um lugar num grupo aberto — ou o carro inteiro, num grupo privado — numa partida com dia e hora definidos, na experiência que selecionou, com os complementos que tiver adicionado. Tudo o que está incluído está descrito na página da experiência e no resumo da reserva antes de pagar.",
           "Cada dia tem até duas partidas (10:00 e 14:00), e o ponto de encontro é o indicado na página da experiência e no email de confirmação.",
-          "A sua reserva fica confirmada quando o pagamento é aceite. Recebe então um email de confirmação com todos os detalhes. Enquanto conclui o pagamento, guardamos o vosso carro durante 30 minutos; se o pagamento não for concluído nesse período, a partida volta a ficar disponível.",
+          "A sua reserva fica confirmada quando o pagamento é aceite. Recebe então um email de confirmação com todos os detalhes. Enquanto conclui o pagamento, guardamos o vosso carro durante 15 minutos; se o pagamento não for concluído nesse período, a partida volta a ficar disponível.",
         ],
       },
       {
@@ -222,7 +222,7 @@ export const termsContent = {
         body: [
           "You are buying a seat on an open group tour — or the whole car, on a private group tour — on a departure with a set day and time, on the experience you selected, with any add-ons you included. Everything that is included is described on the experience page and in the booking summary before you pay.",
           "Each day has up to two departures (10:00 and 14:00), and the meeting point is the one shown on the experience page and in your confirmation email.",
-          "Your booking is confirmed when the payment is accepted. You then receive a confirmation email with every detail. We hold your car for 30 minutes while you complete the payment; if the payment is not completed in that time, the departure becomes available again.",
+          "Your booking is confirmed when the payment is accepted. You then receive a confirmation email with every detail. We hold your car for 15 minutes while you complete the payment; if the payment is not completed in that time, the departure becomes available again.",
         ],
       },
       {

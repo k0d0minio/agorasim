@@ -163,10 +163,15 @@ export function SalesBoard({
                     <span className="font-semibold text-primary">{record.value}</span>
                   ) : null}
                   {/*
-                    Money asked for and not yet paid: a payment link the team
-                    sent, or a checkout still open. The card stays in its stage
-                    until the payment lands, so this is what tells it apart.
+                    Money asked for and not yet paid. A guest on the payment
+                    form now is "A aguardar pagamento": a short hold, not a
+                    booked seat. A payment link the team sent is "Pagamento
+                    pendente". A checkout whose hold lapsed shows neither
+                    (JAM-291).
                   */}
+                  {record.payment === "In checkout" ? (
+                    <Badge variant="secondary">A aguardar pagamento</Badge>
+                  ) : null}
                   {record.payment === "Awaiting payment" ? (
                     <Badge variant="secondary">Pagamento pendente</Badge>
                   ) : null}

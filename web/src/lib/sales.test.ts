@@ -4,7 +4,9 @@ import {
   enquiryRef,
   groupByStage,
   leadDayLabel,
+  paymentStateOf,
   recordFromRequest,
+  tallySharedCars,
   type SalesRecord,
 } from "@/lib/sales";
 import { REQUEST_STATUSES } from "@/lib/admin-format";
@@ -192,5 +194,36 @@ describe("groupByStage", () => {
     expect(byStatus.quoted).toBe(1);
     expect(byStatus.booked).toBe(1);
     expect(byStatus.contacted).toBe(0);
+  });
+});
+
+describe("only a paid booking takes a seat (JAM-291)", () => {
+  const now = new Date("2026-08-15T10:00:00Z");
+  const live = new Date("2026-08-15T10:05:00Z");
+  const lapsed = new Date("2026-08-15T09:55:00Z");
+
+  it("tells a paid booking, a checkout open now and a payment link apart", () => {
+    expect(paymentStateOf({ status: "confirmed", holdExpiresAt: lapsed }, now)).toBe(
+      "Paid in full",
+    );
+    expect(paymentStateOf({ status: "pending", holdExpiresAt: live }, now)).toBe(
+      "In checkout",
+    );
+    // The board keeps a lapsed pending row only when a payment link waits on it.
+    expect(paymentStateOf({ status: "pending", holdExpiresAt: lapsed }, now)).toBe(
+      "Awaiting payment",
+    );
+  });
+
+  it("counts only the paid parties of an open car as its booked seats", () => {
+    const cars = tallySharedCars([
+      { sharedCarId: "car-1", vehicleClass: "classic-small", partySize: 2, status: "confirmed" },
+      { sharedCarId: "car-1", vehicleClass: "classic-small", partySize: 1, status: "pending" },
+      { sharedCarId: "car-1", vehicleClass: "classic-small", partySize: 2, status: "expired" },
+      { sharedCarId: "car-2", vehicleClass: "classic-small", partySize: 2, status: "pending" },
+    ]);
+    expect(cars.get("car-1")).toEqual({ seatsTaken: 2, seats: 3, parties: 1 });
+    // A car with only a checkout in it has no booked seat at all.
+    expect(cars.has("car-2")).toBe(false);
   });
 });

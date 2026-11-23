@@ -9,7 +9,8 @@ import { t } from "@/i18n/config";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   auditActionLabel,
-  bookingStatusMeta,
+  bookingDisplayMeta,
+  bookingDisplayStatus,
   formatDateTime,
   formatRelativeTime,
 } from "@/lib/admin-format";
@@ -549,8 +550,10 @@ export default async function AdminLeadPage({
                 >
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                     <span className="font-mono">{bookingRef(booking.id)}</span>
-                    <Badge variant={bookingStatusMeta[booking.status].variant}>
-                      {bookingStatusMeta[booking.status].label}
+                    {/* Read against the clock: a lapsed checkout reads
+                        "Expirada" at once, not "Pagamento pendente" (JAM-291). */}
+                    <Badge variant={bookingDisplayMeta[bookingDisplayStatus(booking)].variant}>
+                      {bookingDisplayMeta[bookingDisplayStatus(booking)].label}
                     </Badge>
                     {booking.noShowAt ? <Badge variant="outline">Faltou</Badge> : null}
                     <span aria-hidden>·</span>

@@ -64,7 +64,7 @@ import "server-only";
 
 import { timingSafeEqual } from "node:crypto";
 
-import { and, eq, gte, isNotNull } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lte } from "drizzle-orm";
 
 import {
   bookings,
@@ -78,13 +78,19 @@ import { bookingContent } from "@/content/booking";
 import { t, type Locale } from "@/i18n/config";
 import type { Experience } from "@/content/experiences";
 import {
+  checkSlotAvailable,
   formatDay,
   todayKey,
   type DateKey,
   type SlotCheck,
   type SlotRefusal,
 } from "@/lib/availability";
-import { bookingRef, holdExpiryFrom } from "@/lib/bookings";
+import {
+  bookingRef,
+  checkoutSessionExpiryFrom,
+  holdExpiryFrom,
+  slotOccupancyOn,
+} from "@/lib/bookings";
 import { withDepartureLock } from "@/lib/departure-lock";
 import {
   cancellationPath,
@@ -172,6 +178,16 @@ export async function startBookingCheckout(options: {
   const partySize = party.adults + party.children + party.infants;
   const now = new Date();
   const holdExpiresAt = holdExpiryFrom(now);
+  const sessionExpiresAt = checkoutSessionExpiryFrom(now);
+
+  // A lapsed hold on this departure may still have an open Stripe session: the
+  // session lives longer than the hold (`CHECKOUT_SESSION_MINUTES`). Close
+  // those sessions before this guest takes their seats, so the guest who left
+  // cannot pay for them afterwards. Best effort: a failure here never costs
+  // this sale, and `confirmPaidBooking` re-checks a late payment.
+  await expireLapsedCheckoutsOn(date, slot, now).catch((err) => {
+    console.error(`[booking] couldn't close the lapsed checkouts of ${date} ${slot}`, err);
+  });
 
   /**
    * The booking's own credential, hashed onto the row from the moment it
@@ -337,9 +353,9 @@ export async function startBookingCheckout(options: {
             ? { application_fee_amount: applicationFeeCents }
             : {}),
         },
-        // The same instant the hold lapses, so the two cannot disagree about
-        // whether paying is still possible.
-        expires_at: Math.floor(holdExpiresAt.getTime() / 1000),
+        // Stripe's shortest expiry, which outlives the hold. See
+        // `CHECKOUT_SESSION_MINUTES` for what closes the gap.
+        expires_at: Math.floor(sessionExpiresAt.getTime() / 1000),
         locale: locale === "pt" ? "pt" : "en",
         // Where a completed payment sends the page — the same confirmation
         // page the hosted checkout's `success_url` used, on our own domain.
@@ -371,7 +387,7 @@ export async function startBookingCheckout(options: {
 
     return { ok: true, clientSecret: session.client_secret, bookingId: booking.id };
   } catch (err) {
-    // The hold would lapse on its own in half an hour, but a car held for a
+    // The hold would lapse on its own in a few minutes, but a car held for a
     // checkout that never started is a car nobody can book for no reason.
     await db
       .update(bookings)
@@ -450,6 +466,18 @@ export async function confirmPaidBooking(options: {
       `[booking] ${bookingRef(existing.id)} was paid but is ${existing.status} — needs a human`,
     );
     return { status: "not-payable", booking: existing };
+  }
+  if (existing.holdExpiresAt.getTime() <= now.getTime()) {
+    // Paid after the hold lapsed: the Stripe session outlives the hold
+    // (`CHECKOUT_SESSION_MINUTES`), and another guest may have taken the
+    // seats since. Confirm only if they are still free.
+    const reclaimed = await reclaimLapsedHold(existing, now);
+    if (!reclaimed) {
+      console.error(
+        `[booking] ${bookingRef(existing.id)} was paid after its hold lapsed and its seats are gone — needs a human`,
+      );
+      return { status: "not-payable", booking: existing };
+    }
   }
 
   /**
@@ -792,6 +820,111 @@ export async function closeUnpaidBooking(options: {
     after: { ref: bookingRef(closed.id), date: closed.date, status: options.status },
     ipAddress: null,
   });
+}
+
+/**
+ * Take the seats of a booking whose hold lapsed back, if they are still free.
+ *
+ * The same re-check and guarded claim as a payment link's "Pagar"
+ * (`lib/payment-link.ts`), under the departure's lock, so a guest starting a
+ * checkout for the same seats in the same second waits and then reads this
+ * booking. The team's audience: the guest booked inside the notice when they
+ * started, and only capacity binds now. Returns false when the seats are gone
+ * or the check cannot be read: the payment then waits for a person, which is
+ * a phone call and never an overbooked car.
+ */
+async function reclaimLapsedHold(booking: Booking, now: Date): Promise<boolean> {
+  try {
+    return await withDepartureLock(booking.date, booking.slot, async () => {
+      const fit = await checkSlotAvailable({
+        experienceSlug: booking.experienceSlug,
+        date: booking.date,
+        slot: booking.slot,
+        partySize: booking.partySize,
+        mode: booking.mode,
+        occupancy: await slotOccupancyOn(booking.date, booking.slot, now),
+        audience: "team",
+      });
+      if (!fit.ok) return false;
+      // Guarded on the lapsed hold: a second caller (the webhook and the
+      // confirmation page race) finds the hold live again, claims nothing,
+      // and goes on to the confirm guard, which settles the race.
+      const [held] = await db
+        .update(bookings)
+        .set({
+          holdExpiresAt: holdExpiryFrom(now),
+          vehicleClass: fit.vehicleClass,
+          sharedCarId: fit.sharedCarId,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(bookings.id, booking.id),
+            eq(bookings.status, "pending"),
+            lte(bookings.holdExpiresAt, now),
+          ),
+        )
+        .returning({ id: bookings.id });
+      if (held) return true;
+      const [current] = await db
+        .select({ holdExpiresAt: bookings.holdExpiresAt })
+        .from(bookings)
+        .where(eq(bookings.id, booking.id))
+        .limit(1);
+      return current !== undefined && current.holdExpiresAt.getTime() > now.getTime();
+    });
+  } catch (err) {
+    console.error(`[booking] couldn't re-check the seats of ${bookingRef(booking.id)}`, err);
+    return false;
+  }
+}
+
+/**
+ * Close the open Stripe sessions of the lapsed holds on one departure, and the
+ * bookings behind them.
+ *
+ * A hold lasts `BOOKING_HOLD_MINUTES` and its session `CHECKOUT_SESSION_MINUTES`,
+ * because Stripe accepts no shorter session. In between, the seats are free for
+ * other guests while the first guest can still pay. A new checkout on the
+ * departure calls this first: once Stripe has expired a session, nobody can pay
+ * it. A session that Stripe will not expire (already paid, already expired, or
+ * Stripe out of reach) is left to its webhook, and a late payment is re-checked
+ * by {@link confirmPaidBooking}. Returns how many sessions it closed.
+ */
+export async function expireLapsedCheckoutsOn(
+  date: DateKey,
+  slot: AvailabilitySlot,
+  now: Date = new Date(),
+): Promise<number> {
+  if (!isStripeConfigured()) return 0;
+  const lapsed = await db
+    .select({ sessionId: bookings.stripeSessionId })
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.date, date),
+        eq(bookings.slot, slot),
+        eq(bookings.status, "pending"),
+        isNotNull(bookings.stripeSessionId),
+        lte(bookings.holdExpiresAt, now),
+      ),
+    );
+
+  let closed = 0;
+  for (const { sessionId } of lapsed) {
+    if (!sessionId) continue;
+    try {
+      await onOwningAccount((options) =>
+        stripe().checkout.sessions.expire(sessionId, {}, options),
+      );
+    } catch (err) {
+      console.warn(`[booking] Stripe did not expire ${sessionId}`, err);
+      continue;
+    }
+    await closeUnpaidBooking({ sessionId, status: "expired" });
+    closed += 1;
+  }
+  return closed;
 }
 
 /**

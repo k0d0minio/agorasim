@@ -229,6 +229,16 @@ export async function POST(request: Request): Promise<Response> {
           extra: { sessionId: session.id },
         });
       }
+      if (outcome.status === "not-payable") {
+        // Money for a booking that cannot take its seats: paid after its hold
+        // lapsed and the seats were resold (JAM-291), or paid on a closed
+        // booking. A person refunds or rebooks it.
+        captureAlert("Paid Stripe session on a booking that cannot be confirmed", {
+          area: "stripe-webhook",
+          tags: { event: event.type, outcome: "not-payable" },
+          extra: { sessionId: session.id, bookingId: outcome.booking.id },
+        });
+      }
 
       return Response.json({ received: true, outcome: outcome.status });
     }
