@@ -41,3 +41,11 @@ The operator files these later. One entry for each finding.
   `claude/jam-481-brand-palette-e50b9b`, o ramo do worktree, e não o `gitBranchName` do Linear
   (`contact/jam-481-agorasim-the-site-and-the-emails-use-the`), como nos runs irmãos.
 - proposed: chore (blueprint)
+
+## O hover do botão destrutivo fica abaixo de 4.5:1
+
+- where: `web/src/components/ui/button.tsx`, variante `destructive`, `hover:bg-destructive/20`
+- what: Com o vermelho novo, o texto sobre `bg-destructive/20` mede 4.08:1 sobre Off-white e
+  4.51:1 sobre Paper. É um estado de hover, não o estado de repouso. O critério do ticket fala só
+  de `bg-destructive/10`, que passa. Uma correção possível: `hover:bg-destructive/15`.
+- proposed: tweak

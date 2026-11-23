@@ -2,41 +2,40 @@
 
 ## Next action
 
-O operador lê a spec no pull request #280 e marca **Spec approved**. Depois diz `build JAM-481`.
-O Build muda os seis ficheiros de `touches:` da spec e não toca noutro ficheiro.
+O operador testa a pré-visualização e marca **Ready to merge** no pull request #280. Depois diz
+`release JAM-481`.
 
 ## How to test
 
-Ainda não há nada para testar: a fase Define não escreve código. Depois do Build, abra a
-pré-visualização do pull request #280 e veja a página inicial, uma experiência, o fluxo de
-reserva e `/admin` com fundo Off-white e botões em Deep teal.
+Abra a pré-visualização (https://agorasim-git-claude-jam-481-brand-palette-e50b9b-kodominio.vercel.app) num telemóvel: a página inicial, uma experiência, o primeiro passo
+de `/reservar` e `/admin` têm fundo Off-white, botões em Deep teal e cartões Paper. Faça uma
+reserva de teste e veja o email: botão e ligações em Deep teal, contactos em Warm sand.
+
+## Acceptance criteria
+
+- Critério 1, tokens: cumprido. Na pré-visualização, cada token de `:root` dá o hex do mapa de
+  `.icm/docs/brand.md` (lido com o canvas do navegador em 2026-11-23). Os sete aliases
+  `--color-brand-*` estão em `@theme inline`. O Tailwind gera a classe quando um componente a usa.
+- Critério 2, emails: cumprido. `emailPalette` tem o hex dos tokens e dois passos derivados do
+  Deep teal: `primaryDark` `#0D373B` (Off-white sobre ele 10.71:1) e `primaryTint` `#DBECED`
+  (Deep teal sobre ele 7.99:1). O comentário tem os rácios novos.
+- Critério 3, cor do navegador e manifesto: cumprido. A pré-visualização serve `#F3E9D5` no
+  `theme-color` do site e de `/admin`, e no `background_color` e `theme_color` do manifesto.
+- Critério 4, `bg-destructive/10`: cumprido. `--destructive` é `#B31319`. Na pré-visualização o
+  texto mede 4.89:1 sobre Off-white e 5.41:1 sobre Paper.
+- Critério 5, pré-visualização: para o operador. A página inicial foi vista pelo agente com fundo
+  Off-white e botões em Deep teal. O email não foi visto: precisa de uma reserva de teste.
+- Critério 6, CI: cumprido. CI GREEN em f5350d1.
 
 ## What was decided
 
 - Palavra do Jamie, no chat, em 2026-11-23: "Start the next set of parallel tickets please".
-  Este ticket é um deles. O run começa com os defaults e não espera pelo cliente.
-- Q1 a Q3 são as perguntas do ticket. Usam o default, que é o de `.icm/docs/brand.md`: fundo
-  Off-white com cartões Paper, a consola usa os mesmos tokens, e teal, areia e terracota são as
-  três cores principais.
-- Q4 é nova. Com o `--destructive` de hoje, `oklch(0.53 0.19 27)` (`#C22826`), o texto em
-  `bg-destructive/10` mede 4.16:1 sobre Off-white, 4.62:1 sobre Paper e 3.60:1 sobre Warm sand.
-  O default escurece o vermelho para `oklch(0.49 0.19 27)` (`#B31319`): 4.86:1 sobre Off-white,
-  5.40:1 sobre Paper, 4.19:1 sobre Warm sand, e texto branco sobre o vermelho 6.92:1.
-- O Jamie pode mudar cada resposta no corpo do pull request, no gate Spec approved.
-
-## Notes for Build
-
-- Os valores oklch de `brand.md` dão o hex da tabela da paleta. Uma exceção: Orange text
-  `oklch(0.511 0.118 51.2)` dá `#9A4F1B`, não `#9A4F1A`. Use o oklch no CSS.
-- `emailPalette` tem quatro chaves sem linha no mapa de tokens: `primaryDark`, `primaryTint`,
-  `sand` e `onSand`. `sand` é Warm sand e `onSand` é Ink. `primaryDark` e `primaryTint` são passos
-  derivados do Deep teal: meça o contraste de cada um e escreva-o no comentário.
-- Veja onde `bg-destructive/10` fica sobre uma superfície `muted` ou `secondary` (Warm sand): aí
-  o vermelho novo mede 4.19:1. Se existir um caso, é um finding ou uma correção deste run.
-- O gradiente de `media.tsx` usa hoje um `hue` que vem do `seed`. O Build troca-o por passos da
-  paleta e mantém o gradiente determinístico por `seed`.
-- Verifique no preview: o hover do menu móvel, as faixas de aviso, o select e o calendário do
-  seletor de datas (o `--accent` novo), e as fotografias de tons frios sobre Off-white.
+  Q1 a Q4 usam o default. O Jamie marcou Spec approved e disse "Build" em 2026-11-23.
+- Q4: `--destructive` passa de `oklch(0.53 0.19 27)` para `oklch(0.49 0.19 27)`.
+- O gradiente de `media.tsx` escolhe um de quatro gradientes da paleta pelo `seed`. Cada um acaba
+  numa cor escura, para a etiqueta branca continuar legível.
+- Os tokens `--sidebar-*` não mudaram: não são da marca e nenhum componente da consola os usa
+  para cor visível.
 
 ## Blockers
 
@@ -45,5 +44,4 @@ reserva e `/admin` com fundo Off-white e botões em Deep teal.
 ## Do not touch
 
 - Os ficheiros brutos do designer em `web/public/images/` do checkout principal (decisão D47).
-- O tipo de letra, os componentes, e os ficheiros dos tickets JAM-482 a JAM-485.
-- `web/drizzle/`, `web/src/lib/fleet.ts` e os ficheiros de reserva dos pull requests #277 e #278.
+- O tipo de letra e os ficheiros dos tickets JAM-482 a JAM-485.
