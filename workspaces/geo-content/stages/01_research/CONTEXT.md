@@ -2,6 +2,7 @@
 
 ## Inputs
 - Layer 4 (working): `../../setup/questionnaire.md`
+- Layer 4 (working): `../../topics.md`, the topic queue. The questionnaire names the topics of the run.
 - Layer 3 (reference): `../../../_config/business-facts.md`
 - Layer 3 (reference): `../../../shared/geo-checklist.md`
 
@@ -16,3 +17,4 @@ Do not write final copy here — this is direction-setting.
 
 ## Outputs
 - `output/research.md`
+- `../../topics.md`, with the State `brief` for each topic of the run.

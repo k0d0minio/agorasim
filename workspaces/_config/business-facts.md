@@ -17,8 +17,9 @@ Use these facts verbatim. Do not invent prices, dates or claims not listed here.
 - Instagram / Facebook: @agorasim.pt
 
 ## Classic cars
-Citroën 2CV, Renault 4L, Fiat 600 (3 guests each), Volkswagen T3 (8 guests). The Óbidos route
-departs from Lisbon in a non-classic touring vehicle — the classics stay on the Saloia routes.
+Citroën 2CV, Renault 4L, Fiat 600 (3 guests each), Volkswagen T3 (8 guests). Every guest takes
+a seat, infants included. The Óbidos route departs from Lisbon in a non-classic touring
+vehicle — the classics stay on the Saloia routes.
 
 ## Capacity
 Two drivers across the fleet, so **at most two tours leave at once**, business-wide, in two
@@ -61,7 +62,9 @@ infants under 4 travel free on every route.
   11 €650 · 12 €700
 - Children 4–12: €30 each · Infants under 4: free
 
-**Add-ons — private Rural Saloia departures only, never sold on their own**
+**Add-ons — private departures only, never sold on their own**
+Each add-on joins a private departure of Rural Saloia or of Óbidos & Medieval Villages (the
+site, 2026-10-28). A public departure takes no add-on.
 - Tasco Galapito: €60 per adult, €25 per child, infants free; minimum 2 at the table.
 - Manzwine: €35 per adult; minimum 2 adults; closed on Mondays.
 - Ramilo Wines: €45 per adult; minimum 3 adults.

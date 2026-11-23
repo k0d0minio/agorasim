@@ -2,6 +2,8 @@
 
 - **Run**: first blog batch · `.icm/intake/blog-engine/blog-pipeline-first-batch.md`
 - **Date**: 2026-08-31
+- **Checked against the facts again**: 2026-11-23 (JAM-508). The section "Facts check of
+  2026-11-23" lists each correction.
 - **Inputs read**: `setup/questionnaire.md`, `_config/business-facts.md` (re-verified this run),
   `shared/geo-checklist.md`
 - **Scope**: five articles. Direction only — no final copy here.
@@ -24,13 +26,36 @@ with each other exactly:
 | `web/src/content/experiences.ts` `pricing` | matches the PDF, figure for figure |
 | `workspaces/_config/business-facts.md` | **updated this run** — price list, meeting points and cancellation terms added |
 
-Olaria MZ was already absent and stays absent. Two things the brief deliberately does **not**
-let the drafts state, because the business has not answered them:
+Olaria MZ was already absent and stays absent. One thing the brief deliberately does **not**
+let the drafts state, because the business has not answered it:
 
 - **Óbidos departure times.** One morning and one afternoon departure; the hour is confirmed
   after booking. Articles say exactly that and no more — never an invented clock time.
-- **Whether tiers count PAX or adults.** Every price in these articles is quoted as a "from"
-  figure with its unit named, never as an arithmetic worked example for a mixed party.
+
+The second open point of 2026-08-31 is closed. **A price tier and a minimum count adults
+only** (the client, 2026-09-11). Every price in these articles is still quoted as a "from"
+figure with its unit named, never as an arithmetic worked example for a mixed party.
+
+---
+
+## Facts check of 2026-11-23 (JAM-508)
+
+The brief was read against `business-facts.md` again, and `business-facts.md` against the site
+copy (`web/src/content/experiences.ts`). Five facts changed after 2026-08-31.
+
+| Fact | True today | Change in this brief |
+|---|---|---|
+| The event day hold (2026-09-25) | A wedding or an event with a paid deposit takes the whole day: both departures of that date are off sale for each tour. A guest is told only that the day is unavailable, never why | Batch-wide note 6. No article says that a tour runs every day |
+| The open departures (2026-10-01) | Each departure is on sale unless Diogo and Rita closed it. Online, a guest books at least two calendar days ahead and up to six months ahead. A nearer or later date is a phone call | Article 2, the row "Booking and cancelling". Batch-wide note 6 |
+| The add-ons (the site, 2026-10-28) | Each add-on joins a private departure of Rural Saloia or of Óbidos & Medieval Villages. A public departure takes no add-on. No add-on is sold alone | Article 4: the primary answer, the first question, the first row, the adjacent info. Article 5: a new row and a new question. `business-facts.md` said "Rural Saloia only": corrected in the same pull request |
+| The seats of each car (the site, 2026-10-28) | Citroën 2CV, Renault 4L and Fiat 600: 3 guests each. Volkswagen T3: 8 guests. A group above 8 is arranged by conversation, not online | Article 2, the row of the cars |
+| The child headcount rule (the client, 2026-09-11) | A price tier and a minimum count adults only. A child (4–12) or an infant (under 4) does not count for them. Each guest, infants included, takes a seat in the car | The open point above is closed. Article 2, the row "Children and infants". Article 5, the row of the prices |
+
+The words "everyone counts for seats" of 2026-08-31 were true and stay true: the seats count
+each guest. The words did not say that the price tier and the minimum count adults only. The
+brief now says both.
+
+No other fact of the brief was checked again in this run.
 
 ---
 
@@ -88,11 +113,11 @@ and private ones at €220 for the group.
 | Angle | Supported by |
 |---|---|
 | The answer-first spec: 4h30, Sintra, 10:00/14:00, €62pp / €220 group | business-facts prices + meeting points |
-| The cars as the reason to book, named | 2CV, R4L, Fiat 600 (3 guests each), T3 (8 guests) |
+| The cars as the reason to book, named | 2CV, R4L, Fiat 600 (3 guests each), T3 (8 guests); a group above 8 is arranged by conversation, not online |
 | What is actually seen | natural monuments Sintra→Mafra, National Palace of Mafra, vineyards, villages, Ericeira, Atlantic coast, gastronomic stops |
 | Small by design, not by accident | two drivers across the fleet — at most two tours leave at once |
-| Children and infants | 4–12 from €35 public / €30 private; under 4 free; everyone counts for seats |
-| Booking and cancelling | `/reservar` calendar + card; free cancellation to 48h, full refund |
+| Children and infants | 4–12 from €35 public / €30 private; under 4 free; the price tier and the minimum count adults only; each guest, infants included, takes a seat in the car |
+| Booking and cancelling | `/reservar` calendar + card; online at least two calendar days ahead and up to six months ahead; a nearer or later date by phone; free cancellation to 48h, full refund |
 
 **Adjacent info to address**: "classic car tour Sintra" also returns self-drive rentals and
 hop-on transfers. Say early that this is guided and driven for you, and that it goes *away*
@@ -142,10 +167,11 @@ offers surfing, which it does not.
 Eating in the Saloia region means a long table rather than a restaurant: Tasco Galapito serves a
 family-style meal of traditional Saloia cooking, and two local producers pour what the region
 grows — Manzwine in Mafra and Ramilo Wines on the Atlantic-facing slopes of Colares. All three
-are add-ons to a private Rural Saloia departure and are not sold on their own.
+are add-ons to a private departure of Rural Saloia or of Óbidos & Medieval Villages, and are
+not sold on their own.
 
 **Questions travellers ask**:
-- Can I book the meal or the tasting without the tour? (No — private departures only.)
+- Can I book the meal or the tasting without the tour? (No — they join a private departure of Rural Saloia or of Óbidos & Medieval Villages.)
 - What is served at Tasco Galapito?
 - What is the difference between the two wineries?
 - What do the add-ons cost, and is there a minimum group?
@@ -155,15 +181,15 @@ are add-ons to a private Rural Saloia departure and are not sold on their own.
 **Angles and the facts behind them**:
 | Angle | Supported by |
 |---|---|
-| The gate stated first, so nobody plans a trip around a stop they cannot buy | add-ons: private Rural Saloia only, never separate |
+| The gate stated first, so nobody plans a trip around a stop they cannot buy | add-ons: private departures of Rural Saloia or of Óbidos & Medieval Villages only, never separate, never on a public departure |
 | Tasco Galapito, ~2h | €60 per adult, €25 per child, infants free, minimum 2 at the table |
 | Manzwine, ~1h30, Mafra, wine with historical context | €35 per adult, minimum 2 adults, **closed Mondays** |
 | Ramilo Wines, ~1h30, organic vineyards, Atlantic influence | €45 per adult, minimum 3 adults |
 | Why the producers matter | positioning: supports local producers and artisans |
 
 **Adjacent info to address**: readers search this as if it were a bookable food tour. The
-article must be honest that the meal and the tastings hang off a private tour, and point at
-`/reservar` for the tour rather than implying a separate checkout. Olaria MZ is retired and is
+article must be honest that the meal and the tastings hang off a private departure of one of
+the two tours, and point at `/reservar` for the tour rather than implying a separate checkout. Olaria MZ is retired and is
 not mentioned.
 
 ---
@@ -186,14 +212,16 @@ departure is €360 for a group of up to three adults.
 - What is the food and wine stop?
 - What time does it leave?
 - Do children pay?
+- Can I add the Saloia meal or a wine tasting? (Yes, on a private departure.)
 
 **Angles and the facts behind them**:
 | Angle | Supported by |
 |---|---|
 | The spec first: ~5h, from Lisbon, Óbidos + villages, food and wine stop | business-facts experiences |
+| More food and wine, for a private group | add-ons: Tasco Galapito, Manzwine and Ramilo Wines join a private departure of this tour, at their own prices and minimums; Manzwine is closed on Mondays; none on a public departure |
 | The villages are the point, not only the famous walled town | "lesser-known medieval villages" |
 | The honest vehicle answer | the Óbidos route runs in a non-classic touring vehicle; the classics stay on the Saloia routes |
-| Prices and the two-adult public minimum | €100/adult public (min 2); €360 group / €110pp private; children €40; infants free |
+| Prices and the two-adult public minimum | €100/adult public (min 2 adults; a child does not count for the minimum); private €360 for a group of 1–3 adults, €110pp for 4–12 adults; children €40; infants free |
 | Meeting point named, hour honestly deferred | Alameda Cardeal Cerejeira, Lisbon; morning and afternoon departures, exact hour confirmed after booking |
 
 **Adjacent info to address**: this competes with high-volume "Óbidos day trip" coach listings.
@@ -211,9 +239,15 @@ advantage: it answers a question the coach listings dodge.
    Saloia. Prose references only (the body is plain text; the pages carry their own links).
 3. **The FAQ lives as prose.** The blog renderer emits `<p>` and the parser refuses headings,
    so each article ends with its questions as short question-paragraph / answer-paragraph
-   pairs. Stage 03 records what this costs against the GEO checklist.
+   pairs. `shared/geo-checklist.md` says which GEO items a blog article meets and which it
+   does not.
 4. **Prices are quoted as "from", with the unit said** — "from €62 per person", "from €220 for
    the group" — so a tier change does not make an article wrong.
 5. **Hero images** are drawn from `web/public/images/` and their alt text describes the
    photograph, not the article. Article 3 has no Ericeira frame in the library; it takes a
    dusk frame from `rural-saloia/` and the alt says so.
+6. **A date is never promised.** No article says that a tour runs every day or that a date is
+   free. An article says that there are two departures a day and that the calendar of
+   `/reservar` shows the dates on sale. A closed date is "unavailable", with no reason: a
+   wedding or an event can take the whole day. Online booking is from two calendar days ahead
+   to six months ahead. A nearer or later date is a phone call.
