@@ -26,7 +26,8 @@ What is the cheapest way to give the client a status that stays true by itself?
   first. Its areas come from one list, `web/src/lib/admin-nav.ts`.
 - The release pull request (#214, v1.1.0) lists what is on UAT and not in production. Its
   lines are technical English commit titles, grouped by code area, not by the six features.
-- No Linear project or label maps a ticket to one of the six features of the guide.
+- The Linear project agorasim exists. No milestone or label in it maps a ticket to one of the
+  six features of the guide.
 - The client questions of seats-and-holds are in `.icm/intake/seats-and-holds/breakdown.md`,
   not in Linear.
 
@@ -57,11 +58,11 @@ moves each ticket through the Linear states. The page shows those states in Port
 | Label Waiting on a client or Waiting on content, in an open state | Espera por vocês |
 | Triage, Backlog, Canceled, Duplicate | Not shown |
 
-The six features come from six Linear projects, one for each feature of the guide. The
-state of a feature is the state of its tickets. The **next date** is the target date of the
-project in build. A project with no target date shows "Data por confirmar".
+The six features come from six milestones of the Linear project agorasim, one for each feature
+of the guide. The state of a feature is the state of its tickets. The **next date** is the
+target date of the milestone in build. A milestone with no target date shows "Data por confirmar".
 
-The page shows only the tickets of the six agorasim projects. It shows the title, the state
+The page shows only the tickets of the project agorasim. It shows the title, the state
 and the date. It never shows a description, a comment or a ticket of another project. Thus
 the other work of team `JAM` stays private.
 
@@ -118,11 +119,11 @@ count of "Espera por vocês".
 - **Title:** agorasim · The admin console shows the build status on a Progresso page
 - **Lane:** `new`. **Size:** 3 (Fibonacci), about 1.5 days.
 - **Scope:**
-  1. A server module reads Linear with GraphQL: the six agorasim projects, their target
-     dates, and their tickets (title, state, labels). Cache: 5 minutes. About 0.5 day.
+  1. A server module reads Linear with GraphQL: the six milestones of the project agorasim,
+     their target dates, and their tickets (title, state, labels). Cache: 5 minutes. About 0.5 day.
   2. The page `/admin/progresso`, its entry in `web/src/lib/admin-nav.ts`, and the count on
      the dashboard. pt-PT text only (the admin is Portuguese only). About 0.5 day.
-  3. The map of the six features: a pt-PT name for each Linear project id. About 0.1 day.
+  3. The map of the six features: a pt-PT name for each Linear milestone id. About 0.1 day.
   4. A fault of Linear shows "Estado indisponível" and the time of the last good read.
      The rest of the admin works. About 0.1 day.
   5. Tests of the state map and of the filter (no ticket of another project). About 0.3 day.
@@ -130,11 +131,12 @@ count of "Espera por vocês".
   - The page shows the six features, "Espera por vocês", the next date and the sections
     of the state table above.
   - A move of a ticket in Linear shows on the page in 5 minutes or less, with no deploy.
-  - The page shows no ticket, description or comment outside the six agorasim projects.
+  - The page shows no ticket, description or comment outside the project agorasim.
   - The page works at 320 px and 375 px.
 - **Before the build (acts of a person, not of the ticket):**
-  1. Jamie makes the six Linear projects with target dates, and puts each open agorasim
-     ticket in one. This is a Linear change.
+  1. The six milestones on the project agorasim, with target dates, and each open agorasim
+     ticket in one. This is a Linear change. The BAXTER Linear tool cannot make a milestone
+     today.
   2. Jamie makes a Linear API key with read access to team `JAM` only. Its name is
      `LINEAR_API_KEY`. Its value goes in the Vercel environments UAT and Production, never
      in git.
@@ -153,8 +155,9 @@ count of "Espera por vocês".
 
 1. Do Diogo and Rita each have an account on the UAT admin console? Default: yes. If not,
    the build ticket adds the two accounts as a setup act.
-2. The six features as six Linear projects, or as one label group? Default: projects,
-   because a project has a target date, and the date is the "next date" of the page.
+2. The six features as six milestones of the project agorasim, or as one label group?
+   Default: milestones, because a milestone has a target date, and the date is the "next
+   date" of the page.
 3. English titles until the `pt:` line exists? Default: yes. The client reads the six
    features and "Espera por vocês" in Portuguese from the start, because the page writes
    those names itself.
