@@ -47,12 +47,12 @@
    and the Facebook photo post. The remote id, link or error on the row. Retry. A kill switch.
    An alert on a token error. Depends on 3 and 4.
 
-## F4. Filing data for the tickets of F3
+## F4. The tickets of F3, filed
 
-Linear was not written. On 2026-11-23 the parent session relayed Jamie's word to create these
-tickets. The permission classifier of this session refused the write: the repo rule says that a
-session does not write to Linear. File them with these values, or allow the write in this
-session and say so here.
+Filed in Linear on 2026-11-23, on Jamie's word in chat ("Yes, allow it"), after the parent
+session relayed Jamie's decision of the same day. Keys: 1 = JAM-509, 2 = JAM-512, 3 = JAM-515,
+4 = JAM-518, 5 = JAM-522. Relations: JAM-509 blocks JAM-512, JAM-512 blocks JAM-515, JAM-515
+blocks JAM-522, JAM-518 blocks JAM-522. Each is related to JAM-477.
 
 Common to all five:
 - team `JAM`, project `agorasim`, state `Triage`, priority 4 (Low).
