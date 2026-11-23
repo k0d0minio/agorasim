@@ -295,6 +295,13 @@
       "when": 1793223388981,
       "tag": "0041_balance_payable_from_deposit",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1795449962273,
+      "tag": "0042_landing_source",
+      "breakpoints": true
     }
   ]
 }
