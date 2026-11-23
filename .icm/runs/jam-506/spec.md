@@ -33,8 +33,9 @@ visitante recarrega uma página interior, o `utm_source` perde-se e fica só o h
 **O que Diogo e Rita veem na consola (em português, primeiro no telemóvel).**
 
 - Cada cartão do Sales board e a página de cada registo mostram "Origem: …".
-- A origem tem um nome legível: ChatGPT, Google, Bing, Perplexity, Instagram, Facebook. Outra
-  origem mostra o seu valor (por exemplo `tripadvisor.com`). O `utm_source` ganha ao referrer.
+- A origem é o `utm_source`, em minúsculas (por exemplo `chatgpt.com`). Sem `utm_source`, é o
+  host do referrer sem `www.` (por exemplo `perplexity.ai`). Cada host do Google (`google.com`,
+  `google.pt`) mostra `google`, como o ticket diz.
 - Sem `utm_source` e sem referrer: "Direta ou desconhecida".
 - Um registo de antes desta mudança, ou feito na consola: "Sem registo".
 - Uma secção "Origem das reservas" na página Sales: para cada um dos últimos 6 meses, o número
@@ -72,8 +73,8 @@ que substitui.
 
 ## Acceptance criteria
 
-- [ ] Uma reserva feita depois de entrar por `/pt?utm_source=chatgpt.com` mostra "Origem: ChatGPT" no cartão do Sales board e na página do registo. (verify: operator)
-- [ ] Um teste mostra que uma reserva com o referrer `https://www.google.com/` e sem `utm_source` fica com a origem "Google". (verify: CI)
+- [ ] Uma reserva feita depois de entrar por `/pt?utm_source=chatgpt.com` mostra "Origem: chatgpt.com" no cartão do Sales board e na página do registo. (verify: operator)
+- [ ] Um teste mostra que uma reserva com o referrer `https://www.google.com/` e sem `utm_source` fica com a origem "google". (verify: CI)
 - [ ] Um teste mostra que um pedido de orçamento (passeio, casamento, evento) guarda a origem como a reserva. (verify: CI)
 - [ ] Um teste mostra que o servidor guarda só o host do referrer, e que o referrer do próprio site é ignorado. (verify: CI)
 - [ ] Um teste mostra que um valor de origem que não é válido é ignorado e que a reserva é criada. (verify: CI)
@@ -97,6 +98,7 @@ que substitui.
 
 ## Open questions
 
-- O texto do ticket foi lido da mensagem que iniciou a sessão. O MCP do Linear não estava ligado.
+- O ticket foi lido no Linear em 2026-11-23 com `baxter_tool run linear get_issue`, por palavra do Jamie no chat. O conector Linear do Claude Code não estava ligado.
+- O ramo do Linear é `contact/jam-506-agorasim-each-booking-and-enquiry-records`. O run usa `claude/jam-506-booking-source-e151c6`, o ramo da sessão, porque o pull request #277 já existia quando o ticket foi lido.
 - O número `0042` é o seguinte livre em `origin/main` em 2026-11-23. Nenhum pull request aberto tem uma migração. Outro ticket com uma migração espera por este.
 - Se uma venda por orçamento (casamento, evento) não cria uma linha em `bookings`, o Build escreve isso em `findings.md` e a contagem conta só as linhas de `bookings`.

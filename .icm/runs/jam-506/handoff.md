@@ -18,7 +18,7 @@ número `0042`. O pull request diz esse número, porque outros tickets com uma m
 ## How to test
 
 Ainda não há nada para testar: o Define não escreve código. Depois do Build: entre no preview
-por `/pt?utm_source=chatgpt.com`, faça uma reserva, e veja "Origem: ChatGPT" no cartão do Sales
+por `/pt?utm_source=chatgpt.com`, faça uma reserva, e veja "Origem: chatgpt.com" no cartão do Sales
 board.
 
 ## Blockers
