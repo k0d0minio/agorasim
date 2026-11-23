@@ -145,6 +145,27 @@ describe("exportSubjectData", () => {
     });
   });
 
+  it("puts where the visit started in the file, with the enquiry (JAM-506)", async () => {
+    queueResult([
+      {
+        id: LEAD_ID,
+        email: "marta@example.pt",
+        name: "Marta Nunes",
+        landingUtmSource: "chatgpt.com",
+        landingReferrerHost: "chatgpt.com",
+      },
+    ]);
+    queueResult([]);
+    queueResult([]);
+
+    const data = await exportSubjectData("marta@example.pt");
+
+    expect(data.records.tourRequests[0]).toMatchObject({
+      landingUtmSource: "chatgpt.com",
+      landingReferrerHost: "chatgpt.com",
+    });
+  });
+
   it("normalizes the address it was asked about", async () => {
     queueFullSubject();
 

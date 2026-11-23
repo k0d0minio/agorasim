@@ -92,6 +92,59 @@ describe("submitTourRequest — the honeypot", () => {
   });
 });
 
+describe("submitTourRequest — where the visit started (JAM-506)", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it("stores the utm_source and only the host of the referrer", async () => {
+    const form = tourForm();
+    form.set("landingUtmSource", "chatgpt.com");
+    form.set("landingReferrer", "https://chatgpt.com/c/a-private-conversation");
+
+    expect(await submitTourRequest({}, form)).toEqual({ ok: true });
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        landingUtmSource: "chatgpt.com",
+        landingReferrerHost: "chatgpt.com",
+      }),
+    );
+  });
+
+  it("ignores the site's own page as a referrer", async () => {
+    const form = tourForm();
+    form.set("landingUtmSource", "");
+    form.set("landingReferrer", "https://uat.agorasim.pt/pt/experiencias");
+
+    await submitTourRequest({}, form);
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({ landingUtmSource: null, landingReferrerHost: "" }),
+    );
+  });
+
+  it("drops a value that is not valid, and stores the enquiry", async () => {
+    const form = tourForm();
+    form.set("landingUtmSource", "<script>alert(1)</script>");
+    form.set("landingReferrer", "javascript:alert(1)");
+
+    expect(await submitTourRequest({}, form)).toEqual({ ok: true });
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({ landingUtmSource: null, landingReferrerHost: "" }),
+    );
+  });
+
+  it("says not recorded for a form that carries no source fields", async () => {
+    await submitTourRequest({}, tourForm());
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({ landingUtmSource: null, landingReferrerHost: null }),
+    );
+  });
+});
+
 /*
  * A refused enquiry sends back what the guest typed (JAM-497). React resets
  * the form after the action, and the form uses these values as its defaults,

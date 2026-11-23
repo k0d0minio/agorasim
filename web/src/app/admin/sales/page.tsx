@@ -16,13 +16,15 @@ import {
   type UnpaidBalancesDue,
 } from "@/lib/quotes";
 import { countPendingRetention, retentionDays } from "@/lib/retention";
-import { listSalesBoard } from "@/lib/sales";
+import type { SourceMonth } from "@/lib/booking-source";
+import { listSalesBoard, listSourceCounts } from "@/lib/sales";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlaceholderPanel } from "@/components/admin/placeholder-panel";
 import { SalesBoard } from "@/components/admin/sales-board";
 import { SalesSearchResults } from "@/components/admin/sales-search-results";
+import { SourceCountsPanel } from "@/components/admin/source-counts-panel";
 import { SubjectExportForm } from "@/components/admin/subject-export-form";
 import {
   UnpaidBalancesPanel,
@@ -69,7 +71,7 @@ export default async function AdminSalesPage({
   const isOwner = viewer.role === "owner";
 
   const now = new Date();
-  const [{ records, totalEnquiries, countsByStatus }, catalogue, openDays, unpaid] =
+  const [{ records, totalEnquiries, countsByStatus }, catalogue, openDays, unpaid, sourceMonths] =
     await Promise.all([
       listSalesBoard(query),
       listCatalogue(),
@@ -84,6 +86,14 @@ export default async function AdminSalesPage({
         : listUnpaidBalancesDue({ now }).catch((err): UnpaidBalancesDue => {
             console.error("[sales] unpaid balances could not be read", err);
             return NO_UNPAID_BALANCES;
+          }),
+      // "Origem das reservas". Not read for a search, and never a reason for
+      // the board not to load: a failed read hides the panel.
+      query
+        ? Promise.resolve<SourceMonth[]>([])
+        : listSourceCounts(now).catch((err): SourceMonth[] => {
+            console.error("[sales] source counts could not be read", err);
+            return [];
           }),
     ]);
 
@@ -188,6 +198,8 @@ export default async function AdminSalesPage({
           initialStage={initialStage}
         />
       )}
+
+      {sourceMonths.length > 0 ? <SourceCountsPanel months={sourceMonths} /> : null}
 
       <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {query ? null : (

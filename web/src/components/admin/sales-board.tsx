@@ -204,6 +204,11 @@ export function SalesBoard({
                   </span>
                 </div>
 
+                {/* Where the guest's visit started (JAM-506). */}
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Origem: <span className="break-all">{record.source}</span>
+                </p>
+
                 <RequestStatusSelect
                   id={record.id}
                   status={record.status}

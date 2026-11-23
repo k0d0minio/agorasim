@@ -26,7 +26,7 @@
  */
 import "server-only";
 
-import { asc, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, or } from "drizzle-orm";
 
 import {
   bookings,
@@ -39,6 +39,13 @@ import {
   type TourRequest,
 } from "@/db";
 import { REQUEST_STATUSES } from "@/lib/admin-format";
+import {
+  SOURCE_MONTHS,
+  recentMonths,
+  sourceLabel,
+  tallySourcesByMonth,
+  type SourceMonth,
+} from "@/lib/booking-source";
 import { awaitsLinkPayment, bookingRef, holdsCapacity } from "@/lib/bookings";
 import { formatDay } from "@/lib/date-keys";
 import { CLASS_SEATS } from "@/lib/fleet";
@@ -138,6 +145,12 @@ export type SalesRecord = {
   lastContactedAt: Date | null;
   marketingConsent: boolean;
   anonymisedAt: Date | null;
+  /**
+   * Where the guest's visit started, as the board shows it: `chatgpt.com`,
+   * `google`, "Direta ou desconhecida", or "Sem registo" for a row with no
+   * record (`lib/booking-source.ts`, JAM-506).
+   */
+  source: string;
 };
 
 /** The reference an enquiry wears: short, stable, greppable. */
@@ -217,6 +230,7 @@ export function recordFromRequest(
     lastContactedAt: row.lastContactedAt,
     marketingConsent: row.marketingConsent,
     anonymisedAt: row.anonymisedAt,
+    source: sourceLabel(row),
   };
 }
 
@@ -533,4 +547,30 @@ export function groupByStage(
     status,
     records: records.filter((record) => record.status === status),
   }));
+}
+
+/**
+ * The paid bookings of each source, for each of the last months (JAM-506).
+ *
+ * Read from `bookings`, not from the leads: a booking keeps its source after
+ * an erasure removes its lead. Only a confirmed booking counts, because the
+ * question is which channel brings a sale. A checkout that nobody paid and a
+ * booking that was refunded are not sales.
+ *
+ * The read starts one day before the oldest month, so that a booking made in
+ * the first hour of that month in Lisbon is in it. `tallySourcesByMonth`
+ * decides the month of each row.
+ */
+export async function listSourceCounts(now: Date = new Date()): Promise<SourceMonth[]> {
+  const oldest = recentMonths(now, SOURCE_MONTHS).at(-1)!;
+  const since = new Date(new Date(`${oldest}-01T00:00:00Z`).getTime() - 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select({
+      createdAt: bookings.createdAt,
+      landingUtmSource: bookings.landingUtmSource,
+      landingReferrerHost: bookings.landingReferrerHost,
+    })
+    .from(bookings)
+    .where(and(eq(bookings.status, "confirmed"), gte(bookings.createdAt, since)));
+  return tallySourcesByMonth(rows, now);
 }

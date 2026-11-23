@@ -15,7 +15,8 @@ import { formValues, tourRequestSchema, type TourRequestField } from "@/lib/form
 import { guestEnquiryAckEmail, teamEnquiryEmail } from "@/lib/booking-emails";
 import { sendLoggedEmail } from "@/lib/message-log";
 import { teamRecipients } from "@/lib/email";
-import { siteUrl } from "@/lib/site-origin";
+import { CANONICAL_HOME, siteUrl } from "@/lib/site-origin";
+import { sourceFromForm } from "@/lib/booking-source";
 
 export type TourRequestState = {
   ok?: boolean;
@@ -180,6 +181,8 @@ export async function submitTourRequest(
       locale,
       experienceSlug: experience && known.has(experience) ? experience : null,
       source: "website",
+      // Where the visit started (JAM-506). Never a reason to refuse the form.
+      ...sourceFromForm(values, [siteUrl(), CANONICAL_HOME]),
       // Consent is recorded with *when* and *which wording*, so it can be
       // evidenced later (Art. 7(1)). A "no" stores no timestamp and no version:
       // there is nothing to prove, and a row that looks half-consented invites
