@@ -2,4 +2,5 @@
 - type: single
 - options: yes, they follow after go-live | no, all six first
 - default: yes, they follow after go-live
-- answer: _waiting_
+- answer: yes, they follow after go-live
+- note: Jamie in chat, 2026-11-23: "Yes, after go-live"

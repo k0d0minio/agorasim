@@ -2,10 +2,11 @@
 
 ## Next action
 
-O Jamie responde à Q1 no cartão do HUD ou no corpo do pull request #274. Depois diz
-`knowledge JAM-471`. A sessão corre `questions.sh JAM-471`, regista a resposta aqui, ajusta o
-§1 e o §4 de `.icm/docs/go-live-plan.md` se a resposta for "no, all six first", muda o pull
-request para ready, lê o CI e põe `phase: release`.
+O Jamie testa as duas páginas no pull request #274 e marca **Ready to merge**. Depois diz
+`release JAM-471`.
+
+Decisão do Jamie no chat, 2026-11-23, Q1: "Yes, after go-live". O blog, as redes sociais e o
+SMS vêm depois do M1 e do M2. A resposta está no corpo do pull request e em `questions.md`.
 
 As duas páginas já estão escritas e enviadas no ramo:
 
@@ -24,7 +25,7 @@ data. Abra `.icm/docs/launch-runbook.md` e procure `intake/go-live`: não há ne
 
 ## Blockers
 
-- Q1 espera pela resposta do Jamie (pull request #274).
+- nenhum
 
 ## Do not touch
 

@@ -2,7 +2,7 @@
 
 ## F1. Draft comment for JAM-471 (not posted: a session in this repo does not write to Linear)
 
-> Spike result: `.icm/docs/go-live-plan.md` on PR k0d0minio/agorasim#274 (draft, Q1 waits).
+> Spike result: `.icm/docs/go-live-plan.md` on PR k0d0minio/agorasim#274 (Q1 answered: blog, social and SMS follow after go-live).
 >
 > Answer: the shortest safe path has two milestones. **M1, the new site on agorasim.pt with the
 > enquiry form: Thu 2026-12-03.** **M2, paid bookings: Wed 2026-12-09.** The DNS is already at
@@ -20,7 +20,7 @@
 > `prod.agorasim.pt` is not attached. A build keeps its env, and the promotion never builds:
 > set Production env before the staged build that is promoted.
 >
-> Q1 (blog, social, SMS after go-live) waits for Jamie on #274. Ten client questions are in §6
+> Q1: Jamie decided on 2026-11-23 that blog, social and SMS follow after go-live. Ten client questions are in §6
 > of the page. The runbook is brought up to date: no reference to `.icm/intake/go-live/`.
 
 ## F2. Proposed build tickets (draft, not created)

@@ -17,8 +17,8 @@ The shortest safe path has two milestones:
 
 M1 and M2 can be on the same day if the M2 gates are ready by 2026-12-03.
 
-These dates are true only if the blog, social and SMS features follow after go-live. That is
-Q1 of pull request #274, and it waits for Jamie's answer. §4 has the dates for the other answer.
+The blog, social and SMS features (proposal features 2, 4 and 5b) go live after M1 and M2.
+Jamie's decision, in writing, 2026-11-23: "Yes, after go-live" (Q1 of pull request #274).
 
 Three facts make the path short:
 
@@ -68,7 +68,7 @@ Read only. Nothing was changed.
 | # | Blocker | Owner | Target | Depends on |
 |---|---|---|---|---|
 | B1 | Send the client questions of §6 in one message | Jamie | 2026-11-24 | — |
-| B2 | Answer Q1 in writing on pull request #274: can the blog, social and SMS features follow after go-live? | Jamie | 2026-11-24 | — |
+| B2 | Answer Q1 in writing: can the blog, social and SMS features follow after go-live? Done 2026-11-23: yes | Jamie | 2026-11-23 | — |
 | B3 | Say if the site can go live before the seats-and-holds fixes (JAM-290 to JAM-294) | Diogo | 2026-11-27 | B1 |
 | B4 | Attach `prod.agorasim.pt` to the project as a production domain, or correct `.icm/environments.md` (JAM-289) | Jamie | 2026-11-24 | — |
 | B5 | Set `VERCEL_TOKEN` and `VERCEL_TEAM` for `promote.sh status`. It prints no `SETUP:` line. Tick the boxes of `.icm/setup/` that are true (JAM-289) | Jamie | 2026-11-24 | — |
@@ -117,7 +117,7 @@ Read only. Nothing was changed.
 | B16: no RNAAT number | M1 does not change. **M2 waits** for the inscription at Turismo de Portugal. Its date is not known. The insurance comes first (JAM-473) |
 | B20: a fatura from invoicing software for each booking | M2 does not wait if the accountant accepts faturas by hand for the first weeks. An integration is a new request of 4–6 days (JAM-473) |
 | B23: Stripe does not verify the account by 2026-12-08 | M2 moves. The site stays on the enquiry form. Never a `sk_test_` key in Production |
-| Q1: all six features first | M1 and M2 wait for the blog (JAM-475), social (JAM-477, about 9 days of build plus the client's Meta access) and SMS (JAM-476). Estimate: **not before 2027-01-18** |
+| Q1: all six features first (not chosen, 2026-11-23) | M1 and M2 would wait for the blog (JAM-475), social (JAM-477, about 9 days of build plus the client's Meta access) and SMS (JAM-476). Estimate: not before 2027-01-18 |
 
 ## 5. Rules on the path
 
