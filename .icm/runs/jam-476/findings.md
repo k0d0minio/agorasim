@@ -40,20 +40,22 @@ The operator files these later. One entry for each finding.
   early in 2027, the client must start it in December.
 - proposed: question for the ticket
 
-## The five SMS build tickets: not created
+## The five SMS build tickets: filed by BAXTER
 
 - where: Linear, team JAM, project agorasim
 - what: the session tried to create them on 2026-11-23. The permission check of the session
-  refused the act. The drafts are below, ready to file. Common to all five: state Triage,
+  refused the act. BAXTER filed the drafts below on Jamie's word ("Yes, file them here",
+  2026-11-23), with the blocking links below. Common to all five: state Triage,
   priority Medium, a "related" link to JAM-476, and these two lines at the top:
   `* source: P #5 and P §5 ("over email and SMS"); spike JAM-476, page .icm/docs/sms-channel.md.`
   `* timing: SMS follows after go-live (Jamie, 2026-11-23). Do not start before the site is live.`
-- proposed: new ticket (five)
+- proposed: done (JAM-537 to JAM-541)
 
 Links between them: SMS-2 blocks SMS-3. SMS-3 blocks SMS-4 and SMS-5. SMS-1 blocks SMS-4.
 
 ### SMS-1 · agorasim · SMS: the client opens the SMS provider account
 
+- filed: JAM-537
 - lane: chore · estimate 1 · labels: Chore, Client work, Waiting on a client
 - Problem: the app cannot send an SMS without a provider account. Each account belongs to
   Agorasim (Commission & Payments Agreement §2). Spain needs the CNMC alias registration (up to
@@ -71,6 +73,7 @@ Links between them: SMS-2 blocks SMS-3. SMS-3 blocks SMS-4 and SMS-5. SMS-1 bloc
 
 ### SMS-2 · agorasim · SMS: every form keeps the phone number in international form
 
+- filed: JAM-538
 - lane: new · estimate 3 · labels: Feature, Client work
 - Problem: every form keeps the phone as optional free text (`optionalText` in
   `web/src/lib/form-schemas.ts`, `tour_requests.phone`). No form asks for a country code or
@@ -90,6 +93,7 @@ Links between them: SMS-2 blocks SMS-3. SMS-3 blocks SMS-4 and SMS-5. SMS-1 bloc
 
 ### SMS-3 · agorasim · SMS: the message log sends an SMS beside an email
 
+- filed: JAM-539
 - lane: new · estimate 3 · labels: Feature, Client work, migration
 - Problem: `web/src/lib/message-log.ts` is email only. Seven partial unique indexes key each
   claim on `(kind, recipient, …)`. An email and an SMS for one occasion would collide.
@@ -106,6 +110,7 @@ Links between them: SMS-2 blocks SMS-3. SMS-3 blocks SMS-4 and SMS-5. SMS-1 bloc
 
 ### SMS-4 · agorasim · SMS: the confirmation, the reminder and the balance messages go by SMS
 
+- filed: JAM-540
 - lane: new · estimate 3 · labels: Feature, Client work
 - Problem: proposal §5 promises confirmations, reminders and the balance request over email and
   SMS. Today they go by email only. The thank-you stays email only (marketing, soft opt-in).
@@ -123,6 +128,7 @@ Links between them: SMS-2 blocks SMS-3. SMS-3 blocks SMS-4 and SMS-5. SMS-1 bloc
 
 ### SMS-5 · agorasim · SMS: the privacy policy names the SMS provider
 
+- filed: JAM-541
 - lane: tweak · estimate 1 · labels: Text / content, Client work
 - Problem: `web/src/content/privacy.ts` and `.icm/docs/data-protection.md` name no SMS
   provider and do not say what the phone is used for.
