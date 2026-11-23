@@ -1,5 +1,5 @@
 # Status jam-475
 
 - phase: build
-- blocked: no
+- blocked: yes — waits for answers (Q1, Q2)
 - updated: 2026-11-23
