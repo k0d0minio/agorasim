@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-508
 - branch: claude/jam-508-blog-format-topic-queue
 - lane: chore
-- pr: pending
+- pr: #276
 - started: 2026-11-23
