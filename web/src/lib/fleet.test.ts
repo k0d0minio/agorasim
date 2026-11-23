@@ -4,6 +4,7 @@ import {
   anyVehicleFree,
   assignVehicle,
   carChoices,
+  carToOpen,
   CLASS_SEATS,
   DRIVERS_PER_SLOT,
   FLEET,
@@ -115,6 +116,70 @@ describe("assignVehicle", () => {
     expect(assignVehicle(CLASSIC, 0)).toEqual({ ok: false, reason: "empty-party" });
     expect(assignVehicle(CLASSIC, -2)).toEqual({ ok: false, reason: "empty-party" });
     expect(assignVehicle(CLASSIC, 2.5)).toEqual({ ok: false, reason: "empty-party" });
+  });
+});
+
+/**
+ * The car an open-group party opens (JAM-290): the VW T3 while it is free.
+ * Two couples in two small classics took both drivers and the third couple was
+ * refused. One van carries eight guests with one driver.
+ */
+describe("carToOpen", () => {
+  const vanOut = { ...FLEET_SIZE, "classic-van": 0 };
+
+  it("opens the VW T3 for an open-group party of any size, while the van is free", () => {
+    for (const size of [1, 2, 3, 4, 8]) {
+      expect(carToOpen(CLASSIC, size, "public", FLEET_SIZE)).toEqual({
+        ok: true,
+        vehicleClass: "classic-van",
+      });
+    }
+  });
+
+  it("opens a small classic for up to three when the van is out", () => {
+    // The van is full, or a private group has it: the open group uses the
+    // small classics, as before.
+    for (const size of [1, 2, 3]) {
+      expect(carToOpen(CLASSIC, size, "public", vanOut)).toEqual({
+        ok: true,
+        vehicleClass: "classic-small",
+      });
+    }
+  });
+
+  it("still names the van for four to eight with the van out: no other car carries them", () => {
+    // The answer is a class, not a promise. The caller finds no van free.
+    for (const size of [4, 8]) {
+      expect(carToOpen(CLASSIC, size, "public", vanOut)).toEqual({
+        ok: true,
+        vehicleClass: "classic-van",
+      });
+    }
+  });
+
+  it("gives a private party the car its size gives, with the van free or not", () => {
+    for (const vehiclesLeft of [FLEET_SIZE, vanOut]) {
+      for (const size of [1, 3, 4, 8]) {
+        expect(carToOpen(CLASSIC, size, "private", vehiclesLeft)).toEqual(
+          assignVehicle(CLASSIC, size),
+        );
+      }
+    }
+  });
+
+  it("leaves Óbidos in the touring vehicle", () => {
+    expect(carToOpen(TOURING, 2, "public", FLEET_SIZE)).toEqual({
+      ok: true,
+      vehicleClass: "touring",
+    });
+  });
+
+  it("refuses what assignVehicle refuses", () => {
+    expect(carToOpen(CLASSIC, 9, "public", FLEET_SIZE)).toEqual(assignVehicle(CLASSIC, 9));
+    expect(carToOpen(CLASSIC, 0, "public", FLEET_SIZE)).toEqual({
+      ok: false,
+      reason: "empty-party",
+    });
   });
 });
 
@@ -255,6 +320,35 @@ describe("slotFitsParty, per person", () => {
     const free = { driversLeft: 1, vehiclesLeft: FLEET_SIZE, openSeats: { [CLASSIC]: 1 } };
     expect(slotFitsParty(free, CLASSIC, 4, "public")).toBe(true);
   });
+
+  it("opens the VW T3 for a per-person couple when only the van is free", () => {
+    // JAM-290. A private couple needs a small classic, and none is free.
+    const onlyVan = { driversLeft: 1, vehiclesLeft: { ...noVehicles(), "classic-van": 1 } };
+    expect(slotFitsParty(onlyVan, CLASSIC, 2, "public")).toBe(true);
+    expect(slotFitsParty(onlyVan, CLASSIC, 2, "private")).toBe(false);
+  });
+
+  it("opens a small classic for a per-person couple when the van is out", () => {
+    const vanOut = { ...FLEET_SIZE, "classic-van": 0 };
+    // The open van is full: no seat to join, a driver and a small classic free.
+    const free = { driversLeft: 1, vehiclesLeft: vanOut, openSeats: {} };
+    expect(slotFitsParty(free, CLASSIC, 2, "public")).toBe(true);
+    // A party of four fits no small classic and the van has three seats left.
+    expect(
+      slotFitsParty({ ...free, openSeats: { [CLASSIC]: 3 } }, CLASSIC, 4, "public"),
+    ).toBe(false);
+  });
+
+  it("refuses a per-person party with no seat to join and no driver or no car", () => {
+    const vanOut = { ...FLEET_SIZE, "classic-van": 0 };
+    expect(slotFitsParty({ driversLeft: 0, vehiclesLeft: vanOut }, CLASSIC, 2, "public")).toBe(
+      false,
+    );
+    // A driver, and neither the van nor a small classic for the second car.
+    expect(
+      slotFitsParty({ driversLeft: 1, vehiclesLeft: noVehicles() }, CLASSIC, 2, "public"),
+    ).toBe(false);
+  });
 });
 
 describe("carChoices", () => {
@@ -271,6 +365,37 @@ describe("carChoices", () => {
     const choices = carChoices({ cars, party, free });
     expect(choices.join.map((car) => car.id)).toEqual(["car-b"]);
     expect(choices.canOpenNew).toBe(true);
+    // The new car is the VW T3 while the van is free (JAM-290).
+    expect(choices.newCarClass).toBe("classic-van");
+  });
+
+  it("opens a small classic as the new car when the van is out", () => {
+    const vanOut = { ...FLEET_SIZE, "classic-van": 0 };
+    const choices = carChoices({ cars, party, free: { driversLeft: 1, vehiclesLeft: vanOut } });
+    expect(choices).toMatchObject({ canOpenNew: true, newCarClass: "classic-small" });
+  });
+
+  it("offers no new car to a party of four in the open van: no second van exists", () => {
+    const van: OpenCar = {
+      id: "car-van",
+      experienceSlug: CLASSIC,
+      vehicleClass: "classic-van",
+      seatsTaken: 6,
+    };
+    const vanOut = { ...FLEET_SIZE, "classic-van": 0 };
+    const four = { sharedCarId: "car-van", experienceSlug: CLASSIC, partySize: 4 };
+    const choices = carChoices({
+      cars: [van],
+      party: four,
+      free: { driversLeft: 1, vehiclesLeft: vanOut },
+    });
+    expect(choices).toMatchObject({ canOpenNew: false, newCarClass: null });
+    // A couple in that van can leave it for a small classic.
+    const couple = { ...four, partySize: 2 };
+    expect(
+      carChoices({ cars: [van], party: couple, free: { driversLeft: 1, vehiclesLeft: vanOut } })
+        .newCarClass,
+    ).toBe("classic-small");
   });
 
   it("offers no new car without a free driver, nor to a party alone in its car", () => {

@@ -29,7 +29,15 @@ import {
   TOUR_SLOTS,
   weekdayIndex,
 } from "@/lib/availability";
-import { FLEET_SIZE, noVehicles, type OpenCar, type VehicleClass } from "@/lib/fleet";
+import {
+  FLEET_SIZE,
+  freeSeats,
+  noVehicles,
+  slotFitsParty,
+  type OpenCar,
+  type SeatingMode,
+  type VehicleClass,
+} from "@/lib/fleet";
 import type { SlotOccupancy } from "@/lib/bookings";
 import type { AvailabilityRow } from "@/db";
 
@@ -871,9 +879,10 @@ describe("the open group tour", () => {
     expect(fit).toEqual({ ok: true, vehicleClass: "classic-small", joins: openCar().id });
   });
 
-  it("sends a second couple to a second car: a small classic has three seats", () => {
+  it("sends a couple that does not fit an open 2CV to the VW T3, not to a second 2CV", () => {
+    // JAM-290: the car an open-group party opens is the van while it is free.
     const fit = fitsParty(departure(withCars([openCar()])), CLASSIC_TOUR, 2, "public");
-    expect(fit).toEqual({ ok: true, vehicleClass: "classic-small", joins: null });
+    expect(fit).toEqual({ ok: true, vehicleClass: "classic-van", joins: null });
   });
 
   it("sends a per-person party of four to the T3 when the open car has one seat left", () => {
@@ -939,5 +948,223 @@ describe("the open group tour", () => {
       date: todayKey(now),
     });
     expect(fitsParty(slot, CLASSIC_TOUR, 1, "public").ok).toBe(sells);
+  });
+});
+
+/**
+ * The open group rides in the VW T3 (JAM-290).
+ *
+ * Diogo and Rita booked three couples on one open-group departure: two couples
+ * took two small classics and both drivers, and the third was refused. Each
+ * case here is a booking in that story. `seat` writes a fit into the
+ * occupancy the way the booking row and `tallyOccupancy` do, so a case reads
+ * the departure that the bookings before it left.
+ */
+describe("the open group in the VW T3", () => {
+  const today = "2026-08-10";
+  const departure = (
+    occupancy?: SlotOccupancy,
+    options: { drivers?: number; date?: string } = {},
+  ) =>
+    describeSlot({
+      date: options.date ?? "2026-08-15",
+      slot: "morning",
+      row: row({ drivers: options.drivers ?? DEFAULT_DRIVERS }),
+      occupancy,
+      today,
+    });
+
+  /** Book one party: the fit the checkout would write, and the departure after it. */
+  function seat(
+    occupancy: SlotOccupancy,
+    partySize: number,
+    mode: SeatingMode,
+    newCarId: string,
+  ): { fit: ReturnType<typeof fitsParty>; occupancy: SlotOccupancy } {
+    const fit = fitsParty(departure(occupancy), CLASSIC_TOUR, partySize, mode);
+    if (!fit.ok) return { fit, occupancy };
+    const openCars = (occupancy.openCars ?? []).map((car) => ({ ...car }));
+    if (fit.joins) {
+      const car = openCars.find((entry) => entry.id === fit.joins);
+      if (car) car.seatsTaken += partySize;
+      return { fit, occupancy: { ...occupancy, openCars } };
+    }
+    const vehicles = { ...occupancy.vehicles };
+    vehicles[fit.vehicleClass] += 1;
+    if (mode === "public") {
+      openCars.push({
+        id: newCarId,
+        experienceSlug: CLASSIC_TOUR,
+        vehicleClass: fit.vehicleClass,
+        seatsTaken: partySize,
+      });
+    }
+    return { fit, occupancy: { drivers: occupancy.drivers + 1, vehicles, openCars } };
+  }
+
+  /** `count` open-group couples, booked one after the other on an empty departure. */
+  function couples(count: number) {
+    let occupancy: SlotOccupancy = { drivers: 0, vehicles: noVehicles() };
+    const fits: ReturnType<typeof fitsParty>[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const booked = seat(occupancy, 2, "public", `van-${index}`);
+      fits.push(booked.fit);
+      occupancy = booked.occupancy;
+    }
+    return { fits, occupancy };
+  }
+
+  it("seats three couples in one VW T3 with one driver", () => {
+    const { fits, occupancy } = couples(3);
+    expect(fits).toEqual([
+      { ok: true, vehicleClass: "classic-van", joins: null },
+      { ok: true, vehicleClass: "classic-van", joins: "van-0" },
+      { ok: true, vehicleClass: "classic-van", joins: "van-0" },
+    ]);
+    expect(occupancy.drivers).toBe(1);
+    expect(occupancy.vehicles).toEqual({ ...noVehicles(), "classic-van": 1 });
+    expect(occupancy.openCars).toEqual([
+      { id: "van-0", experienceSlug: CLASSIC_TOUR, vehicleClass: "classic-van", seatsTaken: 6 },
+    ]);
+    // The second driver is still free for another tour.
+    expect(departure(occupancy).driversLeft).toBe(DEFAULT_DRIVERS - 1);
+  });
+
+  it("seats a fourth couple in the same van: 8 of 8 seats", () => {
+    const { fits, occupancy } = couples(4);
+    expect(fits[3]).toEqual({ ok: true, vehicleClass: "classic-van", joins: "van-0" });
+    expect(occupancy.drivers).toBe(1);
+    expect(occupancy.openCars).toHaveLength(1);
+    expect(occupancy.openCars?.[0].seatsTaken).toBe(8);
+    expect(freeSeats(occupancy.openCars![0])).toBe(0);
+  });
+
+  it.each([1, 2, 3])(
+    "opens a small classic with the second driver for a fifth party of %i",
+    (partySize) => {
+      const full = couples(4).occupancy;
+      const { fit, occupancy } = seat(full, partySize, "public", "second-car");
+      expect(fit).toEqual({ ok: true, vehicleClass: "classic-small", joins: null });
+      expect(occupancy.drivers).toBe(2);
+      expect(occupancy.vehicles).toEqual({
+        ...noVehicles(),
+        "classic-van": 1,
+        "classic-small": 1,
+      });
+      // The next party joins that second car while it has the seats.
+      const nextSize = partySize === 3 ? 1 : 3 - partySize;
+      const next = fitsParty(departure(occupancy), CLASSIC_TOUR, nextSize, "public");
+      expect(next).toEqual(
+        partySize === 3
+          ? { ok: false, reason: "no-driver" }
+          : { ok: true, vehicleClass: "classic-small", joins: "second-car" },
+      );
+    },
+  );
+
+  it("refuses a fifth party when the full van has the only driver", () => {
+    const full = couples(4).occupancy;
+    const slot = departure(full, { drivers: 1 });
+    expect(fitsParty(slot, CLASSIC_TOUR, 2, "public")).toEqual({
+      ok: false,
+      reason: "no-driver",
+    });
+    // Nothing is left to sell: the guest's calendar shows the departure as full.
+    expect(slot).toMatchObject({ hasRoom: false, bookable: false });
+  });
+
+  it("refuses a fifth party of four to eight: only the van carries it, and the van is full", () => {
+    const full = couples(4).occupancy;
+    for (const partySize of [4, 8]) {
+      expect(fitsParty(departure(full), CLASSIC_TOUR, partySize, "public")).toEqual({
+        ok: false,
+        reason: "no-vehicle",
+      });
+    }
+  });
+
+  it("never splits a party: a couple opens the second car when the van has one seat", () => {
+    // Seven aboard. The couple does not fit the last seat, and is not divided.
+    const seven = seat(couples(3).occupancy, 1, "public", "unused").occupancy;
+    expect(seven.openCars?.[0].seatsTaken).toBe(7);
+    const { fit, occupancy } = seat(seven, 2, "public", "second-car");
+    expect(fit).toEqual({ ok: true, vehicleClass: "classic-small", joins: null });
+    // The last seat of the van is still for sale to one guest.
+    expect(fitsParty(departure(occupancy), CLASSIC_TOUR, 1, "public").ok).toBe(true);
+  });
+
+  it("still gives a private couple a small classic, with the van free", () => {
+    const other = departure(undefined, { date: "2026-08-16" });
+    expect(fitsParty(other, CLASSIC_TOUR, 2, "private")).toEqual({
+      ok: true,
+      vehicleClass: "classic-small",
+      joins: null,
+    });
+    // Private is the default: a caller that does not say gets the same car.
+    expect(fitsParty(other, CLASSIC_TOUR, 2)).toEqual({
+      ok: true,
+      vehicleClass: "classic-small",
+      joins: null,
+    });
+  });
+
+  it("gives a private couple a small classic beside the open van, and never a seat in it", () => {
+    const { occupancy } = couples(1);
+    expect(fitsParty(departure(occupancy), CLASSIC_TOUR, 2, "private")).toEqual({
+      ok: true,
+      vehicleClass: "classic-small",
+      joins: null,
+    });
+  });
+
+  it("uses the small classics for the open group when a private group holds the VW T3", () => {
+    const privateVan = seat({ drivers: 0, vehicles: noVehicles() }, 6, "private", "unused");
+    expect(privateVan.fit).toEqual({ ok: true, vehicleClass: "classic-van", joins: null });
+    for (const partySize of [1, 2, 3]) {
+      expect(
+        fitsParty(departure(privateVan.occupancy), CLASSIC_TOUR, partySize, "public"),
+      ).toEqual({ ok: true, vehicleClass: "classic-small", joins: null });
+    }
+    for (const partySize of [4, 8]) {
+      expect(
+        fitsParty(departure(privateVan.occupancy), CLASSIC_TOUR, partySize, "public"),
+      ).toEqual({ ok: false, reason: "no-vehicle" });
+    }
+  });
+
+  it("leaves Óbidos in the touring vehicle", () => {
+    expect(fitsParty(departure(), TOURING_TOUR, 2, "public")).toEqual({
+      ok: true,
+      vehicleClass: "touring",
+      joins: null,
+    });
+  });
+
+  it("offers a guest's calendar exactly the departures the checkout accepts", () => {
+    // The browser runs `slotFitsParty` over the public payload. The server runs
+    // `fitsParty` over the departure. They must agree for every party.
+    const privateVan = seat({ drivers: 0, vehicles: noVehicles() }, 6, "private", "unused");
+    const departures: [string, SlotOccupancy | undefined, number][] = [
+      ["empty", undefined, DEFAULT_DRIVERS],
+      ["one couple in the van", couples(1).occupancy, DEFAULT_DRIVERS],
+      ["three couples in the van", couples(3).occupancy, DEFAULT_DRIVERS],
+      ["three couples in the van, one driver", couples(3).occupancy, 1],
+      ["the van full", couples(4).occupancy, DEFAULT_DRIVERS],
+      ["the van full, one driver", couples(4).occupancy, 1],
+      ["the van full and a second car", seat(couples(4).occupancy, 2, "public", "b").occupancy, 2],
+      ["a private group in the van", privateVan.occupancy, DEFAULT_DRIVERS],
+    ];
+    for (const [label, occupancy, drivers] of departures) {
+      const slot = departure(occupancy, { drivers });
+      const [shown] = toPublicDay({ date: slot.date, slots: [slot] }).slots;
+      for (const mode of ["public", "private"] as const) {
+        for (let partySize = 1; partySize <= 9; partySize += 1) {
+          expect(
+            slotFitsParty(shown, CLASSIC_TOUR, partySize, mode),
+            `${label}: ${mode} party of ${partySize}`,
+          ).toBe(fitsParty(slot, CLASSIC_TOUR, partySize, mode).ok);
+        }
+      }
+    }
   });
 });

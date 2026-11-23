@@ -573,11 +573,16 @@ function isPaid(booking: CalendarBooking): boolean {
   return booking.status === "confirmed";
 }
 
-/** "Carro partilhado · clássico · 2 de 3 lugares" — the box's heading. Paid parties only. */
+/**
+ * "Carro partilhado · VW T3 · 6 de 8 lugares" — the box's heading. Paid parties
+ * only. The van is the open group's car (JAM-290) and wears its name; a small
+ * classic stays "clássico", because which of the three goes out is Diogo's call.
+ */
 function sharedCarHeading(rows: CalendarBooking[]): string {
   const vehicleClass = rows[0].vehicleClass;
+  const car = vehicleClass === "classic-van" ? "VW T3" : CLASS_WORDS[vehicleClass].one;
   const taken = rows.reduce((sum, booking) => sum + booking.partySize, 0);
-  return `Carro partilhado · ${CLASS_WORDS[vehicleClass].one} · ${taken} de ${CLASS_SEATS[vehicleClass]} lugares`;
+  return `Carro partilhado · ${car} · ${taken} de ${CLASS_SEATS[vehicleClass]} lugares`;
 }
 
 /** One booking: the guest, the reference, the payment state, the tour, the party. */

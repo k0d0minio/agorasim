@@ -9,7 +9,7 @@
  * `dark:` utilities in the primitives — was never reachable: nothing set the
  * class, there was no provider, no toggle and no `prefers-color-scheme` hook-up.
  * The token block was also still the stock shadcn greyscale, so switching it on
- * would have thrown away the warm Saloia palette below rather than translated
+ * would have thrown away the brand palette below rather than translated
  * it.
  *
  * The case for dark mode is real (the admin is used in a car, at night), but it
@@ -54,6 +54,13 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-sand: var(--brand-sand);
+  --color-brand-terracotta: var(--brand-terracotta);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-lavender: var(--brand-lavender);
+  --color-brand-night: var(--brand-night);
+  --color-brand-orange-text: var(--brand-orange-text);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -64,25 +71,34 @@
 }
 
 :root {
-  /* Agorasim — warm Saloia earth tones with a countryside-green accent */
-  --background: oklch(0.985 0.008 85);
-  --foreground: oklch(0.26 0.02 60);
-  --card: oklch(0.995 0.005 85);
-  --card-foreground: oklch(0.26 0.02 60);
-  --popover: oklch(0.995 0.005 85);
-  --popover-foreground: oklch(0.26 0.02 60);
-  --primary: oklch(0.47 0.075 148);
-  --primary-foreground: oklch(0.98 0.012 90);
-  --secondary: oklch(0.93 0.028 78);
-  --secondary-foreground: oklch(0.32 0.03 60);
-  --muted: oklch(0.955 0.014 82);
-  --muted-foreground: oklch(0.52 0.022 66);
-  --accent: oklch(0.9 0.045 68);
-  --accent-foreground: oklch(0.32 0.045 55);
-  /* Darkened from oklch(0.577 …): at that lightness `text-destructive`
-     on `bg-destructive/10` measures 4.07:1, under the 4.5:1 AA floor. */
-  --destructive: oklch(0.53 0.19 27);
-  --border: oklch(0.9 0.018 78);
+  /*
+   * The Agorasim brand palette. `.icm/docs/brand.md` is the one home of the
+   * rules: the token map, the contrast table and where each colour may go.
+   * Copies of these values: `emailPalette` in `lib/email-layout.ts`, the
+   * `themeColor` of both layouts and `public/admin-manifest.webmanifest`.
+   */
+  --background: oklch(0.937 0.029 84.6); /* Off-white #F3E9D5 */
+  --foreground: oklch(0.257 0.017 50.7); /* Ink #2A211C */
+  --card: oklch(0.974 0.011 84.6); /* Paper #FAF6EE */
+  --card-foreground: oklch(0.257 0.017 50.7);
+  --popover: oklch(0.974 0.011 84.6);
+  --popover-foreground: oklch(0.257 0.017 50.7);
+  --primary: oklch(0.381 0.055 204.1); /* Deep teal #164B50 */
+  --primary-foreground: oklch(0.937 0.029 84.6);
+  --secondary: oklch(0.886 0.053 91.8); /* Warm sand #E6D9B2 */
+  --secondary-foreground: oklch(0.257 0.017 50.7);
+  --muted: oklch(0.886 0.053 91.8);
+  --muted-foreground: oklch(0.448 0.021 59.1); /* Ink muted #5E5249 */
+  /* Orange tint #E9C8A2, not solid Burnt orange: --accent is the mobile-menu
+     hover and the notice fill, and Ink on it measures 9.94:1. */
+  --accent: oklch(0.852 0.063 70.8);
+  --accent-foreground: oklch(0.257 0.017 50.7);
+  /* Darkened from oklch(0.53 …) for the Off-white background: at that
+     lightness `text-destructive` on `bg-destructive/10` measures 4.16:1 on
+     Off-white. Now 4.86:1 on Off-white and 5.40:1 on Paper. On Warm sand it is
+     4.19:1, so a destructive notice never sits on a muted or secondary surface. */
+  --destructive: oklch(0.49 0.19 27);
+  --border: oklch(0.846 0.040 83.8); /* Line #D9CBB0 */
   /*
    * Field borders, split from --border and darkened: an input's border is the
    * only thing that says "you can type here", and at the old lightness it
@@ -90,13 +106,23 @@
    * WCAG 1.4.11 3:1 floor for component boundaries. Decorative card/divider
    * borders stay on the lighter --border; only fields wear this one.
    */
-  --input: oklch(0.62 0.025 70);
-  --ring: oklch(0.47 0.075 148);
-  --chart-1: oklch(0.47 0.075 148);
-  --chart-2: oklch(0.7 0.09 55);
-  --chart-3: oklch(0.6 0.06 40);
-  --chart-4: oklch(0.55 0.05 130);
-  --chart-5: oklch(0.4 0.04 90);
+  --input: oklch(0.592 0.031 70.7); /* Field border #8A7B6A, 3.40:1 on Off-white */
+  --ring: oklch(0.381 0.055 204.1);
+  --chart-1: oklch(0.381 0.055 204.1);
+  --chart-2: oklch(0.703 0.127 62.3);
+  --chart-3: oklch(0.430 0.083 24.1);
+  --chart-4: oklch(0.714 0.106 295.5);
+  --chart-5: oklch(0.448 0.021 59.1);
+  /* Brand colours by name. Only the brand components and the story bands use
+     them. Everything else uses the shadcn names above. Burnt orange and Dusty
+     lavender are never text on a light background. */
+  --brand-teal: oklch(0.381 0.055 204.1);
+  --brand-sand: oklch(0.886 0.053 91.8);
+  --brand-terracotta: oklch(0.430 0.083 24.1);
+  --brand-orange: oklch(0.703 0.127 62.3);
+  --brand-lavender: oklch(0.714 0.106 295.5);
+  --brand-night: oklch(0.175 0.034 345.0);
+  --brand-orange-text: oklch(0.511 0.118 51.2);
   --radius: 0.5rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
