@@ -48,6 +48,7 @@ vi.mock("@/lib/availability", async (importOriginal) => ({
   checkDayBookable: vi.fn(async () => true),
 }));
 
+import { checkDayBookable } from "@/lib/availability";
 import { submitTourRequest } from "./actions";
 
 /** A tour enquiry a guest could really have sent. */
@@ -88,5 +89,109 @@ describe("submitTourRequest — the honeypot", () => {
     );
     expect(sendLoggedEmail).toHaveBeenCalledTimes(2);
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+/*
+ * A refused enquiry sends back what the guest typed (JAM-497). React resets
+ * the form after the action, and the form uses these values as its defaults,
+ * so the guest corrects one field and keeps the rest.
+ */
+describe("submitTourRequest — a refused field keeps the guest's values", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  /** A tour enquiry with every field filled, and a name, email and date to vary. */
+  function fullForm(
+    name: string,
+    email: string,
+    { locale = "pt", preferredDate = "fim de agosto" } = {},
+  ): FormData {
+    const form = new FormData();
+    form.set("locale", locale);
+    form.set(HONEYPOT_FIELD, "");
+    form.set("name", name);
+    form.set("email", email);
+    form.set("phone", "+351 912 345 678");
+    form.set("partySize", "4");
+    form.set("experience", "rural-saloia");
+    form.set("preferredDate", preferredDate);
+    form.append("addOns", "picnic");
+    form.append("addOns", "wine-tasting");
+    form.set("message", "Dois adultos e duas crianças.");
+    form.set("marketingConsent", "on");
+    return form;
+  }
+
+  const typed = {
+    phone: "+351 912 345 678",
+    partySize: "4",
+    experience: "rural-saloia",
+    preferredDate: "fim de agosto",
+    addOns: ["picnic", "wine-tasting"],
+    message: "Dois adultos e duas crianças.",
+    marketingConsent: true,
+  };
+
+  it.each(["pt", "en"])("returns every field with an invalid email (%s)", async (locale) => {
+    const state = await submitTourRequest({}, fullForm("Ana Lopes", "ana@", { locale }));
+
+    expect(state.fieldErrors?.email).toBeTruthy();
+    expect(state.fieldErrors?.name).toBeUndefined();
+    expect(state.values).toEqual({ name: "Ana Lopes", email: "ana@", ...typed });
+    expect(insert).not.toHaveBeenCalled();
+    expect(sendLoggedEmail).not.toHaveBeenCalled();
+  });
+
+  it.each(["pt", "en"])("returns every field with an empty name (%s)", async (locale) => {
+    const state = await submitTourRequest({}, fullForm("  ", "ana@example.com", { locale }));
+
+    expect(state.fieldErrors?.name).toBeTruthy();
+    expect(state.fieldErrors?.email).toBeUndefined();
+    expect(state.values).toEqual({ name: "  ", email: "ana@example.com", ...typed });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("returns every field when the chosen day is no longer open", async () => {
+    vi.mocked(checkDayBookable).mockResolvedValueOnce(false);
+    const state = await submitTourRequest(
+      {},
+      fullForm("Ana Lopes", "ana@example.com", { preferredDate: "2027-06-12" }),
+    );
+
+    expect(state.fieldErrors?.preferredDate).toBeTruthy();
+    expect(state.values).toEqual({
+      name: "Ana Lopes",
+      email: "ana@example.com",
+      ...typed,
+      preferredDate: "2027-06-12",
+    });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("returns one add-on as a list, and no date when the date is empty", async () => {
+    const form = fullForm("Ana Lopes", "ana@", { preferredDate: "  " });
+    form.delete("addOns");
+    form.set("addOns", "picnic");
+    const state = await submitTourRequest({}, form);
+
+    expect(state.values?.addOns).toEqual(["picnic"]);
+    expect(state.values?.preferredDate).toBeUndefined();
+  });
+
+  it("does not send back the honeypot or the hidden fields", async () => {
+    const state = await submitTourRequest({}, fullForm("Ana Lopes", "ana@"));
+
+    expect(state.values).not.toHaveProperty(HONEYPOT_FIELD);
+    expect(state.values).not.toHaveProperty("locale");
+  });
+
+  it("sends back no values when the enquiry is stored", async () => {
+    const state = await submitTourRequest({}, fullForm("Ana Lopes", "ana@example.com"));
+
+    expect(state).toEqual({ ok: true });
+    expect(insert).toHaveBeenCalledTimes(1);
   });
 });

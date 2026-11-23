@@ -23,15 +23,56 @@ export type TourRequestState = {
   /** Field-level errors keyed by input name, for inline display. */
   fieldErrors?: Partial<Record<TourRequestField, string>>;
   /**
-   * What the guest had chosen, echoed back on a rejected submission.
-   *
-   * Only the date, and only because the date picker is the one control whose
-   * value the browser cannot restore for itself: the rest of the form is
-   * uncontrolled inputs that keep what was typed. A day that sold out while
-   * someone was filling the form in should cost them the day, not the form.
+   * What the guest typed, sent back with a refusal. React resets a form after
+   * its action runs, to each field's default value. The form uses these
+   * values as the defaults, so a refused enquiry keeps its fields and the
+   * guest corrects only the one that is wrong (JAM-497). The date picker also
+   * restores its day from `preferredDate`: a day that sold out while someone
+   * was filling the form in should cost them the day, not the form.
    */
-  values?: { preferredDate?: string };
+  values?: TourFormValues;
 };
+
+/** The fields a guest can type in or choose, as the form posted them. */
+export type TourFormValues = {
+  name: string;
+  email: string;
+  phone: string;
+  partySize: string;
+  experience: string;
+  /** Trimmed, and absent when empty, as the date picker reads it. */
+  preferredDate?: string;
+  addOns: string[];
+  message: string;
+  marketingConsent: boolean;
+};
+
+/**
+ * The guest's fields from a posted form, as text. The hidden fields and the
+ * honeypot are not here: the page sets those itself.
+ */
+function tourFormValues(
+  values: Record<string, FormDataEntryValue | FormDataEntryValue[]>,
+): TourFormValues {
+  const text = (key: string) => {
+    const value = values[key];
+    return typeof value === "string" ? value : "";
+  };
+  const addOns = ([] as FormDataEntryValue[])
+    .concat(values.addOns ?? [])
+    .filter((slug): slug is string => typeof slug === "string");
+  return {
+    name: text("name"),
+    email: text("email"),
+    phone: text("phone"),
+    partySize: text("partySize"),
+    experience: text("experience"),
+    preferredDate: text("preferredDate").trim() || undefined,
+    addOns,
+    message: text("message"),
+    marketingConsent: text("marketingConsent") === "on",
+  };
+}
 
 /**
  * Handle the public onboarding form. Validates the submission, inserts a row
@@ -54,8 +95,6 @@ export async function submitTourRequest(
   const localeRaw = String(values.locale ?? "");
   const locale: Locale = isLocale(localeRaw) ? localeRaw : "pt";
   const c = tourRequestContent;
-  // Echoed back on every failure path so the picker can restore the day.
-  const chosenDate = String(values.preferredDate ?? "").trim() || undefined;
 
   const ip = await clientIp();
 
@@ -71,7 +110,7 @@ export async function submitTourRequest(
     console.warn(
       `[reservar] throttled submission from ${ip} — retry in ${throttle.retryAfterSeconds}s`,
     );
-    return { error: t(c.errors.rateLimited, locale) };
+    return { error: t(c.errors.rateLimited, locale), values: tourFormValues(values) };
   }
 
   const parsed = tourRequestSchema.safeParse(values);
@@ -80,7 +119,7 @@ export async function submitTourRequest(
     const state: TourRequestState["fieldErrors"] = {};
     if (fieldErrors.name) state.name = t(c.errors.name, locale);
     if (fieldErrors.email) state.email = t(c.errors.email, locale);
-    return { fieldErrors: state, values: { preferredDate: chosenDate } };
+    return { fieldErrors: state, values: tourFormValues(values) };
   }
 
   /*
@@ -118,7 +157,7 @@ export async function submitTourRequest(
     if (!open) {
       return {
         fieldErrors: { preferredDate: t(c.errors.unavailableDate, locale) },
-        values: { preferredDate: chosenDate },
+        values: tourFormValues(values),
       };
     }
   }
@@ -186,7 +225,7 @@ export async function submitTourRequest(
     }
   } catch (err) {
     console.error("[reservar] failed to store tour request", err);
-    return { error: t(c.errors.generic, locale), values: { preferredDate: chosenDate } };
+    return { error: t(c.errors.generic, locale), values: tourFormValues(values) };
   }
 
   return { ok: true };
