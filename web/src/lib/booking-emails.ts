@@ -1587,7 +1587,27 @@ export type PaymentLinkEmailFacts = BookingLogisticsFacts & {
  * waits a week and finds the departure gone must not be surprised by it.
  */
 export function guestPaymentLinkEmail(facts: PaymentLinkEmailFacts): EmailMessage {
-  const c = bookingEmails.paymentLink;
+  return paymentLinkMessage(facts, bookingEmails.paymentLink);
+}
+
+/**
+ * The reminder of an unpaid checkout ("Lembrar", JAM-292): the payment link's
+ * mail with its own subject, banner, first paragraph and footer. The guest
+ * started this booking on the site, so it does not thank them for a contact
+ * they never made.
+ */
+export function guestPaymentReminderEmail(facts: PaymentLinkEmailFacts): EmailMessage {
+  return paymentLinkMessage(facts, {
+    ...bookingEmails.paymentLink,
+    ...bookingEmails.paymentReminder,
+  });
+}
+
+/** The one body of both mails that carry a payment link. */
+function paymentLinkMessage(
+  facts: PaymentLinkEmailFacts,
+  c: typeof bookingEmails.paymentLink,
+): EmailMessage {
   const g = bookingEmails.guest;
   const l = facts.locale;
 

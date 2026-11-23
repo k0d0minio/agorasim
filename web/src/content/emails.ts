@@ -789,6 +789,34 @@ export const bookingEmails = {
   },
 
   /**
+   * The reminder of an unpaid checkout — `booking-payment-reminder`, sent when
+   * the team taps "Lembrar" on a booking the guest started on the site and did
+   * not pay (`sendPaymentReminder` in `lib/payment-link.ts`). The mail is the
+   * payment link's, with its own first lines: this guest did not talk to the
+   * team, they left a payment form. Every line not named here is
+   * `paymentLink`'s (`guestPaymentReminderEmail` in `lib/booking-emails.ts`).
+   */
+  paymentReminder: {
+    subject: {
+      pt: "A sua reserva ficou por pagar — {experience}, {date}",
+      en: "Your booking is not paid yet — {experience}, {date}",
+    } as Localized,
+    preheader: {
+      pt: "{total} · a reserva fica confirmada com o pagamento",
+      en: "{total} · your booking is confirmed once you pay",
+    } as Localized,
+    banner: { pt: "Reserva por pagar", en: "Booking not paid yet" } as Localized,
+    lead: {
+      pt: "Começou uma reserva connosco e o pagamento não ficou concluído. Os detalhes estão abaixo. Se ainda quiser vir, basta pagar no link.",
+      en: "You started a booking with us and the payment was not completed. The details are below. If you still want to come, pay through the link.",
+    } as Localized,
+    footerNote: {
+      pt: "Recebeu este email porque começou uma reserva em {site}.",
+      en: "You are receiving this email because you started a booking at {site}.",
+    } as Localized,
+  },
+
+  /**
    * The balance, asked for — `balance-request` at T−15, `balance-request-manual`
    * when the team sends it from the quote card, and, if it is still unpaid, one
    * `balance-reminder` at T−7 (`lib/cron/balance-scheduler.ts`,
