@@ -68,6 +68,7 @@ import {
 import {
   anyVehicleFree,
   assignVehicle,
+  carToOpen,
   DRIVERS_PER_SLOT,
   FLEET_SIZE,
   freeSeats,
@@ -510,8 +511,9 @@ export function describeSlot(options: {
  *
  * A `public` party first looks for an open car of its tour with the seats
  * (`joinableCar` in `lib/fleet.ts`); `joins` names that car. Otherwise it needs
- * a driver and a car like anyone, and `joins` is null. `mode` defaults to
- * `private`, so a caller that does not say never seats anybody with strangers.
+ * a driver and a car, and `joins` is null: the car `carToOpen` names, which is
+ * the VW T3 while the van is free (JAM-290). `mode` defaults to `private`, so a
+ * caller that does not say never seats anybody with strangers.
  */
 export type PartyFit =
   | { ok: true; vehicleClass: VehicleClass; joins: string | null }
@@ -542,10 +544,12 @@ export function fitsParty(
     if (car) return { ok: true, vehicleClass: car.vehicleClass, joins: car.id };
   }
   if (slot.driversLeft < 1) return { ok: false, reason: "no-driver" };
-  if (slot.vehiclesLeft[assignment.vehicleClass] < 1) {
-    return { ok: false, reason: "no-vehicle" };
-  }
-  return { ok: true, vehicleClass: assignment.vehicleClass, joins: null };
+  // The car this party opens. It never fails here: `assignment` already
+  // refused the parties that `carToOpen` would refuse.
+  const opens = carToOpen(experienceSlug, partySize, mode, slot.vehiclesLeft);
+  const vehicleClass = opens.ok ? opens.vehicleClass : assignment.vehicleClass;
+  if (slot.vehiclesLeft[vehicleClass] < 1) return { ok: false, reason: "no-vehicle" };
+  return { ok: true, vehicleClass, joins: null };
 }
 
 /** One day of the grid: every departure of that day, in {@link TOUR_SLOTS} order. */

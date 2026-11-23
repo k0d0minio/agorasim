@@ -65,7 +65,7 @@ import {
 import { bookingLogisticsFacts, guestMoveEmail, titleFromCatalogue } from "@/lib/booking-emails";
 import { bookingRef, slotOccupancyOn } from "@/lib/bookings";
 import { withDepartureLock } from "@/lib/departure-lock";
-import { assignVehicle, carChoices, type SeatingMode } from "@/lib/fleet";
+import { carChoices, type SeatingMode } from "@/lib/fleet";
 import {
   cancellationPath,
   isCancellationTokenConfigured,
@@ -435,9 +435,10 @@ export async function moveBookingToCar(options: {
 
       let next: { sharedCarId: string; vehicleClass: Booking["vehicleClass"] };
       if (target === "new") {
-        const assignment = assignVehicle(existing.experienceSlug, existing.partySize);
-        if (!choices.canOpenNew || !assignment.ok) return { status: "no-room" };
-        next = { sharedCarId: crypto.randomUUID(), vehicleClass: assignment.vehicleClass };
+        // The class `carChoices` offered: the VW T3 while it is free, else a
+        // small classic (`carToOpen` in `lib/fleet.ts`).
+        if (!choices.newCarClass) return { status: "no-room" };
+        next = { sharedCarId: crypto.randomUUID(), vehicleClass: choices.newCarClass };
       } else {
         const car = choices.join.find((entry) => entry.id === target);
         if (!car) return { status: "no-room" };
