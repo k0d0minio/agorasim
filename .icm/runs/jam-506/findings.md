@@ -44,3 +44,13 @@ O operador regista estes pontos mais tarde. Uma entrada por ponto.
   `contact/jam-506-agorasim-each-booking-and-enquiry-records`. O blueprint rc15 lê o ticket com
   `baxter_tool run linear get_issue` (JAM-275). Este repo está em rc14.
 - proposed: chore
+
+## O agente `review-shots` não consegue fazer imagens neste repo
+
+- where: `.icm/_system/agents/review-shots/CONTEXT.md`, `.icm/environments.md`, a proteção de deployments da Vercel
+- what: para o pull request #277 o agente fez 0 imagens. O preview responde com a página de
+  login da Vercel. O "antes" é o endereço de produção (`https://prod.agorasim.pt`), que responde
+  `404 DEPLOYMENT_NOT_FOUND` porque ainda não houve uma promoção. O contrato não deixa abrir o
+  UAT. Ficaram 8 imagens de páginas de login e de erro em
+  `~/baxter_live/workspace/scratch/shots/`: um hook recusou o `rm` do agente.
+- proposed: chore
