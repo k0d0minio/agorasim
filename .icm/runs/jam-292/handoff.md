@@ -2,16 +2,31 @@
 
 ## Next action
 
-<What the next session, or the operator, does first.>
+1. O operador responde às perguntas 1 a 4 no HUD ou no corpo do pull request #279, e diz `new JAM-292`.
+2. A sessão corre `questions.sh JAM-292`, põe as respostas no `spec.md`, faz commit e push, e corre `new-run.sh JAM-292 --refresh-body`.
+3. O operador marca **Spec approved** no #279 e diz `build JAM-292`.
+
+A palavra do Jamie, no chat, 2026-11-23: "Start the next set of parallel tickets please". Esta run é um desses tickets.
 
 ## How to test
 
-<1 to 3 short sentences that can be said aloud: where to go on the preview, what to do, what the operator must see.>
+Ainda não há nada para testar. A fase Define não escreve código.
 
 ## Blockers
 
-- none
+- As perguntas 1 a 4 esperam resposta do operador (corpo do #279).
+- A pergunta 3 pede uma migração (`0043`, um valor novo no enum `message_kind`). O Build escreve-a só depois da resposta do Jamie e depois de o #277 (migração `0042`) estar em `main`.
+- O gate **Spec approved** não está marcado.
 
 ## Do not touch
 
-- none
+- `web/src/lib/fleet.ts`, `web/src/lib/availability.ts` e a ocupação em `web/src/lib/bookings.ts`: a JAM-290 muda-os no #278. Esta run só os chama.
+- As linhas da origem da reserva em `web/src/lib/sales.ts`, `web/src/components/admin/sales-board.tsx` e `web/src/app/admin/sales/`: são da JAM-506 (#277). Depois do merge do #277, trazer `main` para este ramo (merge, sem rebase).
+- `web/drizzle/0042_*`: é do #277.
+
+## Notes for Build
+
+- `sendPaymentLink` recusa uma reserva de checkout (`isNotNull(paymentLinkTokenHash)`). O lembrete precisa de uma função própria em `web/src/lib/payment-link.ts`, que também reabre uma reserva `expired`.
+- `closeUnpaidBooking` (`web/src/lib/booking-checkout.ts`) escreve `expired` quando a sessão Stripe acaba. `bookingSummaries` (`web/src/lib/sales.ts`) esconde hoje um checkout caducado do cartão.
+- A página `/reservar/pagar/<token>` e `startPaymentLinkCheckout` já tratam o estado `full`.
+- As ações de auditoria são texto (`AUDIT_ACTIONS` em `web/src/lib/audit.ts`): uma ação nova não pede migração.

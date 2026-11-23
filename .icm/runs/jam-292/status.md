@@ -1,5 +1,5 @@
 # Status jam-292
 
 - phase: define
-- blocked: no
+- blocked: yes — waits for answers
 - updated: 2026-11-23
