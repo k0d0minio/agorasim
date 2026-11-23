@@ -248,6 +248,7 @@ advantage: it answers a question the coach listings dodge.
    dusk frame from `rural-saloia/` and the alt says so.
 6. **A date is never promised.** No article says that a tour runs every day or that a date is
    free. An article says that there are two departures a day and that the calendar of
-   `/reservar` shows the dates on sale. A closed date is "unavailable", with no reason: a
-   wedding or an event can take the whole day. Online booking is from two calendar days ahead
-   to six months ahead. A nearer or later date is a phone call.
+   `/reservar` shows the dates on sale. A closed date is "unavailable". An article never
+   gives the reason, and it never says that a wedding or an event can take the whole day.
+   Online booking is from two calendar days ahead to six months ahead. A nearer or later date
+   is a phone call.
