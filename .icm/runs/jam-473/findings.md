@@ -1,6 +1,6 @@
 # Findings jam-473
 
-Este pipeline não escreve no Linear. O operador regista o comentário e os tickets abaixo.
+Em 2026-11-23 o Jamie decidiu que as sessões escrevem no Linear com a ferramenta BAXTER ("The sessions have access to linear tools via the baxter tool interface."). O BAXTER publicou o comentário de §1 em JAM-473. Esta sessão criou os tickets de §2 e de §4 em Triage, ligados a JAM-473 (related).
 
 ## 1. Comentário para JAM-473 (rascunho, em inglês)
 
@@ -21,18 +21,18 @@ Este pipeline não escreve no Linear. O operador regista o comentário e os tick
 >    to Diogo in one batch (section 3 of the run findings).
 > 5. Proposed follow-up tickets: F1 to F8 in the run findings.
 
-## 2. Tickets propostos (não criados)
+## 2. Tickets criados
 
-| # | Title | Size | Depends on | In the deal? |
-|---|---|---|---|---|
-| F1 | agorasim · The terms and the privacy page show the RNAAT number and the insurers | S (0.5 d) | client answers Q1, Q2 | yes: legal content of feature 1 |
-| F2 | agorasim · The terms say the VAT regime and how the guest gets the fatura | S (0.5 d) | accountant answers A1, A3 | yes |
-| F3 | agorasim · The guest can give a NIF for the fatura at booking and on a quote | S (1 d): optional field, `pt-PT` and `en`, stored on the booking and the quote, shown in the admin console, in the Art. 15 export and the retention rules | the decision "by hand" or F7 | grey: Jamie decides |
-| F4 | agorasim · The admin console lists the payments and refunds to invoice | S (1 to 1.5 d): a list by day of paid bookings, instalments and refunds with the fatura fields, and a mark "fatura emitida" with its number | fatura decision "by hand" | no: a new request (small) |
-| F5 | agorasim · Booking rows of a real sale are kept for the tax period, then anonymised | S to M (1 to 2 d): `retention.ts`, the policy text, `data-protection.md` item 2 | accountant answers A5, lawyer | yes: privacy of feature 3 |
-| F6 | agorasim · The driver sees the service document of each departure on the phone | S (1 d): business, RNAAT number, tour, date, time, departure and arrival place (DL 108/2009 art. 26.º n.º 4) | Q1; confirm that a document on a phone is enough | no: a new request (small) |
-| F7 | agorasim · Each payment makes a certified fatura, and each refund a credit note | M (4 to 6 d), see the page | accountant asks for it, or the volume | no: a new request (G §8) |
-| F8 | agorasim · The terms and the privacy page lose the draft banner | S (0.5 d): remove `draftNotice` and every `TODO(legal)` after the sign-off | the lawyer's sign-off | yes |
+| # | Key | Title | Size | Depends on | In the deal? |
+|---|---|---|---|---|---|
+| F1 | JAM-520 | agorasim · The terms and the privacy page show the RNAAT number and the insurers | S (0.5 d) | client answers Q1, Q2 | yes: legal content of feature 1 |
+| F2 | JAM-525 | agorasim · The terms say the VAT regime and how the guest gets the fatura | S (0.5 d) | accountant answers A1, A3 | yes |
+| F3 | JAM-527 | agorasim · The guest can give a NIF for the fatura at booking and on a quote | S (1 d): optional field, `pt-PT` and `en`, stored on the booking and the quote, shown in the admin console, in the Art. 15 export and the retention rules | the decision "by hand" or F7 | grey: Jamie decides |
+| F4 | JAM-528 | agorasim · The admin console lists the payments and refunds to invoice | S (1 to 1.5 d): a list by day of paid bookings, instalments and refunds with the fatura fields, and a mark "fatura emitida" with its number | fatura decision "by hand" | no: a new request (small) |
+| F5 | JAM-529 | agorasim · Booking rows of a real sale are kept for the tax period, then anonymised | S to M (1 to 2 d): `retention.ts`, the policy text, `data-protection.md` item 2 | accountant answers A5, lawyer | yes: privacy of feature 3 |
+| F6 | JAM-530 | agorasim · The driver sees the service document of each departure on the phone | S (1 d): business, RNAAT number, tour, date, time, departure and arrival place (DL 108/2009 art. 26.º n.º 4) | Q1; confirm that a document on a phone is enough | no: a new request (small) |
+| F7 | JAM-531 | agorasim · Each payment makes a certified fatura, and each refund a credit note | M (4 to 6 d), see the page | accountant asks for it, or the volume | no: a new request (G §8) |
+| F8 | JAM-532 | agorasim · The terms and the privacy page lose the draft banner | S (0.5 d): remove `draftNotice` and every `TODO(legal)` after the sign-off | the lawyer's sign-off | yes |
 
 Also for a lawyer: the "sinal" wording and an events rule for a cancellation by Agorasim
 (`terms.ts`, B8). It is part of F8 or its own ticket after the answer.
@@ -75,7 +75,7 @@ Also for a lawyer: the "sinal" wording and an events rule for a cancellation by 
 
 - **Conflito com o runbook.** `launch-runbook.md` §4b diz que o site pode lançar com
   "RNAAT: registo em curso". DL 108/2009 art. 5.º n.º 1 e art. 8.º n.º 2 dizem o contrário
-  para reservas pagas. Corrigir §4b num ticket `knowledge` (este lane muda só uma página).
+  para reservas pagas. Ticket `knowledge`: JAM-533.
 - **Comissão sem fatura.** O Commission & Payments Agreement §3 e §6 diz "There is no invoice"
   para a comissão. A comissão é um serviço da Platform à Agorasim. O contabilista da
   Agorasim pode pedir um documento para a registar como custo. O contabilista do Jamie diz
