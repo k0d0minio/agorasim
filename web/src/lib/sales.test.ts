@@ -41,6 +41,8 @@ function tourRequest(overrides: Partial<TourRequest> = {}): TourRequest {
     preferredCar: null,
     status: "new",
     source: "website",
+    landingUtmSource: null,
+    landingReferrerHost: null,
     internalNotes: null,
     lastContactedAt: null,
     marketingConsent: false,
@@ -171,6 +173,19 @@ describe("recordFromRequest", () => {
     );
     expect(record.when).toContain("13 de junho de 2027");
     expect(record.venue).toBe("Quinta da Beloura");
+  });
+});
+
+describe("the source of a record (JAM-506)", () => {
+  it("shows the utm_source, the referrer, a direct visit and a row with no record", () => {
+    const source = (landingUtmSource: string | null, landingReferrerHost: string | null) =>
+      recordFromRequest(tourRequest({ landingUtmSource, landingReferrerHost })).source;
+
+    expect(source("chatgpt.com", "chatgpt.com")).toBe("chatgpt.com");
+    expect(source(null, "www.google.com")).toBe("google");
+    expect(source(null, "")).toBe("Direta ou desconhecida");
+    // A row from before the change, or one the team made in the console.
+    expect(source(null, null)).toBe("Sem registo");
   });
 });
 
