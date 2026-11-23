@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-290
 - branch: claude/jam-290-open-group-van-a92d79
 - lane: spine
-- pr: pending
+- pr: #278
 - started: 2026-11-23
