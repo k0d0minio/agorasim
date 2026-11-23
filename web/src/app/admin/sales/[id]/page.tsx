@@ -450,6 +450,11 @@ export default async function AdminLeadPage({
                   </Badge>
                 </dd>
               </div>
+              {/* Where the guest's visit started (JAM-506). */}
+              <div>
+                <dt className="text-muted-foreground">Origem</dt>
+                <dd className="break-all">{record.source}</dd>
+              </div>
             </dl>
 
             {/*

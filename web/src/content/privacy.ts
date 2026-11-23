@@ -82,7 +82,7 @@ export const privacyContent = {
   } as Localized,
 
   lastUpdatedLabel: { pt: "Última atualização", en: "Last updated" } as Localized,
-  lastUpdated: { pt: "28 de outubro de 2026", en: "28 October 2026" } as Localized,
+  lastUpdated: { pt: "23 de novembro de 2026", en: "23 November 2026" } as Localized,
 
   sections: {
     pt: [
@@ -100,6 +100,7 @@ export const privacyContent = {
           "Quando preenche o formulário de pedido de experiência recolhemos: o seu nome, o seu email, o seu telefone (opcional), o número de pessoas, a data ou período preferido, a experiência e complementos que lhe interessam, a mensagem que nos escrever e o idioma em que navegava.",
           "Registamos também a data do pedido e, se tiver assinalado a caixa de comunicações de marketing, o facto de o ter feito, o momento e a versão do texto que aceitou.",
           "Quando reserva e paga online recolhemos ainda os dados da reserva: a experiência, a data e a hora de partida, a composição do grupo (adultos, crianças e bebés), o montante pago e o estado do pagamento. O pagamento em si é feito no formulário da Stripe, apresentado dentro da nossa página: os dados do cartão são introduzidos nesse formulário e nunca passam pelos nossos servidores. Da Stripe recebemos apenas a confirmação de que o pagamento foi feito, o montante e as referências necessárias para o associar à sua reserva.",
+          "Quando faz uma reserva ou um pedido, guardamos com ele a origem da sua visita: o nome do site que o trouxe até nós (por exemplo, google.com) e, quando a ligação a indica, a etiqueta de origem (por exemplo, chatgpt.com). Não guardamos o endereço completo da página de onde veio nem o que pesquisou. Para isto não usamos cookies. Estes dois valores ficam no separador do seu navegador até à reserva, e desaparecem quando fecha o separador. Não o seguimos entre visitas. Usamos esta informação para saber que canais trazem reservas (interesse legítimo). Fica guardada com a reserva, pelo mesmo prazo.",
           "Para além disto, os únicos dados que saem do site são os necessários para cobrar o pagamento (Stripe) e para lhe enviar os emails sobre o seu pedido ou reserva e o agradecimento depois do passeio (Resend) — ver «Com quem partilhamos os dados». Não usamos ferramentas de análise de tráfego nem publicidade comportamental.",
         ],
       },
@@ -168,6 +169,7 @@ export const privacyContent = {
           "When you fill in the experience request form we collect: your name, your email address, your phone number (optional), the number of people, your preferred date or period, the experience and add-ons you are interested in, whatever you write in the message field, and the language you were browsing in.",
           "We also record when the enquiry was made and, if you ticked the marketing box, that you did so, when, and which version of the wording you agreed to.",
           "When you book and pay online we also collect the booking itself: the experience, the date and departure time, who is in your party (adults, children and infants), the amount paid and the payment status. The payment itself happens in Stripe's form, shown inside our page: your card details are entered into that form and never pass through our servers. From Stripe we receive only confirmation that the payment was made, the amount, and the references needed to match it to your booking.",
+          "When you make a booking or an enquiry, we keep with it where your visit started: the name of the site that brought you to us (for example, google.com) and, when the link gives one, its source label (for example, chatgpt.com). We do not keep the full address of the page you came from, or what you searched for. We use no cookies for this. These two values stay in your browser tab until you book, and they go when you close the tab. We do not follow you between visits. We use this information to know which channels bring bookings (legitimate interest). It is kept with the booking, for the same period.",
           "Beyond this, the only data that leaves the site is what is needed to take your payment (Stripe) and to send you the emails about your enquiry or booking and the thank-you after your tour (Resend) — see \"Who we share it with\". We do not use web analytics or behavioural advertising.",
         ],
       },
@@ -274,9 +276,11 @@ export const legalOpenItems: readonly string[] = [
   "TODO(legal): confirmar os prazos legais de conservação dos dados de reservas efetivamente realizadas (por exemplo, obrigações fiscais).",
   "TODO(legal): confirmar as regiões de alojamento da Vercel e da Neon, a entidade Stripe contratante (Stripe Payments Europe, Irlanda, para contas em Portugal) e, quando existam transferências para fora do Espaço Económico Europeu, o mecanismo aplicável (por exemplo, cláusulas contratuais-tipo).",
   "TODO(legal): confirmar a redação do fundamento do email de agradecimento (interesse legítimo, artigo 6.º, n.º 1, alínea f), e o regime de contactos a clientes existentes da Lei n.º 41/2004) e se o aviso no momento da recolha deve também constar do email de confirmação da reserva (registo: .icm/intake/README.md § Decisions).",
+  "TODO(legal): confirmar o parágrafo sobre a origem da visita (JAM-506): o `utm_source` e o host do referrer ficam no `sessionStorage` do separador até à reserva. Confirmar o fundamento (interesse legítimo) e se o artigo 5.º da Lei n.º 41/2004 pede consentimento para este armazenamento, que não é um cookie (decisão do Jamie, 2026-11-23).",
   "TODO(legal): confirm the basis stated for the enquiry itself, and whether any further processing (for example tax obligations attached to bookings that actually happen) needs describing under \"Why we process it\".",
   "PROPOSED, NOT YET DECIDED: a 24-month retention period from the last contact for unconverted enquiries — not yet signed off by the client (.icm/docs/data-protection.md).",
   "TODO(legal): confirm the statutory retention periods for data attached to bookings that took place (for example tax record-keeping).",
   "TODO(legal): confirm the wording of the basis for the thank-you email (legitimate interest, Art. 6(1)(f), and the existing-customer rule of Portuguese Law 41/2004) and whether the collection-time notice should also appear in the booking confirmation email (register: .icm/intake/README.md § Decisions).",
+  "TODO(legal): confirm the paragraph about where a visit started (JAM-506): the `utm_source` and the referrer host stay in the tab's `sessionStorage` until the booking. Confirm the basis (legitimate interest) and whether Art. 5 of Portuguese Law 41/2004 asks for consent for this storage, which is not a cookie (Jamie's decision, 2026-11-23).",
   "TODO(legal): confirm the hosting regions for Vercel and Neon, the contracting Stripe entity (Stripe Payments Europe, Ireland, for Portuguese accounts) and, where any transfer outside the European Economic Area occurs, the safeguard relied on (for example standard contractual clauses).",
 ];

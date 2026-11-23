@@ -12,7 +12,8 @@ import { formValues, quoteRequestSchema, type QuoteRequestField } from "@/lib/fo
 import { guestEnquiryAckEmail, teamEnquiryEmail } from "@/lib/booking-emails";
 import { sendLoggedEmail } from "@/lib/message-log";
 import { teamRecipients } from "@/lib/email";
-import { siteUrl } from "@/lib/site-origin";
+import { CANONICAL_HOME, siteUrl } from "@/lib/site-origin";
+import { sourceFromForm } from "@/lib/booking-source";
 
 export type QuoteRequestState = {
   ok?: boolean;
@@ -132,6 +133,8 @@ export async function submitQuoteRequest(
         ...request,
         locale,
         source: "website",
+        // Where the visit started (JAM-506). Never a reason to refuse the form.
+        ...sourceFromForm(values, [siteUrl(), CANONICAL_HOME]),
         // Consent is recorded with *when* and *which wording*, so it can be
         // evidenced later (Art. 7(1)) — see `reservar/actions.ts`.
         marketingConsent,

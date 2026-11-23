@@ -13,6 +13,7 @@ import {
   type QuoteFormCopy,
 } from "@/content/quote-request";
 import { maskDayFirst, parseDayFirst } from "@/lib/date-keys";
+import { BookingSourceFields } from "@/components/booking-source";
 import { HONEYPOT_FIELD, HONEYPOT_INPUT_PROPS, HONEYPOT_LABEL } from "@/lib/honeypot";
 import { href } from "@/lib/routes";
 import { submitQuoteRequest, type QuoteRequestState } from "@/app/[locale]/quote-actions";
@@ -144,6 +145,7 @@ export function QuoteRequestForm({
       noValidate
     >
       <input type="hidden" name="locale" value={locale} />
+      <BookingSourceFields />
       {/* Which door this is. See `quoteRequestSchema` for why it is only
           half-trusted — a forged value costs a badge, not a lead. */}
       <input type="hidden" name="kind" value={kind} />

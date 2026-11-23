@@ -167,8 +167,12 @@ const fits: SlotCheck = {
   sharedCarId: "eeeeeeee-0000-4000-8000-000000000001",
 };
 
-function start(assign: () => Promise<SlotCheck> = async () => fits) {
+function start(
+  assign: () => Promise<SlotCheck> = async () => fits,
+  source?: { landingUtmSource: string | null; landingReferrerHost: string | null },
+) {
   return startBookingCheckout({
+    source,
     guest: {
       name: "Ana",
       email: "ana@example.com",
@@ -306,6 +310,33 @@ describe("startBookingCheckout — the embedded session", () => {
       vehicleClass: "classic-small",
       sharedCarId: "eeeeeeee-0000-4000-8000-000000000001",
     });
+  });
+
+  it("writes where the visit started on the lead and on the booking (JAM-506)", async () => {
+    queueInserts();
+    sessionsCreate.mockResolvedValue({ id: SESSION_ID, client_secret: CLIENT_SECRET, url: null });
+
+    await start(undefined, { landingUtmSource: null, landingReferrerHost: "www.google.com" });
+
+    const inserted = writes.filter((write) => write.op === "insert");
+    expect(inserted).toHaveLength(2);
+    for (const write of inserted) {
+      expect(write.values).toMatchObject({
+        landingUtmSource: null,
+        landingReferrerHost: "www.google.com",
+      });
+    }
+  });
+
+  it("says not recorded when the checkout is given no source", async () => {
+    queueInserts();
+    sessionsCreate.mockResolvedValue({ id: SESSION_ID, client_secret: CLIENT_SECRET, url: null });
+
+    await start();
+
+    for (const write of writes.filter((entry) => entry.op === "insert")) {
+      expect(write.values).toMatchObject({ landingUtmSource: null, landingReferrerHost: null });
+    }
   });
 
   it("returns the re-check's refusal, and writes nothing and opens no session", async () => {

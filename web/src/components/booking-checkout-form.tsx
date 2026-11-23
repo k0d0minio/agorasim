@@ -31,6 +31,7 @@ import {
 } from "@/lib/pricing";
 import { formatPrice } from "@/lib/money";
 import { href } from "@/lib/routes";
+import { BookingSourceFields } from "@/components/booking-source";
 import { HONEYPOT_FIELD, HONEYPOT_INPUT_PROPS, HONEYPOT_LABEL } from "@/lib/honeypot";
 import {
   draftFromFormData,
@@ -577,6 +578,7 @@ export function BookingCheckoutForm({
         className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-start"
       >
         <input type="hidden" name="locale" value={locale} />
+        <BookingSourceFields />
         <input type="hidden" name="experience" value={tour.slug} />
         <input type="hidden" name="mode" value={mode} />
         <input type="hidden" name="adults" value={adults} />
