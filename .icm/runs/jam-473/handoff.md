@@ -18,7 +18,13 @@ data. A decisão sobre as faturas está na secção "The fatura decision".
 
 ## Blockers
 
-- Nenhum para este pull request. O lançamento com reservas pagas espera pelo número RNAAT e
+- O check Vercel está vermelho. Causa: o projeto Neon `uat-agorasim` tem 10 branches (o
+  limite do plano) em 2026-11-23 às 12:02. A integração não cria `preview/claude/jam-473-…`,
+  e o deploy falha antes do build (0 ms). O mesmo acontece no PR #272 (JAM-475). A página não
+  muda o código. Ação do operador: apagar um branch que já não serve (por exemplo
+  `local-test/2026-11-19`) ou esperar pelo fecho de outro PR, e depois fazer "Redeploy" no
+  Vercel.
+- O lançamento com reservas pagas espera pelo número RNAAT e
   pelas apólices (Diogo).
 
 ## Do not touch

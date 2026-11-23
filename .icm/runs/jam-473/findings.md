@@ -92,3 +92,7 @@ Also for a lawyer: the "sinal" wording and an events rule for a cancellation by 
   `~/Documents/to organise/Archive/deal-documents/agorasim/...`.
 - **Hook do router.** O hook `route-request` imprimiu "Route: start JAM-293" para um pedido
   sobre JAM-473. Falha do blueprint: dizer ao operador.
+- **Limite de branches Neon.** O projeto `uat-agorasim` tem 10 branches (main, 8 previews
+  e `local-test/2026-11-19`). Com onze sessões em paralelo, os previews novos falham no
+  Vercel antes do build (PR #272 e #273). `local-test/2026-11-19` parece um resto de um teste
+  local.
