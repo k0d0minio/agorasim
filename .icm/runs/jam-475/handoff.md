@@ -9,7 +9,7 @@ propostas. O BAXTER cria-os no Linear, se o Jamie disser que sim.
 ## How to test
 
 Abra `.icm/docs/blog-loop.md` no pull request. Leia "What stops the first articles" e "The
-build plan". Cada caminho de ficheiro da página existe no repositório.
+build plan". Cada caminho de ficheiro da página existe, exceto `workspaces/geo-content/topics.md` (proposto em B1).
 
 ## Blockers
 

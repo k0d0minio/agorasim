@@ -143,7 +143,7 @@ article. The real cost is Jamie's review time, not the API.
 
 ### The topic queue
 
-The first five topics are the batch of 2026-08-31 (`setup/questionnaire.md`). Topics 6 to 12
+The first five topics are the batch of 2026-08-31 (`workspaces/geo-content/setup/questionnaire.md`). Topics 6 to 12
 are proposals. "Facts" says if `business-facts.md` has enough facts for the article today.
 
 | # | Target query (EN) | Facts |
