@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-478/agorasim-spike-a-baseline-for-found-and-cited-by-google-and-ai-search
 - branch: claude/jam-478-spike-search-baseline-d5835c
 - lane: knowledge
-- pr: pending
+- pr: #275
 - started: 2026-11-23
