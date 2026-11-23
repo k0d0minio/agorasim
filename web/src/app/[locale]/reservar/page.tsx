@@ -25,16 +25,21 @@ import { organizationJsonLd } from "@/lib/jsonld";
 import { alternates } from "@/lib/seo";
 
 /**
- * Cached like the rest of the public site — the catalogue and the calendar both
- * change, and both revalidate the whole layout when they do (see the admin
- * actions), so the hour is a backstop rather than the mechanism.
+ * Rendered at each request, unlike the rest of the public site (JAM-293).
+ *
+ * The calendar shows the seats left, and those change with no event to
+ * revalidate on: a checkout hold lapses by the clock (`holdsCapacitySql`), and
+ * a guest's booking or payment does not call `revalidatePath`. With the hourly
+ * cache, a guest could pick a departure that two holds had already filled, and
+ * only the checkout refused it. Now a fresh load shows the seats as they are.
+ * The checkout still re-checks the departure: it stays the last guard.
  *
  * Nothing on this page is per-guest. The Stripe session is created by a server
  * action on submit — its client secret reaches the browser in that action's
  * response, never in this HTML — and the confirmation lives on its own dynamic
  * route.
  */
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 /**
  * Everything both the metadata and the page need, read once.
