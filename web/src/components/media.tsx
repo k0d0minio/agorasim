@@ -17,7 +17,7 @@ export function Media({
   position,
 }: {
   src?: string;
-  /** Stable string (e.g. slug) used to vary the placeholder hue when no src. */
+  /** Stable string (e.g. slug) that picks the placeholder gradient when no src. */
   seed?: string;
   /** Accessible description of the photo. */
   label: string;
@@ -44,11 +44,9 @@ export function Media({
     );
   }
 
-  const hue = hueFromSeed(seed ?? label);
+  const [from, via, to] = PLACEHOLDER_GRADIENTS[indexFromSeed(seed ?? label)];
   const style = {
-    backgroundImage: `linear-gradient(135deg, oklch(0.78 0.07 ${hue}) 0%, oklch(0.55 0.08 ${
-      hue + 25
-    }) 55%, oklch(0.42 0.06 ${hue + 45}) 100%)`,
+    backgroundImage: `linear-gradient(135deg, ${from} 0%, ${via} 55%, ${to} 100%)`,
   };
 
   return (
@@ -66,8 +64,19 @@ export function Media({
   );
 }
 
-function hueFromSeed(seed: string): number {
+/**
+ * Brand palette steps (`globals.css`), so a missing photo looks on-brand. Each
+ * gradient ends dark, so the white label chip at the bottom stays readable.
+ */
+const PLACEHOLDER_GRADIENTS = [
+  ["var(--brand-sand)", "var(--brand-orange)", "var(--brand-terracotta)"],
+  ["var(--brand-sand)", "var(--brand-terracotta)", "var(--brand-teal)"],
+  ["var(--brand-orange)", "var(--brand-terracotta)", "var(--brand-night)"],
+  ["var(--brand-sand)", "var(--brand-teal)", "var(--brand-night)"],
+] as const;
+
+function indexFromSeed(seed: string): number {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) % 360;
-  return 40 + (h % 120);
+  return h % PLACEHOLDER_GRADIENTS.length;
 }

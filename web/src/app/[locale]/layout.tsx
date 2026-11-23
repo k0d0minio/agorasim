@@ -28,7 +28,7 @@ export function generateStaticParams() {
  */
 export const viewport: Viewport = {
   // --background in globals.css, so the browser chrome blends into the page.
-  themeColor: "#fdfaf4",
+  themeColor: "#F3E9D5",
   // Draw into the notch/home-indicator area; the header and the booking bar
   // pad themselves back out with env(safe-area-inset-*).
   viewportFit: "cover",
