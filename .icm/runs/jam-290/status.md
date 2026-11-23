@@ -1,5 +1,5 @@
 # Status jam-290
 
-- phase: build
-- blocked: no
+- phase: release
+- blocked: yes — waits for Ready to merge
 - updated: 2026-11-23
