@@ -2,16 +2,16 @@
 
 ## Next action
 
-<What the next session, or the operator, does first.>
+Jamie reads the three choices in `spec.md` (Proposed change) and the answer to Q1. Jamie ticks **Spec approved**, then says `build JAM-291`.
 
 ## How to test
 
-<1 to 3 short sentences that can be said aloud: where to go on the preview, what to do, what the operator must see.>
+Filled in by Build.
 
 ## Blockers
 
-- none
+- Spec approved is not ticked.
 
 ## Do not touch
 
-- none
+- The tour form values in `web/src/app/[locale]/reservar/actions.ts`. JAM-497 changes them in another run.
