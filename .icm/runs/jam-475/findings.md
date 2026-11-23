@@ -5,8 +5,8 @@ The operator files these later. One entry for each finding.
 ## Comentário para o JAM-475 (rascunho)
 
 - where: Linear JAM-475
-- what: esta sessão não escreve no Linear (`CLAUDE.md`, `rules/ticket.md` regra 5). O texto
-  abaixo é o comentário de resumo. O operador ou o BAXTER publica-o.
+- what: o texto abaixo é o comentário de resumo. O BAXTER publicou-o no JAM-475 em
+  2026-11-23.
 - proposed: question for the ticket
 
 > Spike result: `.icm/docs/blog-loop.md` in PR #272.
@@ -31,7 +31,7 @@ The operator files these later. One entry for each finding.
 - what: diz que o site fica online no dia em que a transferência do registo termina
   (2026-09-11). Em 2026-11-23 `agorasim.pt` ainda serve o WordPress antigo. Um artigo
   escrito deste ficheiro pode repetir uma data falsa.
-- proposed: chore (com o JAM-471)
+- proposed: chore (com o JAM-471). Criado: JAM-526.
 
 ## A lane knowledge e um spike com plano
 
@@ -40,3 +40,22 @@ The operator files these later. One entry for each finding.
   página. A página segue o bilhete e marca o plano como proposta. É uma falha do blueprint
   para o operador.
 - proposed: question for the ticket
+
+## Os bilhetes de construção criados
+
+- where: Linear, equipa JAM, projeto agorasim, estado Triage
+- what: o Jamie decidiu em 2026-11-23 que as sessões escrevem no Linear com a ferramenta
+  BAXTER. Esta decisão substitui, para esta sessão, a regra "esta sessão não escreve no
+  Linear". O Jamie disse "Yes, create them" nesta sessão (2026-11-23). O Jamie decidiu em
+  2026-11-23 que o blogue vem depois do go-live (JAM-471). Cada bilhete diz isso.
+- proposed: nada. Os bilhetes existem:
+
+| Plano | Chave | Lane | Estimativa | Relações |
+|---|---|---|---|---|
+| B1 | JAM-508 | chore | 1 | related JAM-475, blocks JAM-510 e JAM-521 |
+| B2 | JAM-510 | new | 2 | related JAM-475 |
+| B3 | JAM-514 | new | 3 | related JAM-475 |
+| B4 | JAM-517 | new | 2 | related JAM-475, blocks JAM-521 e JAM-524 |
+| B5 | JAM-521 | new | 3 | related JAM-475 |
+| B6 | JAM-524 | new | 1 | related JAM-475 |
+| O parágrafo do domínio | JAM-526 | chore | 1 | related JAM-475 e JAM-471 |
