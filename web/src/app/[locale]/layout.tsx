@@ -8,6 +8,7 @@ import { site, taglines } from "@/content/site";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { BookingBar } from "@/components/booking-bar";
+import { BookingSourceCapture } from "@/components/booking-source";
 import { alternates } from "@/lib/seo";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -92,6 +93,7 @@ export default async function LocaleLayout({
       {/* dvh, not screen/100vh: classic vh is the *largest* mobile viewport, so
           a full-height page overflows behind the browser's own chrome. */}
       <body className="flex min-h-dvh flex-col antialiased">
+        <BookingSourceCapture />
         <SiteHeader locale={typedLocale} />
         <main className="flex-1">{children}</main>
         <SiteFooter locale={typedLocale} />

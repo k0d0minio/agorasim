@@ -12,6 +12,8 @@ import {
 } from "@/i18n/config";
 import { checkSlotAvailable } from "@/lib/availability";
 import { releaseBookingCheckout, startBookingCheckout } from "@/lib/booking-checkout";
+import { sourceFromForm } from "@/lib/booking-source";
+import { CANONICAL_HOME, siteUrl } from "@/lib/site-origin";
 import { slotOccupancyOn } from "@/lib/bookings";
 import { listExperiences } from "@/lib/experience-catalogue";
 import { priceBooking, type PricingFailure } from "@/lib/pricing";
@@ -296,6 +298,8 @@ export async function startCheckout(
       addOns: knownAddOns,
       lines: priced.lines,
       totalCents: priced.totalCents,
+      // Where the visit started (JAM-506). Never a reason to refuse a sale.
+      source: sourceFromForm(values, [siteUrl(), CANONICAL_HOME]),
     });
   } catch (err) {
     console.error("[checkout] could not hold the departure or start a Stripe session", err);

@@ -80,6 +80,56 @@ describe("submitQuoteRequest — the honeypot", () => {
   });
 });
 
+describe("submitQuoteRequest — where the visit started (JAM-506)", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it("stores the source of a wedding enquiry, as a booking does", async () => {
+    const form = weddingForm();
+    form.set("landingUtmSource", "");
+    form.set("landingReferrer", "https://www.google.com/");
+
+    expect(await submitQuoteRequest({}, form)).toEqual({ ok: true });
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "wedding",
+        landingUtmSource: null,
+        landingReferrerHost: "www.google.com",
+      }),
+    );
+  });
+
+  it("stores the source of an event enquiry", async () => {
+    const form = weddingForm();
+    form.set("kind", "event");
+    form.set("landingUtmSource", "ChatGPT.com");
+    form.set("landingReferrer", "");
+
+    expect(await submitQuoteRequest({}, form)).toEqual({ ok: true });
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "event",
+        landingUtmSource: "chatgpt.com",
+        landingReferrerHost: "",
+      }),
+    );
+  });
+
+  it("drops a value that is not valid, and stores the enquiry", async () => {
+    const form = weddingForm();
+    form.set("landingUtmSource", "two words");
+    form.set("landingReferrer", "not a host");
+
+    expect(await submitQuoteRequest({}, form)).toEqual({ ok: true });
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({ landingUtmSource: null, landingReferrerHost: "" }),
+    );
+  });
+});
+
 /*
  * A refused enquiry sends back what the guest typed (JAM-487). React resets
  * the form after the action, and the form uses these values as its defaults,

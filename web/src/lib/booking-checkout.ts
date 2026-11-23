@@ -110,6 +110,7 @@ import { sendLoggedEmail } from "@/lib/message-log";
 import { recordAuditOrWarn } from "@/lib/audit";
 import { commissionOn } from "@/lib/commission";
 import { siteUrl } from "@/lib/site-origin";
+import { NO_SOURCE, type StoredSource } from "@/lib/booking-source";
 import {
   connectedAccountId,
   isStripeConfigured,
@@ -160,6 +161,11 @@ export async function startBookingCheckout(options: {
   addOns: Experience[];
   lines: PricedLine[];
   totalCents: number;
+  /**
+   * Where the guest's visit started, cleaned by `sourceFromForm` (JAM-506).
+   * Written on the lead and on the booking. It decides nothing here.
+   */
+  source?: StoredSource;
 }): Promise<{ ok: true; clientSecret: string; bookingId: string } | SlotRefusal> {
   const {
     guest,
@@ -173,6 +179,7 @@ export async function startBookingCheckout(options: {
     addOns,
     lines,
     totalCents,
+    source = NO_SOURCE,
   } = options;
 
   const partySize = party.adults + party.children + party.infants;
@@ -237,6 +244,8 @@ export async function startBookingCheckout(options: {
         // Distinguishes a checkout from a plain enquiry on the Sales board, and
         // is what makes "how many people started paying?" answerable.
         source: "booking",
+        landingUtmSource: source.landingUtmSource,
+        landingReferrerHost: source.landingReferrerHost,
         marketingConsent: guest.marketingConsent,
         marketingConsentAt: guest.marketingConsent ? now : null,
         marketingConsentVersion: guest.marketingConsent ? MARKETING_CONSENT_VERSION : null,
@@ -267,6 +276,8 @@ export async function startBookingCheckout(options: {
         locale,
         holdExpiresAt,
         cancellationTokenHash,
+        landingUtmSource: source.landingUtmSource,
+        landingReferrerHost: source.landingReferrerHost,
       })
       .returning({ id: bookings.id });
 
