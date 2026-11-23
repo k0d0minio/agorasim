@@ -194,8 +194,9 @@ export function BookingDatePicker({
   partySize?: number;
   /**
    * Per person (`public`) or the group's own car (`private`). A per-person
-   * party may take seats in an open car, so more departures fit it. Unset is
-   * `private`, the stricter answer.
+   * party may take seats in an open car, and the car it opens is the VW T3
+   * while the van is free (`carToOpen` in `lib/fleet.ts`), so more departures
+   * fit it. Unset is `private`, the stricter answer.
    */
   mode?: SeatingMode;
   /**
@@ -335,7 +336,7 @@ export function BookingDatePicker({
     // A party that takes seats in an open car takes no car: nothing is last.
     if (mode === "public" && (slot.openSeats[experienceSlug] ?? 0) >= partySize) return false;
     const free = Object.values(slot.vehiclesLeft).reduce((sum, n) => sum + n, 0);
-    return free === 1 && slotFitsParty(slot, experienceSlug, partySize);
+    return free === 1 && slotFitsParty(slot, experienceSlug, partySize, mode);
   };
 
   if (flexible) {

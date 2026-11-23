@@ -175,6 +175,20 @@ describe("tallyOccupancy", () => {
     ]);
   });
 
+  it("counts the open VW T3 once for three couples: one driver, six of its seats", () => {
+    // JAM-290: the open group of a departure shares the van.
+    const entry = tallyOccupancy([
+      group({ vehicleClass: "classic-van", sharedCarId: "van", bookings: 3, seats: 6 }),
+    ]).get("2026-08-15#morning");
+    expect(entry).toMatchObject({
+      drivers: 1,
+      vehicles: { "classic-small": 0, "classic-van": 1, touring: 0 },
+    });
+    expect(entry?.openCars).toEqual([
+      { id: "van", experienceSlug: "rural-saloia", vehicleClass: "classic-van", seatsTaken: 6 },
+    ]);
+  });
+
   it("keeps private and open cars on one departure apart", () => {
     const entry = tallyOccupancy([
       group({ vehicleClass: "classic-van", bookings: 1, seats: 6 }),

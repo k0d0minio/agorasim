@@ -30,10 +30,17 @@
  * sells an *open* group tour — other people can join the same car — and a
  * private one (feedback round 1, 2026-10-12). So a `public` booking joins a car
  * of the same tour on the same departure that already carries `public` guests,
- * when that car has the seats, and takes a car of its own only when none has
- * room ({@link joinableCar}). A `private` booking takes its car whole, as every
+ * when that car has the seats, and opens a car only when none has room
+ * ({@link joinableCar}). A `private` booking takes its car whole, as every
  * booking did before. One car is still one driver, however many parties ride
  * in it.
+ *
+ * **The open group rides in the VW T3** (JAM-290, feedback round 2,
+ * 2026-11-12). The car a `public` party opens on a classic route is the van
+ * while it is free: eight guests and one driver, where three small classics
+ * used to send both drivers out for two couples and refuse the third. With the
+ * van out — full, or with a private group — a party of up to three opens a
+ * small classic, as before ({@link carToOpen}).
  *
  * **Deliberately pure.** No `server-only`, no imports: the availability engine
  * runs this server-side to decide what may be sold, and the booking form runs
@@ -173,12 +180,15 @@ export type VehicleAssignment =
   | { ok: false; reason: "party-too-large"; max: number };
 
 /**
- * Which car this party needs on this route.
+ * Which car this party needs on this route — the smallest that carries it.
  *
- * The rule the ticket sets out, and the only place it is written down: up to
- * three guests take one small classic, four to eight take the T3, and nine or
- * more is refused until AGORA-019. Óbidos takes the touring vehicle whatever
- * the party size, which is what stops it depleting the classic fleet.
+ * The rule the ticket sets out: up to three guests take one small classic,
+ * four to eight take the T3, and nine or more is refused until AGORA-019.
+ * Óbidos takes the touring vehicle whatever the party size, which is what
+ * stops it depleting the classic fleet.
+ *
+ * This is the whole answer for a `private` party. A `public` party that opens
+ * a car asks {@link carToOpen}, which starts from this answer.
  *
  * Party size is *everyone*, infants included — an infant occupies a seat in a
  * 2CV exactly as much as an adult does.
@@ -297,6 +307,34 @@ export function joinableCar<Car extends OpenCar>(
 }
 
 /**
+ * The car a party opens on a departure when it joins none — the one place the
+ * rule is written, for the checkout, the browser and "Mudar de carro" alike.
+ *
+ * A `private` party takes the smallest car that carries it
+ * ({@link assignVehicle}). A `public` party on a classic route opens the VW T3
+ * while the van is free, so the open group of a departure shares eight seats
+ * and one driver (JAM-290). With the van out, a party of up to three opens a
+ * small classic; a party of four to eight is still assigned the van, and the
+ * caller finds none free.
+ *
+ * `vehiclesLeft` is what is free on the departure. The answer is a class, not
+ * a promise: the caller still checks that a driver and a car of it are free.
+ */
+export function carToOpen(
+  experienceSlug: string,
+  partySize: number,
+  mode: SeatingMode,
+  vehiclesLeft: VehicleCounts,
+): VehicleAssignment {
+  const assignment = assignVehicle(experienceSlug, partySize);
+  if (!assignment.ok || mode !== "public") return assignment;
+  if (routeKindOf(experienceSlug) !== "classic") return assignment;
+  return vehiclesLeft["classic-van"] > 0
+    ? { ok: true, vehicleClass: "classic-van" }
+    : assignment;
+}
+
+/**
  * The most seats one open car of each tour can still sell — what a guest's
  * browser needs to know about the open cars, and all it is told.
  *
@@ -323,8 +361,9 @@ export function mostOpenSeats(cars: readonly OpenCar[]): Record<string, number> 
  *
  * A `public` party also fits when an open car of its tour has the seats
  * ({@link mostOpenSeats}) — it rides there and needs no driver or car of its
- * own. `mode` defaults to `private`, the stricter answer, so a caller that does
- * not say never sells a seat in a stranger's car.
+ * own. Otherwise it needs a driver and the car {@link carToOpen} names. `mode`
+ * defaults to `private`, the stricter answer, so a caller that does not say
+ * never sells a seat in a stranger's car.
  */
 export function slotFitsParty(
   free: {
@@ -336,7 +375,7 @@ export function slotFitsParty(
   partySize: number,
   mode: SeatingMode = "private",
 ): boolean {
-  const assignment = assignVehicle(experienceSlug, partySize);
+  const assignment = carToOpen(experienceSlug, partySize, mode, free.vehiclesLeft);
   if (!assignment.ok) return false;
   if (mode === "public" && (free.openSeats?.[experienceSlug] ?? 0) >= partySize) {
     return true;
@@ -349,9 +388,12 @@ export function slotFitsParty(
  * carro" on the day sheet.
  *
  * - `join`: the other open cars of its tour with room for the whole party.
- * - `canOpenNew`: a driver and a car of the class the party needs are free, and
- *   the party is not alone in its car already (alone, a new car changes
- *   nothing but the label).
+ * - `newCarClass`: the car a new car would be ({@link carToOpen}: the VW T3
+ *   while it is free, else a small classic for up to three), or null when the
+ *   party cannot open one. It can when a driver and a car of that class are
+ *   free, and the party is not alone in its car already (alone, a new car
+ *   changes nothing but the label).
+ * - `canOpenNew`: whether `newCarClass` names a car.
  *
  * Pure, so the day sheet offers exactly what the server action accepts.
  */
@@ -360,7 +402,7 @@ export function carChoices<Car extends OpenCar>(options: {
   /** The party being moved, in the car it rides in now. */
   party: { sharedCarId: string; experienceSlug: string; partySize: number };
   free: { driversLeft: number; vehiclesLeft: VehicleCounts };
-}): { join: Car[]; canOpenNew: boolean } {
+}): { join: Car[]; canOpenNew: boolean; newCarClass: VehicleClass | null } {
   const { cars, party, free } = options;
   const current = cars.find((car) => car.id === party.sharedCarId);
   const join = cars.filter(
@@ -369,12 +411,19 @@ export function carChoices<Car extends OpenCar>(options: {
       car.experienceSlug === party.experienceSlug &&
       freeSeats(car) >= party.partySize,
   );
-  const assignment = assignVehicle(party.experienceSlug, party.partySize);
+  const assignment = carToOpen(
+    party.experienceSlug,
+    party.partySize,
+    "public",
+    free.vehiclesLeft,
+  );
   const alone = !current || current.seatsTaken <= party.partySize;
-  const canOpenNew =
+  const newCarClass =
     assignment.ok &&
     !alone &&
     free.driversLeft >= 1 &&
-    free.vehiclesLeft[assignment.vehicleClass] > 0;
-  return { join, canOpenNew };
+    free.vehiclesLeft[assignment.vehicleClass] > 0
+      ? assignment.vehicleClass
+      : null;
+  return { join, canOpenNew: newCarClass !== null, newCarClass };
 }
