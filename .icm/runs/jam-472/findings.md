@@ -9,7 +9,7 @@ Nothing of it is in the repo.
 
 ## F2. Draft comment for JAM-472
 
-The operator files it. This pipeline does not write to Linear.
+Posted on JAM-472 by BAXTER (2026-11-23).
 
 > Spike S2 result: `.icm/docs/stripe-connect-proof.md` (PR #267).
 > Verdict: go for the code, no proof in Stripe yet. The code takes the agreement's fee on
@@ -22,17 +22,17 @@ The operator files it. This pipeline does not write to Linear.
 
 ## F3. Draft follow-up tickets
 
-The operator files them.
+Filed in Linear on 2026-11-23, on Jamie's word, each related to JAM-472.
 
-- **D1. Run the Connect proof in the sandbox** (lane knowledge). Make a test Standard
+- **D1 = JAM-499.** **Run the Connect proof in the sandbox** (lane knowledge). Make a test Standard
   account, set it on one preview, pay the five rows of `stripe-connect-proof.md`, and
   fill the column "Stripe shows". Done = each row has the fee that Stripe shows in both
   dashboards.
-- **D2. The webhook accepts the platform secret and the Connect secret** (lane tweak).
+- **D2 = JAM-501.** **The webhook accepts the platform secret and the Connect secret** (lane tweak).
   `STRIPE_WEBHOOK_SECRET` holds one secret. After the switch to Connect, an event of the
   platform account (a refund of a booking taken before Connect) fails the signature.
   Done = the route verifies with either secret, and a test covers both.
-- **D3. Refuse the switch when the connected account cannot take charges** (lane tweak).
+- **D3 = JAM-503.** **Refuse the switch when the connected account cannot take charges** (lane tweak).
   The runbook says "never set `STRIPE_CONNECTED_ACCOUNT_ID` before their account is
   verified". Nothing enforces it. Done = the checkout reads the account's
   `charges_enabled` once per instance, offers the enquiry form when it is false, and
