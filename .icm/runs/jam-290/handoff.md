@@ -16,6 +16,7 @@ A decisão do Jamie de 2026-11-23, no chat, palavra por palavra: "proceed". A ru
 - O calendário do cliente oferece o que o checkout aceita (verify: CI): cumprido. O teste compara `slotFitsParty` com `fitsParty` em 8 partidas, nos dois modos, para grupos de 1 a 9.
 - Testes em `fleet.test.ts` e `availability.test.ts` (verify: CI): cumprido. CI verde no commit `4eac5a3`: 92 ficheiros de teste passam.
 - Três casais no preview e o título "Carro partilhado · VW T3 · 6 de 8 lugares" (verify: operator): por testar. Ver How to test.
+  O agente `review-shots` não fez imagens: o preview pede o login da Vercel em todas as páginas, e o título só aparece com uma reserva paga de grupo aberto.
 - Stub em `_done/` (verify: agent): cumprido. `.icm/intake/seats-and-holds/_done/open-group-rides-the-van.md` está no diff do pull request.
 
 ## What changed
@@ -31,7 +32,7 @@ No preview, abra `/pt/reservar`, escolha Rural Saloia em grupo aberto e reserve 
 
 ## Blockers
 
-- O operador marca **Ready to merge** em https://github.com/k0d0minio/agorasim/pull/278.
+- none
 
 ## Do not touch
 
