@@ -144,6 +144,7 @@ const { paymentLinkPath, paymentLinkState, startPaymentLinkCheckout } = await im
 );
 const { issueCancellationToken } = await import("@/lib/cancellation-token");
 const { commissionOn } = await import("@/lib/commission");
+const { BOOKING_HOLD_MINUTES, CHECKOUT_SESSION_MINUTES } = await import("@/lib/bookings");
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -281,11 +282,14 @@ describe("startPaymentLinkCheckout", () => {
     );
     expect(options).toEqual({ stripeAccount: "acct_test_agorasim" });
 
-    // The hold and the session end at the same instant.
+    // The hold lasts BOOKING_HOLD_MINUTES; the session lasts Stripe's
+    // shortest expiry, CHECKOUT_SESSION_MINUTES (JAM-291).
     const hold = writes.find(
       (write) => (write.values as { holdExpiresAt?: Date }).holdExpiresAt,
     )?.values as { holdExpiresAt: Date };
-    expect(params.expires_at).toBe(Math.floor(hold.holdExpiresAt.getTime() / 1000));
+    expect(params.expires_at - Math.floor(hold.holdExpiresAt.getTime() / 1000)).toBe(
+      (CHECKOUT_SESSION_MINUTES - BOOKING_HOLD_MINUTES) * 60,
+    );
     expect(writes).toContainEqual({
       op: "update",
       values: expect.objectContaining({ stripeSessionId: SESSION_ID }),

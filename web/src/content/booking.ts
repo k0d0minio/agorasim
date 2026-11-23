@@ -164,8 +164,8 @@ export const bookingContent = {
     } as Localized,
     /** How long the car is held while they are on the payment step. */
     holdNote: {
-      pt: "Guardamos o vosso carro durante 30 minutos enquanto conclui o pagamento.",
-      en: "We hold your car for 30 minutes while you complete the payment.",
+      pt: "Guardamos o vosso carro durante 15 minutos enquanto conclui o pagamento.",
+      en: "We hold your car for 15 minutes while you complete the payment.",
     } as Localized,
 
     /**

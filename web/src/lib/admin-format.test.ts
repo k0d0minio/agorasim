@@ -8,6 +8,8 @@ import {
   FEATURE_REQUEST_PRIORITIES,
   FEATURE_REQUEST_STATUSES,
   REQUEST_STATUSES,
+  bookingDisplayMeta,
+  bookingDisplayStatus,
   formatDate,
   formatRelativeTime,
 } from "./admin-format";
@@ -95,5 +97,37 @@ describe("status lists track the database enums", () => {
 
   it("covers every feature-request priority, in enum order", () => {
     expect(FEATURE_REQUEST_PRIORITIES).toEqual([...featureRequestPriorityEnum.enumValues]);
+  });
+});
+
+describe("bookingDisplayStatus — a pending booking read against the clock (JAM-291)", () => {
+  const now = new Date("2026-08-15T10:00:00Z");
+  const live = new Date("2026-08-15T10:05:00Z");
+  const lapsed = new Date("2026-08-15T09:55:00Z");
+  const label = (booking: Parameters<typeof bookingDisplayStatus>[0]) =>
+    bookingDisplayMeta[bookingDisplayStatus(booking, now)].label;
+
+  it("shows a checkout open now as waiting for payment", () => {
+    expect(
+      label({ status: "pending", holdExpiresAt: live, paymentLinkTokenHash: null }),
+    ).toBe("A aguardar pagamento");
+  });
+
+  it("shows a lapsed checkout as expired at once, not as a pending payment", () => {
+    expect(
+      label({ status: "pending", holdExpiresAt: lapsed, paymentLinkTokenHash: null }),
+    ).toBe("Expirada");
+  });
+
+  it("keeps a payment link that waits as a pending payment", () => {
+    expect(
+      label({ status: "pending", holdExpiresAt: lapsed, paymentLinkTokenHash: "digest" }),
+    ).toBe("Pagamento pendente");
+  });
+
+  it("leaves every other status as stored", () => {
+    expect(
+      label({ status: "confirmed", holdExpiresAt: lapsed, paymentLinkTokenHash: null }),
+    ).toBe("Paga");
   });
 });

@@ -48,13 +48,25 @@ import { todayKey } from "@/lib/date-keys";
 /**
  * How long a car is held while the guest is on Stripe's payment page.
  *
- * Thirty minutes is not arbitrary: it is the shortest expiry a Stripe Checkout
- * Session accepts, so the hold and the session can be given the same deadline
- * and cannot disagree about whether a payment is still possible. Long enough to
- * find a card; short enough that an abandoned checkout does not sit on the last
- * driver of a Saturday in August for an afternoon.
+ * Fifteen minutes (JAM-291, question 1 of the epic `seats-and-holds`): long
+ * enough to find a card, short enough that an unpaid checkout does not keep
+ * the last seat of a Saturday away from a guest who would pay. A held seat is
+ * not a booked seat: the admin counts only paid bookings as booked and shows a
+ * live hold apart, as "A aguardar pagamento".
  */
-export const BOOKING_HOLD_MINUTES = 30;
+export const BOOKING_HOLD_MINUTES = 15;
+
+/**
+ * How long the Stripe Checkout Session of a hold stays open.
+ *
+ * Thirty minutes is the shortest expiry Stripe accepts, so the session outlives
+ * the hold by fifteen minutes. Two things close that gap. A new checkout on the
+ * departure expires the lapsed sessions there before it takes their seats
+ * (`expireLapsedCheckoutsOn` in `lib/booking-checkout.ts`). And a payment that
+ * lands after its hold lapsed is confirmed only when the seats are still free
+ * (`confirmPaidBooking`).
+ */
+export const CHECKOUT_SESSION_MINUTES = 30;
 
 /** The reference a booking wears: short, stable, greppable — like `enquiryRef`. */
 export function bookingRef(id: string): string {
@@ -64,6 +76,11 @@ export function bookingRef(id: string): string {
 /** When a hold started now would lapse. */
 export function holdExpiryFrom(now: Date = new Date()): Date {
   return new Date(now.getTime() + BOOKING_HOLD_MINUTES * 60_000);
+}
+
+/** When the Stripe session of a hold started now must expire. See {@link CHECKOUT_SESSION_MINUTES}. */
+export function checkoutSessionExpiryFrom(now: Date = new Date()): Date {
+  return new Date(now.getTime() + CHECKOUT_SESSION_MINUTES * 60_000);
 }
 
 // ---------------------------------------------------------------------------
@@ -137,7 +154,7 @@ export function holdsCapacity(
  * (`lib/payment-link.ts`).
  *
  * Not a capacity rule: such a booking holds no car while it waits — only the
- * 30 minutes of an open payment do, through {@link holdsCapacity} like any
+ * hold of an open payment does, through {@link holdsCapacity} like any
  * checkout. It is the Sales board's "Pagamento pendente", and what keeps the
  * expiry paths from closing a booking whose link still works.
  */
@@ -376,7 +393,7 @@ export type BookingToRemind = {
  * Which bookings on `date` are owed a reminder: the paid ones, and only those.
  *
  * Deliberately *not* {@link holdsCapacitySql}. A pending hold occupies a car
- * for thirty minutes while somebody is on Stripe's page; it is nobody's tour
+ * for {@link BOOKING_HOLD_MINUTES} minutes while somebody is on Stripe's page; it is nobody's tour
  * yet, and "tomorrow is the big day" to a guest who never paid is a mail that
  * reads as a booking they did not make. Cancelled, expired and refunded rows
  * are history. Cash bookings are `confirmed` from birth, so they are in.

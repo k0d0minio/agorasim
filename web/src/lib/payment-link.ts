@@ -6,8 +6,8 @@
  * payment" (Diogo, 2026-10-12). The booking is a `pending` row whose hold has
  * already lapsed (`hold_expires_at = now` at creation), so it counts against no
  * car. A tap on "Pagar" re-runs the departure's capacity check, and only then
- * holds a car for the 30 minutes of a Stripe session, exactly as `/reservar`
- * does. A departure that filled in the meantime is refused on the page, before
+ * holds a car for the hold of a checkout (`BOOKING_HOLD_MINUTES`), exactly as
+ * `/reservar` does. A departure that filled in the meantime is refused on the page, before
  * any money moves.
  *
  * **A link booking is marked by its credential.** `payment_link_token_hash` is
@@ -38,7 +38,13 @@ import {
   guestPaymentLinkEmail,
   titleFromCatalogue,
 } from "@/lib/booking-emails";
-import { awaitsLinkPayment, bookingRef, holdExpiryFrom, slotOccupancyOn } from "@/lib/bookings";
+import {
+  awaitsLinkPayment,
+  bookingRef,
+  checkoutSessionExpiryFrom,
+  holdExpiryFrom,
+  slotOccupancyOn,
+} from "@/lib/bookings";
 import {
   cancellationTokenDigest,
   isCancellationTokenConfigured,
@@ -396,8 +402,9 @@ export async function startPaymentLinkCheckout(options: {
             ? { application_fee_amount: applicationFeeCents }
             : {}),
         },
-        // The same instant the hold lapses, as at `/reservar`.
-        expires_at: Math.floor(holdExpiresAt.getTime() / 1000),
+        // Stripe's shortest expiry, which outlives the hold, as at `/reservar`
+        // (`CHECKOUT_SESSION_MINUTES` in `lib/bookings.ts`).
+        expires_at: Math.floor(checkoutSessionExpiryFrom(now).getTime() / 1000),
         locale: locale === "pt" ? "pt" : "en",
         redirect_on_completion: "always",
         return_url: `${siteUrl()}/${locale}/reservar/confirmacao?session_id={CHECKOUT_SESSION_ID}`,
@@ -420,7 +427,7 @@ export async function startPaymentLinkCheckout(options: {
     };
   } catch (err) {
     console.error(`[payment-link] could not start a session for ${bookingRef(held.id)}`, err);
-    // Give the car back now rather than in half an hour.
+    // Give the car back now rather than when the hold lapses.
     await db
       .update(bookings)
       .set({ holdExpiresAt: new Date(), updatedAt: new Date() })
