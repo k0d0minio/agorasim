@@ -52,6 +52,14 @@ export function TourRequestForm({
   const c = tourRequestContent;
   const complementExperiences = experiences.filter((e) => e.kind === "complement");
   const hasCalendar = availability.some((month) => month.hasOpenings);
+  /*
+   * What the guest typed, when the server refused the enquiry. React resets
+   * the form after the action, to each field's default. These values are the
+   * defaults, so the fields keep what the guest typed (JAM-497). A select
+   * reads its default only when it mounts, so the select has its value as
+   * its key: a new value mounts the select again with that default.
+   */
+  const typed = state.values;
 
   if (state.ok) {
     return (
@@ -91,7 +99,13 @@ export function TourRequestForm({
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="name">{t(c.labels.name, locale)}</Label>
-          <Input id="name" name="name" required autoComplete="name" />
+          <Input
+            id="name"
+            name="name"
+            required
+            autoComplete="name"
+            defaultValue={typed?.name}
+          />
           {state.fieldErrors?.name ? (
             <p className="text-sm text-destructive" role="alert">
               {state.fieldErrors.name}
@@ -101,7 +115,14 @@ export function TourRequestForm({
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="email">{t(c.labels.email, locale)}</Label>
-          <Input id="email" name="email" type="email" required autoComplete="email" />
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            defaultValue={typed?.email}
+          />
           {state.fieldErrors?.email ? (
             <p className="text-sm text-destructive" role="alert">
               {state.fieldErrors.email}
@@ -111,17 +132,35 @@ export function TourRequestForm({
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="phone">{t(c.labels.phone, locale)}</Label>
-          <Input id="phone" name="phone" type="tel" autoComplete="tel" />
+          <Input
+            id="phone"
+            name="phone"
+            type="tel"
+            autoComplete="tel"
+            defaultValue={typed?.phone}
+          />
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="partySize">{t(c.labels.partySize, locale)}</Label>
-          <Input id="partySize" name="partySize" type="number" min={1} inputMode="numeric" />
+          <Input
+            id="partySize"
+            name="partySize"
+            type="number"
+            min={1}
+            inputMode="numeric"
+            defaultValue={typed?.partySize}
+          />
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="experience">{t(c.labels.experience, locale)}</Label>
-          <Select id="experience" name="experience" defaultValue="">
+          <Select
+            key={typed?.experience ?? ""}
+            id="experience"
+            name="experience"
+            defaultValue={typed?.experience ?? ""}
+          >
             <option value="">{t(c.placeholders.experienceNone, locale)}</option>
             {experiences.map((exp) => (
               <option key={exp.slug} value={exp.slug}>
@@ -144,6 +183,7 @@ export function TourRequestForm({
               id="preferredDate"
               name="preferredDate"
               placeholder={t(c.placeholders.preferredDate, locale)}
+              defaultValue={typed?.preferredDate}
             />
           </div>
         )}
@@ -154,7 +194,7 @@ export function TourRequestForm({
           locale={locale}
           name="preferredDate"
           months={availability}
-          defaultValue={state.values?.preferredDate}
+          defaultValue={typed?.preferredDate}
           error={state.fieldErrors?.preferredDate}
         />
       ) : null}
@@ -173,6 +213,7 @@ export function TourRequestForm({
                 type="checkbox"
                 name="addOns"
                 value={exp.slug}
+                defaultChecked={typed?.addOns.includes(exp.slug)}
                 className="size-4 shrink-0 rounded border-border accent-primary"
               />
               {t(exp.title, locale)}
@@ -188,6 +229,7 @@ export function TourRequestForm({
           name="message"
           rows={4}
           placeholder={t(c.placeholders.message, locale)}
+          defaultValue={typed?.message}
         />
       </div>
 
@@ -207,6 +249,7 @@ export function TourRequestForm({
             type="checkbox"
             name="marketingConsent"
             value="on"
+            defaultChecked={typed?.marketingConsent}
             className="mt-0.5 size-4 shrink-0 rounded border-border accent-primary"
           />
           <span>
