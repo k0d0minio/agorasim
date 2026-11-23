@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   enquiryRef,
   groupByStage,
+  leadDayLabel,
   recordFromRequest,
   type SalesRecord,
 } from "@/lib/sales";
@@ -97,7 +98,23 @@ describe("recordFromRequest", () => {
     expect(record.payment).toBe("Paid in full");
     // The day that was actually sold wins over the guest's free-text guess:
     // "15 August" was a hope, the 22nd is a booking.
-    expect(record.when).toBe("2026-08-22");
+    expect(record.when).toContain("22 de agosto de 2026");
+  });
+
+  it("says a wedding or event date in words, as the rest of the admin does", () => {
+    const record = recordFromRequest(
+      tourRequest({ kind: "wedding", preferredDate: "2027-06-12" }),
+    );
+    expect(record.when).toContain("12 de junho de 2027");
+    expect(record.when).not.toContain("2027-06-12");
+    expect(leadDayLabel("2027-06-12")).toContain("12 de junho de 2027");
+  });
+
+  it("keeps a free-text date as the guest wrote it, and has nothing when there is no date", () => {
+    expect(recordFromRequest(tourRequest()).when).toBe("15 August");
+    expect(recordFromRequest(tourRequest({ preferredDate: null })).when).toBeNull();
+    expect(leadDayLabel(null)).toBeNull();
+    expect(leadDayLabel("")).toBeNull();
   });
 
   it("carries the reference the guest was given, which is not the lead's", () => {
@@ -136,7 +153,7 @@ describe("recordFromRequest", () => {
       kind: "wedding",
       venue: "Igreja de São Pedro, Mafra",
       // The two facts the card is triaged on, together.
-      when: "2027-06-12",
+      when: "sábado, 12 de junho de 2027",
     });
   });
 
@@ -150,7 +167,7 @@ describe("recordFromRequest", () => {
         date: "2027-06-13",
       },
     );
-    expect(record.when).toBe("2027-06-13");
+    expect(record.when).toContain("13 de junho de 2027");
     expect(record.venue).toBe("Quinta da Beloura");
   });
 });
