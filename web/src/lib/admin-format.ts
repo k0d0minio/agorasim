@@ -130,6 +130,40 @@ export const bookingStatusMeta: Record<
 };
 
 /**
+ * A booking's state as the admin shows it: the stored status, read against the
+ * clock (JAM-291).
+ *
+ * A `pending` row is three different things. With a live hold it is a guest on
+ * the payment form now: "A aguardar pagamento", apart from the booked seats.
+ * With a lapsed hold and a payment link it waits for the guest to pay the link:
+ * "Pagamento pendente". With a lapsed hold and no link it is a checkout that
+ * nobody finished: "Expirada" at once, even before the weekly retention job
+ * writes `expired` on the row (`expireLapsedHolds`).
+ */
+export type BookingDisplayStatus = BookingStatus | "checkout";
+
+export const bookingDisplayMeta: Record<
+  BookingDisplayStatus,
+  { label: string; variant: BadgeVariant }
+> = {
+  ...bookingStatusMeta,
+  checkout: { label: "A aguardar pagamento", variant: "secondary" },
+};
+
+export function bookingDisplayStatus(
+  booking: {
+    status: BookingStatus;
+    holdExpiresAt: Date;
+    paymentLinkTokenHash: string | null;
+  },
+  now: Date = new Date(),
+): BookingDisplayStatus {
+  if (booking.status !== "pending") return booking.status;
+  if (booking.holdExpiresAt.getTime() > now.getTime()) return "checkout";
+  return booking.paymentLinkTokenHash !== null ? "pending" : "expired";
+}
+
+/**
  * Where a quote is, as the Orçamento card says it. `superseded` is not a
  * database status — it is a `cancelled` quote a later version replaced
  * (`wasSuperseded` in `lib/quotes.ts`), and it reads differently to Rita from

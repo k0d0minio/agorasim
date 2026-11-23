@@ -57,11 +57,13 @@ export function leadDayLabel(date: string | null): string | null {
 /**
  * How far along the money is, as a card says it.
  *
- * Only two states, because only two are true of a `bookings` row: the guest has
- * paid, or a live hold is waiting on them. Deposits are not modelled — when
- * they are, this is where the third state goes.
+ * Three states (JAM-291): the guest has paid; the guest is on the payment form
+ * now, inside a live hold ("In checkout", the card's "A aguardar pagamento");
+ * or the team sent a payment link that waits to be paid ("Awaiting payment",
+ * the card's "Pagamento pendente"). A checkout whose hold lapsed is none of
+ * them and shows nothing. Deposits are not modelled.
  */
-export type PaymentState = "Paid in full" | "Awaiting payment";
+export type PaymentState = "Paid in full" | "In checkout" | "Awaiting payment";
 
 /** The one row shape the board renders. */
 export type SalesRecord = {
@@ -337,13 +339,12 @@ export async function bookingSummaries(
 
   const cars = await sharedCarSummaries(
     [...live.values()].flatMap((row) => (row.sharedCarId ? [row.sharedCarId] : [])),
-    now,
   );
   for (const [leadId, row] of live) {
     summaries.set(leadId, {
       ref: bookingRef(row.id),
       value: formatPrice(row.amountCents, "en", row.currency),
-      payment: row.status === "confirmed" ? "Paid in full" : "Awaiting payment",
+      payment: paymentStateOf(row, now),
       date: row.date,
       sharedCar: row.sharedCarId ? (cars.get(row.sharedCarId) ?? null) : null,
     });
@@ -353,31 +354,33 @@ export async function bookingSummaries(
 }
 
 /**
- * How full each open car is, in one query: every live party that wears its id.
+ * Where the money of one live booking is — see {@link PaymentState}.
  *
- * "Live" is the occupancy's own rule ({@link holdsCapacity}), so the card
- * counts the seats the calendar counts.
+ * The caller keeps only live rows: paid, inside a live hold, or waiting on a
+ * payment link (`bookingSummaries`).
  */
-async function sharedCarSummaries(
-  carIds: string[],
-  now: Date,
-): Promise<Map<string, SharedCarSummary>> {
+export function paymentStateOf(
+  row: Pick<Booking, "status" | "holdExpiresAt">,
+  now: Date = new Date(),
+): PaymentState {
+  if (row.status === "confirmed") return "Paid in full";
+  return holdsCapacity(row, now) ? "In checkout" : "Awaiting payment";
+}
+
+/**
+ * How full each open car is: every paid party that wears its id.
+ *
+ * Only a paid booking takes a seat here (JAM-291). A guest on the payment form
+ * holds a seat against other guests for a few minutes, but the team does not
+ * plan a car around it: the card shows it apart, as "A aguardar pagamento".
+ * Pure, so the rule can be tested without a database.
+ */
+export function tallySharedCars(
+  rows: readonly Pick<Booking, "sharedCarId" | "vehicleClass" | "partySize" | "status">[],
+): Map<string, SharedCarSummary> {
   const cars = new Map<string, SharedCarSummary>();
-  if (carIds.length === 0) return cars;
-
-  const rows = await db
-    .select({
-      sharedCarId: bookings.sharedCarId,
-      vehicleClass: bookings.vehicleClass,
-      partySize: bookings.partySize,
-      status: bookings.status,
-      holdExpiresAt: bookings.holdExpiresAt,
-    })
-    .from(bookings)
-    .where(inArray(bookings.sharedCarId, [...new Set(carIds)]));
-
   for (const row of rows) {
-    if (!row.sharedCarId || !holdsCapacity(row, now)) continue;
+    if (!row.sharedCarId || row.status !== "confirmed") continue;
     const car = cars.get(row.sharedCarId) ?? {
       seatsTaken: 0,
       seats: CLASS_SEATS[row.vehicleClass],
@@ -388,6 +391,21 @@ async function sharedCarSummaries(
     cars.set(row.sharedCarId, car);
   }
   return cars;
+}
+
+/** {@link tallySharedCars} over every booking that rides in one of these cars, in one query. */
+async function sharedCarSummaries(carIds: string[]): Promise<Map<string, SharedCarSummary>> {
+  if (carIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      sharedCarId: bookings.sharedCarId,
+      vehicleClass: bookings.vehicleClass,
+      partySize: bookings.partySize,
+      status: bookings.status,
+    })
+    .from(bookings)
+    .where(inArray(bookings.sharedCarId, [...new Set(carIds)]));
+  return tallySharedCars(rows);
 }
 
 /**

@@ -17,7 +17,7 @@ import {
 import type { DaySlots, SlotAvailability } from "@/lib/availability";
 import type { BookingStatus, EnquiryKind } from "@/db/schema";
 import type { DayBlock } from "@/lib/form-schemas";
-import { bookingStatusMeta, enquiryKindMeta } from "@/lib/admin-format";
+import { bookingDisplayMeta, enquiryKindMeta } from "@/lib/admin-format";
 import {
   CLASS_SEATS,
   carChoices,
@@ -476,12 +476,16 @@ function DayBookings({
       { slot: "afternoon", label: "Tarde · 14:00", rows: [] as CalendarBooking[] },
     ] as const
   )
-    .map((group) => ({
-      ...group,
-      rows: bookings.filter((booking) => booking.slot === group.slot),
-      departure: slots.find((slot) => slot.slot === group.slot),
-    }))
-    .filter((group) => group.rows.length > 0);
+    .map((group) => {
+      const rows = bookings.filter((booking) => booking.slot === group.slot);
+      return {
+        ...group,
+        rows: rows.filter(isPaid),
+        checkouts: rows.filter((booking) => !isPaid(booking)),
+        departure: slots.find((slot) => slot.slot === group.slot),
+      };
+    })
+    .filter((group) => group.rows.length > 0 || group.checkouts.length > 0);
 
   if (groups.length === 0) return null;
 
@@ -517,6 +521,25 @@ function DayBookings({
               />
             ),
           )}
+          {/*
+            Guests on the payment form now. Their seats are held for a few
+            minutes against other guests, but they are not booked seats: they
+            are listed apart, and no car above counts them (JAM-291).
+          */}
+          {group.checkouts.length > 0 ? (
+            <div className="flex flex-col gap-1.5 rounded-lg border border-dashed p-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                A aguardar pagamento
+              </p>
+              {group.checkouts.map((booking) => (
+                <BookingRow
+                  key={booking.ref}
+                  booking={booking}
+                  experienceNames={experienceNames}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       ))}
     </div>
@@ -541,7 +564,16 @@ function carsOf(
   return cars;
 }
 
-/** "Carro partilhado · clássico · 2 de 3 lugares" — the box's heading. */
+/**
+ * Whether a live booking is a booked seat: paid. The rest of the day sheet's
+ * rows are live holds — `bookingsBetween` sends only paid bookings and holds
+ * that have not lapsed — so `pending` here is a guest on the payment form now.
+ */
+function isPaid(booking: CalendarBooking): boolean {
+  return booking.status === "confirmed";
+}
+
+/** "Carro partilhado · clássico · 2 de 3 lugares" — the box's heading. Paid parties only. */
 function sharedCarHeading(rows: CalendarBooking[]): string {
   const vehicleClass = rows[0].vehicleClass;
   const taken = rows.reduce((sum, booking) => sum + booking.partySize, 0);
@@ -556,7 +588,8 @@ function BookingRow({
   booking: CalendarBooking;
   experienceNames: Record<string, string>;
 }) {
-  const meta = bookingStatusMeta[booking.status];
+  // Every row here is live, so a `pending` one is a checkout open now.
+  const meta = bookingDisplayMeta[booking.status === "pending" ? "checkout" : booking.status];
   const experience = experienceNames[booking.experienceSlug] ?? booking.experienceSlug;
   const party = booking.partySize === 1 ? "1 pessoa" : `${booking.partySize} pessoas`;
   const row = (
@@ -1359,7 +1392,10 @@ export function AvailabilityCalendar({
             // A paid tour quote takes one car like a booking, so it is a dot
             // like one; only a wedding or event, which takes the day, is a square.
             const dateTourQuotes = eventsOf(date).filter((event) => event.hold).length;
-            const dateBookings = bookingsOf(date).length + dateTourQuotes;
+            // Only a paid booking is a dot: a guest on the payment form holds
+            // a seat for a few minutes and is not a booked seat (JAM-291).
+            const dateBookings =
+              bookingsOf(date).filter(isPaid).length + dateTourQuotes;
             const dateEvents = eventsOf(date).length - dateTourQuotes;
             const state = tileState(day);
             const selected = inStretch(date);

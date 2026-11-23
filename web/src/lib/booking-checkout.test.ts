@@ -95,6 +95,21 @@ vi.mock("@/lib/email", () => ({
 }));
 vi.mock("@/lib/observability", () => ({ captureAlert: vi.fn(), captureError: vi.fn() }));
 
+// The departure re-check of a late payment, as a stand-in: what it answers is
+// the test's choice. `lib/availability.test.ts` proves the check itself.
+const checkSlotAvailable = vi.fn();
+vi.mock("@/lib/availability", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/availability")>()),
+  checkSlotAvailable: (...args: unknown[]) => checkSlotAvailable(...args),
+}));
+vi.mock("@/lib/bookings", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/bookings")>()),
+  slotOccupancyOn: vi.fn(async () => ({
+    drivers: 0,
+    vehicles: { "classic-small": 0, "classic-van": 0, touring: 0 },
+  })),
+}));
+
 // ---------------------------------------------------------------------------
 // The departure lock, as a recorder: which departure each call held, and the
 // writes made while it was held. `lib/departure-lock.test.ts` proves the lock.
@@ -118,11 +133,15 @@ vi.mock("@/lib/departure-lock", () => ({
 
 const {
   closeUnpaidBooking,
+  confirmPaidBooking,
+  expireLapsedCheckoutsOn,
   releaseBookingCheckout,
   sessionIdFromClientSecret,
   startBookingCheckout,
 } = await import("./booking-checkout");
-const { holdExpiryFrom } = await import("@/lib/bookings");
+const { BOOKING_HOLD_MINUTES, checkoutSessionExpiryFrom, holdExpiryFrom } = await import(
+  "@/lib/bookings"
+);
 const { commissionOn } = await import("@/lib/commission");
 
 // ---------------------------------------------------------------------------
@@ -178,6 +197,7 @@ beforeEach(() => {
   sessionsCreate.mockReset();
   sessionsRetrieve.mockReset();
   sessionsExpire.mockReset();
+  checkSlotAvailable.mockReset();
   lock.calls.length = 0;
 });
 
@@ -187,8 +207,9 @@ beforeEach(() => {
 
 describe("startBookingCheckout — the embedded session", () => {
   function queueInserts() {
-    // The lead, the booking, then the session id written back.
-    answers.push([{ id: "lead-1" }], [{ id: BOOKING_ID }], []);
+    // No lapsed checkout on the departure, then the lead, the booking, then
+    // the session id written back.
+    answers.push([], [{ id: "lead-1" }], [{ id: BOOKING_ID }], []);
   }
 
   it("opens Stripe's form in our page and hands back its client secret, not a URL", async () => {
@@ -210,7 +231,7 @@ describe("startBookingCheckout — the embedded session", () => {
     expect(params).not.toHaveProperty("cancel_url");
   });
 
-  it("expires the session at the same instant the car's hold lapses", async () => {
+  it("holds the car for 15 minutes, and gives the session Stripe's shortest expiry", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-02T10:00:00Z"));
     try {
@@ -219,9 +240,17 @@ describe("startBookingCheckout — the embedded session", () => {
 
       await start();
 
+      expect(BOOKING_HOLD_MINUTES).toBe(15);
       const [params] = sessionsCreate.mock.calls[0];
       const hold = holdExpiryFrom(new Date("2026-10-02T10:00:00Z"));
-      expect(params.expires_at).toBe(Math.floor(hold.getTime() / 1000));
+      expect(hold).toEqual(new Date("2026-10-02T10:15:00Z"));
+      // Stripe refuses a Checkout Session that expires sooner than 30 minutes.
+      expect(params.expires_at).toBe(
+        Math.floor(new Date("2026-10-02T10:30:00Z").getTime() / 1000),
+      );
+      expect(checkoutSessionExpiryFrom(new Date("2026-10-02T10:00:00Z"))).toEqual(
+        new Date("2026-10-02T10:30:00Z"),
+      );
       const booking = writes.find(
         (write) => write.op === "insert" && "holdExpiresAt" in (write.values as object),
       );
@@ -410,5 +439,110 @@ describe("releaseBookingCheckout — back from the payment step", () => {
     stripeConfigured = false;
     expect(await releaseBookingCheckout(CLIENT_SECRET)).toBe("ignored");
     expect(sessionsRetrieve).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The gap between the hold and its session (JAM-291)
+// ---------------------------------------------------------------------------
+
+describe("expireLapsedCheckoutsOn — a lapsed hold's session closes before its seats are resold", () => {
+  it("expires the open session of a lapsed hold at Stripe, then closes its booking", async () => {
+    // The lapsed holds, the payment-link release (not a link), the close.
+    answers.push([{ sessionId: "cs_test_lapsed" }], [], [{ id: BOOKING_ID, date: "2026-11-14" }]);
+    sessionsExpire.mockResolvedValue({ id: "cs_test_lapsed", status: "expired" });
+
+    expect(await expireLapsedCheckoutsOn("2026-11-14", "morning")).toBe(1);
+    expect(sessionsExpire).toHaveBeenCalledWith("cs_test_lapsed", {}, undefined);
+    expect(writes).toContainEqual(
+      expect.objectContaining({
+        op: "update",
+        values: expect.objectContaining({ status: "expired" }),
+      }),
+    );
+  });
+
+  it("leaves a session that Stripe will not expire to its webhook", async () => {
+    answers.push([{ sessionId: "cs_test_paid" }]);
+    sessionsExpire.mockRejectedValue(new Error("This Checkout Session is complete"));
+
+    expect(await expireLapsedCheckoutsOn("2026-11-14", "morning")).toBe(0);
+    expect(writes).toEqual([]);
+  });
+
+  it("runs before the new checkout takes the seats, and never costs the sale", async () => {
+    answers.push([{ sessionId: "cs_test_lapsed" }], [{ id: "lead-1" }], [{ id: BOOKING_ID }], []);
+    sessionsExpire.mockRejectedValue(new Error("Stripe is down"));
+    sessionsCreate.mockResolvedValue({ id: SESSION_ID, client_secret: CLIENT_SECRET });
+
+    const started = await start();
+
+    expect(started).toMatchObject({ ok: true, bookingId: BOOKING_ID });
+    expect(sessionsExpire.mock.invocationCallOrder[0]).toBeLessThan(
+      sessionsCreate.mock.invocationCallOrder[0],
+    );
+  });
+});
+
+describe("confirmPaidBooking — a payment that lands after its hold lapsed", () => {
+  const lapsedRow = () => ({
+    id: BOOKING_ID,
+    status: "pending",
+    tourRequestId: null,
+    stripeSessionId: SESSION_ID,
+    stripePaymentIntentId: null,
+    holdExpiresAt: new Date(Date.now() - 60_000),
+    date: "2026-11-14",
+    slot: "morning",
+    mode: "public",
+    experienceSlug: "rural-saloia",
+    partySize: 2,
+    vehicleClass: "classic-small",
+    sharedCarId: null,
+    locale: "en",
+    amountCents: 19_000,
+    currency: "eur",
+  });
+
+  it("does not confirm a booking whose seats another guest took", async () => {
+    answers.push([lapsedRow()]);
+    checkSlotAvailable.mockResolvedValue({ ok: false, reason: "no-vehicle" });
+
+    const outcome = await confirmPaidBooking({ sessionId: SESSION_ID, catalogue: new Map() });
+
+    expect(outcome.status).toBe("not-payable");
+    expect(lock.calls).toEqual([{ departure: "2026-11-14:morning", writes: [] }]);
+    expect(writes).not.toContainEqual(
+      expect.objectContaining({ values: expect.objectContaining({ status: "confirmed" }) }),
+    );
+  });
+
+  it("takes the seats back under the lock and confirms when they are still free", async () => {
+    const row = lapsedRow();
+    // The booking, the reclaimed hold, then the confirm guard.
+    answers.push([row], [{ id: BOOKING_ID }], [{ ...row, status: "confirmed" }]);
+    checkSlotAvailable.mockResolvedValue(fits);
+
+    const outcome = await confirmPaidBooking({ sessionId: SESSION_ID, catalogue: new Map() });
+
+    expect(outcome).toMatchObject({ status: "confirmed", alreadyConfirmed: false });
+    expect(checkSlotAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({ date: "2026-11-14", slot: "morning", audience: "team" }),
+    );
+    expect(lock.calls).toEqual([{ departure: "2026-11-14:morning", writes: ["update"] }]);
+    expect(writes).toContainEqual(
+      expect.objectContaining({ values: expect.objectContaining({ status: "confirmed" }) }),
+    );
+  });
+
+  it("re-checks nothing for a payment inside its hold", async () => {
+    const row = { ...lapsedRow(), holdExpiresAt: new Date(Date.now() + 60_000) };
+    answers.push([row], [{ ...row, status: "confirmed" }]);
+
+    const outcome = await confirmPaidBooking({ sessionId: SESSION_ID, catalogue: new Map() });
+
+    expect(outcome.status).toBe("confirmed");
+    expect(checkSlotAvailable).not.toHaveBeenCalled();
+    expect(lock.calls).toEqual([]);
   });
 });
