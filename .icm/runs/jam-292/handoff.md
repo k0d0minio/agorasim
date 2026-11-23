@@ -2,11 +2,11 @@
 
 ## Next action
 
-1. O operador responde às perguntas 1 a 4 no HUD ou no corpo do pull request #279, e diz `new JAM-292`.
-2. A sessão corre `questions.sh JAM-292`, põe as respostas no `spec.md`, faz commit e push, e corre `new-run.sh JAM-292 --refresh-body`.
-3. O operador marca **Spec approved** no #279 e diz `build JAM-292`.
+1. O operador marca **Spec approved** no #279 e diz `build JAM-292`.
+2. O Build começa depois de o #277 (migração `0042`) estar em `main`: traz `main` para o ramo (merge, sem rebase) e só então escreve a migração `0043`.
 
 A palavra do Jamie, no chat, 2026-11-23: "Start the next set of parallel tickets please". Esta run é um desses tickets.
+As perguntas 1 a 4 têm resposta do Jamie, no chat, 2026-11-23 (a resposta por omissão de cada uma). Estão no `spec.md` e no corpo do #279.
 
 ## How to test
 
@@ -14,9 +14,8 @@ Ainda não há nada para testar. A fase Define não escreve código.
 
 ## Blockers
 
-- As perguntas 1 a 4 esperam resposta do operador (corpo do #279).
-- A pergunta 3 pede uma migração (`0043`, um valor novo no enum `message_kind`). O Build escreve-a só depois da resposta do Jamie e depois de o #277 (migração `0042`) estar em `main`.
 - O gate **Spec approved** não está marcado.
+- A migração `0043` espera pelo merge do #277.
 
 ## Do not touch
 

@@ -88,6 +88,9 @@ Escolhas de implementação que o operador deve verificar antes da aprovação:
 ## Open questions
 
 - A palavra do Jamie, no chat, 2026-11-23: "Start the next set of parallel tickets please". Esta run é um desses tickets.
-- As perguntas 1 a 4 estão no corpo do pull request. O spec tem a resposta por omissão de cada uma.
-- A pergunta 3 pede uma migração. O #277 tem a `0042`. Esta run escreve a `0043` só depois de o #277 estar em `main`, e só depois da resposta do Jamie.
+- As perguntas 1 a 4 têm resposta do Jamie, no chat, 2026-11-23. Ele escolheu a resposta por omissão de cada uma:
+  1. "Lembrar" aparece em cada checkout não pago cuja partida não passou, também quando a reserva está `expired`.
+  2. O link do lembrete funciona até o dia da partida passar, como um link de pagamento da equipa.
+  3. Esta run acrescenta a migração `0043` (um valor novo no enum `message_kind`), escrita depois de o #277 estar em `main`.
+  4. O link do lembrete ignora a regra de antecedência do site, como um link de pagamento da equipa. A capacidade continua a ser verificada.
 - O #277 muda `sales.ts`, `sales-board.tsx` e `web/src/app/admin/sales/`. O Build traz `main` para o ramo depois desse merge.
