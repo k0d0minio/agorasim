@@ -2,25 +2,52 @@
 
 ## Next action
 
-O operador marca
-**Spec approved**. Depois diz `build JAM-510`. O Build corre primeiro
-`.icm/_system/scripts/questions.sh JAM-510`. As respostas já estão em `spec.md`.
+Depois do merge do JAM-558 (pull request #286, a correção do facto UNESCO), a sessão seguinte:
+
+1. Junta `origin/main` a este ramo.
+2. Corre as etapas 02 e 03 para o tópico 1 (`o-que-e-a-regiao-saloia`), com um subagente, e
+   regista os tokens dele.
+3. Muda o estado do tópico 1 em `workspaces/geo-content/topics.md`.
+4. Faz push, lê o CI e carrega os três rascunhos no UAT com `pnpm blog:load` (Q2). A connection
+   string do UAT fica só no ambiente do processo.
+
+## Done
+
+- As afirmações fora de `business-facts.md` saíram do brief (Q1). A nota "Cut on 2026-11-24"
+  no artigo 1 de `research.md` lista-as.
+- Tópico 2 (`passeio-de-carro-classico-perto-de-sintra`) e tópico 5
+  (`obidos-a-partir-de-lisboa`): etapas 02 e 03 feitas. Os ficheiros estão em
+  `workspaces/geo-content/stages/02_draft/output/`, `03_publish/output/` e
+  `web/src/content/generated/blog/`. Os três exemplares de cada ficheiro são iguais.
+
+## Tokens (Q3)
+
+Um subagente escreveu um artigo, etapas 02 e 03. O harness dá o total do contexto do subagente.
+Entre parênteses: os tokens de saída e as leituras de cache somadas de todas as chamadas.
+
+| Tópico | Total do harness | Saída | Leituras de cache | Escrita de cache | Chamadas de ferramentas |
+|---|---|---|---|---|---|
+| 2 | 99 371 | 11 355 | 820 194 | 98 719 | 11 |
+| 5 | 111 387 | 23 610 | 1 071 254 | 110 693 | 15 |
+| 1 | a medir | | | | |
+
+## What the subagents left out (not in business-facts.md)
+
+- Tópico 2: "a local host drives" (o texto diz "um motorista da Agorasim"), "the palace queues"
+  (o texto diz "longe das multidões"), e o facto da Ericeira.
+- Tópico 5: "walled town", "central Lisbon", "small scale", o que é a paragem de comida, e a
+  regra dos lugares desta rota. Não dá hora de partida: a hora chega por email ou WhatsApp.
 
 ## How to test
 
-Ainda não há alteração para testar. Esta etapa só escreve a spec.
+Ainda não há rascunhos no UAT. Depois da carga: abra `/admin/blog` no UAT e veja três
+rascunhos. Abra cada um em PT e em EN e leia-o até ao fim.
 
 ## Blockers
 
-- Spec approved não está marcado.
-- A caixa "Research brief approved" de
-  `workspaces/geo-content/stages/01_research/output/research.md` não está marcada em 2026-11-24.
-  É do Jamie. O Build não corre a etapa 02 sem ela.
-- O facto UNESCO da Ericeira tem de estar corrigido em `main` (lote de correções) antes do
-  artigo 1.
+- O artigo 1 espera o merge do JAM-558 (pull request #286): o brief cita o facto UNESCO.
 
 ## Do not touch
 
-- A caixa da gate de `research.md`.
 - O estado de publicação de qualquer artigo.
 - A base de dados de produção.
