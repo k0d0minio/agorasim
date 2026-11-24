@@ -2,15 +2,22 @@
 
 ## Next action
 
-1. O operador responde às perguntas Q1 a Q5 no cartão do HUD, ou no corpo do #282
-   (https://github.com/k0d0minio/agorasim/pull/282). Depois diz `new JAM-294`.
-2. A sessão corre `.icm/_system/scripts/questions.sh JAM-294`, põe as respostas no `spec.md`,
-   faz commit e push, e corre `new-run.sh JAM-294 --refresh-body`.
-3. O operador marca **Spec approved** no #282 e diz `build JAM-294`.
+1. O operador lê o `spec.md`, marca **Spec approved** no #282
+   (https://github.com/k0d0minio/agorasim/pull/282) e diz `build JAM-294`.
+
+O Jamie respondeu às perguntas no chat, em 2026-11-24. As respostas Q1 a Q5 estão no corpo do
+#282. A Q6 nasceu da resposta à Q3, foi feita e respondida no chat, e está só no `spec.md`:
+
+- Q1: a partida inteira, todos os motoristas e todas as viaturas (a resposta por omissão).
+- Q2: sim, se sobrar um motorista e uma viatura (a resposta por omissão).
+- Q3: sim, esta run constrói o botão. Não é a resposta por omissão.
+- Q4: a coluna nova `quotes.kind`, com a migração `0044` (a resposta por omissão).
+- Q5: um orçamento com carro retém um carro da sua classe (a resposta por omissão).
+- Q6: num orçamento pago, a Rita escolhe o carro que o grupo usa. Um segundo botão retém a
+  partida inteira outra vez. O botão escreve `hold_vehicle_class`.
 
 A pergunta 6 do épico (`.icm/intake/seats-and-holds/breakdown.md`) não tem resposta do
-cliente. A Q1 põe a mesma decisão ao Jamie, com a resposta por omissão do épico. Ninguém
-pergunta ao cliente nesta run.
+cliente. A Q1 é a decisão do Jamie. Ninguém pergunta ao cliente nesta run.
 
 Factos para o Build:
 
@@ -32,7 +39,6 @@ Ainda não há nada para testar. O Build escreve este texto.
 
 ## Blockers
 
-- O operador responde às perguntas Q1 a Q5 do #282.
 - O operador marca **Spec approved** no #282.
 
 ## Do not touch

@@ -1,7 +1,7 @@
 # Spec: agorasim · A scratch tour quote has no car field and still holds its departure
 
 - ticket: JAM-294
-- touches: web/src/components/admin/lead-quote-card.tsx, web/src/lib/form-schemas.ts, web/src/lib/tour-quote.ts, web/src/lib/tour-quote-hold.ts, web/src/lib/event-holds.ts, web/src/lib/quote-checkout.ts, web/src/lib/quote-builder.ts, web/src/lib/quotes.ts, web/src/lib/bookings.ts, web/src/lib/availability.ts, web/src/db/schema.ts, web/drizzle/, web/src/app/admin/calendar/page.tsx, web/src/app/admin/sales/, .icm/intake/seats-and-holds/
+- touches: web/src/components/admin/lead-quote-card.tsx, web/src/lib/form-schemas.ts, web/src/lib/tour-quote.ts, web/src/lib/tour-quote-hold.ts, web/src/lib/event-holds.ts, web/src/lib/quote-checkout.ts, web/src/lib/quote-builder.ts, web/src/lib/quotes.ts, web/src/lib/bookings.ts, web/src/lib/availability.ts, web/src/db/schema.ts, web/drizzle/, web/src/app/admin/calendar/page.tsx, web/src/app/admin/sales/, web/src/lib/audit.ts, .icm/intake/seats-and-holds/
 - complexity: standard
 
 ## Problem
@@ -29,7 +29,8 @@ Factos do código, lidos nesta fase:
 - A página do cliente e os emails não mostram o carro. Mostram "Passeio" e a partida. O carro
   aparece só no admin: na página do lead e no Calendário.
 - A pergunta 6 do épico (`.icm/intake/seats-and-holds/breakdown.md`) não tem resposta do
-  cliente. A decisão é do Jamie: pergunta Q1.
+  cliente. O Jamie decidiu no chat, em 2026-11-24: Q1.
+- O admin não tem hoje uma forma de libertar um carro numa partida retida.
 
 ## Proposed change
 
@@ -44,20 +45,21 @@ Factos do código, lidos nesta fase:
   já não tem motorista ou viatura, ou quando o dia tem um evento.
 - No admin, a página do lead e o Calendário mostram "Partida inteira" no lugar do carro.
 - Os orçamentos de passeio que já têm carro ficam como estão.
+- Num orçamento de passeio pago, a Rita pode escolher o carro que o grupo usa. O orçamento
+  passa a reter um motorista e esse carro, e o resto da partida volta a estar à venda. Um
+  segundo botão retém a partida inteira outra vez.
 
-Escolhas que o operador deve verificar antes da aprovação. Cada uma é a resposta por omissão
-de uma pergunta do pull request:
+Decisões do Jamie, no chat, em 2026-11-24. As respostas estão no corpo do #282:
 
 1. **Q1, a retenção.** Um orçamento de passeio pago, sem carro, retém a partida inteira:
    todos os motoristas e todas as viaturas. É a resposta por omissão da pergunta 6 do épico.
    O cliente não respondeu. Custo: um passeio personalizado de 2 pessoas fecha a partida ao
-   grupo aberto do VW T3.
+   grupo aberto do VW T3, até a Rita escolher o carro (Q3 e Q6).
 2. **Q2, a partida com reservas.** A equipa pode vender um orçamento numa partida que já tem
    reservas, se sobrar um motorista e uma viatura de qualquer classe. As reservas ficam com o
    seu carro. O orçamento fica com tudo o que sobra.
-3. **Q3, libertar um carro.** Esta run não constrói a ferramenta para libertar um carro à
-   mão. A partida fica fechada até alguém cancelar o orçamento. A ferramenta é um ticket
-   novo (`findings.md`).
+3. **Q3, libertar um carro.** Esta run constrói o botão. O Jamie não escolheu a resposta por
+   omissão.
 4. **Q4, o marcador.** Uma coluna nova `quotes.kind` (`tour` ou `event`) marca o orçamento.
    É a migração `0044`. A coluna tem o valor por omissão `event`, e a migração escreve `tour`
    em cada linha com `hold_vehicle_class`. A migração é compatível com o código que substitui:
@@ -66,6 +68,23 @@ de uma pergunta do pull request:
 5. **Q5, os orçamentos com carro.** Um orçamento de passeio com carro retém um carro da sua
    classe, como hoje. O admin mostra esse carro. Editar o rascunho, ou criar uma versão nova,
    mantém o carro. O formulário não o mostra.
+6. **Q6, o botão.** Pergunta nova, nascida da resposta à Q3, feita e respondida no chat. Num
+   orçamento de passeio pago, a Rita escolhe o carro que o grupo usa (clássico pequeno, VW T3
+   ou viatura de turismo). O orçamento passa a reter um motorista e esse carro, e o resto da
+   partida volta a estar à venda. Um segundo botão, "Reter a partida inteira", desfaz a
+   escolha. O botão escreve `hold_vehicle_class`: não há dados novos, e não há uma lista de
+   carros por orçamento.
+
+Regras do botão, escolhidas nesta fase. O operador deve verificá-las antes da aprovação:
+
+- Os botões estão na página do lead, no cartão do orçamento. Aparecem só num orçamento de
+  passeio pago e não cancelado, com partida de hoje ou futura.
+- A escolha recusa um carro que a partida já não tem livre, e diz isso.
+- "Reter a partida inteira" segue a regra da Q2: as reservas que entraram entretanto ficam
+  com o seu carro, e o orçamento fica com o que sobra.
+- Um orçamento antigo com carro (Q5) é igual a um orçamento com carro escolhido. Mostra o
+  botão "Reter a partida inteira".
+- O registo de auditoria tem uma linha por alteração, com quem a fez.
 
 Notas para o Build:
 
@@ -87,13 +106,16 @@ Notas para o Build:
 - [ ] A página do cliente e os emails mostram "Passeio" (pt) ou "Tour" (en) e a partida, como hoje, num orçamento sem carro. (verify: CI)
 - [ ] O Calendário do admin mostra o orçamento de passeio pago na sua partida, com "Partida inteira". (verify: operator)
 - [ ] Um orçamento de passeio que já tem carro continua a ser de passeio depois da migração, retém um carro da sua classe, e o admin mostra esse carro. (verify: CI)
+- [ ] Num orçamento de passeio pago que retém a partida inteira, a página do lead tem um botão para escolher o carro do grupo. Depois da escolha, o orçamento retém um motorista e esse carro, e o resto da partida volta a estar à venda. (verify: operator)
+- [ ] Num orçamento de passeio pago que retém um carro, o botão "Reter a partida inteira" fecha a partida outra vez. (verify: operator)
+- [ ] A escolha recusa um carro que a partida não tem livre, um orçamento não pago ou cancelado recusa as duas ações, e o registo de auditoria tem uma linha por alteração. (verify: CI)
 - [ ] A migração `0044` acrescenta o marcador e preenche-o nas linhas existentes, e o build do preview aplica-a e verifica-a (`db:migrate`, `db:verify`). (verify: CI)
 - [ ] O stub `tour-quote-without-car.md` está em `.icm/intake/seats-and-holds/_done/`. (verify: CI)
 
 ## Out of scope
 
 - Uma lista de carros por orçamento.
-- Uma ferramenta para libertar um carro de uma partida retida (Q3).
+- Reter mais de um carro e menos do que a partida inteira.
 - A regra do evento: um casamento ou evento com sinal pago continua a reter o dia inteiro.
 - A atribuição de viaturas das reservas (`assignVehicle`, JAM-290).
 - Perguntar ao cliente. A pergunta 6 do épico fica com o Jamie.
