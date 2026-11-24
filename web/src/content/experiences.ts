@@ -72,12 +72,12 @@ export const experiences: Experience[] = [
     },
     description: {
       pt: [
-        "Percorra a região Saloia ao ritmo de um carro clássico, longe das rotas turísticas habituais. O passeio liga os monumentos naturais entre Sintra e Mafra, atravessa vinhas e aldeias, e chega à vila piscatória da Ericeira — reserva mundial de surf reconhecida pela UNESCO.",
+        "Percorra a região Saloia ao ritmo de um carro clássico, longe das rotas turísticas habituais. O passeio liga os monumentos naturais entre Sintra e Mafra, atravessa vinhas e aldeias, e chega à vila piscatória da Ericeira — a primeira reserva mundial de surf da Europa.",
         "Pelo caminho conhece o Palácio Nacional de Mafra, prova doçaria regional e desfruta de vistas sobre o Atlântico, sempre num ambiente calmo que revela a essência da região.",
         "Cada saída é acompanhada por um anfitrião local que partilha histórias, tradições e sabores Saloios — uma imersão cultural e sensorial pensada para pequenos grupos.",
       ],
       en: [
-        "Explore the Saloia region at the pace of a classic car, away from the usual tourist routes. The tour links the natural monuments between Sintra and Mafra, crosses vineyards and villages, and reaches the fishing village of Ericeira — a UNESCO World Surfing Reserve.",
+        "Explore the Saloia region at the pace of a classic car, away from the usual tourist routes. The tour links the natural monuments between Sintra and Mafra, crosses vineyards and villages, and reaches the fishing village of Ericeira — Europe's first World Surfing Reserve.",
         "Along the way you visit the National Palace of Mafra, taste regional sweets and take in Atlantic views, always in a calm atmosphere that reveals the essence of the region.",
         "Every departure is hosted by a local guide who shares Saloia stories, traditions and flavours — a cultural and sensory immersion designed for small groups.",
       ],

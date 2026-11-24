@@ -1,6 +1,7 @@
 # Stage 01 — Research brief
 
-- **Run**: first blog batch · `.icm/intake/blog-engine/blog-pipeline-first-batch.md`
+- **Run**: first blog batch. Its stub was removed in the clean-up of 2026-09-11. The topics are
+  now in `workspaces/geo-content/topics.md`.
 - **Date**: 2026-08-31
 - **Checked against the facts again**: 2026-11-23 (JAM-508). The section "Facts check of
   2026-11-23" lists each correction.
@@ -80,7 +81,7 @@ vineyards, stone-walled lanes and villages, half an hour from the coast and from
 | Angle | Supported by |
 |---|---|
 | Geography named precisely, not vaguely | region = between Sintra, Mafra and Ericeira |
-| The three anchors most readers already know | National Palace of Mafra; Ericeira as a UNESCO World Surfing Reserve; Sintra |
+| The three anchors most readers already know | National Palace of Mafra; Ericeira as the first World Surfing Reserve in Europe; Sintra |
 | Why it stays quiet | positioning: slow, crowd-free rural tourism; the tours avoid the usual routes |
 | Who is still working the land | vineyards and local producers — Manzwine (Mafra), Ramilo (Colares/Atlantic), Tasco Galapito |
 | How a visitor actually sees it | Rural Saloia, ~4h30, two departures a day (10:00 / 14:00) |
@@ -131,14 +132,14 @@ from Sintra's palace queues rather than round them.
 *o que fazer na Ericeira fora das multidões*
 
 **Primary answer**:
-Ericeira is a fishing village on the Atlantic north of Sintra and the only UNESCO World Surfing
+Ericeira is a fishing village on the Atlantic north of Sintra and the first World Surfing
 Reserve in Europe — and the quiet way to see it is to arrive from the countryside behind it
 rather than from the coast road. Rural Saloia reaches Ericeira through the Saloia villages and
 vineyards, and the afternoon departure at 14:00 puts the Atlantic at the end of the day.
 
 **Questions travellers ask**:
 - Is Ericeira worth it if I do not surf?
-- What makes it a UNESCO World Surfing Reserve?
+- What makes it a World Surfing Reserve?
 - How do I get there from Sintra or Lisbon?
 - When is it least busy?
 - Can I see Ericeira and the countryside in one day?
@@ -146,7 +147,7 @@ vineyards, and the afternoon departure at 14:00 puts the Atlantic at the end of 
 **Angles and the facts behind them**:
 | Angle | Supported by |
 |---|---|
-| The UNESCO surfing-reserve fact, stated once and correctly | business-facts: Ericeira, UNESCO World Surfing Reserve |
+| The surfing-reserve fact, stated once and correctly: Save The Waves Coalition, 2011, the first in Europe, not UNESCO | business-facts: Ericeira, World Surfing Reserve |
 | Arriving overland, not along the coast | the Rural Saloia route: villages and vineyards, then the coast |
 | Non-surfers have the better day | positioning: slow, crowd-free |
 | The two departures give two different Ericeiras | 10:00 (midday light) vs 14:00 (late-afternoon Atlantic) |

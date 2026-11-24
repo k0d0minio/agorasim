@@ -2,7 +2,8 @@
 
 Answer these before running the pipeline. Kept as a file so the whole run is self-documenting.
 
-> **Run:** first blog batch (`.icm/intake/blog-engine/blog-pipeline-first-batch.md`) · 2026-08-31
+> **Run:** first blog batch · 2026-08-31. Its stub was removed in the clean-up of 2026-09-11.
+> The topics are now in `../topics.md`.
 >
 > This run is a **batch of five articles**, so each question is answered once for the batch
 > and then per article. `research.md` holds one section per article. Stages 02 and 03 write

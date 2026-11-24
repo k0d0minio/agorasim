@@ -38,22 +38,17 @@ topic → 01_research → [gate: Jamie] → 02_draft → 03_publish → generate
 
 1. **No article exists.** The batch stopped at the gate of stage 01 on 2026-08-31. The
    decision of 2026-09-18 parked it. Nobody drafted after that.
-2. **The research brief is out of date.** `workspaces/_config/business-facts.md` changed
-   after the brief: the event day hold (2026-09-25) and the open departures (2026-10-01). The
-   site copy changed on 2026-10-28 (the add-ons, the seats of each car). The brief also says
-   "everyone counts for seats". The decision of 2026-09-11 says that a child or an infant
-   rides free of the headcount. Stage 02 must not draft from the brief until a person checks
-   it against the facts again.
-3. **The contracts of stages 02 and 03 do not match the blog.** They date from 2026-07-01,
-   before the blog handoff (2026-08-31):
-   - Stage 02 asks for H2 and H3 headings and an FAQ. The blog format
-     (`web/src/lib/blog-markdown.ts`) refuses headings, lists and bold. It has no FAQ.
-   - Stage 03 writes a JSON block to `web/src/content/generated/<slug>.json`. The blog reads
-     only `web/src/content/generated/blog/<slug>.md`.
-   - The questionnaire says "see stage 03 for why". Stage 03 says nothing about the blog.
-4. **A blog article cannot meet the GEO checklist.** `workspaces/shared/geo-checklist.md`
-   asks for a heading hierarchy, an FAQ section and FAQPage JSON-LD. An article page emits
-   only Article and BreadcrumbList JSON-LD. The proposal sells "GEO-tuned" articles.
+2. **The research brief waits for Jamie's gate.** JAM-508 checked the brief against the facts
+   again on 2026-11-23. The seats rule agrees with the decision of 2026-09-11: every guest takes
+   a seat, and a price tier and a minimum count adults only. Stage 02 runs only after Jamie ticks
+   "Research brief approved" in `stages/01_research/output/research.md`.
+3. **Stages 02 and 03 match the blog format.** JAM-508 aligned them on 2026-11-23. Stage 02
+   writes plain paragraphs under `## pt` and `## en`, with no FAQ block. Stage 03 writes only
+   `web/src/content/generated/blog/<slug>.md`. Nobody has run them yet: the first run proves
+   that the loader accepts their output (JAM-510).
+4. **A blog article meets the GEO checklist only in part.** `workspaces/shared/geo-checklist.md`
+   says what an article meets. It meets C1, C3, C5, M3 and F1. It meets C2 (headings) and C4
+   (FAQ) only in prose, and it does not meet M1 (FAQPage JSON-LD). B3 closes C4 and M1.
 5. **Two databases, one manual load.** UAT and production are two Neon projects. An article
    published in the UAT studio is not on production. The loader must run once for each
    database, from Jamie's machine, with that database's URL. No build, no CI job and no cron
@@ -63,7 +58,7 @@ topic → 01_research → [gate: Jamie] → 02_draft → 03_publish → generate
 7. **The site is not live.** `agorasim.pt` still serves the old WordPress site. An article
    published on production reaches guests only after the go-live (JAM-471).
 
-Items 1 to 3 stop the first draft. Items 5 and 7 stop the first live article. Items 4 and 6
+Items 1 and 2 stop the first draft. Items 5 and 7 stop the first live article. Items 4 and 6
 stop "GEO-tuned" and "by itself".
 
 ## The result of the spike
