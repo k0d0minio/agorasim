@@ -22,3 +22,6 @@ dist/
 !.icm/processed/.gitkeep
 .vercel
 .env*
+
+# Brand illustration originals: 71 MB master, kept local only (web versions are in brand/)
+web/public/images/brand/source/

@@ -15,6 +15,7 @@ photos without a lookup table.
 | `weddings/` | `/casamentos` | 18 |
 | `testimonials/` | guest testimonial portraits, named after the guests | 3 |
 | `wedding-awards/` | casamentos.pt award badges, one per year | 5 |
+| `brand/` | the three brand illustrations, their palette reference and the source files | 3 + 3 + 2 |
 
 Naming rule: lowercase kebab-case, describing **what is in the frame**, not the camera's
 filename. Vehicle shots lead with the car (`citroen-2cv-…`, `renault-4-…`, `fiat-600-…`,
@@ -146,3 +147,19 @@ Only two remain, and both stay put on purpose:
 - **`video.mp4`** — the homepage hero video, not a photograph.
 
 Every other root image moved into the folders above; all `src/` references were updated.
+
+## brand/
+The three illustrations that Diogo sent on 2026-11-18 (WeTransfer and WhatsApp). The palette
+is in `web/src/content/brand.ts`; the scene component is `web/src/components/brand/scene.tsx`.
+
+| File | What it is | Size |
+|---|---|---|
+| `scene-day-hills.webp` | daytime hills, sand and terracotta layers, no car (landscape crop) | 1091×818 |
+| `scene-night-van.webp` | VW T3 van with the Jack Russell on the roof, white moon, lavender night (landscape crop) | 1091×818 |
+| `scene-sunset-2cv.webp` | 2CV on a teal hill against an orange sun (landscape crop) | 2400×1800 |
+| `portrait/scene-day-hills.webp` | the same scene, full portrait frame, for mobile and tall sections | 1091×1923 |
+| `portrait/scene-night-van.webp` | the same scene, full portrait frame | 1091×1923 |
+| `portrait/scene-sunset-2cv.webp` | the same scene, full portrait frame | 1091×1923 |
+| `reference/scene-triptych-overview.jpg` | the three scenes side by side, as the client sent them | 1665×945 |
+| `reference/palette-swatches-client-picks.jpg` | the six palette colours with their roles; green marks are the client's picks | 1170×1325 |
+| `source/` | the originals: two 1091×1923 PNGs and the 6546×11538 master of the 2CV scene (71 MB). Not in git (see `.gitignore`); make a new web version from here | — |
