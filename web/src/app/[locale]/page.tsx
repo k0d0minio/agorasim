@@ -9,6 +9,7 @@ import { Hero } from "@/components/hero";
 import { Section, SectionHeading } from "@/components/section";
 import { ExperienceCard } from "@/components/experience-card";
 import { Testimonials } from "@/components/testimonials";
+import { Scene } from "@/components/brand/scene";
 import { FaqList } from "@/components/faq";
 import { BookingButton } from "@/components/booking-button";
 import { JsonLd } from "@/components/json-ld";
@@ -89,13 +90,18 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </div>
       </div>
 
-      {/* Intro */}
+      {/* Intro: the story text, and the sunset scene next to it. The one scene of this page. */}
       <Section>
-        <SectionHeading title={t(home.introTitle, l)} />
-        <div className="mt-6 grid gap-6 text-lg text-muted-foreground md:grid-cols-2">
-          {t(home.intro, l).map((p, i) => (
-            <p key={i}>{p}</p>
-          ))}
+        <div className="grid items-center gap-10 md:grid-cols-2">
+          <div>
+            <SectionHeading title={t(home.introTitle, l)} />
+            <div className="mt-6 space-y-6 text-lg text-muted-foreground">
+              {t(home.intro, l).map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </div>
+          </div>
+          <Scene name="sunset" locale={l} />
         </div>
       </Section>
 

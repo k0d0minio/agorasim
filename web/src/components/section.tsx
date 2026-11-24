@@ -90,21 +90,43 @@ export function SectionHeading({
   title,
   intro,
   className,
+  onTerracotta = false,
 }: {
   eyebrow?: string;
   title: string;
   intro?: string;
   className?: string;
+  /**
+   * The heading of a Terracotta story band: Warm sand eyebrow (6.00:1), Off-white
+   * title and intro (7.00:1). Deep teal on Terracotta is 1.15:1.
+   */
+  onTerracotta?: boolean;
 }) {
   return (
     <div className={cn("max-w-2xl", className)}>
       {eyebrow && (
-        <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-primary">
+        <p
+          className={cn(
+            "mb-2 text-sm font-semibold uppercase tracking-wider",
+            onTerracotta ? "text-brand-sand" : "text-primary",
+          )}
+        >
           {eyebrow}
         </p>
       )}
-      <h2 className="text-3xl font-semibold text-foreground sm:text-4xl">{title}</h2>
-      {intro && <p className="mt-4 text-lg text-muted-foreground">{intro}</p>}
+      <h2
+        className={cn(
+          "text-3xl font-semibold sm:text-4xl",
+          onTerracotta ? "text-background" : "text-foreground",
+        )}
+      >
+        {title}
+      </h2>
+      {intro && (
+        <p className={cn("mt-4 text-lg", onTerracotta ? "text-background" : "text-muted-foreground")}>
+          {intro}
+        </p>
+      )}
     </div>
   );
 }

@@ -4,9 +4,9 @@ database: none
 default_branch: main
 language: pt-PT
 linear_org: kodominio
+linear_session_writes: true
 linear_states: false
 linear_team_key: JAM
-linear_writes: false
 release_config: false
 slug: agorasim
 ticket_source: linear

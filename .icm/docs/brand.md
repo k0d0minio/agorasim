@@ -5,8 +5,9 @@
 - source: three illustrations and a palette card by the client's graphic designer, sent by
   Diogo on 2026-11-18. BAXTER work item w-20261122-005.
 - applied by: JAM-481 (palette), JAM-482 (hill edges), JAM-483 (scenes), JAM-484 (404,
-  confirmation, emails), JAM-485 (fleet drawings). On 2026-11-23 the site does not use these
-  rules yet.
+  confirmation, emails), JAM-485 (fleet drawings). On 2026-11-24 the site uses the palette
+  (JAM-481) and the hill edges (JAM-482). The scenes, the spots and the fleet drawings are not
+  on the site yet.
 
 This page is the one home of the brand rules. A brand ticket links to this page. It does not
 copy the rules.
@@ -39,8 +40,11 @@ Derived steps. They are not on the card. The interface needs them.
 | Field border | `#8A7B6A` | `oklch(0.592 0.031 70.7)` | the border of a form field (3.40:1 on Off-white, over the 3:1 floor) |
 | Line | `#D9CBB0` | `oklch(0.846 0.040 83.8)` | decorative borders and dividers only |
 | Orange tint | `#E9C8A2` | `oklch(0.852 0.063 70.8)` | 35 % Burnt orange on Off-white. Hover and notice fills |
-| Orange text | `#9A4F1A` | `oklch(0.511 0.118 51.2)` | orange text on a light background |
+| Orange text | `#9A4F1B` | `oklch(0.511 0.118 51.2)` | orange text on a light background |
 | Night | `#1B0A14` | `oklch(0.175 0.034 345.0)` | the Events band behind the night scene |
+| Tan | `#DFB484` | `oklch(0.797 0.081 69.3)` | the second hill of the day scene. Hill edges only (`--brand-tan`) |
+| Email teal dark | `#0D373B` | `oklch(0.31 0.045 204.1)` | the banner of the team notification email (`emailPalette.primaryDark`) |
+| Email teal tint | `#DBECED` | `oklch(0.93 0.018 204.1)` | the fill of a callout panel in an email (`emailPalette.primaryTint`) |
 
 ## Token map
 
@@ -64,7 +68,7 @@ brand colour of the site comes from them. The shadcn names stay the main API: a 
 | `--border` | `oklch(0.9 0.018 78)` | Line |
 | `--input` | `oklch(0.62 0.025 70)` | Field border |
 | `--chart-2` to `--chart-5` | browns and greens | Burnt orange, Terracotta, Dusty lavender, Ink muted |
-| `--destructive` | `oklch(0.53 0.19 27)` | no change. Text on `bg-destructive/10` must measure 4.5:1 or more on the new background |
+| `--destructive` | `oklch(0.53 0.19 27)` | `oklch(0.49 0.19 27)`: darker, so its text passes on the light fills. A destructive notice or button never sits on Warm sand |
 
 The brand tokens. They go in `:root`, with a `--color-brand-*` alias in `@theme inline`, so
 Tailwind makes `bg-brand-terracotta` and the others. Only the brand components and the story
@@ -73,6 +77,7 @@ bands use them.
 ```css
 --brand-teal: oklch(0.381 0.055 204.1);
 --brand-sand: oklch(0.886 0.053 91.8);
+--brand-tan: oklch(0.797 0.081 69.3);
 --brand-terracotta: oklch(0.430 0.083 24.1);
 --brand-orange: oklch(0.703 0.127 62.3);
 --brand-lavender: oklch(0.714 0.106 295.5);
@@ -110,6 +115,11 @@ WCAG 2.x ratios. Body text needs 4.5:1. A field border needs 3:1.
 | Ink on Burnt orange / on Dusty lavender | 5.79 / 6.02 | pass: the text on a chip is Ink |
 | Dusty lavender on Night | 7.29 | pass: the Events eyebrow |
 | Field border on Off-white | 3.40 | pass: a field border, not text |
+| Destructive on `bg-destructive/10`, on Off-white / on Paper | 4.86 / 5.40 | pass: a destructive notice or button |
+| Destructive on `bg-destructive/13` (the button hover), on Off-white | 4.61 | pass |
+| Destructive on `bg-destructive/10`, on Warm sand | 4.19 | **fail: never on Warm sand** |
+| Off-white on Email teal dark | 10.71 | pass: the team email banner |
+| Ink / Deep teal on Email teal tint | 12.93 / 7.99 | pass: the email callout |
 | Burnt orange on Off-white | 2.26 | **fail: never text** |
 | Dusty lavender on Off-white | 2.17 | **fail: never text** |
 | White on Burnt orange | 2.72 | **fail: never a white-text button** |

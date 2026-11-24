@@ -37,7 +37,8 @@ it while a driver and a car are free.
 
 ## Experiences
 - **Rural Saloia** (signature, **~4h30**): natural monuments between Sintra and Mafra,
-  National Palace of Mafra, vineyards, villages, Ericeira (UNESCO World Surfing Reserve), Atlantic
+  National Palace of Mafra, vineyards, villages, Ericeira (a World Surfing Reserve of the
+  Save The Waves Coalition since 2011, the first in Europe — not a UNESCO title), Atlantic
   coast, gastronomic stops. Small-group and private. Two daily departures (10:00 / 14:00).
 - **Óbidos & Medieval Villages** (~5h, departs from Lisbon): Óbidos and lesser-known medieval
   villages, with a traditional food and wine break along the way.
