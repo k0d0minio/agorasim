@@ -105,7 +105,7 @@ Order matters. Env first, release second, DNS third, test fourth, announce last.
    `NEXT_PUBLIC_SITE_URL=https://agorasim.pt` · `BOOKING_EMAIL_FROM` · `BOOKING_NOTIFICATION_EMAILS` · `ADMIN_PASSWORD` · `RESEND_API_KEY` · `SENTRY_DSN` · `GOOGLE_PLACES_API_KEY` · `BACKUP_BLOB_READ_WRITE_TOKEN` (second, private, EU Blob store — PR #96).
    For paid bookings only: `STRIPE_SECRET_KEY` (live `sk_live_…`, platform) · `STRIPE_PUBLISHABLE_KEY` (the matching live `pk_live_…`; a mode that disagrees with the secret key turns `/reservar` to the enquiry form) · `STRIPE_WEBHOOK_SECRET` (the live endpoint's `whsec_…`) · `STRIPE_CONNECTED_ACCOUNT_ID` (`acct_…`, only once verified). Without them, remove the Stripe values from Production: the site takes enquiries.
 2. [ ] 🧑 Track P. Production serves the intended tag.
-3. [ ] 🤖/🧑 `web/scripts/dns-snapshot.sh > before.txt`.
+3. [ ] 🤖/🧑 `web/scripts/dns-snapshot.sh > before.txt`. Part A of `.icm/setup/search-console-bing.md` (the `google-site-verification` TXT) is done before this step.
 4. [ ] 🧑 Vercel → `agorasim` → Domains: add `agorasim.pt` and `www.agorasim.pt` to the production environment, with `www` → apex redirect.
 5. [ ] 🧑 Vercel → Domains → `agorasim.pt` → DNS records: delete the apex `A 130.185.83.150`. Change `www` to `CNAME cname.vercel-dns.com.` Nothing else changes. Note the time.
 6. [ ] 🧑 Vercel → Domains: both names show **Valid configuration** and certificates issued.
@@ -121,7 +121,8 @@ Order matters. Env first, release second, DNS third, test fourth, announce last.
 - [ ] With live keys: **€1 live booking** → Sales board → both emails from `reservas@agorasim.pt` → refund from the admin → both Stripe dashboards show the fee taken and returned; live webhook shows 200s.
 - [ ] Resend domain Verified; Facebook domain verification still present (the TXT); Google Business Profile website link still `https://agorasim.pt`.
 - [ ] admin.google.com → Billing unchanged; Calendar/Drive open normally.
-- [ ] Google Search Console: add `agorasim.pt` (Domain property) and submit the sitemap.
+- [ ] Google Search Console: the Domain property `agorasim.pt` is verified by its TXT record, and `sitemap.xml` is submitted. The steps are in `.icm/setup/search-console-bing.md`, parts A and B. Do part A before step 3 of Track G, so that the diff of Track G shows only the two rows.
+- [ ] Bing Webmaster Tools: `agorasim.pt` is imported from Search Console and verified, and the sitemap is in its list. The steps are in `.icm/setup/search-console-bing.md`, part C.
 - [ ] GitHub → Settings → Rules: a ruleset on `main` that requires the `ci` check. The repo is public, so the free plan permits it.
 
 ### Track T — the registrar and the titular (after go-live)
