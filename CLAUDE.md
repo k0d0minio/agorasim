@@ -52,8 +52,9 @@ branch of the Neon project `uat-agorasim`, the base of every preview
 - Technical text (pull request bodies, commits, questions) in Simplified Technical English:
   short active sentences, one instruction each, no semicolons. A question for Jamie has a
   number and a default answer.
-- CI is truth: never run build, lint, typecheck, test, format or dev locally. Push, then read
+- CI is truth: never run build, lint, typecheck, test or format locally. Push, then read
   the `ci` run and the previews. `.claude/hooks/block-local-checks.sh` blocks the commands.
+  A local dev server is permitted, to test a change: start it in the background, and stop it.
 - Secrets never in git: names only, values in GitHub or Vercel settings. Flag any plaintext
   credential found.
 - One ticket is one run, one branch and one pull request.
@@ -61,5 +62,12 @@ branch of the Neon project `uat-agorasim`, the base of every preview
   Jamie ticks Ready to merge. The Release stage merges.
 - A ticket's merge reaches the UAT environment, where the client tests the batch. Production
   moves only on Jamie's word, after the client's sign-off (`.icm/_system/features/uat.md`).
-- Linear: BAXTER makes the tickets and moves their states. A session in this repo does not
-  write to Linear.
+- Linear: rule 5 of `.icm/_system/rules/ticket.md` decides. A session makes its own ticket
+  acts in Linear with the BAXTER Linear tool: a comment on the run's ticket, a new issue in
+  Triage, a relation (`.icm/_system/features/linear-writes.md`). A session also moves the
+  run's ticket to its state, with no yes for each move. The names are in
+  `.icm/project.json`, `linear.states`: `draft` at the draft pull request, `ready` at
+  ready, `merged` at the merge, `changes` and `approved` at the client's test, `live` after
+  the promotion. No CI workflow moves a state. This replaces the sentence "A session does
+  not change a state" of `features/linear-writes.md` until the blueprint carries it (J,
+  2026-11-24).
