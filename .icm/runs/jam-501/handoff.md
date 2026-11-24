@@ -2,9 +2,9 @@
 
 ## Next action
 
-1. Jamie adds the line `STRIPE_CONNECT_WEBHOOK_SECRET=` under `STRIPE_WEBHOOK_SECRET=` in `web/.env.example`. The session cannot read that file (permission rule).
+1. Jamie said on 2026-11-24 that he added the Stripe Connect webhook secret.
 2. Jamie reads the pull request and ticks Ready to merge. Then `release JAM-501`.
-3. At the switch to Connect (runbook Track C): Jamie makes two live endpoints in Stripe. He sets `STRIPE_WEBHOOK_SECRET` to the platform endpoint's secret and `STRIPE_CONNECT_WEBHOOK_SECRET` to the Connect endpoint's secret in Vercel Production.
+3. The go-live acts (the live endpoints, the Production values, the build, the live test) are in JAM-571.
 
 ## How to test
 
