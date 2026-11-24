@@ -1,7 +1,7 @@
 # Spec: agorasim · One illustrated scene frames the story on Home, Sobre and Eventos
 
 - ticket: JAM-483
-- touches: web/public/images/brand/scene-sunset-2cv.webp, web/public/images/brand/scene-night-van.webp, web/public/images/brand/scene-day-hills.webp, web/src/content/brand.ts, web/src/components/brand/scene.tsx, web/src/components/brand/brand-imports.test.ts, web/src/components/testimonials.tsx, web/src/app/[locale]/page.tsx, web/src/app/[locale]/sobre/page.tsx, web/src/app/[locale]/eventos/page.tsx
+- touches: web/public/images/brand/scene-sunset-2cv.webp, web/public/images/brand/scene-night-van.webp, web/public/images/brand/scene-day-hills.webp, web/src/content/brand.ts, web/src/components/brand/scene.tsx, web/src/components/brand/brand-imports.test.ts, web/src/components/testimonials.tsx, web/src/app/[locale]/experiencias/[slug]/page.tsx, web/src/app/[locale]/page.tsx, web/src/app/[locale]/sobre/page.tsx, web/src/app/[locale]/eventos/page.tsx
 - complexity: standard
 
 ## Problem
@@ -23,11 +23,15 @@ em todas as posições de venda.
 3. **Eventos.** Uma faixa nova na cor Night (`#1B0A14`), entre a secção de abertura e o pedido
    de orçamento. A faixa tem a cena da noite com a carrinha VW T3 e o cão, e um eyebrow em
    Dusty lavender (Q2).
-4. **Avaliações da página inicial.** A faixa passa a Terracota. O título, a introdução e a
-   ligação de avaliação do Google ficam em Off-white (7.00:1). Os cartões das avaliações e as
-   fotografias dos hóspedes ficam iguais (Q1).
+4. **Avaliações, na página inicial e nas páginas de experiência (Q1).** A faixa passa a
+   Terracota. O título, a introdução e a ligação de avaliação do Google ficam em Off-white
+   (7.00:1). Os cartões das avaliações e as fotografias dos hóspedes ficam iguais. A faixa é uma
+   cor, não uma ilustração: a regra "nenhuma cena numa página de venda" fica.
 
-Decisões desta spec (o default de cada pergunta do pull request):
+Respostas do Jamie no chat da sessão da fila, 2026-11-24: Q1 "home and the experience pages",
+Q2 o eyebrow só, Q3 4:3.
+
+Decisões desta spec:
 
 - **Ficheiros das cenas (Q3).** Três recortes em paisagem 4:3, em WebP, cada um com menos de
   300 KB: `scene-sunset-2cv.webp` (2400 px de largura, do PNG de 6546 px),
@@ -59,7 +63,7 @@ Origem: a fila do Jamie de 2026-11-24 ("2 tickets that would actually bring valu
 - [ ] Nenhuma cena fica sobre, atrás ou encostada a uma fotografia, a 375 px e a 1280 px. (verify: operator)
 - [ ] A primeira fotografia de Sobre e a fotografia de Eventos estão iguais a antes. (verify: operator)
 - [ ] O teste de importação corre no CI e falha quando uma página de venda importa `Scene`. (verify: CI)
-- [ ] A faixa das avaliações da página inicial é Terracota, e o seu texto Off-white mede 7.00:1. (verify: agent)
+- [ ] A faixa das avaliações é Terracota na página inicial e nas páginas de experiência, e o seu texto Off-white mede 7.00:1. As fotografias dos hóspedes ficam iguais. (verify: agent)
 - [ ] Nenhuma cena tem `priority`, e a página inicial não tem novo layout shift causado por uma cena. (verify: agent)
 - [ ] O eyebrow de Eventos e o texto alternativo das cenas existem em pt-PT e em en. (verify: agent)
 - [ ] Os checks de CI passam. (verify: CI)
@@ -69,7 +73,6 @@ Origem: a fila do Jamie de 2026-11-24 ("2 tickets that would actually bring valu
 - O componente `Spot`, o 404, a confirmação da reserva e os emails (JAM-484).
 - Os desenhos da frota (JAM-485).
 - Uma cena noutras páginas, ou a cena de dia numa página.
-- A faixa das avaliações nas páginas de experiência (Q1).
 - Mover ou apagar os ficheiros brutos do designer. É um ato do Jamie (D47).
 - Os ficheiros em paisagem do designer. Substituem os recortes num ticket futuro.
 - Mudanças a `.icm/docs/brand.md`.
