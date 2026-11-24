@@ -12,6 +12,7 @@ import {
   quoteRequestSchema,
   refundQuotePaymentSchema,
   scratchQuoteSchema,
+  tourQuoteCarSchema,
 } from "@/lib/form-schemas";
 import { REFUND_CONFIRMATION } from "@/lib/admin-format";
 import { DEFAULT_DRIVERS, todayKey } from "@/lib/availability";
@@ -509,35 +510,66 @@ describe("quoteDraftSchema", () => {
     ).toBe(true);
   });
 
-  it("reads no hold from a wedding form, which never posts the two fields", () => {
+  it("reads no hold from a wedding form, which never posts the departure", () => {
     expect(quoteDraftSchema.parse(form([["Carro", "1", "750"]])).hold).toBeUndefined();
   });
 
-  it("reads a tour draft's departure and car", () => {
-    const parsed = quoteDraftSchema.parse(
-      form([["Passeio", "1", "300"]], { holdSlot: "full_day", holdVehicleClass: "classic-van" }),
-    );
+  // JAM-294: the form asks no car. A tour quote holds its whole departure.
+  it("reads a tour draft's departure, with no car", () => {
+    const parsed = quoteDraftSchema.parse(form([["Passeio", "1", "300"]], { holdSlot: "full_day" }));
 
-    expect(parsed.hold).toEqual({ slot: "full_day", vehicleClass: "classic-van" });
+    expect(parsed.hold).toEqual({ slot: "full_day", vehicleClass: null });
   });
 
-  it("refuses a departure or a car it does not know rather than drop the hold", () => {
-    const badSlot = quoteDraftSchema.safeParse(
-      form([["Passeio", "1", "300"]], { holdSlot: "night", holdVehicleClass: "classic-van" }),
+  it("ignores a car that an old form still posts", () => {
+    const parsed = quoteDraftSchema.parse(
+      form([["Passeio", "1", "300"]], { holdSlot: "morning", holdVehicleClass: "classic-van" }),
     );
-    const badCar = quoteDraftSchema.safeParse(
-      form([["Passeio", "1", "300"]], { holdSlot: "morning", holdVehicleClass: "bus" }),
+
+    expect(parsed.hold).toEqual({ slot: "morning", vehicleClass: null });
+  });
+
+  it("refuses a departure it does not know rather than drop the hold", () => {
+    const badSlot = quoteDraftSchema.safeParse(
+      form([["Passeio", "1", "300"]], { holdSlot: "night" }),
     );
 
     expect(badSlot.error?.issues[0]?.message).toBe("Escolha a partida do passeio.");
-    expect(badCar.error?.issues[0]?.message).toBe("Escolha o carro do passeio.");
+  });
+});
+
+/** JAM-294: the two buttons on a paid tour quote. */
+describe("tourQuoteCarSchema", () => {
+  const QUOTE = "aaaaaaaa-1111-4111-8111-111111111111";
+
+  it("reads the one car that the group uses", () => {
+    expect(tourQuoteCarSchema.parse({ quoteId: QUOTE, vehicleClass: "classic-van" })).toEqual({
+      quoteId: QUOTE,
+      vehicleClass: "classic-van",
+    });
+  });
+
+  it("reads no car as the whole departure", () => {
+    expect(tourQuoteCarSchema.parse({ quoteId: QUOTE, vehicleClass: "" })).toEqual({
+      quoteId: QUOTE,
+      vehicleClass: null,
+    });
+    expect(tourQuoteCarSchema.parse({ quoteId: QUOTE }).vehicleClass).toBeNull();
+  });
+
+  it("refuses a car that the fleet does not know, and a request with no quote", () => {
+    expect(
+      tourQuoteCarSchema.safeParse({ quoteId: QUOTE, vehicleClass: "bus" }).error?.issues[0]
+        ?.message,
+    ).toBe("Escolha o carro do passeio.");
+    expect(tourQuoteCarSchema.safeParse({ vehicleClass: "classic-van" }).success).toBe(false);
   });
 });
 
 /**
  * "Novo orçamento" — the customer, the kind and the quote in one form. A tour
- * takes one payment and needs its departure and car; a wedding or event keeps
- * the deposit share and holds no car.
+ * takes one payment and needs its departure, and no car (JAM-294); a wedding or
+ * event keeps the deposit share and holds no departure.
  */
 describe("scratchQuoteSchema", () => {
   const FUTURE = "2099-08-15";
@@ -553,7 +585,6 @@ describe("scratchQuoteSchema", () => {
     data.set("venue", "");
     data.set("depositPercent", "30");
     data.set("holdSlot", "morning");
-    data.set("holdVehicleClass", "classic-small");
     data.append("lineLabel", "Passeio personalizado, 4 horas");
     data.append("lineQuantity", "1");
     data.append("lineUnit", "320");
@@ -561,7 +592,7 @@ describe("scratchQuoteSchema", () => {
     return formValues(data);
   }
 
-  it("reads a tour: one payment, its departure and car, the customer's language", () => {
+  it("reads a tour: one payment, its departure and no car, the customer's language", () => {
     const parsed = scratchQuoteSchema.parse(form());
 
     expect(parsed.customer).toEqual({
@@ -576,7 +607,7 @@ describe("scratchQuoteSchema", () => {
       venue: null,
       // The form's 30 is ignored: a tour quote is paid in one payment.
       depositPercent: 100,
-      hold: { slot: "morning", vehicleClass: "classic-small" },
+      hold: { slot: "morning", vehicleClass: null },
       lineItems: [{ label: "Passeio personalizado, 4 horas", unitCents: 32_000, quantity: 1 }],
     });
   });

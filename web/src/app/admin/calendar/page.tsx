@@ -17,7 +17,11 @@ import {
 } from "@/lib/availability";
 import { countSlotOccupancy, bookingsBetween } from "@/lib/bookings";
 import { eventHoldsBetween, tourQuoteHoldsBetween } from "@/lib/event-holds";
-import { TOUR_HOLD_SLOT_LABELS, VEHICLE_CLASS_LABELS } from "@/lib/tour-quote";
+import {
+  TOUR_HOLD_SLOT_LABELS,
+  VEHICLE_CLASS_LABELS,
+  WHOLE_DEPARTURE_LABEL,
+} from "@/lib/tour-quote";
 import { quoteRef } from "@/lib/quotes";
 import { FLEET } from "@/lib/fleet";
 import { catalogueIndex, listCatalogue } from "@/lib/experience-catalogue";
@@ -102,8 +106,8 @@ export default async function AdminCalendarPage({
     // occupancy above already refuses those days; this is who and where, for
     // the day sheet (`lib/event-holds.ts`).
     eventHoldsBetween({ from: monthStart, to: monthEnd }),
-    // The paid tour quotes, each holding one car — counted in the occupancy
-    // above; listed beside the events so the car's use has a name.
+    // The paid tour quotes, each holding its departure or one car — counted in
+    // the occupancy above; listed beside the events so the hold has a name.
     tourQuoteHoldsBetween({ from: monthStart, to: monthEnd }),
   ]);
 
@@ -149,7 +153,9 @@ export default async function AdminCalendarPage({
       kind: "tour",
       name: hold.name,
       venue: null,
-      hold: `${TOUR_HOLD_SLOT_LABELS[hold.slot]} · ${VEHICLE_CLASS_LABELS[hold.vehicleClass]}`,
+      hold: `${TOUR_HOLD_SLOT_LABELS[hold.slot]} · ${
+        hold.vehicleClass ? VEHICLE_CLASS_LABELS[hold.vehicleClass] : WHOLE_DEPARTURE_LABEL
+      }`,
     });
   }
 

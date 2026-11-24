@@ -309,6 +309,13 @@
       "when": 1795474948014,
       "tag": "0043_payment_reminder_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1795482474396,
+      "tag": "0044_quotes_kind",
+      "breakpoints": true
     }
   ]
 }

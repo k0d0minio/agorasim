@@ -87,8 +87,9 @@ export type QuoteDraftInput = {
   depositPercent: number;
   lineItems: QuoteLineItem[];
   /**
-   * A tour quote's departure and car. Absent on a wedding or event form, which
-   * never shows the two fields; a save without it keeps what the draft had.
+   * A tour quote's departure. The form asks no car (JAM-294), so the car is
+   * `null` here: the whole departure. Absent on a wedding or event form, which
+   * never shows the field; a save without it keeps what the draft had.
    */
   hold?: TourHold | null;
 };
@@ -101,7 +102,7 @@ export type DraftOutcome =
   | { status: "already-quoted" }
   | { status: "not-editable" }
   | { status: "invalid"; problems: string[] }
-  /** A tour quote's departure has no driver or no car of its class left. */
+  /** A tour quote's departure has no driver or no car left. */
   | { status: "no-car"; reason: "unavailable" | "unreadable" };
 
 /** What became of a send — the quote, and separately its email. */
@@ -158,7 +159,7 @@ function builderProblems(input: QuoteDraftInput): string[] {
 /**
  * The input a tour or a wedding draft is written with: a tour lead's draft
  * needs a hold and takes one payment, any other lead's holds nothing. `null`
- * when a tour lead's form came without its departure and car.
+ * when a tour lead's form came without its departure.
  */
 export function draftInputForLead(
   lead: Pick<TourRequest, "kind">,
@@ -336,10 +337,18 @@ export async function saveDraft(options: {
   actorUserId: string;
 }): Promise<DraftOutcome> {
   const { quoteId, actorUserId } = options;
-  // A tour draft's form carries its hold, and a tour quote is one payment.
-  const input = options.input.hold
-    ? { ...options.input, depositPercent: TOUR_QUOTE_DEPOSIT_PERCENT }
-    : options.input;
+  // A tour draft's form carries its departure, and a tour quote is one
+  // payment. The form asks no car: a draft that has one keeps it (JAM-294).
+  let input = options.input;
+  if (input.hold) {
+    const existing = input.hold.vehicleClass === null ? await getQuote(quoteId) : null;
+    const kept = existing ? (tourHoldOf(existing)?.vehicleClass ?? null) : null;
+    input = {
+      ...input,
+      depositPercent: TOUR_QUOTE_DEPOSIT_PERCENT,
+      hold: { slot: input.hold.slot, vehicleClass: input.hold.vehicleClass ?? kept },
+    };
+  }
 
   const problems = builderProblems(input);
   if (problems.length > 0) return { status: "invalid", problems };
@@ -694,7 +703,8 @@ export function summariseClash(
  * `holdsCapacitySql` — never a second definition of it here.
  */
 export async function bookingClashesForDrafts(
-  leadQuotes: readonly Pick<Quote, "id" | "status" | "eventDate" | "holdVehicleClass">[],
+  leadQuotes: readonly (Pick<Quote, "id" | "status" | "eventDate" | "holdVehicleClass"> &
+    Partial<Pick<Quote, "kind">>)[],
   now: Date = new Date(),
 ): Promise<Map<string, BookingClash>> {
   // A tour draft takes one car and is checked for it on save; the warning is

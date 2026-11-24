@@ -41,6 +41,26 @@ describe("tourHoldOf — what a quote row holds", () => {
     expect(tourHoldOf({ holdSlot: null, holdVehicleClass: "classic-small" })).toBeNull();
     expect(tourHoldOf({ holdSlot: "morning", holdVehicleClass: "hovercraft" })).toBeNull();
   });
+
+  // JAM-294: the form asks no car, and `kind` marks the tour quote.
+  it("holds the whole departure on a tour quote without a car", () => {
+    expect(tourHoldOf({ kind: "tour", holdSlot: "afternoon", holdVehicleClass: null })).toEqual({
+      slot: "afternoon",
+      vehicleClass: null,
+    });
+  });
+
+  it("keeps the one car of a tour quote that has a car", () => {
+    expect(
+      tourHoldOf({ kind: "tour", holdSlot: "morning", holdVehicleClass: "classic-van" }),
+    ).toEqual({ slot: "morning", vehicleClass: "classic-van" });
+  });
+
+  it("holds nothing on an event quote, and on a tour quote without a departure", () => {
+    expect(tourHoldOf({ kind: "event", holdSlot: null, holdVehicleClass: null })).toBeNull();
+    expect(tourHoldOf({ kind: "event", holdSlot: "morning", holdVehicleClass: null })).toBeNull();
+    expect(tourHoldOf({ kind: "tour", holdSlot: null, holdVehicleClass: null })).toBeNull();
+  });
 });
 
 describe("the fee — 4% for a tour quote, 6% for an event", () => {
@@ -54,6 +74,21 @@ describe("the fee — 4% for a tour quote, 6% for an event", () => {
     const wedding = { holdSlot: null, holdVehicleClass: null };
     expect(isTourQuote(wedding)).toBe(false);
     expect(commissionKindOf(wedding)).toBe("event");
+    expect(commissionKindOf({ kind: "event", ...wedding })).toBe("event");
+  });
+
+  // JAM-294: a tour quote without a car is still a tour quote.
+  it("takes the tour rate on a tour quote without a car", () => {
+    const tour = { kind: "tour", holdSlot: "morning", holdVehicleClass: null } as const;
+    expect(isTourQuote(tour)).toBe(true);
+    expect(commissionKindOf(tour)).toBe("tour");
+  });
+
+  it("keeps a quote with a car a tour quote, whatever its marker says", () => {
+    // A row that the previous deployment wrote while migration 0044 ran.
+    const legacy = { kind: "event", holdSlot: "morning", holdVehicleClass: "classic-small" } as const;
+    expect(isTourQuote(legacy)).toBe(true);
+    expect(commissionKindOf(legacy)).toBe("tour");
   });
 });
 
@@ -121,5 +156,44 @@ describe("tourHoldFits — a driver and a car of the class", () => {
   it("refuses a day an event holds, and a departure the team cannot sell", () => {
     expect(tourHoldFits(departure({ heldByEvent: true }), "classic-small")).toBe(false);
     expect(tourHoldFits(departure({ onSale: false }), "classic-small")).toBe(false);
+  });
+
+  it("refuses a departure that another tour quote holds", () => {
+    expect(tourHoldFits(departure({ heldByTour: true }), "classic-small")).toBe(false);
+    expect(tourHoldFits(departure({ heldByTour: true }), null)).toBe(false);
+  });
+});
+
+/** JAM-294: a quote without a car takes what is left of the departure. */
+describe("tourHoldFits — the whole departure", () => {
+  const departure = (overrides: Record<string, unknown> = {}) => ({
+    onSale: true,
+    heldByEvent: false,
+    driversLeft: 2,
+    vehiclesLeft: { ...noVehicles(), "classic-small": 2, "classic-van": 1, touring: 1 },
+    ...overrides,
+  });
+
+  it("fits an empty departure", () => {
+    expect(tourHoldFits(departure(), null)).toBe(true);
+  });
+
+  it("fits a departure with bookings, while one driver and one car of any class are free", () => {
+    expect(
+      tourHoldFits(
+        departure({ driversLeft: 1, vehiclesLeft: { ...noVehicles(), touring: 1 } }),
+        null,
+      ),
+    ).toBe(true);
+  });
+
+  it("refuses a departure with no driver, or with no car", () => {
+    expect(tourHoldFits(departure({ driversLeft: 0 }), null)).toBe(false);
+    expect(tourHoldFits(departure({ vehiclesLeft: noVehicles() }), null)).toBe(false);
+  });
+
+  it("refuses a day an event holds, and a departure the team cannot sell", () => {
+    expect(tourHoldFits(departure({ heldByEvent: true }), null)).toBe(false);
+    expect(tourHoldFits(departure({ onSale: false }), null)).toBe(false);
   });
 });

@@ -85,6 +85,7 @@ export const AUDIT_ACTIONS = [
   "quote.superseded",
   "quote.payment_refunded",
   "quote.cancelled",
+  "quote.hold_changed",
   "blog_post.updated",
   "blog_post.published",
   "blog_post.unpublished",

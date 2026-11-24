@@ -326,7 +326,26 @@ describe("createDraftForLead — a tour from Novo orçamento", () => {
     );
   });
 
-  it("refuses a tour draft without its departure and car", async () => {
+  // JAM-294: the form asks no car. The quote holds its whole departure.
+  it("writes a tour draft with no car, after the departure check", async () => {
+    lead = tourLead();
+    quotesMock.createQuote.mockResolvedValue(quote());
+    const hold = { slot: "morning", vehicleClass: null } as const;
+
+    const outcome = await createDraftForLead({
+      leadId: LEAD_ID,
+      input: { ...INPUT, hold },
+      actorUserId: OPERATOR_ID,
+    });
+
+    expect(outcome.status).toBe("saved");
+    expect(checkTourHold).toHaveBeenCalledWith({ date: "2026-08-15", hold });
+    expect(quotesMock.createQuote).toHaveBeenCalledWith(
+      expect.objectContaining({ depositPercent: 100, hold }),
+    );
+  });
+
+  it("refuses a tour draft without its departure", async () => {
     lead = tourLead();
 
     expect(
@@ -361,7 +380,7 @@ describe("createDraftForLead — a tour from Novo orçamento", () => {
     ).toEqual({ status: "invalid", problems: ["too-small"] });
   });
 
-  it("drops a hold posted on a wedding lead — a wedding holds the day, not a car", async () => {
+  it("drops a hold posted on a wedding lead — a wedding holds the day, not a departure", async () => {
     quotesMock.createQuote.mockResolvedValue(quote());
 
     await createDraftForLead({
@@ -484,6 +503,45 @@ describe("saveDraft — Guardar", () => {
       await saveDraft({ quoteId: QUOTE_ID, input: INPUT, actorUserId: OPERATOR_ID }),
     ).toEqual({ status: "not-editable" });
     expect(recordAuditOrWarn).not.toHaveBeenCalled();
+  });
+
+  // JAM-294: the form asks no car, so it posts a hold with no car.
+  it("saves a tour draft that holds its whole departure, in one payment", async () => {
+    const hold = { slot: "afternoon", vehicleClass: null } as const;
+    quotesMock.getQuote.mockResolvedValue(quote({ kind: "tour", holdSlot: "morning" }));
+    quotesMock.updateQuoteDraft.mockResolvedValue(quote());
+
+    await saveDraft({
+      quoteId: QUOTE_ID,
+      input: { ...INPUT, depositPercent: 30, hold },
+      actorUserId: OPERATOR_ID,
+    });
+
+    expect(checkTourHold).toHaveBeenCalledWith({ date: "2026-08-15", hold });
+    expect(quotesMock.updateQuoteDraft).toHaveBeenCalledWith(
+      QUOTE_ID,
+      expect.objectContaining({ depositPercent: 100, hold }),
+    );
+  });
+
+  it("keeps the car of a tour draft that has one, and checks that car", async () => {
+    quotesMock.getQuote.mockResolvedValue(
+      quote({ kind: "tour", holdSlot: "morning", holdVehicleClass: "classic-van" }),
+    );
+    quotesMock.updateQuoteDraft.mockResolvedValue(quote());
+
+    await saveDraft({
+      quoteId: QUOTE_ID,
+      input: { ...INPUT, hold: { slot: "afternoon", vehicleClass: null } },
+      actorUserId: OPERATOR_ID,
+    });
+
+    const kept = { slot: "afternoon", vehicleClass: "classic-van" };
+    expect(checkTourHold).toHaveBeenCalledWith({ date: "2026-08-15", hold: kept });
+    expect(quotesMock.updateQuoteDraft).toHaveBeenCalledWith(
+      QUOTE_ID,
+      expect.objectContaining({ hold: kept }),
+    );
   });
 });
 

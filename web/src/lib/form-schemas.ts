@@ -758,28 +758,23 @@ function parseQuoteLines(
 }
 
 /**
- * A tour quote's departure and car, from the builder's two selects.
+ * A tour quote's departure, from the builder's select.
  *
- * Neither posted is a wedding or event form, which never renders them:
- * `undefined`, so a save leaves the draft's hold as it was. One posted without
- * the other, or a value the fleet does not know, is a refusal — never a
- * quietly dropped hold.
+ * Not posted is a wedding or event form, which never renders it: `undefined`,
+ * so a save leaves the draft's hold as it was. A value that is not a departure
+ * is a refusal — never a quietly dropped hold.
+ *
+ * The form asks no car (JAM-294): a tour quote holds its whole departure, and
+ * the team picks the one car on the paid quote when the group is small. A
+ * draft that has a car keeps it (`saveDraft` in `lib/quote-builder.ts`).
  */
-function parseTourHold(
-  slot: string | undefined,
-  vehicleClass: string | undefined,
-  ctx: z.RefinementCtx,
-): TourHold | undefined {
-  if (slot === undefined && vehicleClass === undefined) return undefined;
+function parseTourHold(slot: string | undefined, ctx: z.RefinementCtx): TourHold | undefined {
+  if (slot === undefined) return undefined;
   if (!isTourHoldSlot(slot)) {
     ctx.addIssue({ code: "custom", message: "Escolha a partida do passeio." });
     return undefined;
   }
-  if (!isVehicleClass(vehicleClass)) {
-    ctx.addIssue({ code: "custom", message: "Escolha o carro do passeio." });
-    return undefined;
-  }
-  return { slot, vehicleClass };
+  return { slot, vehicleClass: null };
 }
 
 /** The quote's day: a real calendar day, not in the past. */
@@ -822,9 +817,8 @@ export const quoteDraftSchema = z
     lineLabel: repeated,
     lineQuantity: repeated,
     lineUnit: repeated,
-    /** A tour quote's departure and car (`lib/tour-quote.ts`). */
+    /** A tour quote's departure (`lib/tour-quote.ts`). */
     holdSlot: z.string().trim().optional(),
-    holdVehicleClass: z.string().trim().optional(),
   })
   .refine((value) => Boolean(value.leadId) !== Boolean(value.quoteId), "Pedido inválido.")
   .transform((value, ctx) => ({
@@ -834,16 +828,16 @@ export const quoteDraftSchema = z
     venue: value.venue,
     depositPercent: value.depositPercent,
     lineItems: parseQuoteLines(value.lineLabel, value.lineQuantity, value.lineUnit, ctx),
-    hold: parseTourHold(value.holdSlot, value.holdVehicleClass, ctx),
+    hold: parseTourHold(value.holdSlot, ctx),
   }));
 
 /**
  * "Novo orçamento" on the Sales board — the customer, the kind of job and the
  * quote, in one form, with no enquiry behind it (`createQuoteFromScratch`).
  *
- * A tour asks its departure and car and takes one payment: the deposit share
- * is set to 100 here, whatever the form posted. A wedding or event asks the
- * deposit share and holds no car: a posted hold is dropped.
+ * A tour asks its departure and takes one payment: the deposit share is set
+ * to 100 here, whatever the form posted. A wedding or event asks the deposit
+ * share and holds no departure: a posted hold is dropped.
  */
 export const scratchQuoteSchema = z
   .object({
@@ -867,7 +861,6 @@ export const scratchQuoteSchema = z
     lineQuantity: repeated,
     lineUnit: repeated,
     holdSlot: z.string().trim().optional(),
-    holdVehicleClass: z.string().trim().optional(),
   })
   .transform((value, ctx) => {
     const tour = value.kind === "tour";
@@ -877,7 +870,7 @@ export const scratchQuoteSchema = z
     if (!deposit.success) {
       ctx.addIssue({ code: "custom", message: "O sinal tem de ser uma percentagem entre 1 e 100." });
     }
-    const hold = tour ? parseTourHold(value.holdSlot ?? "", value.holdVehicleClass ?? "", ctx) : null;
+    const hold = tour ? parseTourHold(value.holdSlot ?? "", ctx) : null;
     return {
       customer: {
         name: value.name.slice(0, 200),
@@ -898,6 +891,25 @@ export const scratchQuoteSchema = z
 
 /** A button on one quote — discard, new version, send. */
 export const quoteIdSchema = z.object({ quoteId: z.uuid() });
+
+/**
+ * The two buttons on a paid tour quote (JAM-294): the one car the group uses,
+ * or nothing posted for "Reter a partida inteira". A value the fleet does not
+ * know is a refusal.
+ */
+export const tourQuoteCarSchema = z
+  .object({
+    quoteId: z.uuid(),
+    vehicleClass: z.string().trim().optional(),
+  })
+  .refine(
+    (value) => !value.vehicleClass || isVehicleClass(value.vehicleClass),
+    "Escolha o carro do passeio.",
+  )
+  .transform((value) => ({
+    quoteId: value.quoteId,
+    vehicleClass: value.vehicleClass && isVehicleClass(value.vehicleClass) ? value.vehicleClass : null,
+  }));
 
 /**
  * "Reembolsar" on one instalment of a quote.

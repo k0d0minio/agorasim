@@ -21,7 +21,7 @@
  */
 import "server-only";
 
-import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import { db, quotes, tourRequests, type EnquiryKind, type QuoteStatus } from "@/db";
 import type { DateKey } from "@/lib/availability";
@@ -47,6 +47,20 @@ export function quoteHoldsDate(quote: { status: QuoteStatus }): boolean {
 
 /** The departures a hold takes — the whole day, as the client answered. */
 const HELD_SLOTS = ["morning", "afternoon"] as const;
+
+/**
+ * A wedding or event quote, in SQL — the complement of `isTourQuote`
+ * (`lib/tour-quote.ts`). Keep the two in step: `kind` is the marker, and a row
+ * with a car is a tour quote whatever its `kind` says.
+ */
+function isEventQuoteSql() {
+  return and(eq(quotes.kind, "event"), isNull(quotes.holdVehicleClass));
+}
+
+/** A tour quote, in SQL. Keep in step with `isTourQuote`. */
+function isTourQuoteSql() {
+  return or(eq(quotes.kind, "tour"), isNotNull(quotes.holdVehicleClass));
+}
 
 /** One quote holding one date — what the occupancy merge needs, and no more. */
 export type EventHoldKey = { date: DateKey; quoteId: string };
@@ -92,8 +106,8 @@ export async function eventHoldKeysBetween(options: {
         // `quotes_status_event_date_idx` — status first, then the date.
         inArray(quotes.status, [...QUOTE_HOLDING_STATUSES]),
         sql`${quotes.eventDate} between ${from} and ${to}`,
-        // A tour quote holds one car, not the day: `tourQuoteHoldsBetween`.
-        isNull(quotes.holdVehicleClass),
+        // A tour quote holds its departure, not the day: `tourQuoteHoldsBetween`.
+        isEventQuoteSql(),
       ),
     );
 }
@@ -137,7 +151,7 @@ export async function eventHoldsBetween(options: {
       and(
         inArray(quotes.status, [...QUOTE_HOLDING_STATUSES]),
         sql`${quotes.eventDate} between ${from} and ${to}`,
-        isNull(quotes.holdVehicleClass),
+        isEventQuoteSql(),
       ),
     )
     .orderBy(asc(quotes.eventDate), asc(quotes.createdAt));
@@ -150,11 +164,12 @@ export async function eventHoldsBetween(options: {
 }
 
 // ---------------------------------------------------------------------------
-// Tour quotes — one car, not the day
+// Tour quotes — the departure, or one car, not the day
 // ---------------------------------------------------------------------------
 
 /**
- * One paid tour quote holding one driver and one car (`lib/tour-quote.ts`).
+ * One paid tour quote and what it holds (`lib/tour-quote.ts`): its whole
+ * departure, or one driver and one car when the team picked the car.
  *
  * The same statuses hold as for an event: a tour quote is paid in one go, so
  * it reaches `paid` on its one payment, and a refund does not free the car
@@ -179,6 +194,7 @@ export async function tourQuoteHoldsBetween(options: {
       quoteId: quotes.id,
       tourRequestId: quotes.tourRequestId,
       date: quotes.eventDate,
+      kind: quotes.kind,
       holdSlot: quotes.holdSlot,
       holdVehicleClass: quotes.holdVehicleClass,
       name: tourRequests.name,
@@ -190,7 +206,7 @@ export async function tourQuoteHoldsBetween(options: {
       and(
         inArray(quotes.status, [...QUOTE_HOLDING_STATUSES]),
         sql`${quotes.eventDate} between ${from} and ${to}`,
-        isNotNull(quotes.holdVehicleClass),
+        isTourQuoteSql(),
       ),
     )
     .orderBy(asc(quotes.eventDate), asc(quotes.createdAt));
@@ -211,23 +227,82 @@ export async function tourQuoteHoldsBetween(options: {
 }
 
 /**
- * Tour-quote holds as occupancy groups — one private car per held departure —
- * so `tallyOccupancy` counts them exactly as it counts a booking: one driver,
- * one car of the class, and no open seats for anybody to join.
+ * The tour-quote holds that take one car, as occupancy groups — one private
+ * car per held departure — so `tallyOccupancy` counts them exactly as it
+ * counts a booking: one driver, one car of the class, and no open seats for
+ * anybody to join. A hold with no car is not a group: it takes the whole
+ * departure ({@link applyDepartureHolds}).
  */
 export function tourHoldGroups(
   holds: readonly Pick<TourQuoteHold, "date" | "slot" | "vehicleClass">[],
 ): OccupancyGroup[] {
-  return holds.flatMap((hold) =>
-    heldDepartures(hold.slot).map((slot) => ({
+  return holds.flatMap((hold) => {
+    const { vehicleClass } = hold;
+    if (vehicleClass === null) return [];
+    return heldDepartures(hold.slot).map((slot) => ({
       date: hold.date,
       slot,
-      vehicleClass: hold.vehicleClass,
+      vehicleClass,
       sharedCarId: null,
       // Read only for an open car, which this never is.
       experienceSlug: "",
       bookings: 1,
       seats: 0,
-    })),
-  );
+    }));
+  });
+}
+
+/**
+ * Fold the tour quotes that hold a whole departure into an occupancy map, in
+ * place, and return it.
+ *
+ * Each held departure gains the quote in `tourHolds`, creating the entry when
+ * no booking made one. The other departure of the day is not touched. Driver
+ * and car counts are left alone, as for an event hold: they are bookings, and
+ * the day sheet still says how many tours are already on the departure. What
+ * makes the departure unsellable is the hold itself, read by `describeSlot`.
+ * A hold with a car is skipped: {@link tourHoldGroups} counts it.
+ */
+export function applyDepartureHolds(
+  occupancy: Map<string, SlotOccupancy>,
+  holds: readonly Pick<TourQuoteHold, "date" | "slot" | "vehicleClass" | "quoteId">[],
+): Map<string, SlotOccupancy> {
+  for (const hold of holds) {
+    if (hold.vehicleClass !== null) continue;
+    for (const slot of heldDepartures(hold.slot)) {
+      const key = `${hold.date}#${slot}`;
+      const entry = occupancy.get(key) ?? { drivers: 0, vehicles: noVehicles() };
+      const held = entry.tourHolds ?? [];
+      if (!held.includes(hold.quoteId)) {
+        entry.tourHolds = [...held, hold.quoteId];
+      }
+      occupancy.set(key, entry);
+    }
+  }
+  return occupancy;
+}
+
+/**
+ * One departure's occupancy as it would be if this quote held nothing.
+ *
+ * The question behind the team's two buttons on a paid tour quote: "is this
+ * car free for the group?" must not count what the group's own quote holds —
+ * the whole departure, or the one car it has now. Pure, and it returns a copy.
+ */
+export function withoutTourHold(
+  occupancy: SlotOccupancy,
+  hold: { quoteId: string; vehicleClass: TourHold["vehicleClass"] },
+): SlotOccupancy {
+  const vehicles = { ...occupancy.vehicles };
+  let drivers = occupancy.drivers;
+  if (hold.vehicleClass !== null) {
+    drivers = Math.max(0, drivers - 1);
+    vehicles[hold.vehicleClass] = Math.max(0, vehicles[hold.vehicleClass] - 1);
+  }
+  return {
+    ...occupancy,
+    drivers,
+    vehicles,
+    tourHolds: (occupancy.tourHolds ?? []).filter((id) => id !== hold.quoteId),
+  };
 }

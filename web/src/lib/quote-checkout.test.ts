@@ -314,6 +314,34 @@ describe("startQuoteCheckout — a tour quote", () => {
 
     expect(checkTourHold).not.toHaveBeenCalled();
   });
+
+  // JAM-294: a tour quote without a car is still a tour quote. It takes the
+  // tour fee and one payment, and the check is for its whole departure.
+  it("charges a tour quote without a car the tour fee, after the departure check", async () => {
+    getQuoteByAccessTokenHash.mockResolvedValue(
+      quote([instalment("deposit", "pending", { amountCents: TOUR_TOTAL })], {
+        totalCents: TOUR_TOTAL,
+        depositPercent: 100,
+        kind: "tour",
+        holdSlot: "afternoon",
+        holdVehicleClass: null,
+      }),
+    );
+
+    const outcome = await startQuoteCheckout({ token, locale: "pt", now: NOW });
+
+    expect(outcome).toMatchObject({ status: "embedded", tour: true });
+    expect(checkTourHold).toHaveBeenCalledWith({
+      date: "2026-08-15",
+      hold: { slot: "afternoon", vehicleClass: null },
+      now: NOW,
+    });
+    const [params] = sessionsCreate.mock.calls[0];
+    expect(params.line_items[0].price_data.product_data.name).toMatch(/^Pagamento — /);
+    expect(params.payment_intent_data.application_fee_amount).toBe(
+      commissionOn("tour", TOUR_TOTAL).feeCents,
+    );
+  });
 });
 
 describe("startQuoteCheckout — the first tap on the deposit", () => {

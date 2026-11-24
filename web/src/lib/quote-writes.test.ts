@@ -107,6 +107,7 @@ const {
   QuoteDraftConflictError,
   QuoteError,
   reissuePayment,
+  setQuoteHoldCar,
   supersedeSentQuotes,
   updateQuoteDraft,
 } = await import("./quotes");
@@ -615,7 +616,58 @@ describe("createQuote and updateQuoteDraft — the 100% deposit exception", () =
       string,
       unknown
     >;
-    expect(inserted).toMatchObject({ holdSlot: "full_day", holdVehicleClass: "classic-van" });
+    expect(inserted).toMatchObject({
+      kind: "tour",
+      holdSlot: "full_day",
+      holdVehicleClass: "classic-van",
+    });
+  });
+
+  // JAM-294: the form asks no car. `kind` is what marks the tour quote.
+  it("createQuote marks a tour quote that has no car, and an event quote", async () => {
+    queueResult([quote({ depositPercent: 100, totalCents: 32_000, status: "draft" })]);
+    queueResult([instalment(DEPOSIT_ID, "deposit", "pending")]);
+    await createQuote({
+      tourRequestId: LEAD_ID,
+      eventDate: "2026-08-15",
+      totalCents: 32_000,
+      depositPercent: 100,
+      lineItems: [{ label: "Passeio personalizado", unitCents: 32_000, quantity: 1 }],
+      hold: { slot: "morning", vehicleClass: null },
+    });
+
+    queueResult([quote({ status: "draft" })]);
+    queueResult([instalment(DEPOSIT_ID, "deposit", "pending")]);
+    await createQuote({ tourRequestId: LEAD_ID, eventDate: "2026-08-15", totalCents: 192_000 });
+
+    const inserted = calls
+      .filter((call) => call.method === "values")
+      .map((call) => call.args[0] as Record<string, unknown>);
+    expect(inserted[0]).toMatchObject({
+      kind: "tour",
+      holdSlot: "morning",
+      holdVehicleClass: null,
+    });
+    expect(inserted[2]).toMatchObject({ kind: "event", holdSlot: null, holdVehicleClass: null });
+  });
+
+  it("setQuoteHoldCar writes the car on a paid quote only, and keeps it a tour quote", async () => {
+    queueResult([quote({ status: "paid", holdSlot: "morning", holdVehicleClass: "classic-van" })]);
+
+    const written = await setQuoteHoldCar(QUOTE_ID, "classic-van", NOW);
+
+    expect(written).toMatchObject({ holdVehicleClass: "classic-van" });
+    expect(updatedValues()[0]).toMatchObject({ holdVehicleClass: "classic-van", kind: "tour" });
+    const where = whereSql();
+    expect(where.sql).toContain('"quotes"."status" in');
+    expect(where.params).toEqual(expect.arrayContaining([QUOTE_ID, "deposit_paid", "paid"]));
+  });
+
+  it("setQuoteHoldCar clears the car for the whole departure, and says when nothing was written", async () => {
+    queueResult([]);
+
+    expect(await setQuoteHoldCar(QUOTE_ID, null, NOW)).toBeNull();
+    expect(updatedValues()[0]).toMatchObject({ holdVehicleClass: null, kind: "tour" });
   });
 
   it("createQuote refuses a tour quote split into a deposit and a balance", async () => {

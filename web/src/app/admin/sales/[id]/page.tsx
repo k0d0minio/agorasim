@@ -75,6 +75,7 @@ import { LeadEditForm, type CatalogueOption } from "@/components/admin/lead-edit
 import { LeadManualBooking } from "@/components/admin/lead-manual-booking";
 import { LeadQuoteCard, type QuoteCardItem } from "@/components/admin/lead-quote-card";
 import { isQuotedKind, tourHoldOf } from "@/lib/tour-quote";
+import { tourCarVerdict } from "@/lib/tour-quote-hold";
 import { ArchiveLeadButton, LogContactButton } from "@/components/admin/lead-quick-actions";
 import { MarketingConsent, Received } from "@/components/admin/record-meta";
 import { RequestStatusSelect } from "@/components/admin/request-status-select";
@@ -150,6 +151,7 @@ export default async function AdminLeadPage({
     eventDateLabel: formatDay(quote.eventDate, "pt"),
     venue: quote.venue,
     hold: tourHoldOf(quote),
+    canChangeCar: tourCarVerdict(quote, today) === "ok",
     lineItems: quote.lineItems,
     totalCents: quote.totalCents,
     currency: quote.currency,

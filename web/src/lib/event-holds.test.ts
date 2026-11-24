@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type { QuotePayment, QuoteStatus } from "@/db";
 import {
+  applyDepartureHolds,
   applyEventHolds,
   QUOTE_HOLDING_STATUSES,
   quoteHoldsDate,
   tourHoldGroups,
+  withoutTourHold,
 } from "@/lib/event-holds";
 import { emptyOccupancy, tallyOccupancy, type SlotOccupancy } from "@/lib/bookings";
 import { statusAfterPayment } from "@/lib/quotes";
@@ -132,5 +134,88 @@ describe("tourHoldGroups — a paid tour quote as one more car", () => {
 
     expect(map.get("2026-08-15#morning")?.vehicles["classic-small"]).toBe(1);
     expect(map.get("2026-08-15#afternoon")?.vehicles["classic-small"]).toBe(1);
+  });
+});
+
+/**
+ * JAM-294: a paid tour quote without a car holds its whole departure. It is
+ * not a car in the tally. It is a hold on each departure that it takes, and
+ * the other departure of the day is not touched.
+ */
+describe("applyDepartureHolds — a paid tour quote without a car", () => {
+  const whole = (slot: "morning" | "afternoon" | "full_day", quoteId = QUOTE_A) =>
+    ({ date: "2026-08-15", slot, vehicleClass: null, quoteId }) as const;
+
+  it("is no car in the tally", () => {
+    expect(tourHoldGroups([whole("morning")])).toEqual([]);
+  });
+
+  it("holds its departure and leaves the other departure of the day alone", () => {
+    const map = applyDepartureHolds(new Map(), [whole("morning")]);
+
+    expect(map.get("2026-08-15#morning")?.tourHolds).toEqual([QUOTE_A]);
+    expect(map.get("2026-08-15#morning")?.eventHolds).toBeUndefined();
+    expect(map.has("2026-08-15#afternoon")).toBe(false);
+  });
+
+  it("holds both departures for the whole day", () => {
+    const map = applyDepartureHolds(new Map(), [whole("full_day")]);
+
+    expect(map.get("2026-08-15#morning")?.tourHolds).toEqual([QUOTE_A]);
+    expect(map.get("2026-08-15#afternoon")?.tourHolds).toEqual([QUOTE_A]);
+  });
+
+  it("leaves the booking counts alone, and lists each quote once", () => {
+    const booked: SlotOccupancy = emptyOccupancy();
+    booked.drivers = 1;
+    booked.vehicles["classic-van"] = 1;
+    const map = new Map([["2026-08-15#morning", booked]]);
+
+    applyDepartureHolds(map, [whole("morning"), whole("morning"), whole("morning", QUOTE_B)]);
+
+    expect(map.get("2026-08-15#morning")).toMatchObject({
+      drivers: 1,
+      vehicles: { "classic-small": 0, "classic-van": 1, touring: 0 },
+      tourHolds: [QUOTE_A, QUOTE_B],
+    });
+  });
+
+  it("skips a quote that holds one car — the tally counts that one", () => {
+    const withCar = {
+      date: "2026-08-15",
+      slot: "morning",
+      vehicleClass: "classic-small",
+      quoteId: QUOTE_A,
+    } as const;
+
+    expect(applyDepartureHolds(new Map(), [withCar]).size).toBe(0);
+    expect(tallyOccupancy(tourHoldGroups([withCar])).get("2026-08-15#morning")?.drivers).toBe(1);
+  });
+});
+
+describe("withoutTourHold — the departure as if the quote held nothing", () => {
+  it("removes the quote's hold on the whole departure, and no other quote's", () => {
+    const occupancy: SlotOccupancy = { ...emptyOccupancy(), tourHolds: [QUOTE_A, QUOTE_B] };
+
+    expect(withoutTourHold(occupancy, { quoteId: QUOTE_A, vehicleClass: null }).tourHolds).toEqual([
+      QUOTE_B,
+    ]);
+    // A copy: the count that every reader shares is not changed.
+    expect(occupancy.tourHolds).toEqual([QUOTE_A, QUOTE_B]);
+  });
+
+  it("gives back the one car and its driver when the quote holds a car", () => {
+    const occupancy: SlotOccupancy = emptyOccupancy();
+    occupancy.drivers = 2;
+    occupancy.vehicles["classic-small"] = 1;
+    occupancy.vehicles["classic-van"] = 1;
+
+    const released = withoutTourHold(occupancy, { quoteId: QUOTE_A, vehicleClass: "classic-van" });
+
+    expect(released).toMatchObject({
+      drivers: 1,
+      vehicles: { "classic-small": 1, "classic-van": 0, touring: 0 },
+    });
+    expect(occupancy.vehicles["classic-van"]).toBe(1);
   });
 });
