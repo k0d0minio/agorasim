@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-526/agorasim-the-domain-paragraph-of-business-factsmd-says-the-site-is
 - branch: contact/jam-526-agorasim-the-domain-paragraph-of-business
 - lane: chore
-- pr: pending
+- pr: #283
 - started: 2026-11-24
