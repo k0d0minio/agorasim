@@ -29,12 +29,16 @@ Entre parênteses: os tokens de saída e as leituras de cache somadas de todas a
 |---|---|---|---|---|---|
 | 2 | 99 371 | 11 355 | 820 194 | 98 719 | 11 |
 | 5 | 111 387 | 23 610 | 1 071 254 | 110 693 | 15 |
-| 1 | a medir | | | | |
+| 1 | 103 756 | 13 324 | 649 318 | 103 091 | 11 |
 
 ## What the subagents left out (not in business-facts.md)
 
 - Tópico 2: "a local host drives" (o texto diz "um motorista da Agorasim"), "the palace queues"
   (o texto diz "longe das multidões"), e o facto da Ericeira.
+- Tópico 1: "north-west of Lisbon", "the palaces are not what this region is for", "the tours
+  avoid the usual routes", "still working the land", e uma melhor época do ano. A pergunta da
+  época passou a "Quando posso ir?", com as partidas e o prazo de reserva. A Ericeira é "uma
+  Reserva Mundial de Surf da Save The Waves Coalition desde 2011, a primeira da Europa".
 - Tópico 5: "walled town", "central Lisbon", "small scale", o que é a paragem de comida, e a
   regra dos lugares desta rota. Não dá hora de partida: a hora chega por email ou WhatsApp.
 

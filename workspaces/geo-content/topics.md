@@ -8,7 +8,7 @@ article. The source of the list is `.icm/docs/blog-loop.md` (JAM-475, 2026-11-23
 
 | # | Target query (EN) | Target query (PT) | Slug | Facts | State |
 |---|---|---|---|---|---|
-| 1 | what is the Saloia region in Portugal | o que é a região saloia | `o-que-e-a-regiao-saloia` | yes | brief |
+| 1 | what is the Saloia region in Portugal | o que é a região saloia | `o-que-e-a-regiao-saloia` | yes | handoff 2026-11-24 |
 | 2 | classic car tour near Sintra | passeio de carro clássico perto de Sintra | `passeio-de-carro-classico-perto-de-sintra` | yes | handoff 2026-11-24 |
 | 3 | what to do in Ericeira away from the crowds | o que fazer na Ericeira fora das multidões | `ericeira-longe-das-multidoes` | yes | brief |
 | 4 | traditional food and wine experience near Sintra and Mafra | comer e provar vinhos na região saloia | `sabores-saloios-a-mesa` | yes | brief |
