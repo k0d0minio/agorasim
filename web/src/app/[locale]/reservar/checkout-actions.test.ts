@@ -158,6 +158,40 @@ describe("startCheckout — paying on the booking page", () => {
     expect(state.payment?.stripeAccount).toBe("acct_test_agorasim");
   });
 
+  it("hands the checkout where the visit started, cleaned (JAM-506)", async () => {
+    payable();
+    startBookingCheckout.mockResolvedValue({ ok: true, clientSecret: "cs", bookingId: "b" });
+    const { startCheckout } = await load();
+    startBookingCheckout.mockClear();
+
+    const fromChatGpt = validForm();
+    fromChatGpt.set("landingUtmSource", "chatgpt.com");
+    fromChatGpt.set("landingReferrer", "https://chatgpt.com/c/a-private-conversation");
+    await startCheckout({}, fromChatGpt);
+
+    const fromGoogle = validForm();
+    fromGoogle.set("landingUtmSource", "");
+    fromGoogle.set("landingReferrer", "https://www.google.com/");
+    await startCheckout({}, fromGoogle);
+
+    // Not valid: dropped, and the sale still starts.
+    const crafted = validForm();
+    crafted.set("landingUtmSource", "<script>");
+    crafted.set("landingReferrer", "javascript:alert(1)");
+    const state = await startCheckout({}, crafted);
+
+    // A page with no record sends no fields.
+    await startCheckout({}, validForm());
+
+    expect(state.payment?.clientSecret).toBe("cs");
+    expect(startBookingCheckout.mock.calls.map(([options]) => options.source)).toEqual([
+      { landingUtmSource: "chatgpt.com", landingReferrerHost: "chatgpt.com" },
+      { landingUtmSource: null, landingReferrerHost: "www.google.com" },
+      { landingUtmSource: null, landingReferrerHost: "" },
+      { landingUtmSource: null, landingReferrerHost: null },
+    ]);
+  });
+
   it("hands the departure re-check to the checkout, to run under the departure's lock", async () => {
     payable();
     startBookingCheckout.mockResolvedValue({ ok: true, clientSecret: "cs", bookingId: "b" });

@@ -10,6 +10,7 @@ import { privacyContent } from "@/content/privacy";
 import type { Experience } from "@/content/experiences";
 import type { PublicMonth } from "@/lib/availability";
 import { BookingDatePicker } from "@/components/booking-date-picker";
+import { BookingSourceFields } from "@/components/booking-source";
 import { HONEYPOT_FIELD, HONEYPOT_INPUT_PROPS, HONEYPOT_LABEL } from "@/lib/honeypot";
 import { href } from "@/lib/routes";
 import { submitTourRequest, type TourRequestState } from "@/app/[locale]/reservar/actions";
@@ -80,6 +81,7 @@ export function TourRequestForm({
   return (
     <form action={formAction} className="flex flex-col gap-5" noValidate>
       <input type="hidden" name="locale" value={locale} />
+      <BookingSourceFields />
 
       {/*
         Honeypot. Positioned off-screen rather than `display: none` so naive bots

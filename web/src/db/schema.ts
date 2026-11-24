@@ -620,6 +620,24 @@ export const tourRequests = pgTable("tour_requests", {
   /** Where the lead came from — website form, phone follow-up, import, … */
   source: text("source").notNull().default("website"),
   /**
+   * Where the guest's visit started: the `utm_source` of the landing address,
+   * lower-cased (`chatgpt.com`). Null when the address had none. JAM-506.
+   *
+   * Not `source` above: that one says which door of ours the lead used (the
+   * form, the checkout, the console). This says who sent the guest to the door.
+   */
+  landingUtmSource: text("landing_utm_source"),
+  /**
+   * The host of the page that sent the guest (`www.google.com`). The host
+   * only: never the path and never the search.
+   *
+   * **Null means "not recorded"** — a row from before JAM-506, or one the team
+   * made in the console. A recorded visit that had no referrer stores the
+   * empty string. So this column alone says if the record exists. Read both
+   * columns through `lib/booking-source.ts`, never by hand.
+   */
+  landingReferrerHost: text("landing_referrer_host"),
+  /**
    * The team's own notes on this lead — what was agreed on the phone, which car
    * was promised, why it went quiet. Written only from the admin detail page.
    *
@@ -1130,6 +1148,16 @@ export const bookings = pgTable("bookings", {
    * setting and says nothing about where a booking from last season was paid.
    */
   stripeConnectedAccountId: text("stripe_connected_account_id"),
+
+  /**
+   * Where the guest's visit started, copied from the enquiry at checkout
+   * (`tour_requests.landing_utm_source` has the meaning). Kept on the booking
+   * too, because an erasure removes the enquiry and the count of bookings for
+   * each source must stay true.
+   */
+  landingUtmSource: text("landing_utm_source"),
+  /** As `tour_requests.landing_referrer_host`: null means "not recorded". */
+  landingReferrerHost: text("landing_referrer_host"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
