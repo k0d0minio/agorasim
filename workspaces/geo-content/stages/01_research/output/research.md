@@ -10,7 +10,7 @@
 
 ## Gate — Jamie reviews before stage 02 runs
 
-- [ ] Research brief approved; stage 02 (draft) may run
+- [x] Research brief approved; stage 02 (draft) may run
 
 ---
 
