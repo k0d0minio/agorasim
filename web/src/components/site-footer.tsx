@@ -31,7 +31,12 @@ export function SiteFooter({ locale }: { locale: Locale }) {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="mt-10">
+    /*
+     * `mt-24` is the margin the footer always had. The page content streams in
+     * after the first paint and pushes the footer down, and a smaller margin
+     * puts more of the footer in that first paint, so the shift counts for more.
+     */
+    <footer className="mt-24">
       {/* The four hills of the designer's day scene, back to front. The last
           one is Deep teal: it is the footer itself. */}
       <Hills
