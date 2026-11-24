@@ -95,12 +95,15 @@ const chargesRetrieve = vi.fn();
 const refundsList = vi.fn();
 const applicationFeesRetrieve = vi.fn();
 const applicationFeesCreateRefund = vi.fn();
+/** The signing secrets the route tries, in order. Reset before each test. */
+let secrets: string[] = ["whsec_test"];
 
 // No connected account, as on the deployment today: `onOwningAccount` is a
 // straight pass-through and every event arrives with no `account` on it.
 vi.mock("@/lib/stripe", () => ({
   isStripeConfigured: () => true,
   isWebhookConfigured: () => true,
+  webhookSecrets: () => secrets,
   isTestMode: () => true,
   connectedAccountId: () => null,
   isConnectConfigured: () => false,
@@ -221,6 +224,8 @@ beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "info").mockImplementation(() => {});
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  secrets = ["whsec_test"];
+  constructEventAsync.mockReset();
 });
 
 // ---------------------------------------------------------------------------
@@ -637,6 +642,68 @@ describe("POST /api/stripe/webhook — the endpoint's own guarantees", () => {
     // would repeat the failure for three days.
     expect(response.status).toBe(400);
     expect(calls).toHaveLength(0);
+  });
+
+  describe("with the platform endpoint's secret and the Connect endpoint's (JAM-501)", () => {
+    /** An event that verifies only against `whsec_<signer>`. */
+    function signedBy(signer: "platform" | "connect" | "nobody") {
+      constructEventAsync.mockImplementation(async (...args: unknown[]) => {
+        if (args[2] === `whsec_${signer}`) {
+          return { id: "evt_s", type: "customer.created", data: { object: {} } };
+        }
+        throw new Error("no signatures found matching the expected signature");
+      });
+      return POST(
+        new Request("https://agorasim.pt/api/stripe/webhook", {
+          method: "POST",
+          headers: { "stripe-signature": "t=1,v1=signed" },
+          body: "{}",
+        }),
+      );
+    }
+
+    beforeEach(() => {
+      secrets = ["whsec_platform", "whsec_connect"];
+    });
+
+    it("accepts an event that the platform endpoint signed", async () => {
+      const response = await signedBy("platform");
+
+      expect(response.status).toBe(200);
+      expect(constructEventAsync).toHaveBeenCalledTimes(1);
+    });
+
+    it("accepts an event that the Connect endpoint signed", async () => {
+      const response = await signedBy("connect");
+
+      expect(response.status).toBe(200);
+      expect(constructEventAsync).toHaveBeenCalledTimes(2);
+      expect(constructEventAsync.mock.calls[1]?.[2]).toBe("whsec_connect");
+    });
+
+    it("rejects with 400 an event that no secret verifies", async () => {
+      const response = await signedBy("nobody");
+
+      expect(response.status).toBe(400);
+      expect(constructEventAsync).toHaveBeenCalledTimes(2);
+      expect(calls).toHaveLength(0);
+    });
+  });
+
+  it("verifies against the one secret when only the platform endpoint's is set", async () => {
+    constructEventAsync.mockRejectedValueOnce(new Error("no signatures found"));
+
+    const response = await POST(
+      new Request("https://agorasim.pt/api/stripe/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "t=1,v1=forged" },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(constructEventAsync).toHaveBeenCalledTimes(1);
+    expect(constructEventAsync.mock.calls[0]?.[2]).toBe("whsec_test");
   });
 
   it("refuses an unsigned request outright", async () => {

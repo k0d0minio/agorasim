@@ -187,9 +187,26 @@ export function publishableKey(): string {
   return key;
 }
 
+/**
+ * The signing secrets a webhook may be verified against, in order.
+ *
+ * Stripe signs the platform account's own events and the connected accounts'
+ * events through two different endpoints, each with its own secret, even when
+ * both point at the same URL. `STRIPE_WEBHOOK_SECRET` is the platform
+ * endpoint's; `STRIPE_CONNECT_WEBHOOK_SECRET`, optional, is the Connect
+ * endpoint's. With both set, a refund on a booking taken before Connect (a
+ * platform event) and a payment on the connected account (a Connect event)
+ * both verify. Blank values are skipped.
+ */
+export function webhookSecrets(): string[] {
+  return [process.env.STRIPE_WEBHOOK_SECRET, process.env.STRIPE_CONNECT_WEBHOOK_SECRET]
+    .map((secret) => secret?.trim() ?? "")
+    .filter((secret) => secret.length > 0);
+}
+
 /** Whether this deployment can verify a webhook it is sent. */
 export function isWebhookConfigured(): boolean {
-  return Boolean(process.env.STRIPE_WEBHOOK_SECRET?.trim());
+  return webhookSecrets().length > 0;
 }
 
 /**

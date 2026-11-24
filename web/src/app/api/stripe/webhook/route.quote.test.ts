@@ -19,6 +19,7 @@ const chargesRetrieve = vi.fn();
 vi.mock("@/lib/stripe", () => ({
   isStripeConfigured: () => true,
   isWebhookConfigured: () => true,
+  webhookSecrets: () => ["whsec_test"],
   connectedAccountId: () => null,
   onOwningAccount: (run: (options?: unknown) => unknown) => run(undefined),
   stripe: () => ({

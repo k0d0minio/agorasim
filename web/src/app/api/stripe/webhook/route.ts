@@ -18,6 +18,7 @@ import {
   isWebhookConfigured,
   onOwningAccount,
   stripe,
+  webhookSecrets,
 } from "@/lib/stripe";
 
 /**
@@ -31,10 +32,10 @@ import {
  * Five properties this route has to have, and how each is bought:
  *
  * 1. **Signature-verified.** The raw body is read as text and handed to
- *    `constructEventAsync` with the endpoint secret. Parsing the JSON first
+ *    `constructEventAsync` with each endpoint secret in turn. Parsing the JSON first
  *    would change the bytes and break the signature — that is the classic way
  *    to build an endpoint anyone on the internet can confirm bookings through.
- * 2. **Fails closed.** No `STRIPE_WEBHOOK_SECRET`, no processing. An
+ * 2. **Fails closed.** No signing secret, no processing. An
  *    unverified endpoint that marks bookings paid is worse than no endpoint.
  * 3. **Idempotent.** Stripe retries anything it did not get a 2xx for, and the
  *    return page races this route to confirm the same booking. Both call
@@ -72,11 +73,12 @@ import {
  * (`lib/booking-refund.ts`); `refund.updated` follows the slower payment
  * methods, where a refund is requested now and settles or fails later.
  *
- * One endpoint serves both, and `STRIPE_WEBHOOK_SECRET` is whichever endpoint's
- * secret is in use: the Connect endpoint's once the connected account is live,
- * the platform endpoint's before that. Nothing here has to change to switch,
- * and no event this route acts on is read from anywhere but the signed payload
- * — the account only decides whether to act at all.
+ * One URL serves both Stripe endpoints. `STRIPE_WEBHOOK_SECRET` is the platform
+ * endpoint's secret and `STRIPE_CONNECT_WEBHOOK_SECRET` the Connect endpoint's
+ * (JAM-501): an event verifies against either, so a refund on a booking taken
+ * before Connect still lands after the switch. No event this route acts on is
+ * read from anywhere but the signed payload — the account only decides whether
+ * to act at all.
  */
 export const dynamic = "force-dynamic";
 /**
@@ -125,17 +127,10 @@ export async function POST(request: Request): Promise<Response> {
   // never match again.
   const payload = await request.text();
 
-  let event: Stripe.Event;
-  try {
-    event = await stripe().webhooks.constructEventAsync(
-      payload,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!,
-    );
-  } catch (err) {
+  const event = await verifiedEvent(payload, signature);
+  if (!event) {
     // 400, not 500: the request is bad, and asking Stripe to retry a payload
     // that cannot be verified would just repeat the failure for three days.
-    console.error("[stripe] rejected a webhook with a bad signature", err);
     return Response.json({ error: "bad signature" }, { status: 400 });
   }
 
@@ -323,6 +318,28 @@ export async function POST(request: Request): Promise<Response> {
     });
     return Response.json({ error: "handler failed" }, { status: 500 });
   }
+}
+
+/**
+ * The event, verified against the first signing secret that matches, or `null`
+ * when none does.
+ *
+ * The platform endpoint and the Connect endpoint sign with different secrets
+ * (`webhookSecrets` in `lib/stripe.ts`), and an event names neither before it
+ * is verified. So each secret is tried in turn. A secret that does not match
+ * proves nothing on its own; only a payload no secret verifies is rejected.
+ */
+async function verifiedEvent(payload: string, signature: string): Promise<Stripe.Event | null> {
+  let lastError: unknown = null;
+  for (const secret of webhookSecrets()) {
+    try {
+      return await stripe().webhooks.constructEventAsync(payload, signature, secret);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  console.error("[stripe] rejected a webhook with a bad signature", lastError);
+  return null;
 }
 
 /**
