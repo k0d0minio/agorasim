@@ -185,8 +185,24 @@ describe("submitTourRequest — a refused field keeps the guest's values", () =>
     preferredDate: "fim de agosto",
     addOns: ["picnic", "wine-tasting"],
     message: "Dois adultos e duas crianças.",
+    taxId: "",
     marketingConsent: true,
   };
+
+  it.each(["pt", "en"])("refuses a NIF with a wrong check digit and keeps every field (%s)", async (locale) => {
+    const form = fullForm("Ana Lopes", "ana@example.com", { locale });
+    form.set("taxId", "123456780");
+    const state = await submitTourRequest({}, form);
+
+    expect(state.fieldErrors?.taxId).toBeTruthy();
+    expect(state.values).toEqual({
+      name: "Ana Lopes",
+      email: "ana@example.com",
+      ...typed,
+      taxId: "123456780",
+    });
+    expect(insert).not.toHaveBeenCalled();
+  });
 
   it.each(["pt", "en"])("returns every field with an invalid email (%s)", async (locale) => {
     const state = await submitTourRequest({}, fullForm("Ana Lopes", "ana@", { locale }));

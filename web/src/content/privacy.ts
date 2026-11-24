@@ -82,7 +82,7 @@ export const privacyContent = {
   } as Localized,
 
   lastUpdatedLabel: { pt: "Última atualização", en: "Last updated" } as Localized,
-  lastUpdated: { pt: "23 de novembro de 2026", en: "23 November 2026" } as Localized,
+  lastUpdated: { pt: "24 de novembro de 2026", en: "24 November 2026" } as Localized,
 
   sections: {
     pt: [
@@ -97,7 +97,7 @@ export const privacyContent = {
       {
         heading: "Que dados recolhemos",
         body: [
-          "Quando preenche o formulário de pedido de experiência recolhemos: o seu nome, o seu email, o seu telefone (opcional), o número de pessoas, a data ou período preferido, a experiência e complementos que lhe interessam, a mensagem que nos escrever e o idioma em que navegava.",
+          "Quando preenche o formulário de pedido de experiência recolhemos: o seu nome, o seu email, o seu telefone (opcional), o seu NIF para a fatura (opcional), o número de pessoas, a data ou período preferido, a experiência e complementos que lhe interessam, a mensagem que nos escrever e o idioma em que navegava.",
           "Registamos também a data do pedido e, se tiver assinalado a caixa de comunicações de marketing, o facto de o ter feito, o momento e a versão do texto que aceitou.",
           "Quando reserva e paga online recolhemos ainda os dados da reserva: a experiência, a data e a hora de partida, a composição do grupo (adultos, crianças e bebés), o montante pago e o estado do pagamento. O pagamento em si é feito no formulário da Stripe, apresentado dentro da nossa página: os dados do cartão são introduzidos nesse formulário e nunca passam pelos nossos servidores. Da Stripe recebemos apenas a confirmação de que o pagamento foi feito, o montante e as referências necessárias para o associar à sua reserva.",
           "Quando faz uma reserva ou um pedido, guardamos com ele a origem da sua visita: o nome do site que o trouxe até nós (por exemplo, google.com) e, quando a ligação a indica, a etiqueta de origem (por exemplo, chatgpt.com). Não guardamos o endereço completo da página de onde veio nem o que pesquisou. Para isto não usamos cookies. Estes dois valores ficam no separador do seu navegador até à reserva, e desaparecem quando fecha o separador. Não o seguimos entre visitas. Usamos esta informação para saber que canais trazem reservas (interesse legítimo). Fica guardada com a reserva, pelo mesmo prazo.",
@@ -109,6 +109,7 @@ export const privacyContent = {
         body: [
           "Respondemos ao seu pedido e preparamos a sua experiência com base em diligências pré-contratuais a seu pedido (artigo 6.º, n.º 1, alínea b) do RGPD). Sem estes dados não conseguimos contactá-lo nem organizar o passeio.",
           "Quando reserva uma experiência — online, ou connosco por telefone — ou pede um orçamento para um casamento ou evento, o tratamento dos dados da reserva, do orçamento e do pagamento — incluindo os emails sobre a reserva ou o orçamento: a confirmação, o lembrete na véspera e o cancelamento, o orçamento enviado, o pedido do restante e o seu lembrete, os recibos de sinal e de restante pagos, e o aviso de reembolso — é necessário para a execução do contrato consigo (artigo 6.º, n.º 1, alínea b)).",
+          "Se nos der o seu NIF (no formulário de reserva, no pedido ou no pagamento de um orçamento), usamo-lo apenas para o pôr na fatura do seu pagamento, como a lei exige quando o cliente o pede (artigo 36.º, n.º 16 do Código do IVA). Este tratamento é necessário para cumprir essa obrigação legal (artigo 6.º, n.º 1, alínea c)). O NIF é opcional: sem ele, a fatura é emitida sem número de contribuinte.",
           "O envio de comunicações de marketing assenta no seu consentimento (artigo 6.º, n.º 1, alínea a)). É opcional, é dado numa caixa separada e não assinalada, e pode ser retirado a qualquer momento sem afetar o seu pedido.",
           "A única exceção é um email de agradecimento, enviado uma vez na manhã seguinte a uma experiência que fez connosco, com o link para deixar uma avaliação no Google. Enviamo-lo a quem já é cliente, sobre um serviço nosso, com base no nosso interesse legítimo (artigo 6.º, n.º 1, alínea f)) e na regra que permite estes contactos a clientes existentes. Cada um destes emails tem um link para deixar de os receber, e pode opor-se a qualquer momento — também escrevendo-nos.",
         ],
@@ -116,7 +117,7 @@ export const privacyContent = {
       {
         heading: "Durante quanto tempo guardamos os dados",
         body: [
-          "Pedidos que não se convertem numa reserva são anonimizados automaticamente ao fim do prazo de conservação definido — os dados que o identificam (nome, email, telefone e mensagem) são apagados e fica apenas informação estatística que não permite identificá-lo.",
+          "Pedidos que não se convertem numa reserva são anonimizados automaticamente ao fim do prazo de conservação definido — os dados que o identificam (nome, email, telefone, NIF e mensagem) são apagados e fica apenas informação estatística que não permite identificá-lo.",
           "Dados associados a reservas efetivamente realizadas podem ter de ser conservados por prazos mais longos por obrigação legal (por exemplo, fiscal).",
           "Se pedir para deixar de receber o agradecimento, guardamos esse pedido sem prazo, para o respeitar sempre — mesmo que volte a reservar ou que os seus outros dados sejam apagados. Guardamos apenas uma impressão cifrada do seu endereço de email, nunca o endereço em si.",
         ],
@@ -166,7 +167,7 @@ export const privacyContent = {
       {
         heading: "What we collect",
         body: [
-          "When you fill in the experience request form we collect: your name, your email address, your phone number (optional), the number of people, your preferred date or period, the experience and add-ons you are interested in, whatever you write in the message field, and the language you were browsing in.",
+          "When you fill in the experience request form we collect: your name, your email address, your phone number (optional), your tax number for the invoice (optional), the number of people, your preferred date or period, the experience and add-ons you are interested in, whatever you write in the message field, and the language you were browsing in.",
           "We also record when the enquiry was made and, if you ticked the marketing box, that you did so, when, and which version of the wording you agreed to.",
           "When you book and pay online we also collect the booking itself: the experience, the date and departure time, who is in your party (adults, children and infants), the amount paid and the payment status. The payment itself happens in Stripe's form, shown inside our page: your card details are entered into that form and never pass through our servers. From Stripe we receive only confirmation that the payment was made, the amount, and the references needed to match it to your booking.",
           "When you make a booking or an enquiry, we keep with it where your visit started: the name of the site that brought you to us (for example, google.com) and, when the link gives one, its source label (for example, chatgpt.com). We do not keep the full address of the page you came from, or what you searched for. We use no cookies for this. These two values stay in your browser tab until you book, and they go when you close the tab. We do not follow you between visits. We use this information to know which channels bring bookings (legitimate interest). It is kept with the booking, for the same period.",
@@ -178,6 +179,7 @@ export const privacyContent = {
         body: [
           "We answer your enquiry and prepare your experience on the basis of steps taken at your request prior to entering into a contract (GDPR Art. 6(1)(b)). Without this data we cannot reply to you or arrange the tour.",
           "When you book an experience — online, or with us by phone — or request a wedding or event quote, processing the booking, quote and payment data — including the emails about your booking or quote: the confirmation, the day-before reminder and any cancellation, the quote sent, the balance request and its reminder, the deposit-received and balance-paid receipts, and the refund notice — is necessary to perform the contract with you (Art. 6(1)(b)).",
+          "If you give us your tax number (on the booking form, the enquiry form or a quote's payment step), we use it only to put it on the invoice for your payment, as Portuguese law requires when the customer asks for it (VAT Code, Art. 36(16)). This processing is necessary to meet that legal obligation (Art. 6(1)(c)). The tax number is optional: without it, the invoice is issued with no tax number.",
           "Marketing email is sent on the basis of your consent (Art. 6(1)(a)). It is optional, it is given via a separate, unticked box, and you can withdraw it at any time without affecting your enquiry.",
           "The one exception is a thank-you email, sent once on the morning after an experience you took with us, with a link to leave a Google review. We send it to existing customers, about our own service, on the basis of our legitimate interest (Art. 6(1)(f)) and the rule that allows such messages to existing customers. Every one of these emails carries a link to stop receiving them, and you can object at any time — including by writing to us.",
         ],
@@ -185,7 +187,7 @@ export const privacyContent = {
       {
         heading: "How long we keep it",
         body: [
-          "Enquiries that never turn into a booking are anonymised automatically once the retention period is reached — the data that identifies you (name, email, phone and message) is erased, leaving only statistical information that cannot identify you.",
+          "Enquiries that never turn into a booking are anonymised automatically once the retention period is reached — the data that identifies you (name, email, phone, tax number and message) is erased, leaving only statistical information that cannot identify you.",
           "Data attached to bookings that actually took place may have to be kept longer to meet legal obligations (for example tax record-keeping).",
           "If you ask to stop the thank-you, we keep that request without a time limit so we can always honour it — even if you book again or your other data is erased. We keep only a keyed hash of your email address, never the address itself.",
         ],

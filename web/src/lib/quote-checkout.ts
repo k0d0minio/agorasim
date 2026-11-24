@@ -55,7 +55,7 @@ import "server-only";
 import type Stripe from "stripe";
 import { eq } from "drizzle-orm";
 
-import { db, tourRequests, type Quote, type QuotePayment, type TourRequest } from "@/db";
+import { db, quotes, tourRequests, type Quote, type QuotePayment, type TourRequest } from "@/db";
 import { TERMS_VERSION } from "@/content/terms";
 import { quotePageContent } from "@/content/quote-page";
 import { t, type Locale } from "@/i18n/config";
@@ -215,13 +215,32 @@ export async function startQuoteCheckout(options: {
   token: string;
   /** The `/pt` or `/en` the page was on — Stripe's language and the way back. */
   locale: Locale;
+  /**
+   * The tax number the couple typed for the fatura, already checked
+   * (`lib/tax-id.ts`), or `null` for an empty field (JAM-527). An empty field
+   * keeps the number given at an earlier instalment: it never clears it.
+   */
+  taxId?: string | null;
   now?: Date;
 }): Promise<QuoteCheckoutOutcome> {
-  const { token, locale, now = new Date() } = options;
+  const { token, locale, taxId = null, now = new Date() } = options;
 
   if (!isStripeConfigured()) return { status: "unconfigured" };
   const quote = await resolveQuoteToken(token);
   if (!quote) return { status: "not-found" };
+
+  if (taxId !== null && taxId !== quote.taxId) {
+    try {
+      await db
+        .update(quotes)
+        .set({ taxId, updatedAt: now })
+        .where(eq(quotes.id, quote.id));
+    } catch (err) {
+      // The fatura can still be issued by hand with the number asked by email.
+      // A failed write never costs the payment.
+      console.error(`[quote-checkout] ${quoteRef(quote.id)}: could not store the tax number`, err);
+    }
+  }
 
   try {
     return await checkoutFor(quote, { token, locale, now, attempt: 0 });

@@ -430,8 +430,9 @@ describe("erasing a submission", () => {
 
     const scrub = updatedValues()[0]!;
     expect(scrub).toMatchObject({ venue: null });
-    // The money stays: the update touches the labels and the venue, nothing else.
-    expect(Object.keys(scrub).sort()).toEqual(["lineItems", "updatedAt", "venue"]);
+    // The money stays: the update touches the labels, the venue and the tax
+    // number for the fatura (JAM-527), nothing else.
+    expect(Object.keys(scrub).sort()).toEqual(["lineItems", "taxId", "updatedAt", "venue"]);
   });
 
   it("refuses to delete when the quotes cannot be scrubbed", async () => {

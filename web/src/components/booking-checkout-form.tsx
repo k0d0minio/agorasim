@@ -14,6 +14,7 @@ import { ArrowLeft, Check, Lock, MapPin, Minus, Plus, ShieldCheck } from "lucide
 
 import { t, type Locale, type Localized } from "@/i18n/config";
 import { bookingContent } from "@/content/booking";
+import { taxIdContent } from "@/content/tax-id";
 import { privacyContent } from "@/content/privacy";
 import { termsContent } from "@/content/terms";
 import { departureLabel, meetingPoints } from "@/content/logistics";
@@ -126,6 +127,11 @@ type Basket = {
   name: string;
   email: string;
   phone: string;
+  /**
+   * The tax number for the fatura (JAM-527). Kept out of the saved draft on
+   * purpose: a NIF is not something to leave in browser storage.
+   */
+  taxId: string;
   message: string;
 };
 
@@ -175,6 +181,7 @@ function startingBasket(options: {
     name: draft?.name ?? echoed?.name ?? "",
     email: draft?.email ?? echoed?.email ?? "",
     phone: draft?.phone ?? echoed?.phone ?? "",
+    taxId: echoed?.taxId ?? "",
     message: draft?.message ?? echoed?.message ?? "",
   };
 }
@@ -961,6 +968,29 @@ export function BookingCheckoutForm({
                   value={basket.phone}
                   onChange={(event) => update({ phone: event.target.value })}
                 />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="taxId">{t(taxIdContent.label, l)}</Label>
+                <Input
+                  id="taxId"
+                  name="taxId"
+                  autoComplete="off"
+                  maxLength={40}
+                  value={basket.taxId}
+                  onChange={(event) => update({ taxId: event.target.value })}
+                  aria-invalid={Boolean(state.fieldErrors?.taxId)}
+                  aria-describedby={state.fieldErrors?.taxId ? "taxId-error" : "taxId-hint"}
+                />
+                {state.fieldErrors?.taxId ? (
+                  <p id="taxId-error" className="text-sm text-destructive" role="alert">
+                    {state.fieldErrors.taxId}
+                  </p>
+                ) : (
+                  <p id="taxId-hint" className="text-xs text-muted-foreground">
+                    {t(taxIdContent.hint, l)}
+                  </p>
+                )}
               </div>
             </div>
 
