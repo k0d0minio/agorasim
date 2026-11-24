@@ -4,8 +4,9 @@ import { isLocale, t, type Locale } from "@/i18n/config";
 import { events } from "@/content/pages";
 import { todayKey } from "@/lib/availability";
 import { cn } from "@/lib/utils";
-import { Section, SectionHeading } from "@/components/section";
+import { Container, Section, SectionHeading } from "@/components/section";
 import { Media } from "@/components/media";
+import { Scene } from "@/components/brand/scene";
 import { QuoteRequestForm } from "@/components/quote-request-form";
 import { buttonVariants } from "@/components/ui/button";
 import { alternates } from "@/lib/seo";
@@ -74,6 +75,19 @@ export default async function EventsPage({ params }: { params: Promise<{ locale:
           />
         </div>
       </Section>
+
+      {/* The Night band: the night scene, with a Dusty lavender eyebrow (7.29:1 on
+          Night). The one scene of this page. */}
+      <section className="bg-brand-night py-16 sm:py-20">
+        <Container>
+          <div className="mx-auto max-w-lg">
+            <p className="mb-6 text-sm font-semibold uppercase tracking-wider text-brand-lavender">
+              {t(events.nightBand.eyebrow, l)}
+            </p>
+            <Scene name="night" locale={l} sizes="(max-width: 768px) 100vw, 512px" />
+          </div>
+        </Container>
+      </section>
 
       {/* Quote request — sends an `event` enquiry to the Sales board. */}
       <Section muted>

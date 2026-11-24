@@ -137,6 +137,10 @@ export const about = {
 /** Events page copy. */
 export const events = {
   title: { pt: "Eventos", en: "Events" } as Localized,
+  /** The eyebrow of the Night band, next to the night scene (JAM-483). */
+  nightBand: {
+    eyebrow: { pt: "Noites para recordar", en: "Nights to remember" } as Localized,
+  },
   lead: {
     pt: "Organizamos experiências à medida para grupos, empresas e ocasiões especiais — casamentos, celebrações e team buildings com o toque clássico da Agorasim.",
     en: "We organise tailor-made experiences for groups, companies and special occasions — weddings, celebrations and team-building days with the classic Agorasim touch.",
