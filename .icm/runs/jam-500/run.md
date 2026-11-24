@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-500/agorasim-the-old-wordpress-urls-that-the-redirect-map-misses-send-a
 - branch: contact/jam-500-agorasim-the-old-wordpress-urls-that-the
 - lane: chore
-- pr: pending
+- pr: #288
 - started: 2026-11-24
