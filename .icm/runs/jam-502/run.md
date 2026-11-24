@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-502/agorasim-a-setup-file-verifies-search-console-and-bing-webmaster-tools
 - branch: contact/jam-502-agorasim-a-setup-file-verifies-search
 - lane: chore
-- pr: pending
+- pr: #287
 - started: 2026-11-24
