@@ -1584,9 +1584,9 @@ export type QuoteLineItem = {
  * personalised tour the team raised from "Novo orçamento", with no enquiry
  * behind it — takes the tour rate (§4): 4%, with the €10 floor and the €50
  * cap, on its one payment. What makes a quote a tour quote is
- * {@link quotes.holdVehicleClass}, not the lead's kind: the quote must still
- * know what it is after an erasure empties the lead. The rate that was
- * actually applied is recorded per payment, where the fee is.
+ * {@link quotes.kind}, not the lead's kind: the quote must still know what it
+ * is after an erasure empties the lead. The rate that was actually applied is
+ * recorded per payment, where the fee is.
  */
 export const quotes = pgTable("quotes", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -1622,13 +1622,24 @@ export const quotes = pgTable("quotes", {
    */
   holdSlot: availabilitySlotEnum("hold_slot"),
   /**
-   * The car class a tour quote holds — one driver and one car of this class
-   * on {@link quotes.holdSlot}, counted in the same occupancy as a booking
-   * (`lib/tour-quote.ts`). Set on a tour quote and only there: it is what
-   * makes a quote a tour quote. Text, like `bookings.vehicle_class`, because
-   * the fleet's classes live in code (`lib/fleet.ts`).
+   * The one car a tour quote holds — one driver and one car of this class on
+   * {@link quotes.holdSlot}, counted in the same occupancy as a booking
+   * (`lib/tour-quote.ts`). Null on a tour quote that holds its whole
+   * departure, which is what a new tour quote does (JAM-294): the team picks
+   * the car on the paid quote when the group is small. Set on a tour quote and
+   * only there. Text, like `bookings.vehicle_class`, because the fleet's
+   * classes live in code (`lib/fleet.ts`).
    */
   holdVehicleClass: text("hold_vehicle_class"),
+  /**
+   * What the quote is for: a `tour` the team priced by hand, or an `event` (a
+   * wedding or an event). It decides the fee, the one payment and what a paid
+   * quote holds (`lib/tour-quote.ts`). On the quote and not read from the lead,
+   * because the quote must still know what it is after an erasure empties the
+   * lead. Migration 0044 wrote `tour` on each row that had a car. Text, with
+   * the values in {@link QUOTE_KINDS}.
+   */
+  kind: text("kind").$type<QuoteKind>().notNull().default("event"),
 
   /** The language the quote is written and sent in. */
   locale: localeEnum("locale").notNull().default("pt"),
@@ -1734,6 +1745,10 @@ export const quotes = pgTable("quotes", {
 
 export type Quote = typeof quotes.$inferSelect;
 export type NewQuote = typeof quotes.$inferInsert;
+
+/** What a quote is for (`quotes.kind`). */
+export const QUOTE_KINDS = ["tour", "event"] as const;
+export type QuoteKind = (typeof QUOTE_KINDS)[number];
 
 /**
  * One instalment of a quote: the 30% deposit, the balance, or an agreed extra.
