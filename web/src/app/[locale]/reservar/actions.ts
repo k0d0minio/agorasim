@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db, tourRequests } from "@/db";
 import { isLocale, t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
+import { taxIdContent } from "@/content/tax-id";
 import { MARKETING_CONSENT_VERSION } from "@/content/privacy";
 import { listExperiences } from "@/lib/experience-catalogue";
 import { checkDayBookable, isDateKey } from "@/lib/availability";
@@ -45,6 +46,8 @@ export type TourFormValues = {
   preferredDate?: string;
   addOns: string[];
   message: string;
+  /** The tax number for the fatura, as typed (JAM-527). */
+  taxId: string;
   marketingConsent: boolean;
 };
 
@@ -71,6 +74,7 @@ function tourFormValues(
     preferredDate: text("preferredDate").trim() || undefined,
     addOns,
     message: text("message"),
+    taxId: text("taxId"),
     marketingConsent: text("marketingConsent") === "on",
   };
 }
@@ -120,6 +124,7 @@ export async function submitTourRequest(
     const state: TourRequestState["fieldErrors"] = {};
     if (fieldErrors.name) state.name = t(c.errors.name, locale);
     if (fieldErrors.email) state.email = t(c.errors.email, locale);
+    if (fieldErrors.taxId) state.taxId = t(taxIdContent.error, locale);
     return { fieldErrors: state, values: tourFormValues(values) };
   }
 

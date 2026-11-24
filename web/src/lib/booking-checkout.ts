@@ -141,6 +141,8 @@ export async function startBookingCheckout(options: {
     email: string;
     phone: string | null;
     message: string | null;
+    /** The tax number for the fatura, already checked (`lib/tax-id.ts`). */
+    taxId?: string | null;
     marketingConsent: boolean;
   };
   locale: Locale;
@@ -232,6 +234,7 @@ export async function startBookingCheckout(options: {
         name: guest.name,
         email: guest.email,
         phone: guest.phone,
+        taxId: guest.taxId ?? null,
         locale,
         kind: "tour",
         experienceSlug: experience.slug,

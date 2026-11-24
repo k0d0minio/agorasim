@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Clock, CheckCircle2, Loader2, Lock } from "lucide-react";
 
 import { quotePageContent } from "@/content/quote-page";
+import { taxIdContent } from "@/content/tax-id";
 import { termsContent } from "@/content/terms";
 import { t, type Locale } from "@/i18n/config";
 import { fillTemplate } from "@/lib/fill-template";
@@ -19,6 +20,8 @@ import {
 import { EmbeddedCheckout } from "@/components/embedded-checkout";
 import { QuoteNotice } from "@/components/quote-notice";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 /**
  * The quote page's pay button — the one control on the page — and the payment
@@ -111,6 +114,29 @@ export function QuotePayForm({
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="token" value={token} />
       <input type="hidden" name="locale" value={locale} />
+      <div className="flex max-w-sm flex-col gap-1.5">
+        <Label htmlFor="taxId">{t(taxIdContent.label, locale)}</Label>
+        <Input
+          // A refusal re-mounts the field with what was typed.
+          key={state.status === "taxId" ? state.taxId : "taxId"}
+          id="taxId"
+          name="taxId"
+          autoComplete="off"
+          maxLength={40}
+          defaultValue={state.status === "taxId" ? state.taxId : undefined}
+          aria-invalid={state.status === "taxId"}
+          aria-describedby={state.status === "taxId" ? "taxId-error" : "taxId-hint"}
+        />
+        {state.status === "taxId" ? (
+          <p id="taxId-error" className="text-sm text-destructive" role="alert">
+            {t(taxIdContent.error, locale)}
+          </p>
+        ) : (
+          <p id="taxId-hint" className="text-xs text-muted-foreground">
+            {t(taxIdContent.hint, locale)}
+          </p>
+        )}
+      </div>
       <SubmitButton label={label} />
       {state.status === "refused" ? (
         <p role="alert" className="text-sm text-destructive">
