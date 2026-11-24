@@ -212,6 +212,9 @@ describe("BACKUP_TABLES", () => {
     before("tour_requests", "message_log");
     before("bookings", "message_log");
     before("quotes", "quote_payments");
+    before("bookings", "refunds");
+    before("quote_payments", "refunds");
+    before("admin_users", "invoice_marks");
   });
 });
 
