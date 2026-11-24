@@ -5,6 +5,7 @@ import { about } from "@/content/pages";
 import { classicCars } from "@/content/site";
 import { Section, SectionHeading, Container } from "@/components/section";
 import { Media } from "@/components/media";
+import { Scene } from "@/components/brand/scene";
 import { Card, CardContent } from "@/components/ui/card";
 import { JsonLd } from "@/components/json-ld";
 import { organizationJsonLd } from "@/lib/jsonld";
@@ -47,10 +48,15 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
           />
         </div>
 
-        <div className="mt-14 grid gap-6 text-lg text-muted-foreground md:grid-cols-2">
-          {t(about.body, l).map((p, i) => (
-            <p key={i}>{p}</p>
-          ))}
+        {/* The body text, and the sunset scene next to it. The text above the
+            scene keeps it apart from the photo of this section. One scene per page. */}
+        <div className="mt-14 grid items-center gap-10 md:grid-cols-2">
+          <div className="space-y-6 text-lg text-muted-foreground">
+            {t(about.body, l).map((p, i) => (
+              <p key={i}>{p}</p>
+            ))}
+          </div>
+          <Scene name="sunset" locale={l} />
         </div>
       </Section>
 

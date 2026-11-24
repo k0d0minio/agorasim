@@ -26,7 +26,6 @@ export function Testimonials({
   locale,
   items = allTestimonials,
   googleRating,
-  muted = false,
 }: {
   locale: Locale;
   /** Defaults to all three. Experience pages pass `testimonialsFor(slug)`. */
@@ -36,20 +35,22 @@ export function Testimonials({
    * pages pass it when Google gives one; without quotes, the link stands alone.
    */
   googleRating?: Pick<GooglePlaceReviews, "rating" | "ratingCount">;
-  muted?: boolean;
 }) {
   const rating = googleRating && googleRating.rating !== null ? googleRating : undefined;
   if (items.length === 0) {
     if (!rating) return null;
     return (
-      <Section muted={muted} className="py-10 sm:py-12">
-        <GoogleRatingLink locale={locale} summary={rating} />
+      <Section className="bg-brand-terracotta py-10 sm:py-12">
+        <GoogleRatingLink locale={locale} summary={rating} onTerracotta />
       </Section>
     );
   }
   return (
-    <Section muted={muted}>
+    // The reviews band is Terracotta, the storytelling colour (`.icm/docs/brand.md`).
+    // The cards stay Paper, and the guests' photos stay as they are.
+    <Section className="bg-brand-terracotta">
       <SectionHeading
+        onTerracotta
         eyebrow={t(testimonialsHeading.eyebrow, locale)}
         title={t(testimonialsHeading.title, locale)}
       />
@@ -87,7 +88,9 @@ export function Testimonials({
           </li>
         ))}
       </ul>
-      {rating && <GoogleRatingLink locale={locale} summary={rating} className="mt-8" />}
+      {rating && (
+        <GoogleRatingLink locale={locale} summary={rating} onTerracotta className="mt-8" />
+      )}
     </Section>
   );
 }

@@ -21,12 +21,10 @@ export function GoogleReviews({
   locale,
   reviews,
   rating,
-  muted = false,
 }: {
   locale: Locale;
   reviews: readonly GoogleReview[];
   rating: Pick<GooglePlaceReviews, "rating" | "ratingCount">;
-  muted?: boolean;
 }) {
   if (reviews.length === 0) return null;
   const date = new Intl.DateTimeFormat(locale === "pt" ? "pt-PT" : "en-GB", {
@@ -36,8 +34,10 @@ export function GoogleReviews({
     timeZone: "Europe/Lisbon",
   });
   return (
-    <Section muted={muted}>
+    // The reviews band is Terracotta, the storytelling colour (`.icm/docs/brand.md`).
+    <Section className="bg-brand-terracotta">
       <SectionHeading
+        onTerracotta
         eyebrow={t(googleReviewsCopy.eyebrow, locale)}
         title={t(googleReviewsCopy.title, locale)}
         intro={t(googleReviewsCopy.order, locale)}
@@ -89,7 +89,7 @@ export function GoogleReviews({
           </li>
         ))}
       </ul>
-      <GoogleRatingLink locale={locale} summary={rating} className="mt-8" />
+      <GoogleRatingLink locale={locale} summary={rating} onTerracotta className="mt-8" />
     </Section>
   );
 }
@@ -104,10 +104,16 @@ export function GoogleRatingLink({
   locale,
   summary,
   className,
+  onTerracotta = false,
 }: {
   locale: Locale;
   summary: Pick<GooglePlaceReviews, "rating" | "ratingCount">;
   className?: string;
+  /**
+   * On the Terracotta reviews band: Off-white text (7.00:1) and an Off-white
+   * focus outline. The Deep teal of a link and of the focus ring is 1.15:1 there.
+   */
+  onTerracotta?: boolean;
 }) {
   const tag = locale === "pt" ? "pt-PT" : "en-GB";
   const label =
@@ -127,7 +133,12 @@ export function GoogleRatingLink({
         href={googleMapsPlaceUrl()}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex flex-wrap items-center gap-2 font-medium text-primary hover:underline"
+        className={cn(
+          "inline-flex flex-wrap items-center gap-2 font-medium hover:underline",
+          onTerracotta
+            ? "text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-background"
+            : "text-primary",
+        )}
       >
         {summary.rating !== null && (
           <span className="flex gap-0.5" aria-hidden>

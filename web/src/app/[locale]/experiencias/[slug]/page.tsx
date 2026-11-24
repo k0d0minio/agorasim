@@ -185,13 +185,12 @@ export default async function ExperienceDetailPage({
         joins the JSON-LD above.
       */}
       {google.reviews.length > 0 ? (
-        <GoogleReviews locale={l} reviews={google.reviews} rating={google} muted />
+        <GoogleReviews locale={l} reviews={google.reviews} rating={google} />
       ) : (
         <Testimonials
           locale={l}
           items={testimonialsFor(exp.slug)}
           googleRating={google}
-          muted
         />
       )}
     </>
