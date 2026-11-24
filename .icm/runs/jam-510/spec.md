@@ -23,11 +23,16 @@ por este run.
    `workspaces/geo-content/` para cada tópico, e põe os três ficheiros em
    `web/src/content/generated/blog/`. A fila muda o estado de cada tópico para
    `handoff <data>`.
-3. **A carga.** `pnpm blog:load` põe os três ficheiros em `blog_post_drafts` no UAT, como
-   `draft` (Q2). O loader nunca publica.
-4. **Os tokens.** O pull request diz o número de tokens de cada artigo (Q3).
+3. **A carga (Q2).** O agente corre `pnpm blog:load` uma vez, depois do CI verde e antes de
+   Ready to merge. A connection string do UAT fica só no ambiente do processo, nunca num
+   ficheiro. O loader põe os três ficheiros em `blog_post_drafts` como `draft` e nunca publica.
+4. **Os tokens (Q3).** Um subagente escreve um artigo. O pull request diz os tokens que o harness
+   indica para cada subagente.
 
-Decisões desta spec (o default de cada pergunta do pull request):
+Respostas do Jamie no chat da sessão da fila, 2026-11-24: Q1 cortar as afirmações do brief, Q2
+o agente corre `blog:load` uma vez, Q3 um subagente por artigo.
+
+Decisões desta spec:
 
 - **Assistido, não gerido (decisão do Jamie, 2026-11-24).** "it's going to be AI assisted but no
   fully managed, diogo and rita still need to be able to publish themselves". Os artigos ficam
