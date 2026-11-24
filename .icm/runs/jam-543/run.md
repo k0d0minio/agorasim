@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-543/agorasim-checkpoint-1-the-checktest-of-the-uat-batch-and-its-film-for
 - branch: contact/jam-543-agorasim-checkpoint-1-the-checktest-of-the
 - lane: chore
-- pr: pending
+- pr: #295
 - started: 2026-11-24
