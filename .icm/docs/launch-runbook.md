@@ -60,7 +60,10 @@ Legend: 🧑 Jamie · 👥 Diogo & Rita · 🤖 session (via PR) · ⛔ hard gat
 
 **Jamie's platform account** — live-activated ✅ (2026-09-11).
 - [ ] 🧑 Connect → **platform profile**: account type **Standard**, onboarding **hosted by Stripe**, loss liability with the connected account (matches the agreement §3).
-- [ ] 🧑 Developers → Webhooks → add **live** endpoint `https://agorasim.pt/api/stripe/webhook`, **"Listen to events on Connected accounts"**, events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`, `refund.updated`. Signing secret → password manager.
+- [ ] 🧑 Developers → Webhooks → add two **live** endpoints with the URL `https://agorasim.pt/api/stripe/webhook` and these events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`, `refund.updated`.
+  - The **platform** endpoint: "Listen to events on **Your account**". Its signing secret is `STRIPE_WEBHOOK_SECRET`. It carries the refunds and late events of the bookings taken before Connect.
+  - The **Connect** endpoint: "Listen to events on **Connected accounts**". Its signing secret is `STRIPE_CONNECT_WEBHOOK_SECRET` (JAM-501). It carries the bookings on Diogo & Rita's account.
+  - Both signing secrets → password manager. The route accepts an event that either secret verifies, and rejects all other events with 400.
 
 **Diogo & Rita's account (does not exist yet)**
 - [ ] 🧑 Connect → Accounts → **Create** → Standard → onboarding link to Diogo. He completes it on his phone: trading entity (company or ENI, as the business is registered), NIF, IBAN, representative ID, website `https://agorasim.pt`. Record the `acct_…` id in the password manager.
@@ -103,7 +106,7 @@ Order matters. Env first, release second, DNS third, test fourth, announce last.
 
 1. [ ] 🧑 Vercel → `agorasim` → Environment Variables, **Production scope only** (previews and UAT keep sandbox keys). Split each variable that Production shares with Preview today.
    `NEXT_PUBLIC_SITE_URL=https://agorasim.pt` · `BOOKING_EMAIL_FROM` · `BOOKING_NOTIFICATION_EMAILS` · `ADMIN_PASSWORD` · `RESEND_API_KEY` · `SENTRY_DSN` · `GOOGLE_PLACES_API_KEY` · `BACKUP_BLOB_READ_WRITE_TOKEN` (second, private, EU Blob store — PR #96).
-   For paid bookings only: `STRIPE_SECRET_KEY` (live `sk_live_…`, platform) · `STRIPE_PUBLISHABLE_KEY` (the matching live `pk_live_…`; a mode that disagrees with the secret key turns `/reservar` to the enquiry form) · `STRIPE_WEBHOOK_SECRET` (the live endpoint's `whsec_…`) · `STRIPE_CONNECTED_ACCOUNT_ID` (`acct_…`, only once verified). Without them, remove the Stripe values from Production: the site takes enquiries.
+   For paid bookings only: `STRIPE_SECRET_KEY` (live `sk_live_…`, platform) · `STRIPE_PUBLISHABLE_KEY` (the matching live `pk_live_…`; a mode that disagrees with the secret key turns `/reservar` to the enquiry form) · `STRIPE_WEBHOOK_SECRET` (the live platform endpoint's `whsec_…`) · `STRIPE_CONNECT_WEBHOOK_SECRET` (the live Connect endpoint's `whsec_…`, Track C) · `STRIPE_CONNECTED_ACCOUNT_ID` (`acct_…`, only once verified). Without them, remove the Stripe values from Production: the site takes enquiries.
 2. [ ] 🧑 Track P. Production serves the intended tag.
 3. [ ] 🤖/🧑 `web/scripts/dns-snapshot.sh > before.txt`. Part A of `.icm/setup/search-console-bing.md` (the `google-site-verification` TXT) is done before this step.
 4. [ ] 🧑 Vercel → `agorasim` → Domains: add `agorasim.pt` and `www.agorasim.pt` to the production environment, with `www` → apex redirect.

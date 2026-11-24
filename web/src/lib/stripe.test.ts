@@ -4,8 +4,10 @@ import Stripe from "stripe";
 import {
   connectedAccountId,
   isConnectConfigured,
+  isWebhookConfigured,
   onConnectedAccount,
   onOwningAccount,
+  webhookSecrets,
 } from "./stripe";
 
 afterEach(() => {
@@ -19,6 +21,31 @@ const missing = () =>
     message: "No such checkout.session: 'cs_test_1'",
     code: "resource_missing",
   });
+
+describe("webhookSecrets — the platform endpoint and the Connect endpoint", () => {
+  it("is the platform endpoint's secret alone, as before JAM-501", () => {
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_platform");
+    vi.stubEnv("STRIPE_CONNECT_WEBHOOK_SECRET", "");
+
+    expect(webhookSecrets()).toEqual(["whsec_platform"]);
+    expect(isWebhookConfigured()).toBe(true);
+  });
+
+  it("is both secrets, the platform's first, when both are set", () => {
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_platform");
+    vi.stubEnv("STRIPE_CONNECT_WEBHOOK_SECRET", " whsec_connect ");
+
+    expect(webhookSecrets()).toEqual(["whsec_platform", "whsec_connect"]);
+  });
+
+  it("is empty, and the webhook unconfigured, when neither is set", () => {
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", " ");
+    vi.stubEnv("STRIPE_CONNECT_WEBHOOK_SECRET", "");
+
+    expect(webhookSecrets()).toEqual([]);
+    expect(isWebhookConfigured()).toBe(false);
+  });
+});
 
 describe("connectedAccountId", () => {
   it("is null when unset — the platform-only deployment that exists today", () => {

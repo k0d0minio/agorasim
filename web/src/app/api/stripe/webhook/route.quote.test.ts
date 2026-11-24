@@ -22,6 +22,7 @@ vi.mock("@/lib/refund-ledger", () => ({ recordRefund }));
 vi.mock("@/lib/stripe", () => ({
   isStripeConfigured: () => true,
   isWebhookConfigured: () => true,
+  webhookSecrets: () => ["whsec_test"],
   connectedAccountId: () => null,
   onOwningAccount: (run: (options?: unknown) => unknown) => run(undefined),
   stripe: () => ({
