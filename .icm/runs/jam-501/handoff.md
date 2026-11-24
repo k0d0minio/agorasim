@@ -2,7 +2,7 @@
 
 ## Next action
 
-1. Jamie said on 2026-11-24 that he added the Stripe Connect webhook secret.
+1. Jamie said on 2026-11-24: the Stripe Connect webhook secret is added.
 2. Jamie reads the pull request and ticks Ready to merge. Then `release JAM-501`.
 3. The go-live acts (the live endpoints, the Production values, the build, the live test) are in JAM-571.
 
