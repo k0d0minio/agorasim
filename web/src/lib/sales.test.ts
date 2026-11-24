@@ -29,6 +29,7 @@ function tourRequest(overrides: Partial<TourRequest> = {}): TourRequest {
     name: "Sofia Almeida",
     email: "sofia@example.com",
     phone: "+351912345678",
+    taxId: null,
     locale: "pt",
     kind: "tour",
     experienceSlug: "rural-saloia",
