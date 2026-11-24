@@ -335,3 +335,115 @@ describe("publishable key — the embedded form's switch", () => {
     expect(alert).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * JAM-503. The runbook says never to set the connected account before Stripe
+ * has cleared it; this is the code that holds that line. An account that
+ * cannot take charges turns every payment surface to its payments-off path.
+ */
+describe("isCheckoutReady — the connected account's charges_enabled", () => {
+  const load = async () => {
+    vi.resetModules();
+    const alert = vi.fn();
+    const error = vi.fn();
+    vi.doMock("@/lib/observability", () => ({ captureAlert: alert, captureError: error }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const mod = await import("./stripe");
+    const retrieve = vi.spyOn(mod.stripe().accounts, "retrieve");
+    return { ...mod, alert, error, retrieve };
+  };
+
+  const payable = () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "pk_test_123");
+  };
+
+  const account = (chargesEnabled: boolean) =>
+    ({ id: "acct_123", charges_enabled: chargesEnabled }) as unknown as Stripe.Response<Stripe.Account>;
+
+  afterEach(() => {
+    vi.doUnmock("@/lib/observability");
+  });
+
+  it("asks Stripe nothing when no connected account is set", async () => {
+    payable();
+    vi.stubEnv("STRIPE_CONNECTED_ACCOUNT_ID", "");
+    const { isCheckoutReady, retrieve, alert } = await load();
+
+    expect(await isCheckoutReady()).toBe(true);
+    expect(retrieve).not.toHaveBeenCalled();
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("is on when the connected account can take charges", async () => {
+    payable();
+    vi.stubEnv("STRIPE_CONNECTED_ACCOUNT_ID", "acct_123");
+    const { isCheckoutReady, retrieve, alert } = await load();
+    retrieve.mockResolvedValue(account(true));
+
+    expect(await isCheckoutReady()).toBe(true);
+    expect(retrieve).toHaveBeenCalledWith("acct_123");
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it("is off, and alerts once without the id, when the account cannot take charges", async () => {
+    payable();
+    vi.stubEnv("STRIPE_CONNECTED_ACCOUNT_ID", "acct_123");
+    const { isCheckoutReady, retrieve, alert } = await load();
+    retrieve.mockResolvedValue(account(false));
+
+    expect(await isCheckoutReady()).toBe(false);
+    expect(await isCheckoutReady()).toBe(false);
+    expect(alert).toHaveBeenCalledOnce();
+    expect(alert.mock.calls[0][1]).toMatchObject({ area: "stripe", level: "fatal" });
+    expect(JSON.stringify(alert.mock.calls)).not.toContain("acct_123");
+  });
+
+  it("reads Stripe once per instance while the answer is fresh", async () => {
+    payable();
+    vi.stubEnv("STRIPE_CONNECTED_ACCOUNT_ID", "acct_123");
+    const { isCheckoutReady, retrieve } = await load();
+    retrieve.mockResolvedValue(account(true));
+
+    await Promise.all([isCheckoutReady(), isCheckoutReady()]);
+    await isCheckoutReady();
+
+    expect(retrieve).toHaveBeenCalledOnce();
+  });
+
+  it("reads again after the cache expires, so the account going live opens checkout", async () => {
+    payable();
+    vi.stubEnv("STRIPE_CONNECTED_ACCOUNT_ID", "acct_123");
+    const { isCheckoutReady, retrieve } = await load();
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    retrieve.mockResolvedValueOnce(account(false)).mockResolvedValueOnce(account(true));
+
+    expect(await isCheckoutReady()).toBe(false);
+    now.mockReturnValue(1_000_000 + 6 * 60_000);
+    expect(await isCheckoutReady()).toBe(true);
+    expect(retrieve).toHaveBeenCalledTimes(2);
+  });
+
+  it("is off, and reports the error, when Stripe cannot be read", async () => {
+    payable();
+    vi.stubEnv("STRIPE_CONNECTED_ACCOUNT_ID", "acct_123");
+    const { isCheckoutReady, retrieve, error } = await load();
+    retrieve.mockRejectedValue(new Error("network down"));
+
+    expect(await isCheckoutReady()).toBe(false);
+    expect(error).toHaveBeenCalledOnce();
+    expect(error.mock.calls[0][1]).toMatchObject({ area: "stripe" });
+  });
+
+  it("is off, not thrown, when the variable is not an account id", async () => {
+    payable();
+    vi.stubEnv("STRIPE_CONNECTED_ACCOUNT_ID", "sk_test_pasted_by_mistake");
+    const { isCheckoutReady, retrieve, alert } = await load();
+
+    expect(await isCheckoutReady()).toBe(false);
+    expect(retrieve).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenCalledOnce();
+    expect(JSON.stringify(alert.mock.calls)).not.toContain("sk_test_pasted");
+  });
+});

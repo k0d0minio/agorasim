@@ -19,7 +19,7 @@ import {
 } from "@/lib/availability";
 import { countSlotOccupancy } from "@/lib/bookings";
 import { isPriced } from "@/lib/pricing";
-import { isEmbeddedCheckoutConfigured, isTestMode } from "@/lib/stripe";
+import { isCheckoutReady, isTestMode } from "@/lib/stripe";
 import { JsonLd } from "@/components/json-ld";
 import { organizationJsonLd } from "@/lib/jsonld";
 import { alternates } from "@/lib/seo";
@@ -67,7 +67,7 @@ const bookingPage = cache(async (locale: Locale) => {
   return {
     experiences,
     availability,
-    canCheckout: isEmbeddedCheckoutConfigured() && tours.length > 0 && anyOpenings,
+    canCheckout: tours.length > 0 && anyOpenings && (await isCheckoutReady()),
   };
 });
 

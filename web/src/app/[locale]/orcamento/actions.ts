@@ -7,7 +7,7 @@ import { startQuoteCheckout } from "@/lib/quote-checkout";
 import { looksLikeQuoteToken } from "@/lib/quote-token";
 import { QUOTE_PAY_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
-import { isEmbeddedCheckoutConfigured, publishableKey } from "@/lib/stripe";
+import { isCheckoutReady, publishableKey } from "@/lib/stripe";
 
 /**
  * The quote page's one write: the pay button (.icm/intake/README.md § Decisions).
@@ -74,7 +74,7 @@ export async function payQuote(
   // publishable key that agrees with the secret key (or with no Stripe at
   // all) the tap says payment is unavailable — the switch reports why, once —
   // and never falls back to Stripe's own page.
-  if (!isEmbeddedCheckoutConfigured()) return { status: "refused", reason: "unconfigured" };
+  if (!(await isCheckoutReady())) return { status: "refused", reason: "unconfigured" };
 
   const outcome = await startQuoteCheckout({ token, locale });
 

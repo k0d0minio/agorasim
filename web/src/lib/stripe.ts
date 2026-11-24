@@ -34,7 +34,7 @@ import "server-only";
 
 import Stripe from "stripe";
 
-import { captureAlert } from "@/lib/observability";
+import { captureAlert, captureError } from "@/lib/observability";
 
 /**
  * Pinned deliberately. Stripe's API is versioned per account, and an SDK that
@@ -172,6 +172,115 @@ export function isEmbeddedCheckoutConfigured(): boolean {
     return false;
   }
   return true;
+}
+
+/**
+ * How long one answer about the connected account holds. Short, so the account
+ * going live opens checkout within minutes without a redeploy; long enough that
+ * a busy booking page asks Stripe a handful of times an hour, not per view.
+ */
+const ACCOUNT_READY_TTL_MS = 5 * 60_000;
+
+/**
+ * A failed read is held for less time than an answer: Stripe being briefly
+ * unreachable should cost the booking page a minute of enquiry form, not five.
+ */
+const ACCOUNT_READY_FAILURE_TTL_MS = 60_000;
+
+/**
+ * The cached answer, keyed by the id it was asked for so a changed variable
+ * is never answered from the old account. The promise itself is cached, so
+ * concurrent requests on a cold instance share one call to Stripe.
+ */
+let accountReady: { id: string; until: number; ready: Promise<boolean> } | null = null;
+
+/** So "not ready" reaches Sentry once per instance, not once per page view. */
+let notReadyReported = false;
+
+/**
+ * Whether the connected account can take a charge right now — Stripe's
+ * `charges_enabled`, read once per instance and held for a few minutes.
+ *
+ * The launch runbook's rule — never set `STRIPE_CONNECTED_ACCOUNT_ID` before the
+ * client's account is verified — is enforced here rather than trusted: a
+ * direct charge on an account Stripe has not cleared fails at Stripe, after the
+ * hold is written and in front of the guest. So an account that is not ready
+ * answers `false`, and every payment surface takes its existing payments-off
+ * path instead.
+ *
+ * With no connected account this is `true` without a call: the platform-only
+ * deployment is unchanged. A read that fails answers `false` for a minute —
+ * the checkout would fail at Stripe anyway, and the enquiry form is the better
+ * thing to show than an error. The account id is never in a message.
+ */
+export async function isConnectedAccountReady(): Promise<boolean> {
+  let id: string | null;
+  try {
+    id = connectedAccountId();
+  } catch (err) {
+    // A value that is not an account id: payments are refused, as they were
+    // at checkout, but the booking page shows the enquiry form, not an error.
+    reportNotReady("STRIPE_CONNECTED_ACCOUNT_ID is not a Stripe account id");
+    console.error("[stripe]", err instanceof Error ? err.message : err);
+    return false;
+  }
+  if (!id) return true;
+
+  const now = Date.now();
+  if (accountReady && accountReady.id === id && now < accountReady.until) {
+    return accountReady.ready;
+  }
+
+  const entry = {
+    id,
+    until: now + ACCOUNT_READY_TTL_MS,
+    ready: Promise.resolve(false),
+  };
+  entry.ready = readChargesEnabled(id).then(
+    (enabled) => {
+      if (!enabled) {
+        reportNotReady("the connected account cannot take charges yet (charges_enabled is false)");
+      }
+      return enabled;
+    },
+    (err: unknown) => {
+      entry.until = Date.now() + ACCOUNT_READY_FAILURE_TTL_MS;
+      console.error("[stripe] could not read the connected account — payments are off for now");
+      captureError(err, { area: "stripe", tags: { reason: "connected-account-read" } });
+      return false;
+    },
+  );
+  accountReady = entry;
+  return entry.ready;
+}
+
+async function readChargesEnabled(id: string): Promise<boolean> {
+  const account = await stripe().accounts.retrieve(id);
+  return account.charges_enabled === true;
+}
+
+function reportNotReady(reason: string): void {
+  if (notReadyReported) return;
+  notReadyReported = true;
+  console.error(`[stripe] refusing to take payments — ${reason}`);
+  captureAlert(`Stripe connected account is not ready: ${reason}`, {
+    area: "stripe",
+    level: "fatal",
+    tags: { deployment: process.env.VERCEL_ENV ?? "unknown" },
+  });
+}
+
+/**
+ * Whether a page can start a payment now: {@link isEmbeddedCheckoutConfigured},
+ * and the connected account, when there is one, can take charges
+ * ({@link isConnectedAccountReady}). Asked by `/reservar`, its checkout action,
+ * the quote page's and the payment link's pay actions — every place a session
+ * is created. The webhook, the confirmation page and refunds do not ask it:
+ * they act on payments already taken.
+ */
+export async function isCheckoutReady(): Promise<boolean> {
+  if (!isEmbeddedCheckoutConfigured()) return false;
+  return isConnectedAccountReady();
 }
 
 /**

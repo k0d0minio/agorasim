@@ -23,7 +23,7 @@ import { TOUR_REQUEST_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import {
   connectedAccountId,
-  isEmbeddedCheckoutConfigured,
+  isCheckoutReady,
   publishableKey,
 } from "@/lib/stripe";
 
@@ -166,11 +166,11 @@ export async function startCheckout(
     date: text(values.date),
   };
 
-  if (!isEmbeddedCheckoutConfigured()) {
+  if (!(await isCheckoutReady())) {
     // Should be unreachable: the page only renders this form when payments are
     // switched on. Checked anyway, because "should be unreachable" and "cannot
     // happen" are different claims, and a deployment can lose its key.
-    console.error("[checkout] refused — Stripe is not configured");
+    console.error("[checkout] refused — payments are off (Stripe or its connected account)");
     return { error: t(c.paymentsOff, locale), values: entered };
   }
 
