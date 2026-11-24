@@ -1,5 +1,5 @@
 # Status jam-510
 
-- phase: build
-- blocked: yes — article 1 waits for the merge of JAM-558 (#286)
+- phase: release
+- blocked: yes — waits for Ready to merge
 - updated: 2026-11-24
