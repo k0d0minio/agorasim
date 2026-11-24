@@ -2,16 +2,20 @@
 
 ## Next action
 
-<What the next session, or the operator, does first.>
+Jamie answers Q1 on the HUD (or takes the default), ticks Spec approved on PR #292, then says
+`build JAM-527`. JAM-528 builds on this branch: its migration takes the number after this one.
 
 ## How to test
 
-<1 to 3 short sentences that can be said aloud: where to go on the preview, what to do, what the operator must see.>
+On the preview, open `/reservar`, book a tour with the NIF 123456780 and a second time with
+123456789. The first is accepted, the second is refused. Then open the sale in `/admin/sales`
+and see the NIF.
 
 ## Blockers
 
-- none
+- Q1 waits for an answer. Spec approved is not ticked.
 
 ## Do not touch
 
-- none
+- `web/src/lib/booking-checkout.ts` and `/reservar`: the JAM-503 run changes them at the same
+  time. Merge `main` in after JAM-503 merges.
