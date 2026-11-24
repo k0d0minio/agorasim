@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-294/agorasim-a-scratch-tour-quote-has-no-car-field-and-still-holds-its
 - branch: claude/sleepy-ptolemy-9aee52
 - lane: spine
-- pr: pending
+- pr: #282
 - started: 2026-11-24
