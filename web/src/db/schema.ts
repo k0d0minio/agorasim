@@ -569,6 +569,13 @@ export const tourRequests = pgTable("tour_requests", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   phone: text("phone"),
+  /**
+   * The guest's tax number for the fatura, when they gave one (JAM-527): a
+   * Portuguese NIF as nine digits, or a foreign number as typed
+   * (`lib/tax-id.ts`). Optional — a consumer gets a NIF on the fatura only when
+   * they ask (CIVA art. 36.º n.º 16). An Art. 17 erasure removes it with the row.
+   */
+  taxId: text("tax_id"),
   locale: localeEnum("locale").notNull().default("pt"),
 
   // What they want
@@ -1691,6 +1698,12 @@ export const quotes = pgTable("quotes", {
   acceptedTermsVersion: text("accepted_terms_version"),
   /** When they accepted — paying the deposit is the acceptance. */
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  /**
+   * The tax number the couple gave on the payment step for the fatura
+   * (JAM-527). Optional, and the latest one given wins: each instalment's
+   * fatura reads it from here. Same format as {@link tourRequests.taxId}.
+   */
+  taxId: text("tax_id"),
 
   status: quoteStatusEnum("status").notNull().default("draft"),
 

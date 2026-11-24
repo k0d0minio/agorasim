@@ -6,6 +6,7 @@ import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { t, type Locale } from "@/i18n/config";
 import { tourRequestContent } from "@/content/tour-request";
+import { taxIdContent } from "@/content/tax-id";
 import { privacyContent } from "@/content/privacy";
 import type { Experience } from "@/content/experiences";
 import type { PublicMonth } from "@/lib/availability";
@@ -141,6 +142,28 @@ export function TourRequestForm({
             autoComplete="tel"
             defaultValue={typed?.phone}
           />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="taxId">{t(taxIdContent.label, locale)}</Label>
+          <Input
+            id="taxId"
+            name="taxId"
+            autoComplete="off"
+            maxLength={40}
+            defaultValue={typed?.taxId}
+            aria-invalid={Boolean(state.fieldErrors?.taxId)}
+            aria-describedby={state.fieldErrors?.taxId ? "taxId-error" : "taxId-hint"}
+          />
+          {state.fieldErrors?.taxId ? (
+            <p id="taxId-error" className="text-sm text-destructive" role="alert">
+              {state.fieldErrors.taxId}
+            </p>
+          ) : (
+            <p id="taxId-hint" className="text-xs text-muted-foreground">
+              {t(taxIdContent.hint, locale)}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">

@@ -168,6 +168,8 @@ export const ANONYMISED = {
   name: "[anonymised]",
   email: "[anonymised]",
   phone: null,
+  /** The tax number for the fatura (JAM-527) identifies the person outright. */
+  taxId: null,
   message: null,
   /**
    * The team's own notes about this person go with the rest of it. They are
@@ -364,6 +366,8 @@ function expiredLeads(cutoff: Date) {
  */
 const ANONYMISED_QUOTE_COLUMNS = {
   venue: null,
+  /** The couple's tax number for the fatura (JAM-527). */
+  taxId: null,
   lineItems: sql`(
     select coalesce(
       jsonb_agg(
@@ -385,6 +389,7 @@ const ANONYMISED_QUOTE_COLUMNS = {
  */
 const quoteCarriesPersonalData = or(
   isNotNull(quotes.venue),
+  isNotNull(quotes.taxId),
   sql`exists (
     select 1
     from jsonb_array_elements(${quotes.lineItems}) as line(item)

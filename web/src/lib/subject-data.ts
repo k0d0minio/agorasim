@@ -10,7 +10,7 @@
  * that adds the table.
  *
  * Four tables are in scope. `tour_requests` holds the person — name, address,
- * phone, what they wrote. `message_log` holds no identifier at all, and is here
+ * phone, the tax number for the fatura (JAM-527), what they wrote. `message_log` holds no identifier at all, and is here
  * anyway: "you emailed me these five times" is data about that person (Art.
  * 4(1)) and is exactly the sort of thing an access request is asking for. It is
  * found through the enquiry rows rather than by address, because the log

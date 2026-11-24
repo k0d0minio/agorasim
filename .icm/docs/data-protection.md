@@ -45,6 +45,9 @@ describes the live state, not the sandbox one.
    been moved. `web/src/lib/quotes.ts` now moves it (a sent quote → `quoted`, a settled
    deposit → `booked`) and `retention.ts` tests the quote as well; the two are deliberately
    belt and braces.
+   The guest's tax number for the fatura (`tax_id` on `tour_requests` and `quotes`, JAM-527)
+   follows the row it is on: no own rule. Retention clears it with the other identifiers of
+   an unconverted enquiry, and keeps it on a booking or a paid quote.
 3. **RNAAT registration number — unanswered.** Blank in the client's info PDF (§1.1). The
    policy's controller block (`controller` in `privacy.ts`) cannot be completed without it,
    and the terms-of-sale page needs it too. Blocks the draft banner.

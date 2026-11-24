@@ -5,6 +5,7 @@ import { isLocale, t, type Locale } from "@/i18n/config";
 import { formatPrice } from "@/lib/money";
 import { startQuoteCheckout } from "@/lib/quote-checkout";
 import { looksLikeQuoteToken } from "@/lib/quote-token";
+import { parseTaxId } from "@/lib/tax-id";
 import { QUOTE_PAY_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { isEmbeddedCheckoutConfigured, publishableKey } from "@/lib/stripe";
@@ -49,6 +50,11 @@ export type QuotePayState =
   | { status: "paid" | "awaiting" }
   /** Keyed to `quotePageContent.refused`. */
   | { status: "refused"; reason: "unconfigured" | "failed" | "closed" | "settled" | "noCar" }
+  /**
+   * The tax number for the fatura is not valid (JAM-527). `taxId` is what was
+   * typed, so the field keeps it for the correction.
+   */
+  | { status: "taxId"; taxId: string }
   /** The link stopped working between the render and the tap. */
   | { status: "invalid" };
 
@@ -76,7 +82,11 @@ export async function payQuote(
   // and never falls back to Stripe's own page.
   if (!isEmbeddedCheckoutConfigured()) return { status: "refused", reason: "unconfigured" };
 
-  const outcome = await startQuoteCheckout({ token, locale });
+  const rawTaxId = formData.get("taxId");
+  const taxId = parseTaxId(rawTaxId);
+  if (!taxId.ok) return { status: "taxId", taxId: String(rawTaxId ?? "") };
+
+  const outcome = await startQuoteCheckout({ token, locale, taxId: taxId.value });
 
   switch (outcome.status) {
     case "embedded":

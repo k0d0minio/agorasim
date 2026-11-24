@@ -141,6 +141,15 @@ export default async function AdminLeadPage({
 
   const today = todayKey();
 
+  /** The lead's NIF, then each quote's NIF that says something else (JAM-527). */
+  const taxIds: { key: string; taxId: string; ref: string | null }[] = [];
+  if (lead.taxId) taxIds.push({ key: lead.id, taxId: lead.taxId, ref: null });
+  for (const quote of leadQuotes) {
+    if (quote.taxId && !taxIds.some((entry) => entry.taxId === quote.taxId)) {
+      taxIds.push({ key: quote.id, taxId: quote.taxId, ref: quoteRef(quote.id) });
+    }
+  }
+
   /** The Orçamento card's rows — plain data, the days already in words. */
   const quoteItems: QuoteCardItem[] = leadQuotes.map((quote) => ({
     id: quote.id,
@@ -387,6 +396,24 @@ export default async function AdminLeadPage({
               <div>
                 <dt className="text-muted-foreground">Telefone</dt>
                 <dd>{lead.phone ?? "—"}</dd>
+              </div>
+              {/* The tax number for the fatura (JAM-527): typed at the booking or
+                  the enquiry, or on a quote's payment step. A quote's own number
+                  is shown with its reference when it differs from the lead's. */}
+              <div>
+                <dt className="text-muted-foreground">NIF (fatura)</dt>
+                <dd className="break-all">
+                  {taxIds.length > 0
+                    ? taxIds.map((entry) => (
+                        <span key={entry.key} className="block">
+                          {entry.taxId}
+                          {entry.ref ? (
+                            <span className="text-muted-foreground"> · orçamento {entry.ref}</span>
+                          ) : null}
+                        </span>
+                      ))
+                    : "—"}
+                </dd>
               </div>
               {/* A tour's route and extras. A wedding or event is quoted line
                   by line, so the row would only show the catalogue it never uses. */}

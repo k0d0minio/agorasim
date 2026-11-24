@@ -48,6 +48,7 @@ import {
   TOUR_SLOTS,
 } from "@/lib/availability";
 import { parseDayFirst } from "@/lib/date-keys";
+import { parseTaxId } from "@/lib/tax-id";
 import { isVehicleClass, MAX_PARTY_ONLINE } from "@/lib/fleet";
 import { parseAmountInput, parsePriceInput } from "@/lib/money";
 import { EXPERIENCE_ICON_KEYS, FALLBACK_EXPERIENCE_ICON } from "@/lib/experience-icons";
@@ -88,6 +89,20 @@ const optionalText = z
   .trim()
   .catch("")
   .transform((value) => value || null);
+
+/**
+ * The guest's optional tax number for the fatura (JAM-527): `null` when empty,
+ * the stored form when valid, refused when a Portuguese NIF has a wrong check
+ * digit or a foreign number is too long (`lib/tax-id.ts`).
+ */
+const optionalTaxId = z.unknown().transform((value, ctx) => {
+  const parsed = parseTaxId(value);
+  if (!parsed.ok) {
+    ctx.addIssue({ code: "custom", message: "Invalid tax number" });
+    return z.NEVER;
+  }
+  return parsed.value;
+});
 
 /**
  * A free-text column a form may address *or leave alone*.
@@ -1073,6 +1088,7 @@ export const tourRequestSchema = z.object({
   phone: optionalText,
   preferredDate: optionalText,
   message: optionalText,
+  taxId: optionalTaxId,
   /*
    * Shape only. Which slugs actually exist is a question for the catalogue,
    * which lives in the database and changes whenever Rita adds an add-on — so
@@ -1096,7 +1112,7 @@ export const tourRequestSchema = z.object({
 });
 
 /** Field names `submitTourRequest` can report an inline error against. */
-export type TourRequestField = "name" | "email" | "preferredDate";
+export type TourRequestField = "name" | "email" | "preferredDate" | "taxId";
 
 // ---------------------------------------------------------------------------
 // Public wedding & event quote form
@@ -1190,6 +1206,7 @@ export const bookingCheckoutSchema = z.object({
   email: z.string().trim().toLowerCase().regex(EMAIL_RE),
   phone: optionalText,
   message: optionalText,
+  taxId: optionalTaxId,
 
   /** Must be a real calendar day; the action re-checks it is on sale. */
   date: z.string().trim().refine(isDateKey),
@@ -1213,4 +1230,4 @@ export const bookingCheckoutSchema = z.object({
 });
 
 /** Field names `startCheckout` can report an inline error against. */
-export type BookingCheckoutField = "name" | "email" | "date" | "party" | "addOns";
+export type BookingCheckoutField = "name" | "email" | "taxId" | "date" | "party" | "addOns";

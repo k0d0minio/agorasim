@@ -166,6 +166,22 @@ describe("exportSubjectData", () => {
     });
   });
 
+  it("puts the tax number for the fatura in the file, from the enquiry and the quote (JAM-527)", async () => {
+    queueResult([{ id: LEAD_ID, email: "marta@example.pt", name: "Marta Nunes", taxId: "123456789" }]);
+    queueResult([]);
+    queueResult([{ id: QUOTE_ID, tourRequestId: LEAD_ID, taxId: "123456789" }]);
+    queueResult([]);
+
+    const data = await exportSubjectData("marta@example.pt");
+
+    expect(data.records.tourRequests[0]).toMatchObject({ taxId: "123456789" });
+    expect(data.records.quotes[0]).toMatchObject({ taxId: "123456789" });
+    // Whole rows, never a column list: a list would drop `tax_id` the day it is edited.
+    for (const call of calls.filter((entry) => entry.method === "select")) {
+      expect(call.args).toEqual([]);
+    }
+  });
+
   it("normalizes the address it was asked about", async () => {
     queueFullSubject();
 

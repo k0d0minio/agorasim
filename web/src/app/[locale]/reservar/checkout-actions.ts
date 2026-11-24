@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 
 import { bookingContent } from "@/content/booking";
+import { taxIdContent } from "@/content/tax-id";
 import {
   defaultLocale,
   isLocale,
@@ -96,6 +97,7 @@ export type CheckoutState = {
     email?: string;
     phone?: string;
     message?: string;
+    taxId?: string;
     date?: string;
   };
 };
@@ -163,6 +165,7 @@ export async function startCheckout(
     email: text(values.email),
     phone: text(values.phone),
     message: text(values.message),
+    taxId: text(values.taxId),
     date: text(values.date),
   };
 
@@ -193,6 +196,7 @@ export async function startCheckout(
     const flat = parsed.error.flatten().fieldErrors;
     if (flat.name) fieldErrors.name = t(c.name, locale);
     if (flat.email) fieldErrors.email = t(c.email, locale);
+    if (flat.taxId) fieldErrors.taxId = t(taxIdContent.error, locale);
     if (flat.date || flat.slot) fieldErrors.date = t(c.chooseDate, locale);
     if (flat.adults) fieldErrors.party = t(c.partySize, locale);
     // A schema failure with no field we render an error against is a crafted
@@ -286,6 +290,7 @@ export async function startCheckout(
         email: booking.email,
         phone: booking.phone,
         message: booking.message,
+        taxId: booking.taxId,
         marketingConsent: booking.marketingConsent,
       },
       locale,

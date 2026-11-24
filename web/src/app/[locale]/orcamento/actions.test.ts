@@ -77,7 +77,7 @@ describe("payQuote — paying on the quote page", () => {
       instalment: "Balance",
       amount: "€1,344",
     });
-    expect(startQuoteCheckout).toHaveBeenCalledWith({ token: TOKEN, locale: "en" });
+    expect(startQuoteCheckout).toHaveBeenCalledWith({ token: TOKEN, locale: "en", taxId: null });
   });
 
   it("says payment is unavailable, and mints nothing, when the browser key is missing", async () => {
@@ -138,6 +138,29 @@ describe("payQuote — paying on the quote page", () => {
     const form = tap();
     form.set("token", "not a token");
     expect(await payQuote({ status: "idle" }, form)).toEqual({ status: "invalid" });
+    expect(startQuoteCheckout).not.toHaveBeenCalled();
+  });
+
+  it("passes a valid NIF on, and refuses a wrong one before any session (JAM-527)", async () => {
+    payable();
+    const { payQuote } = await load();
+
+    const good = tap();
+    good.set("taxId", "PT 123 456 789");
+    await payQuote({ status: "idle" }, good);
+    expect(startQuoteCheckout).toHaveBeenCalledWith({
+      token: TOKEN,
+      locale: "en",
+      taxId: "123456789",
+    });
+
+    startQuoteCheckout.mockClear();
+    const bad = tap();
+    bad.set("taxId", "123456780");
+    expect(await payQuote({ status: "idle" }, bad)).toEqual({
+      status: "taxId",
+      taxId: "123456780",
+    });
     expect(startQuoteCheckout).not.toHaveBeenCalled();
   });
 });
