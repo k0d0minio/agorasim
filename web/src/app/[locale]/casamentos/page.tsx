@@ -117,7 +117,7 @@ export default async function WeddingsPage({
       </Section>
 
       {/* How it works */}
-      <Section muted>
+      <Section muted edge="hills-both">
         <SectionHeading title={t(c.howItWorks.title, l)} />
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
           {c.howItWorks.steps.map((step, i) => (
@@ -169,7 +169,7 @@ export default async function WeddingsPage({
       </Section>
 
       {/* Quote request — sends a `wedding` enquiry to the Sales board. */}
-      <Section muted>
+      <Section muted edge="hills-both">
         <div className="scroll-mt-24" id="orcamento" />
         <div className="mx-auto max-w-2xl">
           <SectionHeading title={t(c.quote.title, l)} intro={t(c.quote.lead, l)} />

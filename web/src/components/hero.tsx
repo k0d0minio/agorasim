@@ -1,5 +1,6 @@
 import Image from "next/image";
 
+import { Hills, SURFACE } from "@/components/brand/hills";
 import { HeroVideo } from "@/components/hero-video";
 
 export function Hero({
@@ -10,6 +11,7 @@ export function Hero({
   poster,
   posterAlt,
   cta,
+  edge,
 }: {
   eyebrow: string;
   title: string;
@@ -18,6 +20,11 @@ export function Hero({
   poster: string;
   posterAlt: string;
   cta: React.ReactNode;
+  /**
+   * Draws the brand hills along the bottom of the hero, in the page background
+   * colour only. The photo is the hero: no other colour goes on it.
+   */
+  edge?: "hills";
 }) {
   return (
     <section className="relative isolate overflow-hidden">
@@ -38,6 +45,19 @@ export function Hero({
 
       {/* Scrim for legibility */}
       <div className="pointer-events-none absolute inset-0 -z-10 bg-linear-to-t from-black/70 via-black/40 to-black/25" />
+
+      {/* Hill edge: above the photo and the scrim, below the text. 70px at
+          most, well inside the 96px of padding under the buttons. */}
+      {edge === "hills" && (
+        <Hills
+          layers={[
+            { color: SURFACE.background, opacity: 0.35 },
+            { color: SURFACE.background, opacity: 0.6 },
+            { color: SURFACE.background },
+          ]}
+          className="absolute inset-x-0 bottom-0 -z-10 h-10 sm:h-[4.375rem]"
+        />
+      )}
 
       <div className="mx-auto flex min-h-136 max-w-6xl flex-col justify-center px-4 py-24 sm:px-6">
         <div className="max-w-2xl text-white">
