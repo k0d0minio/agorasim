@@ -5,7 +5,7 @@ import { looksLikeCancellationToken } from "@/lib/cancellation-token";
 import { startPaymentLinkCheckout } from "@/lib/payment-link";
 import { QUOTE_PAY_RATE_LIMIT, rateLimit } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
-import { isEmbeddedCheckoutConfigured, publishableKey } from "@/lib/stripe";
+import { isCheckoutReady, publishableKey } from "@/lib/stripe";
 
 /**
  * The payment-link page's one write: the pay button.
@@ -55,7 +55,7 @@ export async function payLink(
   if (!looksLikeCancellationToken(token)) return { status: "invalid" };
 
   // No session is minted that the browser could not mount, as on the quote page.
-  if (!isEmbeddedCheckoutConfigured()) return { status: "refused", reason: "unconfigured" };
+  if (!(await isCheckoutReady())) return { status: "refused", reason: "unconfigured" };
 
   let outcome: Awaited<ReturnType<typeof startPaymentLinkCheckout>>;
   try {

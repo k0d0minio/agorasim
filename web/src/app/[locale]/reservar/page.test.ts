@@ -198,3 +198,40 @@ describe("/reservar with no publishable key — the form cannot load in the page
     expect(JSON.stringify(tree)).not.toContain("pk_test_in_the_html");
   });
 });
+
+/*
+ * JAM-503. A connected account set before Stripe has cleared it must not break
+ * the booking flow: the page asks Stripe, and an account that cannot take
+ * charges gets the enquiry form, as with no Stripe at all.
+ */
+describe("/reservar with a connected account Stripe has not cleared", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  const render = async (chargesEnabled: boolean) => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_123");
+    vi.stubEnv("STRIPE_PUBLISHABLE_KEY", "pk_test_123");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("STRIPE_CONNECTED_ACCOUNT_ID", "acct_test_agorasim");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { default: BookingPage } = await load();
+    const { stripe } = await import("@/lib/stripe");
+    vi.spyOn(stripe().accounts, "retrieve").mockResolvedValue({
+      charges_enabled: chargesEnabled,
+    } as never);
+    return componentNames(await BookingPage({ params: Promise.resolve({ locale: "en" }) }));
+  };
+
+  it("falls back to the enquiry form while the account cannot take charges", async () => {
+    const names = await render(false);
+    expect(names.has("TourRequestForm")).toBe(true);
+    expect(names.has("BookingCheckoutForm")).toBe(false);
+  });
+
+  it("offers the checkout once the account can take charges", async () => {
+    const names = await render(true);
+    expect(names.has("BookingCheckoutForm")).toBe(true);
+  });
+});

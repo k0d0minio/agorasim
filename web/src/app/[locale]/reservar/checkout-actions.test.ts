@@ -152,10 +152,33 @@ describe("startCheckout — paying on the booking page", () => {
       bookingId: "b",
     });
     const { startCheckout } = await load();
+    // The account can take charges (JAM-503): the guard reads it from Stripe.
+    const { stripe } = await import("@/lib/stripe");
+    vi.spyOn(stripe().accounts, "retrieve").mockResolvedValue({
+      charges_enabled: true,
+    } as never);
 
     const state = await startCheckout({}, validForm());
 
     expect(state.payment?.stripeAccount).toBe("acct_test_agorasim");
+  });
+
+  it("refuses with the payments-off message while the connected account cannot take charges (JAM-503)", async () => {
+    payable();
+    vi.stubEnv("STRIPE_CONNECTED_ACCOUNT_ID", "acct_test_agorasim");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    startBookingCheckout.mockClear();
+    const { startCheckout } = await load();
+    const { stripe } = await import("@/lib/stripe");
+    vi.spyOn(stripe().accounts, "retrieve").mockResolvedValue({
+      charges_enabled: false,
+    } as never);
+
+    const state = await startCheckout({}, validForm());
+
+    expect(state.error).toBe(bookingContent.errors.paymentsOff.en);
+    expect(state.payment).toBeUndefined();
+    expect(startBookingCheckout).not.toHaveBeenCalled();
   });
 
   it("hands the checkout where the visit started, cleaned (JAM-506)", async () => {
