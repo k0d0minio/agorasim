@@ -25,7 +25,12 @@ import { canMarkNoShow } from "@/lib/booking-no-show";
 import { refundableCents } from "@/lib/booking-refund";
 import { formatDay, isDateKey, todayKey } from "@/lib/availability";
 import { balanceMessagesLabel, balanceOf, isBalanceFlagged } from "@/lib/balance-schedule";
-import { listQuoteBalanceMessages, type QuoteBalanceMessage } from "@/lib/message-log";
+import {
+  listQuoteBalanceMessages,
+  paymentReminderLog,
+  type QuoteBalanceMessage,
+} from "@/lib/message-log";
+import { canRemind, formatReminderTime } from "@/lib/payment-reminder";
 import { isOpenInstalment } from "@/lib/quote-math";
 import { groupMoveTargets, listMoveTargets } from "@/lib/booking-move";
 import {
@@ -56,7 +61,10 @@ import { AdminShell } from "@/components/admin/admin-shell";
 import { CancelBookingDialog } from "@/components/admin/cancel-booking-dialog";
 import { MoveBookingDialog } from "@/components/admin/move-booking-dialog";
 import { NoShowToggle } from "@/components/admin/no-show-toggle";
-import { PaymentLinkActions } from "@/components/admin/payment-link-actions";
+import {
+  PaymentLinkActions,
+  RemindBookingButton,
+} from "@/components/admin/payment-link-actions";
 import { DeleteSubmissionDialog } from "@/components/admin/delete-submission-dialog";
 import {
   EnquiryKindIcon,
@@ -217,6 +225,17 @@ export default async function AdminLeadPage({
   // neither the money nor the reference the guest was actually given.
   const record = recordFromRequest(lead, (await bookingSummaries([lead.id])).get(lead.id));
   const now = new Date();
+
+  // "Lembrar" (JAM-292): the reminders each booking had, and which booking can
+  // have one now. Only the newest booking, and only a lead with an email.
+  const reminderLogs = await paymentReminderLog(
+    leadBookings.flatMap((booking) => (booking.paymentLinkTokenHash ? [booking.id] : [])),
+  );
+  const canBeReminded = (booking: (typeof leadBookings)[number]) =>
+    booking.id === leadBookings[0]?.id &&
+    Boolean(lead.email) &&
+    !lead.anonymisedAt &&
+    canRemind(booking, { reminded: reminderLogs.has(booking.id), now });
 
   const experienceName = lead.experienceSlug
     ? (index.get(lead.experienceSlug) && t(index.get(lead.experienceSlug)!.title, "pt")) ??
@@ -665,7 +684,7 @@ export default async function AdminLeadPage({
                     went, that it holds no car, and the two things the team
                     can do about it. It confirms itself when the customer pays.
                   */}
-                  {awaitsLinkPayment(booking) ? (
+                  {awaitsLinkPayment(booking) && !reminderLogs.has(booking.id) ? (
                     <div className="flex flex-col gap-2 text-sm">
                       <p className="text-muted-foreground">
                         Link de pagamento enviado
@@ -677,6 +696,46 @@ export default async function AdminLeadPage({
                       <PaymentLinkActions
                         bookingId={booking.id}
                         bookingRef={bookingRef(booking.id)}
+                      />
+                    </div>
+                  ) : null}
+
+                  {/*
+                    A site checkout the team reminded (JAM-292). It is a link
+                    booking now: it holds no car and confirms itself when the
+                    guest pays. "Lembrar" sends the reminder again with a new
+                    link, and "Anular link" calls the booking off.
+                  */}
+                  {awaitsLinkPayment(booking) && reminderLogs.has(booking.id) ? (
+                    <div className="flex flex-col gap-2 text-sm">
+                      <p className="text-muted-foreground">
+                        {reminderLogs.get(booking.id)?.lastSentAt
+                          ? `Lembrete enviado ${formatReminderTime(reminderLogs.get(booking.id)!.lastSentAt!)}.`
+                          : "O email do lembrete não saiu."}{" "}
+                        Não guarda o carro até o cliente pagar.
+                      </p>
+                      <PaymentLinkActions
+                        bookingId={booking.id}
+                        bookingRef={bookingRef(booking.id)}
+                        reminder
+                      />
+                    </div>
+                  ) : null}
+
+                  {/*
+                    A site checkout the guest left without paying, not yet
+                    reminded: one tap emails them a new payment link.
+                  */}
+                  {!awaitsLinkPayment(booking) && canBeReminded(booking) ? (
+                    <div className="flex flex-col gap-2 text-sm">
+                      <p className="text-muted-foreground">
+                        O cliente saiu do checkout sem pagar. O lembrete envia-lhe por email um
+                        link de pagamento novo. Não guarda o carro até o cliente pagar.
+                      </p>
+                      <RemindBookingButton
+                        bookingId={booking.id}
+                        bookingRef={bookingRef(booking.id)}
+                        className="sm:max-w-xs"
                       />
                     </div>
                   ) : null}

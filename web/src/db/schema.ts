@@ -252,6 +252,7 @@ export const messageKindEnum = pgEnum("message_kind", [
   "quote-event-cancelled",
   "booking-payment-link",
   "balance-request-manual",
+  "booking-payment-reminder",
 ]);
 
 /**
@@ -1354,9 +1355,9 @@ export const messageLog = pgTable("message_log", {
   /**
    * Which send of a booking's payment link this row is — the booking's
    * `payment_link_sent_at` at the moment of sending, as
-   * {@link messageLog.quoteSentAt} is for a quote. `booking-payment-link`
-   * only: a resend rotates the link and must be a new email, so the booking
-   * alone cannot be the key. Null for every other kind.
+   * {@link messageLog.quoteSentAt} is for a quote. `booking-payment-link` and
+   * `booking-payment-reminder` only: each send rotates the link and must be a
+   * new email, so the booking alone cannot be the key. Null for every other kind.
    */
   linkSentAt: timestamp("link_sent_at", { withTimezone: true }),
 

@@ -109,8 +109,21 @@ vi.mock("@/lib/site-origin", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/site-origin")>()),
   siteUrl: () => "https://agorasim.example",
 }));
-vi.mock("@/lib/audit", () => ({ recordAuditOrWarn: vi.fn() }));
-vi.mock("@/lib/message-log", () => ({ sendLoggedEmail: vi.fn() }));
+const recordAuditOrWarn = vi.fn();
+vi.mock("@/lib/audit", () => ({
+  recordAuditOrWarn: (...args: unknown[]) => recordAuditOrWarn(...args),
+}));
+const sendLoggedEmail = vi.fn();
+const paymentReminderLog = vi.fn();
+vi.mock("@/lib/message-log", () => ({
+  sendLoggedEmail: (...args: unknown[]) => sendLoggedEmail(...args),
+  paymentReminderLog: (...args: unknown[]) => paymentReminderLog(...args),
+}));
+let emailConfigured = true;
+vi.mock("@/lib/email", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/email")>()),
+  isEmailConfigured: () => emailConfigured,
+}));
 vi.mock("@/lib/observability", () => ({ captureAlert: vi.fn(), captureError: vi.fn() }));
 
 // The departure lock, as a recorder: which departure each call held, and the
@@ -139,9 +152,8 @@ vi.mock("@/lib/departure-lock", () => ({
 
 process.env.BOOKING_TOKEN_SECRET = "test-secret-for-payment-links";
 
-const { paymentLinkPath, paymentLinkState, startPaymentLinkCheckout } = await import(
-  "./payment-link"
-);
+const { paymentLinkPath, paymentLinkState, sendPaymentReminder, startPaymentLinkCheckout } =
+  await import("./payment-link");
 const { issueCancellationToken } = await import("@/lib/cancellation-token");
 const { commissionOn } = await import("@/lib/commission");
 const { BOOKING_HOLD_MINUTES, CHECKOUT_SESSION_MINUTES } = await import("@/lib/bookings");
@@ -203,6 +215,12 @@ beforeEach(async () => {
   sessionsRetrieve.mockReset();
   sessionsExpire.mockReset();
   checkSlotAvailable.mockReset();
+  recordAuditOrWarn.mockReset();
+  sendLoggedEmail.mockReset();
+  sendLoggedEmail.mockResolvedValue({ status: "sent", providerMessageId: "re_test" });
+  paymentReminderLog.mockReset();
+  paymentReminderLog.mockResolvedValue(new Map());
+  emailConfigured = true;
   connectedAccount = null;
   lock.held = [];
   lock.fail = false;
@@ -368,6 +386,205 @@ describe("startPaymentLinkCheckout", () => {
     expect(await startPaymentLinkCheckout({ token, locale: "pt" })).toEqual({
       status: "not-found",
     });
+  });
+});
+
+/** A site checkout the guest left: no link, and the Stripe session closed it. */
+function unpaidCheckout(overrides: Partial<Booking> = {}): Booking {
+  return linkBooking({
+    status: "expired",
+    mode: "public",
+    stripeSessionId: SESSION_ID,
+    paymentLinkTokenHash: null,
+    paymentLinkSentAt: null,
+    ...overrides,
+  });
+}
+
+/** The row "Lembrar" wrote, as the update hands it back. */
+function reminded(booking: Booking): Booking {
+  return {
+    ...booking,
+    status: "pending",
+    paymentLinkTokenHash: "hmac-sha256$new",
+    paymentLinkSentAt: new Date(),
+  };
+}
+
+describe("sendPaymentReminder", () => {
+  it("reopens an expired checkout as a link booking and emails the guest a new link", async () => {
+    const booking = unpaidCheckout();
+    answers.push([booking], [lead], [{ id: BOOKING_ID }], [reminded(booking)]);
+
+    const outcome = await sendPaymentReminder({ bookingId: BOOKING_ID, actorUserId: "user-1" });
+
+    expect(outcome).toEqual({ status: "sent" });
+
+    // One write: pending again, with a link, and holding no car.
+    expect(writes).toHaveLength(1);
+    const written = writes[0].values as {
+      status: string;
+      paymentLinkTokenHash: string;
+      paymentLinkSentAt: Date;
+      holdExpiresAt: Date;
+    };
+    expect(written.status).toBe("pending");
+    expect(written.paymentLinkTokenHash).toEqual(expect.any(String));
+    expect(written.holdExpiresAt.getTime()).toBeLessThanOrEqual(Date.now());
+
+    // One email of the new kind, keyed on this send, with the facts and the link.
+    expect(sendLoggedEmail).toHaveBeenCalledTimes(1);
+    const [subject, message] = sendLoggedEmail.mock.calls[0];
+    expect(subject).toEqual({
+      kind: "booking-payment-reminder",
+      recipient: "guest",
+      bookingId: BOOKING_ID,
+      tourRequestId: LEAD_ID,
+      linkSentAt: written.paymentLinkSentAt,
+    });
+    expect(message.to).toEqual(["marta@example.pt"]);
+    expect(message.subject).toContain("A sua reserva ficou por pagar");
+    expect(message.subject).toContain("Rural Saloia");
+    expect(message.text).toContain("Começou uma reserva connosco");
+    expect(message.text).toMatch(/2 (pessoas|adultos)/);
+    expect(message.text).toMatch(/340/);
+    expect(message.text).toMatch(
+      /https:\/\/agorasim\.example\/pt\/reservar\/pagar\/[A-Za-z0-9_-]+/,
+    );
+    // Not the mail of a booking the team registered.
+    expect(message.text).not.toContain("Obrigado pelo contacto");
+
+    // The audit log names the reminder and who sent it, and never the link.
+    expect(recordAuditOrWarn).toHaveBeenCalledTimes(1);
+    const audit = recordAuditOrWarn.mock.calls[0][0];
+    expect(audit).toMatchObject({
+      actorUserId: "user-1",
+      action: "booking.payment_reminder_sent",
+      entityType: "booking",
+      entityId: BOOKING_ID,
+      before: { status: "expired" },
+      after: { status: "pending", email: "sent" },
+    });
+    expect(JSON.stringify(audit)).not.toContain(written.paymentLinkTokenHash);
+  });
+
+  it("writes the email in the booking's language", async () => {
+    const booking = unpaidCheckout({ locale: "en" });
+    answers.push([booking], [lead], [{ id: BOOKING_ID }], [reminded(booking)]);
+
+    await sendPaymentReminder({ bookingId: BOOKING_ID, actorUserId: "user-1" });
+
+    const [, message] = sendLoggedEmail.mock.calls[0];
+    expect(message.subject).toContain("Your booking is not paid yet");
+    expect(message.text).toContain("You started a booking with us");
+    expect(message.text).toContain("https://agorasim.example/en/reservar/pagar/");
+  });
+
+  it("reminds a checkout that is still pending once its hold has lapsed", async () => {
+    const booking = unpaidCheckout({ status: "pending" });
+    answers.push([booking], [lead], [{ id: BOOKING_ID }], [reminded(booking)]);
+
+    expect(
+      await sendPaymentReminder({ bookingId: BOOKING_ID, actorUserId: "user-1" }),
+    ).toEqual({ status: "sent" });
+  });
+
+  it("reminds again a booking it reminded before, with a newer link", async () => {
+    const booking = reminded(unpaidCheckout());
+    paymentReminderLog.mockResolvedValue(
+      new Map([[BOOKING_ID, { sent: 1, lastSentAt: new Date() }]]),
+    );
+    answers.push([booking], [lead], [{ id: BOOKING_ID }], [reminded(booking)]);
+
+    expect(
+      await sendPaymentReminder({ bookingId: BOOKING_ID, actorUserId: "user-1" }),
+    ).toEqual({ status: "sent" });
+    expect(sendLoggedEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["a paid booking", unpaidCheckout({ status: "confirmed" }), "paid"],
+    ["a cancelled booking", unpaidCheckout({ status: "cancelled" }), "closed"],
+    ["a departure that is past", unpaidCheckout({ date: "2020-01-01" }), "past"],
+    [
+      "a guest on the payment form now",
+      unpaidCheckout({ status: "pending", holdExpiresAt: new Date(Date.now() + 600_000) }),
+      "in-checkout",
+    ],
+    ["a link the team registered", linkBooking(), "team-link"],
+  ] as const)("refuses %s, and writes and sends nothing", async (_name, booking, reason) => {
+    answers.push([booking]);
+
+    const outcome = await sendPaymentReminder({ bookingId: BOOKING_ID, actorUserId: "user-1" });
+
+    expect(outcome).toEqual({ status: "not-remindable", reason });
+    expect(writes).toEqual([]);
+    expect(sendLoggedEmail).not.toHaveBeenCalled();
+    expect(recordAuditOrWarn).not.toHaveBeenCalled();
+  });
+
+  it("refuses a lead with no email, and an anonymised lead", async () => {
+    answers.push([unpaidCheckout()], [{ ...lead, email: null }]);
+    expect(
+      await sendPaymentReminder({ bookingId: BOOKING_ID, actorUserId: "user-1" }),
+    ).toEqual({ status: "not-remindable", reason: "no-email" });
+
+    answers.push([unpaidCheckout()], [{ ...lead, anonymisedAt: new Date() }]);
+    expect(
+      await sendPaymentReminder({ bookingId: BOOKING_ID, actorUserId: "user-1" }),
+    ).toEqual({ status: "not-remindable", reason: "no-email" });
+
+    expect(writes).toEqual([]);
+    expect(sendLoggedEmail).not.toHaveBeenCalled();
+  });
+
+  it("refuses a booking that is not the lead's newest", async () => {
+    answers.push([unpaidCheckout()], [lead], [{ id: "cccccccc-3333-4333-8333-333333333333" }]);
+
+    expect(
+      await sendPaymentReminder({ bookingId: BOOKING_ID, actorUserId: "user-1" }),
+    ).toEqual({ status: "not-remindable", reason: "superseded" });
+    expect(writes).toEqual([]);
+    expect(sendLoggedEmail).not.toHaveBeenCalled();
+  });
+
+  it("changes nothing on a deployment that cannot send email", async () => {
+    emailConfigured = false;
+
+    expect(
+      await sendPaymentReminder({ bookingId: BOOKING_ID, actorUserId: "user-1" }),
+    ).toEqual({ status: "unconfigured" });
+    expect(writes).toEqual([]);
+  });
+
+  it("says so when the email did not go, and still records the reminder", async () => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    const booking = unpaidCheckout();
+    answers.push([booking], [lead], [{ id: BOOKING_ID }], [reminded(booking)]);
+    sendLoggedEmail.mockResolvedValue({ status: "failed", reason: "failed" });
+
+    expect(
+      await sendPaymentReminder({ bookingId: BOOKING_ID, actorUserId: "user-1" }),
+    ).toEqual({ status: "email-failed" });
+    expect(recordAuditOrWarn.mock.calls[0][0]).toMatchObject({
+      action: "booking.payment_reminder_sent",
+      after: { email: "failed" },
+    });
+    quiet.mockRestore();
+  });
+
+  it("leaves a link that refuses payment when the departure has no seat left", async () => {
+    // The booking as a reminder leaves it: pending, with a link, no hold, and
+    // the closed Stripe session of the checkout the guest left.
+    answers.push([reminded(unpaidCheckout())], [lead]);
+    sessionsRetrieve.mockResolvedValue({ id: SESSION_ID, status: "expired" });
+    checkSlotAvailable.mockResolvedValue({ ok: false, reason: "no-vehicle" });
+
+    const outcome = await startPaymentLinkCheckout({ token, locale: "pt" });
+
+    expect(outcome).toEqual({ status: "full" });
+    expect(sessionsCreate).not.toHaveBeenCalled();
+    expect(writes).toEqual([]);
   });
 });
 

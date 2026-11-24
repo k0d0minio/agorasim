@@ -294,6 +294,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "booking.no_show_marked": "marcou uma falta numa reserva",
   "booking.no_show_cleared": "retirou a falta de uma reserva",
   "booking.payment_link_sent": "enviou o link de pagamento",
+  "booking.payment_reminder_sent": "enviou um lembrete de pagamento",
   "quote.created": "criou um orçamento",
   "quote.updated": "editou um orçamento",
   "quote.discarded": "descartou um rascunho de orçamento",

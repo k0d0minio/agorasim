@@ -25,7 +25,7 @@
  */
 import "server-only";
 
-import { and, eq, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lte, or } from "drizzle-orm";
 import type Stripe from "stripe";
 
 import { bookings, db, tourRequests, type Booking, type TourRequest } from "@/db";
@@ -36,6 +36,7 @@ import { withDepartureLock } from "@/lib/departure-lock";
 import {
   bookingLogisticsFacts,
   guestPaymentLinkEmail,
+  guestPaymentReminderEmail,
   titleFromCatalogue,
 } from "@/lib/booking-emails";
 import {
@@ -52,9 +53,11 @@ import {
   looksLikeCancellationToken,
 } from "@/lib/cancellation-token";
 import { commissionOn } from "@/lib/commission";
+import { isEmailConfigured } from "@/lib/email";
 import { listCatalogue } from "@/lib/experience-catalogue";
-import { sendLoggedEmail } from "@/lib/message-log";
+import { paymentReminderLog, sendLoggedEmail } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
+import { reminderVerdict, type ReminderBlock } from "@/lib/payment-reminder";
 import { siteUrl } from "@/lib/site-origin";
 import {
   connectedAccountId,
@@ -175,6 +178,146 @@ export async function sendPaymentLink(options: {
   if (result.status === "sent" || result.status === "duplicate") return { status: "sent" };
   console.error(
     `[payment-link] ${bookingRef(booking.id)}: the link email was not sent (${result.status})`,
+  );
+  return { status: "email-failed" };
+}
+
+export type PaymentReminderOutcome =
+  | { status: "sent" }
+  /** The link is live, but the email did not go: a second "Lembrar" fixes it. */
+  | { status: "email-failed" }
+  | { status: "not-found" }
+  /** The booking cannot be reminded, and why (`lib/payment-reminder.ts`). */
+  | { status: "not-remindable"; reason: ReminderBlock | "no-email" | "superseded" }
+  | { status: "unconfigured" };
+
+/**
+ * "Lembrar": remind the guest of a checkout they did not pay (JAM-292).
+ *
+ * {@link sendPaymentLink} refuses such a booking, on purpose: it has no link.
+ * This is the one path that gives it one. The booking becomes a payment-link
+ * booking: it takes a `payment_link_token_hash`, goes back to `pending` if its
+ * Stripe session had closed it as `expired`, and holds no car. From then on
+ * every rule of a link applies as written: {@link startPaymentLinkCheckout}
+ * checks the departure again when the guest taps "Pagar", the payment confirms
+ * it, {@link voidPaymentLink} calls it off, and it stays `pending` until its
+ * departure is past. The seats and the cars are not decided here.
+ *
+ * Refused before anything is written: a booking that is paid, cancelled, past,
+ * on the payment form now, or the team's own link (`reminderVerdict`), a
+ * booking that is not the lead's newest (the guest came back and booked
+ * again), and a lead with no email. So a reminder that this returns as sent or
+ * as `email-failed` always left a `message_log` row, which is what marks the
+ * booking as reminded and keeps the reminders countable.
+ *
+ * Each call is one email with a new link. The link of an earlier reminder
+ * stops working, as with "Reenviar link".
+ */
+export async function sendPaymentReminder(options: {
+  bookingId: string;
+  actorUserId: string | null;
+}): Promise<PaymentReminderOutcome> {
+  // A reminder that cannot be mailed would only rotate the link: refuse it.
+  if (!isCancellationTokenConfigured() || !isEmailConfigured()) {
+    return { status: "unconfigured" };
+  }
+
+  const [booking] = await db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.id, options.bookingId))
+    .limit(1);
+  if (!booking) return { status: "not-found" };
+
+  const now = new Date();
+  const reminded =
+    booking.paymentLinkTokenHash !== null &&
+    (await paymentReminderLog([booking.id])).has(booking.id);
+  const verdict = reminderVerdict(booking, { reminded, now });
+  if (!verdict.ok) return { status: "not-remindable", reason: verdict.reason };
+
+  const lead = booking.tourRequestId ? await readLead(booking.tourRequestId) : null;
+  if (!lead || lead.anonymisedAt || !lead.email) {
+    return { status: "not-remindable", reason: "no-email" };
+  }
+
+  // Only the lead's newest booking: an older one is an attempt the guest
+  // already replaced, and a reminder of it could be paid on top of the new one.
+  const [newest] = await db
+    .select({ id: bookings.id })
+    .from(bookings)
+    .where(eq(bookings.tourRequestId, lead.id))
+    .orderBy(desc(bookings.createdAt))
+    .limit(1);
+  if (newest && newest.id !== booking.id) {
+    return { status: "not-remindable", reason: "superseded" };
+  }
+
+  const issued = await issueCancellationToken();
+  const [updated] = await db
+    .update(bookings)
+    .set({
+      status: "pending",
+      // No car: a guest who tapped "back" left an `expired` row whose hold
+      // still has minutes to run, and `pending` again it would hold its car.
+      holdExpiresAt: now,
+      paymentLinkTokenHash: issued.digest,
+      paymentLinkSentAt: now,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(bookings.id, booking.id),
+        // The verdict again, as a guard: a payment or a new hold that landed
+        // since the read above leaves nothing to update.
+        or(
+          eq(bookings.status, "expired"),
+          and(eq(bookings.status, "pending"), lte(bookings.holdExpiresAt, now)),
+        ),
+        gte(bookings.date, todayKey(now)),
+      ),
+    )
+    .returning();
+  if (!updated) return { status: "not-remindable", reason: "in-checkout" };
+
+  const catalogue = new Map((await listCatalogue()).map((entry) => [entry.slug, entry]));
+  const locale = updated.locale;
+  const message = guestPaymentReminderEmail({
+    ref: bookingRef(updated.id),
+    guestName: lead.name,
+    guestEmail: lead.email,
+    locale,
+    date: formatDay(updated.date, locale),
+    ...bookingLogisticsFacts(updated, titleFromCatalogue(catalogue), locale),
+    // The price of the booking as the guest saw it, not the catalogue's today.
+    total: formatPrice(updated.amountCents, locale, updated.currency),
+    payUrl: `${siteUrl()}${paymentLinkPath(locale, issued.token)}`,
+  });
+
+  const result = await sendLoggedEmail(
+    {
+      kind: "booking-payment-reminder",
+      recipient: "guest",
+      bookingId: updated.id,
+      tourRequestId: lead.id,
+      linkSentAt: now,
+    },
+    message,
+  );
+
+  await recordAuditOrWarn({
+    actorUserId: options.actorUserId,
+    action: "booking.payment_reminder_sent",
+    entityType: "booking",
+    entityId: updated.id,
+    before: { status: booking.status },
+    // The ref and the send, never the token: it is a credential.
+    after: { ref: bookingRef(updated.id), status: updated.status, email: result.status },
+  });
+
+  if (result.status === "sent" || result.status === "duplicate") return { status: "sent" };
+  console.error(
+    `[payment-link] ${bookingRef(updated.id)}: the reminder email was not sent (${result.status})`,
   );
   return { status: "email-failed" };
 }

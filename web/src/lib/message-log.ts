@@ -169,12 +169,13 @@ export type QuoteRefundKind = (typeof QUOTE_REFUND_KINDS)[number];
 
 /**
  * The kinds whose subject is one send of a booking's payment link
- * (`lib/payment-link.ts`). A resend rotates the link, so each send is keyed on
+ * (`lib/payment-link.ts`): the link the team registered, and the reminder of
+ * an unpaid checkout ("Lembrar"). A resend rotates the link, so each send is keyed on
  * the booking and on the `payment_link_sent_at` it stamped — one email per
  * link, as {@link QUOTE_SEND_KINDS} are for a quote
  * (`message_log_payment_link_key`).
  */
-export const PAYMENT_LINK_KINDS = ["booking-payment-link"] as const;
+export const PAYMENT_LINK_KINDS = ["booking-payment-link", "booking-payment-reminder"] as const;
 
 export type PaymentLinkKind = (typeof PAYMENT_LINK_KINDS)[number];
 
@@ -569,6 +570,57 @@ export async function isRefundNoticeClaimed(subject: {
 }
 
 /** One balance message as the log holds it — what the scheduler and the Sales board read back. */
+/** What "Lembrar" has sent for one booking so far (JAM-292). */
+export type PaymentReminderLog = {
+  /** Reminders that went out. The count the team can read back. */
+  sent: number;
+  /** When the last one went; null while none has. */
+  lastSentAt: Date | null;
+};
+
+/**
+ * The reminders each of these bookings has had ("Lembrar",
+ * `sendPaymentReminder` in `lib/payment-link.ts`).
+ *
+ * A booking is in the map as soon as one reminder was tried, also when its
+ * email failed: the row is what marks a checkout the team reminded, apart
+ * from a booking the team registered with a link (`lib/payment-reminder.ts`).
+ */
+export async function paymentReminderLog(
+  bookingIds: readonly string[],
+): Promise<Map<string, PaymentReminderLog>> {
+  const byBooking = new Map<string, PaymentReminderLog>();
+  if (bookingIds.length === 0) return byBooking;
+
+  const rows = await db
+    .select({
+      bookingId: messageLog.bookingId,
+      status: messageLog.status,
+      sentAt: messageLog.sentAt,
+    })
+    .from(messageLog)
+    .where(
+      and(
+        inArray(messageLog.bookingId, [...bookingIds]),
+        eq(messageLog.kind, "booking-payment-reminder"),
+        eq(messageLog.recipient, "guest"),
+      ),
+    );
+
+  for (const row of rows) {
+    if (!row.bookingId) continue;
+    const log = byBooking.get(row.bookingId) ?? { sent: 0, lastSentAt: null };
+    if (row.status === "sent" && row.sentAt) {
+      log.sent += 1;
+      if (!log.lastSentAt || row.sentAt.getTime() > log.lastSentAt.getTime()) {
+        log.lastSentAt = row.sentAt;
+      }
+    }
+    byBooking.set(row.bookingId, log);
+  }
+  return byBooking;
+}
+
 export type QuoteBalanceMessage = {
   kind: QuoteBalanceKind | QuoteBalanceSendKind;
   status: "sending" | "sent" | "failed";

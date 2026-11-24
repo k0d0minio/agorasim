@@ -6,9 +6,11 @@ import type { CatalogueEntry } from "@/lib/experience-catalogue";
 import { manualBookingPrefill } from "@/lib/manual-booking";
 import { groupByStage, type SalesRecord } from "@/lib/sales";
 import { formatRelativeTime, requestStatusMeta } from "@/lib/admin-format";
+import { formatReminderTime } from "@/lib/payment-reminder";
 import { Badge } from "@/components/ui/badge";
 import { RecordIcons, ExperienceNames } from "@/components/admin/experience-icons";
 import { LeadManualBooking } from "@/components/admin/lead-manual-booking";
+import { RemindBookingButton } from "@/components/admin/payment-link-actions";
 import type {
   ManualBookingDay,
   ManualBookingTour,
@@ -165,9 +167,10 @@ export function SalesBoard({
                   {/*
                     Money asked for and not yet paid. A guest on the payment
                     form now is "A aguardar pagamento": a short hold, not a
-                    booked seat. A payment link the team sent is "Pagamento
-                    pendente". A checkout whose hold lapsed shows neither
-                    (JAM-291).
+                    booked seat. A payment link the team sent, or a reminder,
+                    is "Pagamento pendente" (JAM-291). A checkout the guest
+                    left unpaid is "Não paga" while it can be reminded
+                    (JAM-292). None of the last two holds a seat.
                   */}
                   {record.payment === "In checkout" ? (
                     <Badge variant="secondary">A aguardar pagamento</Badge>
@@ -175,6 +178,7 @@ export function SalesBoard({
                   {record.payment === "Awaiting payment" ? (
                     <Badge variant="secondary">Pagamento pendente</Badge>
                   ) : null}
+                  {record.payment === "Unpaid" ? <Badge variant="outline">Não paga</Badge> : null}
                   {record.partySize ? (
                     <span className="text-muted-foreground">
                       {record.partySize} {record.partySize === 1 ? "pessoa" : "pessoas"}
@@ -224,6 +228,25 @@ export function SalesBoard({
                     days={openDays}
                     tours={tours}
                     className="mt-2 w-full gap-2"
+                  />
+                ) : null}
+
+                {/*
+                  A site checkout the guest did not pay: one tap emails them a
+                  new payment link (JAM-292). The line says when the last
+                  reminder went, so nobody reminds the same guest twice in an
+                  afternoon without meaning to.
+                */}
+                {record.lastReminderAt ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Lembrete enviado {formatReminderTime(record.lastReminderAt)}
+                  </p>
+                ) : null}
+                {record.canRemind && record.bookingId && record.bookingRef ? (
+                  <RemindBookingButton
+                    bookingId={record.bookingId}
+                    bookingRef={record.bookingRef}
+                    className="mt-2"
                   />
                 ) : null}
 

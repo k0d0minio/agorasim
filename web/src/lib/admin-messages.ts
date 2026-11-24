@@ -48,6 +48,7 @@ export const messageKindLabel: Record<MessageKind, string> = {
   "balance-reminder": "Lembrete do saldo",
   "booking-payment-link": "Link de pagamento",
   "balance-request-manual": "Pedido do saldo (equipa)",
+  "booking-payment-reminder": "Lembrete de pagamento",
 };
 
 /** One card in "As mensagens": when a kind goes out, and to whom. */
@@ -68,6 +69,10 @@ export const MESSAGE_CARDS: readonly MessageCard[] = [
   {
     kind: "booking-payment-link",
     when: "Quando regista uma reserva com link de pagamento, ou reenvia o link — ao cliente.",
+  },
+  {
+    kind: "booking-payment-reminder",
+    when: "Quando toca em «Lembrar» numa reserva do site que ficou por pagar — ao cliente.",
   },
   {
     kind: "booking-confirmation",
