@@ -87,6 +87,7 @@ import {
   recordPaymentRefundFee,
 } from "@/lib/quotes";
 import { isStripeConfigured, onOwningAccount, stripe } from "@/lib/stripe";
+import { recordRefund } from "@/lib/refund-ledger";
 import { isTourQuote } from "@/lib/tour-quote";
 
 /** Who asked for the refund — the audit row's `via`. */
@@ -674,6 +675,17 @@ async function settleInstalmentRefund(options: {
   // (a double submit, with the lost claim above); the quote is then read fresh,
   // so the caller reports it cancelled and the calendar is revalidated.
   const current = cancelled ?? (options.cancelEvent ? await getQuote(quote.id) : null);
+
+  // One line of "Para faturar", one nota de crédito (JAM-528). Only money that
+  // newly went back: a delivery that moved only the fee writes nothing.
+  await recordRefund({
+    quotePaymentId: settled.id,
+    amountCents: refundedAmountCents - payment.refundedAmountCents,
+    currency: settled.currency,
+    stripeRefundId: refundId,
+    refundedAt: now,
+  });
+
   return { claimed: true, quote: current ?? quote, payment: settled };
 }
 

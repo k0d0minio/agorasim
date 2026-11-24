@@ -1,5 +1,5 @@
 # Status jam-528
 
-- phase: define
-- blocked: yes — waits for answers (Q1) and the tick Spec approved
+- phase: build
+- blocked: no
 - updated: 2026-11-24

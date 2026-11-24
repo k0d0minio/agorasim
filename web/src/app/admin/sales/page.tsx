@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Inbox, Plus, Search } from "lucide-react";
+import { Inbox, Plus, Receipt, Search } from "lucide-react";
 import { requireAdmin } from "@/lib/admin-auth";
 import { requestStatusFromParam } from "@/lib/admin-format";
 import { lastAuditByEntity } from "@/lib/audit";
@@ -158,6 +158,11 @@ export default async function AdminSalesPage({
         </form>
         {/* A quote with no enquiry behind it — a personalised tour, a wedding or
             an event agreed on the phone (`createQuoteFromScratch`). */}
+        {/* The payments and refunds to invoice by hand (JAM-528). */}
+        <Link href="/admin/sales/faturar" className={buttonVariants({ variant: "outline" })}>
+          <Receipt className="size-4" />
+          Para faturar
+        </Link>
         <Link href="/admin/sales/new" className={buttonVariants()}>
           <Plus className="size-4" />
           Novo orçamento

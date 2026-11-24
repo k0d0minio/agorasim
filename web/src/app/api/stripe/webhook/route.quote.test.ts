@@ -16,6 +16,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const constructEventAsync = vi.fn();
 const chargesRetrieve = vi.fn();
 
+// The ledger write is best effort and has its own module (JAM-528).
+const { recordRefund } = vi.hoisted(() => ({ recordRefund: vi.fn() }));
+vi.mock("@/lib/refund-ledger", () => ({ recordRefund }));
 vi.mock("@/lib/stripe", () => ({
   isStripeConfigured: () => true,
   isWebhookConfigured: () => true,

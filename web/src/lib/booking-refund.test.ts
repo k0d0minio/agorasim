@@ -40,6 +40,9 @@ function makeQuery(): unknown {
   return proxy;
 }
 
+// The ledger write is best effort and has its own module (JAM-528).
+const { recordRefund } = vi.hoisted(() => ({ recordRefund: vi.fn() }));
+vi.mock("@/lib/refund-ledger", () => ({ recordRefund }));
 vi.mock("@/db", async () => {
   const schema = await vi.importActual<typeof import("@/db/schema")>("@/db/schema");
   return { ...schema, db: new Proxy({}, { get: () => () => makeQuery() }) };
@@ -146,6 +149,14 @@ describe("cancelAndRefundBooking — the refund is keyed on the claim", () => {
         // The claim, and nothing about the amount or what went back before.
         idempotencyKey: `booking-refund:${BOOKING_ID}:${CLAIMED_AT.getTime()}`,
       },
+    );
+    // One line of "Para faturar" for this refund (JAM-528).
+    expect(recordRefund).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bookingId: BOOKING_ID,
+        amountCents: 34_000,
+        stripeRefundId: "re_tour",
+      }),
     );
   });
 

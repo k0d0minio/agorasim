@@ -330,6 +330,13 @@
       "when": 1795530506937,
       "tag": "0046_guest_tax_id",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795532155830,
+      "tag": "0047_invoicing",
+      "breakpoints": true
     }
   ]
 }

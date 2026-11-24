@@ -85,6 +85,7 @@ import { listCatalogue } from "@/lib/experience-catalogue";
 import { sendLoggedEmail } from "@/lib/message-log";
 import { formatPrice } from "@/lib/money";
 import { isStripeConfigured, onOwningAccount, stripe } from "@/lib/stripe";
+import { recordRefund } from "@/lib/refund-ledger";
 
 /**
  * What is still returnable on a booking: what was paid, less what has already
@@ -258,6 +259,17 @@ export async function cancelAndRefundBooking(options: {
   });
 
   await sendCancellationEmail(booking, refundCents);
+
+  // One line of "Para faturar", one nota de crédito (JAM-528).
+  if (refund) {
+    await recordRefund({
+      bookingId: booking.id,
+      amountCents: refundCents,
+      currency: booking.currency,
+      stripeRefundId: refund.id,
+      refundedAt: now,
+    });
+  }
 
   return { status: "cancelled", booking, refundedCents: refundCents };
 }
@@ -680,6 +692,17 @@ export async function syncRefundFromStripe(options: {
       stripeChargeId: charge.id,
     },
     ipAddress: null,
+  });
+
+  // A refund made outside the console (the Stripe dashboard) reaches the
+  // ledger here. The console's own refund wrote its row already, and the
+  // unique refund id makes this one a no-op (JAM-528).
+  await recordRefund({
+    bookingId: booking.id,
+    amountCents: refundedAmountCents - existing.refundedAmountCents,
+    currency: booking.currency,
+    stripeRefundId: refundId,
+    refundedAt: now,
   });
 
   return { status: "synced", booking, refundedAmountCents, refundedFeeCents };

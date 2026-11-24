@@ -288,6 +288,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "booking.confirmed": "uma reserva foi paga e confirmada",
   "booking.expired": "uma reserva não foi paga a tempo",
   "booking.cancelled": "cancelou uma reserva",
+  "invoice.marked": "marcou uma fatura emitida",
+  "invoice.unmarked": "retirou a marca de fatura emitida",
   "booking.refunded": "cancelou e reembolsou uma reserva",
   "booking.moved": "mudou uma reserva de partida",
   "booking.car_changed": "mudou uma reserva de carro",

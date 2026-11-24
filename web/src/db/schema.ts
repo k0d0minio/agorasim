@@ -1861,6 +1861,70 @@ export const quotePayments = pgTable("quote_payments", {
 export type QuotePayment = typeof quotePayments.$inferSelect;
 export type NewQuotePayment = typeof quotePayments.$inferInsert;
 
+/**
+ * One row for each refund that went back to a guest (JAM-528).
+ *
+ * `bookings` and `quote_payments` keep only the refunded *total* and the date
+ * of the *last* refund, so a second partial refund overwrites the date of the
+ * first. Each refund needs its own nota de crédito on its own date (CIVA art.
+ * 29.º), so each one is written here as it happens, by the refund paths in
+ * `lib/booking-refund.ts` and `lib/quote-refund.ts` (`lib/refund-ledger.ts`).
+ *
+ * Exactly one of `booking_id` and `quote_payment_id` is set. A refund made
+ * before this table existed has no row: "Para faturar" shows it once, from the
+ * total on its payment row (`lib/invoicing.ts`).
+ */
+export const refunds = pgTable("refunds", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  bookingId: uuid("booking_id").references(() => bookings.id, { onDelete: "cascade" }),
+  quotePaymentId: uuid("quote_payment_id").references(() => quotePayments.id, {
+    onDelete: "cascade",
+  }),
+  /** What went back with this one refund, in cents. Always positive. */
+  amountCents: integer("amount_cents").notNull(),
+  currency: text("currency").notNull().default("eur"),
+  /**
+   * Stripe's `re_…` when known. Unique, so the admin refund and its webhook
+   * echo cannot write the same refund twice.
+   */
+  stripeRefundId: text("stripe_refund_id").unique(),
+  /** When the money went back: the date of the nota de crédito. */
+  refundedAt: timestamp("refunded_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("refunds_booking_idx").on(table.bookingId),
+  index("refunds_quote_payment_idx").on(table.quotePaymentId),
+  index("refunds_refunded_at_idx").on(table.refundedAt),
+]);
+
+export type Refund = typeof refunds.$inferSelect;
+export type NewRefund = typeof refunds.$inferInsert;
+
+/**
+ * "Fatura emitida": the mark that a payment or a refund has its document
+ * (JAM-528). Faturas are issued by hand at go-live (`.icm/docs/go-live-legal.md`),
+ * so the platform does not know the document. The person who issued it types
+ * its number here, and the line leaves the "Em atraso" list.
+ *
+ * `entry_key` names the line of "Para faturar" (`lib/invoicing.ts`):
+ * `booking:<id>`, `quote-payment:<id>`, `refund:<id>`, or
+ * `legacy-refund:<booking|quote-payment>:<id>` for a refund from before the
+ * `refunds` table. A text key, not foreign keys: one mark table for four kinds
+ * of line, and a mark outlives nothing that it points to.
+ */
+export const invoiceMarks = pgTable("invoice_marks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entryKey: text("entry_key").notNull().unique(),
+  /** The number of the fatura, fatura-recibo or nota de crédito, as typed. */
+  documentNumber: text("document_number").notNull(),
+  markedByUserId: uuid("marked_by_user_id").references(() => adminUsers.id, {
+    onDelete: "set null",
+  }),
+  markedAt: timestamp("marked_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type InvoiceMark = typeof invoiceMarks.$inferSelect;
+
 // ---------------------------------------------------------------------------
 // Internal feature requests
 // ---------------------------------------------------------------------------
