@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-501/agorasim-the-stripe-webhook-accepts-the-platforms-events-and-the
 - branch: contact/jam-501-agorasim-the-stripe-webhook-accepts-the
 - lane: tweak
-- pr: pending
+- pr: #291
 - started: 2026-11-24
