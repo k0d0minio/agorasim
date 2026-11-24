@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { scenes } from "@/content/brand";
+import { scenes, spot } from "@/content/brand";
 
 /**
  * "The photos sell" (`.icm/docs/brand.md`), held in CI and not only in a
@@ -64,4 +64,22 @@ describe("brand scenes", () => {
       expect(scene.alt.en.trim()).not.toBe("");
     });
   }
+});
+
+describe("brand spot", () => {
+  it("a file under 100 KB, 480 px wide for 240 px at 2×, with alt text in pt and en", () => {
+    const bytes = statSync(join(publicDir, spot.src.replace(/^\//, ""))).size;
+    expect(bytes).toBeLessThan(100 * 1024);
+    expect(spot.width).toBe(480);
+    expect(spot.alt.pt.trim()).not.toBe("");
+    expect(spot.alt.en.trim()).not.toBe("");
+  });
+
+  it("the email hills band is a 1200 × 120 PNG", () => {
+    const file = readFileSync(join(publicDir, "images/brand/email-header-hills.png"));
+    // The PNG signature, then the IHDR width and height as big-endian integers.
+    expect(file.subarray(1, 4).toString("ascii")).toBe("PNG");
+    expect(file.readUInt32BE(16)).toBe(1200);
+    expect(file.readUInt32BE(20)).toBe(120);
+  });
 });

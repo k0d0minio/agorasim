@@ -90,6 +90,15 @@ const BODY_FONT =
  */
 const logoUrl = () => `${siteUrl()}/images/logo.png`;
 
+/**
+ * The hills band across the top of the card: the day scene of the brand, 1200 ×
+ * 120 for a 2× screen, shown at 598 × 60 (the card's 600 less its border). A
+ * PNG, because Outlook shows no WebP. Absolute for the same reason as the logo.
+ * It has `alt=""`: it is decoration, and with images blocked the mail reads the
+ * same without it.
+ */
+const hillsUrl = () => `${siteUrl()}/images/brand/email-header-hills.png`;
+
 /** Text → HTML. Applied to every interpolated value, without exception. */
 export function escapeHtml(value: string): string {
   return value
@@ -274,7 +283,7 @@ export function emailSpacer(height: number): string {
 }
 
 /**
- * The shell: logo, card, footer.
+ * The shell: logo, card with the hills band on top, footer.
  *
  * @param lang  The `lang` attribute — screen readers and Gmail's translate
  *              prompt both use it, so a Portuguese confirmation must not claim
@@ -282,7 +291,7 @@ export function emailSpacer(height: number): string {
  * @param preheader The grey line a phone shows next to the subject. Hidden in
  *              the body itself; without it clients quote the first visible
  *              words, which would be the logo's alt text.
- * @param banner Optional coloured strip across the top of the card.
+ * @param banner Optional coloured strip across the top of the card, under the hills.
  * @param content Already-escaped HTML from the helpers above.
  * @param footer One `<p>` per entry. These are the only strings the shell does
  *              not escape for you — a footer line usually has a link in it —
@@ -299,7 +308,7 @@ export function emailDocument(options: {
   const bannerBackground = options.banner?.background ?? emailPalette.primary;
   const banner = options.banner
     ? `<tr>
-              <td bgcolor="${bannerBackground}" style="background-color:${bannerBackground};padding:14px 32px;font-family:${BODY_FONT};font-size:12px;line-height:18px;letter-spacing:0.14em;text-transform:uppercase;font-weight:700;color:${emailPalette.onPrimary};border-radius:14px 14px 0 0;">${escapeHtml(options.banner.text)}</td>
+              <td bgcolor="${bannerBackground}" style="background-color:${bannerBackground};padding:14px 32px;font-family:${BODY_FONT};font-size:12px;line-height:18px;letter-spacing:0.14em;text-transform:uppercase;font-weight:700;color:${emailPalette.onPrimary};">${escapeHtml(options.banner.text)}</td>
             </tr>`
     : "";
 
@@ -355,6 +364,11 @@ export function emailDocument(options: {
         <tr>
           <td>
             <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;border-collapse:separate;background-color:${emailPalette.card};border:1px solid ${emailPalette.border};border-radius:14px;">
+              <tr>
+                <td bgcolor="${emailPalette.surfaceMuted}" style="padding:0;font-size:0;line-height:0;background-color:${emailPalette.surfaceMuted};border-radius:14px 14px 0 0;overflow:hidden;">
+                  <img src="${hillsUrl()}" width="598" height="60" alt="" style="display:block;width:100%;max-width:598px;height:auto;border-radius:14px 14px 0 0;" />
+                </td>
+              </tr>
               ${banner}
               <tr>
                 <td class="pad" style="padding:28px 32px 32px;">${options.content}</td>

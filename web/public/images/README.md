@@ -15,7 +15,7 @@ photos without a lookup table.
 | `weddings/` | `/casamentos` | 18 |
 | `testimonials/` | guest testimonial portraits, named after the guests | 3 |
 | `wedding-awards/` | casamentos.pt award badges, one per year | 5 |
-| `brand/` | the three brand illustrations, their palette reference and the source files | 3 + 3 + 2 |
+| `brand/` | the three brand illustrations, the spot, the email band, their palette reference and the source files | 3 + 3 + 2 + 2 |
 
 Naming rule: lowercase kebab-case, describing **what is in the frame**, not the camera's
 filename. Vehicle shots lead with the car (`citroen-2cv-…`, `renault-4-…`, `fiat-600-…`,
@@ -160,6 +160,8 @@ is in `web/src/content/brand.ts`; the scene component is `web/src/components/bra
 | `portrait/scene-day-hills.webp` | the same scene, full portrait frame, for mobile and tall sections | 1091×1923 |
 | `portrait/scene-night-van.webp` | the same scene, full portrait frame | 1091×1923 |
 | `portrait/scene-sunset-2cv.webp` | the same scene, full portrait frame | 1091×1923 |
+| `spot-van-dog.webp` | the van and the dog of the night scene, cut out on a transparent background; the 404 and the booking confirmation (`components/brand/spot.tsx`) | 480×365 |
+| `email-header-hills.png` | the day hills, the sky turned to the page colour, as a band across the top of each email (`lib/email-layout.ts`); a PNG because Outlook shows no WebP | 1200×120 |
 | `reference/scene-triptych-overview.jpg` | the three scenes side by side, as the client sent them | 1665×945 |
 | `reference/palette-swatches-client-picks.jpg` | the six palette colours with their roles; green marks are the client's picks | 1170×1325 |
 | `source/` | the originals: two 1091×1923 PNGs and the 6546×11538 master of the 2CV scene (71 MB). Not in git (see `.gitignore`); make a new web version from here | — |

@@ -54,3 +54,19 @@ export const scenes: Record<SceneName, BrandScene> = {
     focal: "50% 50%",
   },
 };
+
+/**
+ * The small drawing of the brand: the van and the dog of the night scene, cut
+ * out on a transparent background. It goes where a page has nothing to sell
+ * and a moment to fill: the 404 and the booking confirmation. Shown at 240 px
+ * at most, so the file is 480 px wide for a 2× screen.
+ */
+export const spot = {
+  src: "/images/brand/spot-van-dog.webp",
+  width: 480,
+  height: 365,
+  alt: {
+    pt: "Ilustração de uma carrinha Volkswagen T3 verde com um cão no tejadilho",
+    en: "Illustration of a green Volkswagen T3 van with a dog on its roof",
+  } as Localized,
+} as const;

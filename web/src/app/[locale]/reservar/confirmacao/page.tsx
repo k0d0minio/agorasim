@@ -14,6 +14,7 @@ import { listCatalogue } from "@/lib/experience-catalogue";
 import { formatPrice } from "@/lib/money";
 import { href } from "@/lib/routes";
 import { isStripeConfigured, onOwningAccount, stripe } from "@/lib/stripe";
+import { Spot } from "@/components/brand/spot";
 import { Section } from "@/components/section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -58,35 +59,40 @@ export default async function BookingConfirmationPage({
   const state = sessionId ? await resolve(sessionId, l) : { kind: "unknown" as const };
 
   return (
-    <Section>
+    // A shorter top on a phone: the drawing, the heading and the booking details
+    // must all fit in the first screen at 375 × 667.
+    <Section className="pt-8 sm:pt-20">
       <div className="mx-auto max-w-xl">
         {state.kind === "confirmed" ? (
-          <Panel
-            tone="good"
-            icon={<CheckCircle2 className="size-5" />}
-            title={t(c.title, l)}
-            lead={t(c.lead, l)}
-          >
-            <dl className="mt-6 space-y-2 border-t pt-4 text-sm">
-              <Row label={t(c.reference, l)} value={state.ref} />
-              <Row label={t(bookingContent.labels.experience, l)} value={state.experience} />
-              <Row label={t(bookingEmails.guest.labels.date, l)} value={state.date} />
-              <Row label={t(bookingEmails.guest.labels.departure, l)} value={state.departure} />
-              {state.meetingPoint ? (
+          <>
+            <Spot className="mb-4 w-28 sm:w-48" />
+            <Panel
+              tone="good"
+              icon={<CheckCircle2 className="size-5" />}
+              title={t(c.title, l)}
+              lead={t(c.lead, l)}
+            >
+              <dl className="mt-6 space-y-2 border-t pt-4 text-sm">
+                <Row label={t(c.reference, l)} value={state.ref} />
+                <Row label={t(bookingContent.labels.experience, l)} value={state.experience} />
+                <Row label={t(bookingEmails.guest.labels.date, l)} value={state.date} />
+                <Row label={t(bookingEmails.guest.labels.departure, l)} value={state.departure} />
+                {state.meetingPoint ? (
+                  <Row
+                    label={t(bookingEmails.guest.labels.meetingPoint, l)}
+                    value={state.meetingPoint.address}
+                    href={state.meetingPoint.mapsUrl}
+                  />
+                ) : null}
                 <Row
-                  label={t(bookingEmails.guest.labels.meetingPoint, l)}
-                  value={state.meetingPoint.address}
-                  href={state.meetingPoint.mapsUrl}
+                  label={t(bookingEmails.guest.labels.party, l)}
+                  value={String(state.partySize)}
                 />
-              ) : null}
-              <Row
-                label={t(bookingEmails.guest.labels.party, l)}
-                value={String(state.partySize)}
-              />
-              <Row label={t(bookingContent.labels.total, l)} value={state.total} />
-            </dl>
-            <p className="mt-4 text-sm text-muted-foreground">{t(c.emailNote, l)}</p>
-          </Panel>
+                <Row label={t(bookingContent.labels.total, l)} value={state.total} />
+              </dl>
+              <p className="mt-4 text-sm text-muted-foreground">{t(c.emailNote, l)}</p>
+            </Panel>
+          </>
         ) : state.kind === "pending" ? (
           <Panel
             tone="wait"
