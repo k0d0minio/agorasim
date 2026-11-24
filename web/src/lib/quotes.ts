@@ -845,8 +845,10 @@ export type NewQuoteInput = {
   termsWindowDays?: number;
   currency?: string;
   /**
-   * What a tour quote holds once paid: the departure and the car class. Set
-   * on a tour quote and only there; null or absent for a wedding or event.
+   * What a tour quote holds once paid: the departure, and the one car when the
+   * team picked it (`null` car: the whole departure). Set on a tour quote and
+   * only there, and it is what makes the row a tour quote (`quotes.kind`);
+   * null or absent for a wedding or event.
    */
   hold?: TourHold | null;
 };
@@ -987,6 +989,7 @@ export async function createQuote(input: NewQuoteInput): Promise<QuoteWithPaymen
         currency,
         depositPercent,
         termsWindowDays: input.termsWindowDays ?? DEFAULT_TERMS_WINDOW_DAYS,
+        kind: input.hold ? "tour" : "event",
         holdSlot: input.hold?.slot ?? null,
         holdVehicleClass: input.hold?.vehicleClass ?? null,
       })
@@ -1059,8 +1062,8 @@ export async function updateQuoteDraft(
   if (patch.hold !== undefined && (patch.hold === null) !== (existingHold === null)) {
     throw new QuoteError(
       existingHold
-        ? "updateQuoteDraft: a tour quote needs its departure and car"
-        : "updateQuoteDraft: a wedding or event quote holds no car",
+        ? "updateQuoteDraft: a tour quote needs its departure"
+        : "updateQuoteDraft: a wedding or event quote holds no departure",
     );
   }
 
@@ -1392,6 +1395,30 @@ export async function copyQuoteAsDraft(
     currency: source.currency,
     hold: tourHoldOf(source),
   });
+}
+
+/**
+ * Write the one car a paid tour quote holds, or `null` for its whole departure
+ * (JAM-294). The departure does not change.
+ *
+ * Paid quotes only: a draft or a sent quote holds nothing, and a cancelled one
+ * no longer holds. The status guard is in the WHERE clause, so a quote that
+ * was cancelled from the other phone is not written. `kind` is written too: a
+ * row that the previous deployment wrote has a car and no marker, and it must
+ * stay a tour quote when its car goes. `null` when no row was written.
+ */
+export async function setQuoteHoldCar(
+  id: string,
+  vehicleClass: TourHold["vehicleClass"],
+  now: Date = new Date(),
+): Promise<Quote | null> {
+  const [quote] = await db
+    .update(quotes)
+    .set({ holdVehicleClass: vehicleClass, kind: "tour", updatedAt: now })
+    .where(and(eq(quotes.id, id), inArray(quotes.status, ["deposit_paid", "paid"])))
+    .returning();
+
+  return quote ?? null;
 }
 
 /** Call a quote off. Terminal, and legal from any state but itself. */

@@ -1168,3 +1168,105 @@ describe("the open group in the VW T3", () => {
     }
   });
 });
+
+/**
+ * JAM-294: a paid tour quote without a car holds its whole departure, and only
+ * that departure. The occupancy carries the hold in `tourHolds`
+ * (`applyDepartureHolds` in `lib/event-holds.ts`).
+ */
+describe("a departure held by a paid tour quote", () => {
+  const today = "2026-08-10";
+  const QUOTE = "cccccccc-3333-4333-8333-333333333333";
+
+  function heldByTour(...classes: VehicleClass[]): SlotOccupancy {
+    return { ...committed(...classes), tourHolds: [QUOTE] };
+  }
+
+  it("is closed to every party, though the row is open and every car is free", () => {
+    const slot = describeSlot({
+      date: "2026-08-15",
+      slot: "morning",
+      row: row(),
+      occupancy: heldByTour(),
+      today,
+    });
+
+    expect(slot).toMatchObject({
+      onSale: true,
+      heldByTour: true,
+      heldByEvent: false,
+      hasRoom: false,
+      bookable: false,
+      driversLeft: 0,
+      vehiclesLeft: noVehicles(),
+    });
+    expect(fitsParty(slot, CLASSIC_TOUR, 2)).toEqual({ ok: false, reason: "unavailable" });
+    expect(fitsParty(slot, CLASSIC_TOUR, 2, "public")).toEqual({
+      ok: false,
+      reason: "unavailable",
+    });
+  });
+
+  it("is closed to the team too, and keeps counting the tours already sold on it", () => {
+    const slot = describeSlot({
+      date: "2026-08-15",
+      slot: "morning",
+      row: row(),
+      occupancy: heldByTour("classic-small"),
+      today,
+      audience: "team",
+    });
+
+    expect(slot.bookable).toBe(false);
+    expect(slot.driversUsed).toBe(1);
+    expect(slot.vehiclesUsed["classic-small"]).toBe(1);
+  });
+
+  it("leaves the other departure of the day on sale", () => {
+    const month = describeMonth({
+      month: "2026-08",
+      rows: [row({ slot: "morning" }), row({ slot: "afternoon", id: "x" })],
+      occupancy: new Map([[occupancySlotKey("2026-08-15", "morning"), heldByTour()]]),
+      today,
+    });
+    const day = month.find((entry) => entry.date === "2026-08-15")!;
+    const morning = day.slots.find((slot) => slot.slot === "morning")!;
+    const afternoon = day.slots.find((slot) => slot.slot === "afternoon")!;
+
+    expect(morning.bookable).toBe(false);
+    expect(afternoon).toMatchObject({ bookable: true, heldByTour: false });
+    expect(fitsParty(afternoon, CLASSIC_TOUR, 2).ok).toBe(true);
+  });
+
+  it("tells a guest only that the departure is not available", () => {
+    const day = {
+      date: "2026-08-15",
+      slots: TOUR_SLOTS.map((slot) =>
+        describeSlot({
+          date: "2026-08-15",
+          slot,
+          row: row({ slot }),
+          occupancy: slot === "morning" ? heldByTour() : undefined,
+          today,
+        }),
+      ),
+    };
+    const publicDay = toPublicDay(day);
+
+    expect(publicDay.bookable).toBe(true);
+    expect(publicDay.slots.find((slot) => slot.slot === "morning")?.driversLeft).toBe(0);
+    expect(JSON.stringify(publicDay)).not.toMatch(/heldByTour|tourHolds/);
+  });
+
+  it("is on sale again when the quote no longer holds the departure", () => {
+    const slot = describeSlot({
+      date: "2026-08-15",
+      slot: "morning",
+      row: row(),
+      occupancy: { ...committed(), tourHolds: [] },
+      today,
+    });
+
+    expect(slot).toMatchObject({ heldByTour: false, bookable: true });
+  });
+});

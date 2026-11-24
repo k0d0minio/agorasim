@@ -286,8 +286,8 @@ async function checkoutFor(
     // Expired, failed, or unknown to Stripe: mint a new one below.
   }
 
-  // A tour quote holds its car only once paid, so the departure may have
-  // filled since the quote went out. No session for a car that is gone.
+  // A tour quote holds its departure only once paid, so the departure may
+  // have filled since the quote went out. No session for a car that is gone.
   const hold = tourHoldOf(quote);
   if (hold) {
     const car = await checkTourHold({ date: quote.eventDate, hold, now: context.now });
@@ -661,7 +661,7 @@ export async function reconcileQuoteReturn(
 async function readQuoteSettlement(
   paymentIntentId: string | null,
   payment: Pick<QuotePayment, "amountCents">,
-  quote: Pick<Quote, "id" | "holdSlot" | "holdVehicleClass">,
+  quote: Pick<Quote, "id" | "kind" | "holdSlot" | "holdVehicleClass">,
 ): Promise<PaymentSettlement> {
   const quoteId = quote.id;
   if (!paymentIntentId || !isStripeConfigured()) return {};

@@ -304,6 +304,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "quote.superseded": "substituiu um orçamento por uma nova versão",
   "quote.payment_refunded": "reembolsou um pagamento de um orçamento",
   "quote.cancelled": "cancelou um evento",
+  "quote.hold_changed": "mudou o que um orçamento de passeio retém",
   "blog_post.updated": "editou um artigo do blog",
   "blog_post.published": "publicou um artigo no blog",
   "blog_post.unpublished": "retirou um artigo do blog",

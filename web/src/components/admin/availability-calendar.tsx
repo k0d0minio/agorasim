@@ -152,9 +152,10 @@ export type CalendarEvent = {
   name: string | null;
   venue: string | null;
   /**
-   * A paid tour quote's departure and car in words ("Manhã (10:00) · …"), or
-   * absent for a wedding or event. A tour quote holds one car, not the day,
-   * so it is counted in the departure's cars and never marks a conflict.
+   * A paid tour quote's departure and what it holds there, in words ("Manhã
+   * (10:00) · Partida inteira"), or absent for a wedding or event. A tour
+   * quote holds its departure or one car, not the day, and never marks a
+   * conflict: the bookings on its departure keep their car.
    */
   hold?: string;
 };
@@ -311,6 +312,7 @@ function driverWords(slot: SlotAvailability): string {
 function slotSentence(slot: SlotAvailability): string {
   const short = SLOT_SHORT[slot.slot] ?? slot.slot;
   if (slot.heldByEvent) return `${short} ocupada por um evento`;
+  if (slot.heldByTour) return `${short} ocupada por um passeio privado`;
   if (slot.blocked) return `${short} bloqueada`;
   // An open car can still sell a seat with every driver out: say both facts.
   const seats = slot.heldByEvent ? null : openSeatsLeft(slot);

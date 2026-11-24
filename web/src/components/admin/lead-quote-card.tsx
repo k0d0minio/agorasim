@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { Copy, Pencil, Plus, RotateCw, Send, Trash2, X } from "lucide-react";
+import { Check, Copy, Pencil, Plus, RotateCw, Send, Trash2, Undo2, X } from "lucide-react";
 
 import {
   createScratchQuote,
@@ -13,6 +13,7 @@ import {
   saveQuoteDraft,
   sendBalanceRequest,
   sendLeadQuote,
+  setTourQuoteCar,
   type QuoteActionState,
 } from "@/app/admin/sales/actions";
 import {
@@ -28,6 +29,7 @@ import {
   TOUR_HOLD_SLOTS,
   TOUR_QUOTE_DEPOSIT_PERCENT,
   VEHICLE_CLASS_LABELS,
+  WHOLE_DEPARTURE_LABEL,
   type TourHoldSlot,
 } from "@/lib/tour-quote";
 import { formatPrice, parseAmountInput, priceInputValue } from "@/lib/money";
@@ -72,9 +74,15 @@ export type QuoteCardItem = {
   venue: string | null;
   /**
    * A tour quote's departure and car (`lib/tour-quote.ts`), or `null` for a
-   * wedding or event. A tour quote is one payment and holds one car once paid.
+   * wedding or event. A tour quote is one payment. Once paid it holds its
+   * whole departure (`vehicleClass: null`), or the one car the team picked.
    */
-  hold: { slot: TourHoldSlot; vehicleClass: VehicleClass } | null;
+  hold: { slot: TourHoldSlot; vehicleClass: VehicleClass | null } | null;
+  /**
+   * Whether the team may change what the quote holds: a paid tour quote, not
+   * cancelled, with a departure that is today or later (`tourCarVerdict`).
+   */
+  canChangeCar: boolean;
   lineItems: QuoteLine[];
   totalCents: number;
   currency: string;
@@ -153,7 +161,7 @@ export function LeadQuoteCard({
   prefill: { eventDate: string; venue: string };
   canStart: boolean;
   quotes: QuoteCardItem[];
-  /** A tour lead from "Novo orçamento": its quotes hold a car and take one payment. */
+  /** A tour lead from "Novo orçamento": its quotes hold a departure and take one payment. */
   tourLead?: boolean;
 }) {
   // The number of quotes when "Criar orçamento" was pressed. A saved draft
@@ -286,7 +294,10 @@ function QuoteEntry({
           <div>
             <dt className="text-muted-foreground">Partida e carro</dt>
             <dd>
-              {TOUR_HOLD_SLOT_LABELS[quote.hold.slot]} · {VEHICLE_CLASS_LABELS[quote.hold.vehicleClass]}
+              {TOUR_HOLD_SLOT_LABELS[quote.hold.slot]} ·{" "}
+              {quote.hold.vehicleClass
+                ? VEHICLE_CLASS_LABELS[quote.hold.vehicleClass]
+                : WHOLE_DEPARTURE_LABEL}
             </dd>
           </div>
         ) : null}
@@ -372,6 +383,10 @@ function QuoteEntry({
         })}
       </ul>
 
+      {quote.hold && quote.canChangeCar ? (
+        <TourCarControl quote={quote} hold={quote.hold} onNotice={onNotice} />
+      ) : null}
+
       {quote.status === "deposit_paid" && quote.balanceRequest ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted-foreground" role="status">
@@ -450,7 +465,7 @@ function QuoteEntry({
             fields={{ quoteId: quote.id }}
             trigger={{ label: "Enviar orçamento", icon: <Send className="size-4" /> }}
             title={`Enviar o orçamento ${quote.ref}?`}
-            description={`O cliente recebe por email, em ${guestEmail}, o orçamento de ${money(quote.totalCents)} com o link para a página onde ${quote.hold ? "paga o passeio. O carro só fica reservado com o pagamento" : "paga o sinal"}. Depois de enviado já não pode ser editado — só substituído por uma nova versão.${
+            description={`O cliente recebe por email, em ${guestEmail}, o orçamento de ${money(quote.totalCents)} com o link para a página onde ${quote.hold ? "paga o passeio. A partida só fica reservada com o pagamento" : "paga o sinal"}. Depois de enviado já não pode ser editado — só substituído por uma nova versão.${
               quote.bookingClash
                 ? ` Atenção: já há ${clashWords(quote.bookingClash)}; o sinal pago fecha o dia a novos passeios, mas não cancela estas.`
                 : ""
@@ -495,6 +510,85 @@ function QuoteEntry({
           ) : null}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * What a paid tour quote holds, and the button that changes it (JAM-294).
+ *
+ * A quote that holds its whole departure offers "Escolher carro": the group
+ * uses one car, and the remainder of the departure is on sale again. A quote
+ * that holds one car offers "Reter a partida inteira", which undoes it.
+ */
+function TourCarControl({
+  quote,
+  hold,
+  onNotice,
+}: {
+  quote: QuoteCardItem;
+  hold: NonNullable<QuoteCardItem["hold"]>;
+  onNotice: (message: string) => void;
+}) {
+  const [vehicleClass, setVehicleClass] = useState<VehicleClass>(VEHICLE_CLASSES[0]);
+  const departure = TOUR_HOLD_SLOT_LABELS[hold.slot];
+
+  if (hold.vehicleClass) {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border p-3">
+        <p className="text-sm text-muted-foreground">
+          Este orçamento retém um condutor e um carro. O resto da partida está à venda.
+        </p>
+        <div>
+          <ConfirmedQuoteAction
+            action={setTourQuoteCar}
+            onNotice={onNotice}
+            fields={{ quoteId: quote.id, vehicleClass: "" }}
+            trigger={{
+              label: "Reter a partida inteira",
+              icon: <Undo2 className="size-4" />,
+              variant: "outline",
+            }}
+            title={`Reter a partida inteira no orçamento ${quote.ref}?`}
+            description={`O orçamento volta a reter a partida inteira (${departure}, ${quote.eventDateLabel}): todos os condutores e carros que estão livres. A partida deixa de estar à venda. As reservas já feitas nessa partida mantêm-se.`}
+            confirm={{ label: "Reter a partida", pending: "A guardar…" }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border p-3">
+      <p className="text-sm text-muted-foreground">
+        Este orçamento retém a partida inteira. Se o grupo usa um só carro, escolha-o: o resto da
+        partida volta a estar à venda.
+      </p>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`${quote.id}-group-car`}>Carro do grupo</Label>
+        <Select
+          id={`${quote.id}-group-car`}
+          value={vehicleClass}
+          onChange={(event) => setVehicleClass(event.target.value as VehicleClass)}
+        >
+          {VEHICLE_CLASSES.map((option) => (
+            <option key={option} value={option}>
+              {VEHICLE_CLASS_LABELS[option]}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div>
+        <ConfirmedQuoteAction
+          action={setTourQuoteCar}
+          onNotice={onNotice}
+          fields={{ quoteId: quote.id, vehicleClass }}
+          trigger={{ label: "Escolher carro", icon: <Check className="size-4" />, variant: "outline" }}
+          title={`Escolher o carro do orçamento ${quote.ref}?`}
+          description={`O grupo usa: ${VEHICLE_CLASS_LABELS[vehicleClass]}. O orçamento passa a reter um condutor e esse carro (${departure}, ${quote.eventDateLabel}), e o resto da partida volta a estar à venda.`}
+          confirm={{ label: "Escolher", pending: "A guardar…" }}
+        />
+      </div>
     </div>
   );
 }
@@ -602,11 +696,11 @@ type LineDraft = { label: string; quantity: string; unit: string };
 
 const EMPTY_LINE: LineDraft = { label: "", quantity: "1", unit: "" };
 
-/** A tour quote's departure and car, as the form holds them. */
-type HoldDraft = { slot: TourHoldSlot; vehicleClass: VehicleClass };
+/** A tour quote's departure, as the form holds it. The form asks no car (JAM-294). */
+type HoldDraft = { slot: TourHoldSlot };
 
-/** What a new tour quote's form starts on: the morning, a small classic. */
-const DEFAULT_HOLD: HoldDraft = { slot: "morning", vehicleClass: "classic-small" };
+/** What a new tour quote's form starts on: the morning. */
+const DEFAULT_HOLD: HoldDraft = { slot: "morning" };
 
 /** "2026-08-01" → "1 de agosto de 2026", for the live preview. */
 function dayLabel(key: string): string {
@@ -628,8 +722,8 @@ function dayLabel(key: string): string {
  * not parse yet simply does not count towards the preview; the server says
  * which line is wrong when she saves.
  *
- * A tour quote (`lib/tour-quote.ts`) asks its departure and car instead of the
- * deposit share: it is one payment, and it holds one car once paid.
+ * A tour quote (`lib/tour-quote.ts`) asks its departure instead of the deposit
+ * share: it is one payment, and it holds its whole departure once paid.
  */
 function QuoteForm({
   mode,
@@ -642,7 +736,7 @@ function QuoteForm({
     venue: string;
     depositPercent: string;
     lines: LineDraft[];
-    /** A tour quote's departure and car; `null` for a wedding or event. */
+    /** A tour quote's departure; `null` for a wedding or event. */
     hold: HoldDraft | null;
   };
   /** "Voltar". A successful save closes the form through the refresh instead. */
@@ -787,9 +881,7 @@ function QuoteForm({
               id={`${id}-slot`}
               name="holdSlot"
               value={hold.slot}
-              onChange={(event) =>
-                setHold((current) => ({ ...current, slot: event.target.value as TourHoldSlot }))
-              }
+              onChange={(event) => setHold({ slot: event.target.value as TourHoldSlot })}
             >
               {TOUR_HOLD_SLOTS.map((slot) => (
                 <option key={slot} value={slot}>
@@ -798,28 +890,9 @@ function QuoteForm({
               ))}
             </Select>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${id}-car`}>Carro</Label>
-            <Select
-              id={`${id}-car`}
-              name="holdVehicleClass"
-              value={hold.vehicleClass}
-              onChange={(event) =>
-                setHold((current) => ({
-                  ...current,
-                  vehicleClass: event.target.value as VehicleClass,
-                }))
-              }
-            >
-              {VEHICLE_CLASSES.map((vehicleClass) => (
-                <option key={vehicleClass} value={vehicleClass}>
-                  {VEHICLE_CLASS_LABELS[vehicleClass]}
-                </option>
-              ))}
-            </Select>
-          </div>
           <p className="text-xs text-muted-foreground sm:col-span-2">
-            Pago de uma vez. O carro só fica reservado quando o cliente paga.
+            Pago de uma vez. A partida só fica reservada quando o cliente paga, e fica inteira
+            para este grupo.
           </p>
         </div>
       ) : null}

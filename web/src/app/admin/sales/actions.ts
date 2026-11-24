@@ -24,6 +24,7 @@ import {
   refundQuotePaymentSchema,
   resendQuoteSchema,
   scratchQuoteSchema,
+  tourQuoteCarSchema,
 } from "@/lib/form-schemas";
 import { formatPrice } from "@/lib/money";
 import {
@@ -45,6 +46,7 @@ import {
   type SendOutcome,
 } from "@/lib/quote-builder";
 import { cancelHeldQuote, refundQuotePayment } from "@/lib/quote-refund";
+import { changeTourQuoteCar } from "@/lib/tour-quote-hold";
 
 /**
  * Writes to a booking from the Sales board.
@@ -491,18 +493,18 @@ function draftMessage(outcome: DraftOutcome, saved: string): QuoteActionState {
 function invalidDraftMessage(problems: string[]): string {
   if (problems.includes("zero-total")) return "O total do orçamento tem de ser maior que zero.";
   if (problems.includes("no-lines")) return "Acrescente pelo menos uma linha ao orçamento.";
-  if (problems.includes("no-hold")) return "Escolha a partida e o carro do passeio.";
+  if (problems.includes("no-hold")) return "Escolha a partida do passeio.";
   if (problems.includes("too-small")) {
     return "Um passeio pago por link precisa de um total de pelo menos 0,50 €.";
   }
   return "O orçamento tem dados inválidos. Reveja as linhas e a data.";
 }
 
-/** A tour quote's departure with no car of its class left, or a count that failed. */
+/** A tour quote's departure with no driver or no car left, or a count that failed. */
 function noCarMessage(reason: "unavailable" | "unreadable"): string {
   return reason === "unreadable"
     ? "Não foi possível confirmar a disponibilidade — tente novamente."
-    : "Essa partida já não tem condutor ou carro dessa classe livre. Escolha outra partida, outro carro ou outra data.";
+    : "Essa partida já não tem condutor ou carro livre. Escolha outra partida ou outra data.";
 }
 
 /**
@@ -549,6 +551,55 @@ export async function saveQuoteDraft(
     : await createDraftForLead({ leadId: leadId!, input, actorUserId: actor.id });
 
   return draftMessage(outcome, quoteId ? "Rascunho guardado." : "Rascunho criado.");
+}
+
+/**
+ * The two buttons on a paid tour quote (JAM-294): "Escolher carro" — the group
+ * uses one car, and the remainder of the departure is on sale again — and
+ * "Reter a partida inteira", which undoes it (`changeTourQuoteCar`).
+ *
+ * Busts the public site as the two that call off an event do: its calendar is
+ * cached, and the seats of the departure changed.
+ */
+export async function setTourQuoteCar(
+  _prevState: QuoteActionState,
+  formData: FormData,
+): Promise<QuoteActionState> {
+  const actor = await requireAdmin();
+
+  const parsed = tourQuoteCarSchema.safeParse(formValues(formData));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Pedido inválido." };
+  }
+
+  const outcome = await changeTourQuoteCar({ ...parsed.data, actorUserId: actor.id });
+  switch (outcome.status) {
+    case "changed":
+      revalidatePath("/", "layout");
+      return {
+        ok: true,
+        message: parsed.data.vehicleClass
+          ? "Carro escolhido. O resto da partida voltou a estar à venda."
+          : "O orçamento retém outra vez a partida inteira.",
+      };
+    case "unchanged":
+      return { ok: true, message: "Nada mudou: o orçamento já estava assim." };
+    case "not-found":
+      return { error: "Esse orçamento já não existe." };
+    case "not-held":
+      return {
+        error: "Só um orçamento de passeio pago retém a sua partida. Recarregue a página.",
+      };
+    case "past":
+      return { error: "A partida deste orçamento já passou." };
+    case "no-car":
+      return {
+        error:
+          outcome.reason === "unreadable"
+            ? "Não foi possível confirmar a disponibilidade — tente novamente."
+            : "Essa partida já não tem condutor ou carro dessa classe livre. Escolha outro carro.",
+      };
+  }
 }
 
 /** "Descartar rascunho". */

@@ -31,6 +31,7 @@ import {
   type BookingStatus,
 } from "@/db";
 import {
+  applyDepartureHolds,
   applyEventHolds,
   eventHoldKeysBetween,
   tourHoldGroups,
@@ -114,6 +115,12 @@ export type SlotOccupancy = {
    * makes the departure unsellable, whatever the counts above say.
    */
   eventHolds?: string[];
+  /**
+   * The paid tour quotes that hold this whole departure, and only this one
+   * (`lib/event-holds.ts`, JAM-294). Absent or empty when none does; any entry
+   * makes the departure unsellable, as an event hold does.
+   */
+  tourHolds?: string[];
 };
 
 /** Nothing committed yet. A fresh object: callers add to it. */
@@ -175,7 +182,8 @@ function holdsCapacitySql(now: Date) {
 /**
  * Occupancy per (day, departure) between two dates, across every tour — and
  * every deposit-paid event, which takes its whole day, and every paid tour
- * quote, which takes one car (`lib/event-holds.ts`).
+ * quote, which takes its whole departure or the one car the team picked
+ * (`lib/event-holds.ts`).
  *
  * The map is what the calendars pass to `describeMonth` as `occupancy`, keyed
  * with `occupancySlotKey` from `lib/availability.ts`; a departure missing from
@@ -216,9 +224,13 @@ export async function countSlotOccupancy(options: {
     tourQuoteHoldsBetween({ from, to }),
   ]);
 
-  // A paid tour quote is one more private car on its departure, counted in the
-  // same tally as the bookings (`lib/tour-quote.ts`).
-  return applyEventHolds(tallyOccupancy([...rows, ...tourHoldGroups(tourHolds)]), holds);
+  // A paid tour quote with a car is one more private car on its departure,
+  // counted in the same tally as the bookings. One without a car holds its
+  // whole departure (`lib/tour-quote.ts`).
+  return applyDepartureHolds(
+    applyEventHolds(tallyOccupancy([...rows, ...tourHoldGroups(tourHolds)]), holds),
+    tourHolds,
+  );
 }
 
 /**

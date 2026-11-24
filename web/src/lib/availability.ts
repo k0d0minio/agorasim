@@ -399,7 +399,13 @@ export type SlotAvailability = {
    */
   heldByEvent: boolean;
   /**
-   * No event holds the day, and a driver and some car are free or an open car
+   * A paid tour quote holds this whole departure (`lib/tour-quote.ts`,
+   * JAM-294). Admin-only, as {@link SlotAvailability.heldByEvent} is: a guest
+   * is told the departure is unavailable, not why.
+   */
+  heldByTour: boolean;
+  /**
+   * No event holds the day, no tour quote holds the departure, and a driver and some car are free or an open car
    * has a seat — capacity alone, the same for both audiences. The admin's
    * "esgotada" reads this.
    */
@@ -452,10 +458,14 @@ export function describeSlot(options: {
   // drivers and the cars are at the event. Zeroed here rather than only in
   // `bookable`, so every sum over "what is left" agrees with the refusal.
   const heldByEvent = (occupancy.eventHolds?.length ?? 0) > 0;
+  // A paid tour quote holds this one departure whole, by the same reasoning:
+  // every driver and every car that is left is the quote's.
+  const heldByTour = (occupancy.tourHolds?.length ?? 0) > 0;
+  const held = heldByEvent || heldByTour;
   // `max(0, …)`: the roster can be cut below what is already out, and a
   // negative "drivers left" would render as an offer to un-sell a tour.
-  const driversLeft = heldByEvent ? 0 : Math.max(0, drivers - occupancy.drivers);
-  const vehiclesLeft = heldByEvent
+  const driversLeft = held ? 0 : Math.max(0, drivers - occupancy.drivers);
+  const vehiclesLeft = held
     ? noVehicles()
     : remainingVehicles(FLEET_SIZE, occupancy.vehicles);
   // A departure of today is gone once its time has passed, for the team as
@@ -472,7 +482,7 @@ export function describeSlot(options: {
       : !past && !blocked && date >= bounds.online.first && date <= bounds.online.last;
   const openCars = occupancy.openCars ?? [];
   const hasRoom =
-    !heldByEvent &&
+    !held &&
     ((driversLeft > 0 && anyVehicleFree(vehiclesLeft)) ||
       openCars.some((car) => freeSeats(car) > 0));
 
@@ -493,6 +503,7 @@ export function describeSlot(options: {
     weekend: isWeekend(date),
     onSale,
     heldByEvent,
+    heldByTour,
     hasRoom,
     bookable: onSale && hasRoom,
     note: row?.note ?? null,
@@ -538,7 +549,9 @@ export function fitsParty(
   // A held day is closed to every party, not "full": there is no car to wait for.
   // `onSale` already carries the audience — a blocked or too-soon departure is
   // off sale to a guest and on sale to the team.
-  if (!slot.onSale || slot.heldByEvent) return { ok: false, reason: "unavailable" };
+  if (!slot.onSale || slot.heldByEvent || slot.heldByTour) {
+    return { ok: false, reason: "unavailable" };
+  }
   if (mode === "public") {
     const car = joinableCar(slot.openCars, experienceSlug, partySize);
     if (car) return { ok: true, vehicleClass: car.vehicleClass, joins: car.id };
