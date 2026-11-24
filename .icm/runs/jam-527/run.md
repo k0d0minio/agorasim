@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-527/agorasim-the-guest-can-give-a-nif-for-the-fatura-at-booking-and-on-a
 - branch: contact/jam-527-agorasim-the-guest-can-give-a-nif-for-the
 - lane: spine
-- pr: pending
+- pr: #292
 - started: 2026-11-24
