@@ -5,5 +5,5 @@
 - link: https://linear.app/jamienisbet/issue/JAM-483/agorasim-one-illustrated-scene-frames-the-story-on-home-sobre-and
 - branch: contact/jam-483-agorasim-one-illustrated-scene-frames-the
 - lane: spine
-- pr: pending
+- pr: #284
 - started: 2026-11-24
