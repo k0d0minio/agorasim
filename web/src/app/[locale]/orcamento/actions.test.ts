@@ -143,6 +143,7 @@ describe("payQuote — paying on the quote page", () => {
 
   it("passes a valid NIF on, and refuses a wrong one before any session (JAM-527)", async () => {
     payable();
+    startQuoteCheckout.mockResolvedValue({ status: "paid" });
     const { payQuote } = await load();
 
     const good = tap();

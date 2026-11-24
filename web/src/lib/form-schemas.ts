@@ -95,14 +95,18 @@ const optionalText = z
  * the stored form when valid, refused when a Portuguese NIF has a wrong check
  * digit or a foreign number is too long (`lib/tax-id.ts`).
  */
-const optionalTaxId = z.unknown().transform((value, ctx) => {
-  const parsed = parseTaxId(value);
-  if (!parsed.ok) {
-    ctx.addIssue({ code: "custom", message: "Invalid tax number" });
-    return z.NEVER;
-  }
-  return parsed.value;
-});
+const optionalTaxId = z
+  .string()
+  // An absent field, or one that is not text, is an empty field.
+  .catch("")
+  .transform((value, ctx) => {
+    const parsed = parseTaxId(value);
+    if (!parsed.ok) {
+      ctx.addIssue({ code: "custom", message: "Invalid tax number" });
+      return z.NEVER;
+    }
+    return parsed.value;
+  });
 
 /**
  * A free-text column a form may address *or leave alone*.
