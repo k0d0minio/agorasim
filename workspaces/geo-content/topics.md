@@ -8,11 +8,11 @@ article. The source of the list is `.icm/docs/blog-loop.md` (JAM-475, 2026-11-23
 
 | # | Target query (EN) | Target query (PT) | Slug | Facts | State |
 |---|---|---|---|---|---|
-| 1 | what is the Saloia region in Portugal | o que é a região saloia | `o-que-e-a-regiao-saloia` | yes | brief |
-| 2 | classic car tour near Sintra | passeio de carro clássico perto de Sintra | `passeio-de-carro-classico-perto-de-sintra` | yes | brief |
+| 1 | what is the Saloia region in Portugal | o que é a região saloia | `o-que-e-a-regiao-saloia` | yes | handoff 2026-11-24 |
+| 2 | classic car tour near Sintra | passeio de carro clássico perto de Sintra | `passeio-de-carro-classico-perto-de-sintra` | yes | handoff 2026-11-24 |
 | 3 | what to do in Ericeira away from the crowds | o que fazer na Ericeira fora das multidões | `ericeira-longe-das-multidoes` | yes | brief |
 | 4 | traditional food and wine experience near Sintra and Mafra | comer e provar vinhos na região saloia | `sabores-saloios-a-mesa` | yes | brief |
-| 5 | Óbidos day trip from Lisbon with food and wine | visitar Óbidos a partir de Lisboa | `obidos-a-partir-de-lisboa` | yes, except the departure hour | brief |
+| 5 | Óbidos day trip from Lisbon with food and wine | visitar Óbidos a partir de Lisboa | `obidos-a-partir-de-lisboa` | yes, except the departure hour | handoff 2026-11-24 |
 | 6 | private classic car tour for a family with children near Lisbon | — | — | yes | queue |
 | 7 | the classic cars: Citroën 2CV, Renault 4L, Fiat 600, Volkswagen T3 | — | — | no: the story of each car (client) | queue |
 | 8 | wine tasting in Mafra (Manzwine) | — | — | partly: the history that the tasting tells (client) | queue |

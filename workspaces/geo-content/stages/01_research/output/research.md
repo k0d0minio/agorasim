@@ -11,7 +11,7 @@
 
 ## Gate — Jamie reviews before stage 02 runs
 
-- [ ] Research brief approved; stage 02 (draft) may run
+- [x] Research brief approved; stage 02 (draft) may run
 
 ---
 
@@ -65,15 +65,12 @@ No other fact of the brief was checked again in this run.
 **Target query**: *what is the Saloia region in Portugal* / *o que é a região saloia*
 
 **Primary answer** (2–3 sentences, from business-facts):
-The Saloia region is the farmed countryside north-west of Lisbon, between Sintra, Mafra and
-Ericeira. *Saloio* is what its people have long been called — the smallholders who supplied
-Lisbon with vegetables, bread and wine — and the name still describes the landscape: quintas,
-vineyards, stone-walled lanes and villages, half an hour from the coast and from the capital.
+The Saloia region is the countryside between Sintra, Mafra and Ericeira, north-west of Lisbon:
+natural monuments, vineyards and villages, out to the Atlantic coast at Ericeira. It is the
+quiet country beside the famous places.
 
 **Questions travellers ask** (FAQ candidates):
 - Where exactly is the Saloia region?
-- What does *Saloio* mean?
-- How far is it from Lisbon / from Sintra?
 - Is there anything to see there, or is it just countryside between the famous places?
 - When is the best time of year to go?
 
@@ -83,12 +80,18 @@ vineyards, stone-walled lanes and villages, half an hour from the coast and from
 | Geography named precisely, not vaguely | region = between Sintra, Mafra and Ericeira |
 | The three anchors most readers already know | National Palace of Mafra; Ericeira as the first World Surfing Reserve in Europe; Sintra |
 | Why it stays quiet | positioning: slow, crowd-free rural tourism; the tours avoid the usual routes |
-| Who is still working the land | vineyards and local producers — Manzwine (Mafra), Ramilo (Colares/Atlantic), Tasco Galapito |
+| Who is still working the land | vineyards and local producers — Manzwine (Mafra), Ramilo Wines (organic vineyard), Tasco Galapito |
 | How a visitor actually sees it | Rural Saloia, ~4h30, two departures a day (10:00 / 14:00) |
 
 **Adjacent info to address**: readers arrive from "Sintra day trip" searches and assume Sintra
 *is* the destination. The article should place Saloia beside Sintra rather than inside it, and
 say plainly that the palaces are not what this region is for.
+
+**Cut on 2026-11-24 (JAM-510, Q1, Jamie's answer: "cut the claims from the brief")**: the
+claims that are not in `business-facts.md`: that the saloios supplied Lisbon with vegetables,
+bread and wine, the meaning of *saloio*, "half an hour from the coast and from the capital",
+and "Ramilo on the Atlantic-facing slopes of Colares". The questions "What does *Saloio*
+mean?" and "How far is it from Lisbon / from Sintra?" went with them: no fact answers them.
 
 ---
 
@@ -167,7 +170,7 @@ offers surfing, which it does not.
 **Primary answer**:
 Eating in the Saloia region means a long table rather than a restaurant: Tasco Galapito serves a
 family-style meal of traditional Saloia cooking, and two local producers pour what the region
-grows — Manzwine in Mafra and Ramilo Wines on the Atlantic-facing slopes of Colares. All three
+grows — Manzwine in Mafra and Ramilo Wines, an organic vineyard. All three
 are add-ons to a private departure of Rural Saloia or of Óbidos & Medieval Villages, and are
 not sold on their own.
 
