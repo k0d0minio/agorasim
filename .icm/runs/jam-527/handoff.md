@@ -7,8 +7,8 @@ Jamie answers Q1 on the HUD (or takes the default), ticks Spec approved on PR #2
 
 ## How to test
 
-On the preview, open `/reservar`, book a tour with the NIF 123456780 and a second time with
-123456789. The first is accepted, the second is refused. Then open the sale in `/admin/sales`
+On the preview, open `/reservar`, book a tour with the NIF 123456789 and a second time with
+123456780. The first is accepted, the second is refused. Then open the sale in `/admin/sales`
 and see the NIF.
 
 ## Blockers
