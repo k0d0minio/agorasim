@@ -63,6 +63,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         videoSrc="/images/video.mp4"
         poster="/images/rural-saloia/guests-under-olive-tree-hero.webp"
         posterAlt={l === "pt" ? "Grupo a descobrir a região Saloia ao pôr do sol" : "Group discovering the Saloia region at sunset"}
+        edge="hills"
         cta={
           <>
             <BookingButton locale={l} label={dict.cta.book} />
@@ -76,8 +77,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         }
       />
 
-      {/* Classic cars strip */}
-      <div className="border-b border-border bg-secondary/40">
+      {/* Classic cars strip. It has the page background, so the front hill of
+          the hero edge becomes this strip. */}
+      <div className="border-b border-border">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-4 py-4 text-sm font-medium text-muted-foreground sm:px-6">
           {classicCars.map((car) => (
             <span key={car.id}>
@@ -98,7 +100,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       </Section>
 
       {/* Experiences */}
-      <Section muted className="scroll-mt-16" >
+      <Section muted edge="hills-both" className="scroll-mt-16">
         <div id="experiencias" className="scroll-mt-24" />
         <SectionHeading
           eyebrow={t(home.experiencesEyebrow, l)}

@@ -1,3 +1,4 @@
+import { Hills, SURFACE } from "@/components/brand/hills";
 import { cn } from "@/lib/utils";
 
 export function Container({
@@ -25,19 +26,62 @@ export function Container({
   );
 }
 
+/** The height of a hill edge between two sections. */
+const SECTION_EDGE_HEIGHT = "h-8 sm:h-14";
+
+/**
+ * `edge` draws the brand hills where this section meets its neighbours: at its
+ * top, at its bottom, or both. A section has one of two colours, the page
+ * background or the `muted` sand, and an edge joins one to the other. So a
+ * section with an edge must have a neighbour of the other colour on that side.
+ * Each edge is two hills: Warm sand behind, and in front the colour of the
+ * section below the edge. Without `edge` the section is as it always was.
+ */
 export function Section({
   children,
   className,
   muted = false,
+  edge,
 }: {
   children: React.ReactNode;
   className?: string;
   muted?: boolean;
+  edge?: "hills-top" | "hills-bottom" | "hills-both";
 }) {
+  if (!edge) {
+    return (
+      <section className={cn("py-16 sm:py-20", muted && "bg-secondary/30", className)}>
+        <Container>{children}</Container>
+      </section>
+    );
+  }
+
+  const own = muted ? SURFACE.muted : SURFACE.background;
+  const other = muted ? SURFACE.background : SURFACE.muted;
+  const sand = { color: "var(--brand-sand)" };
   return (
-    <section className={cn("py-16 sm:py-20", muted && "bg-secondary/30", className)}>
-      <Container>{children}</Container>
-    </section>
+    <>
+      {edge !== "hills-bottom" && (
+        <Hills
+          layers={[sand, { color: own }]}
+          className={SECTION_EDGE_HEIGHT}
+          style={{ backgroundColor: other }}
+        />
+      )}
+      {/* The opaque twin of `bg-secondary/30`, so the hill in front and the
+          section are one colour with no step between them. */}
+      <section className={cn("py-16 sm:py-20", className)} style={{ backgroundColor: own }}>
+        <Container>{children}</Container>
+      </section>
+      {edge !== "hills-top" && (
+        <Hills
+          mirror
+          layers={[sand, { color: other }]}
+          className={SECTION_EDGE_HEIGHT}
+          style={{ backgroundColor: own }}
+        />
+      )}
+    </>
   );
 }
 

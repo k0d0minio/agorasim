@@ -56,6 +56,7 @@
   --color-card: var(--card);
   --color-brand-teal: var(--brand-teal);
   --color-brand-sand: var(--brand-sand);
+  --color-brand-tan: var(--brand-tan);
   --color-brand-terracotta: var(--brand-terracotta);
   --color-brand-orange: var(--brand-orange);
   --color-brand-lavender: var(--brand-lavender);
@@ -118,6 +119,7 @@
      lavender are never text on a light background. */
   --brand-teal: oklch(0.381 0.055 204.1);
   --brand-sand: oklch(0.886 0.053 91.8);
+  --brand-tan: oklch(0.797 0.081 69.3); /* Tan #DFB484, the second hill of the day scene. Hill edges only */
   --brand-terracotta: oklch(0.430 0.083 24.1);
   --brand-orange: oklch(0.703 0.127 62.3);
   --brand-lavender: oklch(0.714 0.106 295.5);
