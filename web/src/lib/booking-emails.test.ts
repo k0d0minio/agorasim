@@ -109,6 +109,12 @@ describe("guestConfirmationEmail", () => {
     expect(en.html).toContain('lang="en"');
   });
 
+  it("carries the hills band of the brand as an absolute PNG, decorative", () => {
+    // Outlook shows no WebP, and a mail client has no origin to resolve against.
+    const { html } = guestConfirmationEmail(facts({ locale: "pt" }));
+    expect(html).toMatch(/<img src="https?:\/\/[^"]+\/images\/brand\/email-header-hills\.png"[^>]*alt=""/);
+  });
+
   it("omits the add-ons line entirely when there are none", () => {
     // Not an empty "Extras:" line — a confirmation with a blank field on it
     // reads like something went wrong with the booking.

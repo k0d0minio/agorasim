@@ -3,6 +3,7 @@ import { locales, t } from "@/i18n/config";
 import { systemContent } from "@/content/system";
 import { href } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
+import { Spot } from "@/components/brand/spot";
 
 /**
  * 404 for the public site — served when a page in this segment calls
@@ -19,7 +20,8 @@ export default function LocaleNotFound() {
   const c = systemContent.notFound;
 
   return (
-    <section className="mx-auto flex max-w-xl flex-col items-center gap-6 px-4 py-24 text-center">
+    <section className="mx-auto flex max-w-xl flex-col items-center gap-6 px-4 py-16 text-center sm:py-24">
+      <Spot className="w-48 sm:w-60" />
       <div className="space-y-2">
         <h1 className="font-heading text-2xl font-medium">
           {locales.map((locale) => t(c.title, locale)).join(" · ")}
