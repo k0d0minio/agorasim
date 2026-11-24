@@ -86,6 +86,8 @@ export const AUDIT_ACTIONS = [
   "quote.payment_refunded",
   "quote.cancelled",
   "quote.hold_changed",
+  "invoice.marked",
+  "invoice.unmarked",
   "blog_post.updated",
   "blog_post.published",
   "blog_post.unpublished",
@@ -104,6 +106,7 @@ export type AuditEntityType =
   | "experience"
   | "availability"
   | "booking"
+  | "invoice"
   | "blog_post"
   | "email_opt_out"
   | "cron";

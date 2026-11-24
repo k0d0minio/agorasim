@@ -80,6 +80,9 @@ const fakeDb = new Proxy(
   },
 );
 
+// The ledger write is best effort and has its own module (JAM-528).
+const { recordRefund } = vi.hoisted(() => ({ recordRefund: vi.fn() }));
+vi.mock("@/lib/refund-ledger", () => ({ recordRefund }));
 vi.mock("@/db", async () => {
   const schema = await vi.importActual<typeof import("@/db/schema")>("@/db/schema");
   return { ...schema, db: fakeDb };

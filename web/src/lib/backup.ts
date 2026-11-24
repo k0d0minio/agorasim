@@ -52,9 +52,11 @@ import {
   experienceCatalogue,
   featureRequests,
   geoContentDrafts,
+  invoiceMarks,
   messageLog,
   quotePayments,
   quotes,
+  refunds,
   rateLimitWindows,
   socialPostDrafts,
   tourRequests,
@@ -86,6 +88,10 @@ export const BACKUP_TABLES: readonly BackupTable[] = [
   { name: "bookings", table: bookings, redact: [] },
   { name: "quotes", table: quotes, redact: [] },
   { name: "quote_payments", table: quotePayments, redact: [] },
+  // The refund ledger and the fatura marks of "Para faturar" (JAM-528). After
+  // the payments that a refund points at.
+  { name: "refunds", table: refunds, redact: [] },
+  { name: "invoice_marks", table: invoiceMarks, redact: [] },
   { name: "message_log", table: messageLog, redact: [] },
   // Keyed hashes, no addresses — and the one table a restore must not lose:
   // an empty list silently re-subscribes everyone who opted out.
