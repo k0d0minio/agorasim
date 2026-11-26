@@ -15,5 +15,11 @@
       "approved": "Ready to ship",
       "live": "Done"
     }
+  },
+  "requests": {
+    "store": "linear",
+    "linear_team": "JAM",
+    "linear_label": "source/client",
+    "linear_project": ""
   }
 }
