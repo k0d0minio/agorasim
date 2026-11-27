@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "../globals.css";
 import { getCurrentUser } from "@/lib/admin-auth";
 import { AdminViewerProvider } from "@/components/admin/admin-user-context";
+import { RequestButton } from "../../../../.icm/_system/request-button/RequestButton";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -78,6 +79,10 @@ export default async function AdminLayout({
         >
           {children}
         </AdminViewerProvider>
+        {/* The BAXTER request button: UAT and local only. The user id leaves the server as a hash. */}
+        <RequestButton
+          user={user ? { signedIn: true, role: user.role, id: user.id } : { signedIn: false }}
+        />
       </body>
     </html>
   );

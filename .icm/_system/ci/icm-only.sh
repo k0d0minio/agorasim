@@ -3,7 +3,7 @@
 #
 # The close-out commit of release.sh changes only the records of a run: .icm/runs/,
 # .icm/archive/ and .icm/intake/. The code is the code that CI examined before the push.
-# This script says if the jobs code and database can skip the push. They skip it when each
+# This script says if the job code can skip the push. It skips it when each
 # is true:
 #   1. The event is a push to a pull request (synchronize).
 #   2. The head before the push is in the history of the new head, and each file that the

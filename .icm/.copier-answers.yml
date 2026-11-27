@@ -1,4 +1,5 @@
 # Copier writes this file. Do not edit it. blueprint/bin/update-repo.sh reads it.
+code_build: none
 code_ci: node
 database: none
 default_branch: main

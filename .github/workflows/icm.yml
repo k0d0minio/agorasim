@@ -15,3 +15,19 @@ jobs:
         with:
           fetch-depth: 0
       - run: bash .icm/_system/ci/check.sh
+  # The gate icm-gate is a commit status that this job writes: pending, "Waits for the
+  # operator's Ready to merge tick", until the tick; success after it. The job passes. The
+  # event "edited" runs it again when the operator ticks the box.
+  icm-gate-read:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash .icm/_system/ci/check.sh --gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}

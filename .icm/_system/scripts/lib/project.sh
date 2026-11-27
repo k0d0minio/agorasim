@@ -10,6 +10,8 @@
 #   render <template>   print the template with each @NAME@ replaced by the variable NAME
 #   stop <reason>       print "RESULT: STOP <reason>" and exit 1
 #   need <tool>...      stop when a tool is not installed
+#   pkg_all_have <script> <text>  0 when a package.json of the repo names the script, and
+#                       each one that names it has the text. Else print the first fault (rc37)
 #   help_if_asked "$@"  on -h or --help: print the header of the script and exit 0
 
 # In bash 5.2 an "&" in a replacement means "the match". Titles can contain "&".
@@ -48,6 +50,18 @@ need() {
   for t in "$@"; do
     command -v "$t" >/dev/null 2>&1 || stop "$t is not installed"
   done
+}
+
+pkg_all_have() {
+  local f got n=0 files
+  files="$(git ls-files -co --exclude-standard -- package.json '*/package.json' 2>/dev/null | grep -v node_modules || true)"
+  [ -n "$files" ] || files="$(ls package.json 2>/dev/null || true)"
+  while IFS= read -r f; do
+    got="$(jq -r --arg s "$1" '.scripts[$s] // empty' "$f" 2>/dev/null || true)"
+    [ -n "$got" ] || continue
+    n=1; [[ "$got" == *"${2:-}"* ]] || { echo "$f: the script $1 does not run '$2'"; return 1; }
+  done <<<"$files"
+  [ "$n" = 1 ] || { echo "no package.json names the script $1"; return 1; }
 }
 
 help_if_asked() {

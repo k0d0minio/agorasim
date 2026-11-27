@@ -3,31 +3,36 @@
 # Needs lib/project.sh and lib/gh.sh. The contract is .icm/_system/features/uat.md.
 #
 # Reads VERCEL_TOKEN (required), VERCEL_TEAM (the team slug; empty is the personal scope)
-# and UAT_ENVIRONMENT (the slug of the custom environment; uat when not set). The token
-# goes to curl in a file that only this process can read, never on a command line.
-#
-# No variable names a project. The projects of the repo are the projects whose git link is
-# this repo. The UAT projects are the ones among them with the custom environment.
-#
-#   vc_get <path>               GET. Print the body, or stop
-#   vc_post <path>              POST. Print the body, or stop
-#   vc_projects                 "<id>\t<name>" of each project of the repo
-#   vc_uat_projects             the same, only the projects with the custom environment
-#   vc_deps <id> <target>       the 20 newest deployments: production, or the slug of UAT
-#   vc_pick <id> <target> <sha> the newest READY deployment of a commit at or before <sha>
+# and UAT_ENVIRONMENT (the custom environment; default uat). The token goes to curl in a
+# file that only this process can read, never on a command line or in a trace. No variable
+# names a project: a project of the repo has its git link here; a UAT project has the custom environment too.
+#   vc_auth  not in a workflow: an empty VERCEL_TEAM gets the repo variable, an empty
+#            VERCEL_TOKEN the keyring of BAXTER (account = the team). Call it in the main shell
+#   vc_get|vc_post <path>  the body, or stop      vc_projects  "<id>\t<name>" of each one
+#   vc_uat_projects        the same, UAT only     vc_domains <id>  its production domains
+#   vc_deps <id> <target>  the 20 newest deployments: production, or the slug of UAT
+#   vc_pick <id> <target> <sha>    the newest READY deployment of a commit at or before <sha>
 #   vc_dep_of <id> <target> <sha>  the newest deployment of exactly <sha>, in any state
-#   vc_domains <id>             the production domains of the project
-#   vc_current <id>             the id of the deployment that the first production domain serves
+#   vc_current <id>  the deployment that the first production domain serves
 
 uat_slug() { printf '%s' "${UAT_ENVIRONMENT:-uat}"; }
 
+vc_helper="${HOME:-}/baxter_live/system/bin/baxter_secret.sh"
+vc_auth() {
+  [ -z "${GITHUB_ACTIONS:-}" ] || return 0
+  [ -n "${VERCEL_TEAM:-}" ] || VERCEL_TEAM="$(gh api "repos/$(gh_repo)/actions/variables/VERCEL_TEAM" 2>/dev/null | jq -r '.value // empty' || true)"
+  [ -z "${VERCEL_TOKEN:+1}" ] && [ -x "$vc_helper" ] || return 0
+  local x="$-"; set +x  # no trace, no export, no output of the token
+  VERCEL_TOKEN="$("$vc_helper" get vercel_token ${VERCEL_TEAM:+"$VERCEL_TEAM"} 2>/dev/null || true)"; case "$x" in *x*) set -x ;; esac
+}
+
 vc_call() {  # <method> <path>
-  local cfg url="${VERCEL_API:-https://api.vercel.com}$2" rc=0
-  [ -n "${VERCEL_TOKEN:-}" ] || { echo "RESULT: STOP VERCEL_TOKEN is not set" >&2; exit 1; }
+  local cfg url="${VERCEL_API:-https://api.vercel.com}$2" rc=0 x="$-"
+  [ -n "${VERCEL_TOKEN:+1}" ] || { echo "RESULT: STOP VERCEL_TOKEN is not set" >&2; exit 1; }
   [ -z "${VERCEL_TEAM:-}" ] || { case "$url" in *\?*) url+="&" ;; *) url+="?" ;; esac; url+="slug=$VERCEL_TEAM"; }
-  cfg="$(umask 077 && mktemp)"
+  cfg="$(umask 077 && mktemp)"; set +x  # the trace never shows the token
   printf 'url = "%s"\nrequest = "%s"\nheader = "Authorization: Bearer %s"\nmax-time = 60\nsilent\nshow-error\nfail-with-body\n' \
-    "$url" "$1" "$VERCEL_TOKEN" > "$cfg"
+    "$url" "$1" "$VERCEL_TOKEN" > "$cfg"; case "$x" in *x*) set -x ;; esac
   curl --config "$cfg" || rc=$?
   rm -f "$cfg"
   return "$rc"

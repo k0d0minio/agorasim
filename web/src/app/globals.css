@@ -156,3 +156,29 @@
     @apply tracking-tight;
   }
 }
+/*
+ * The BAXTER request button (`.icm/setup/request-button.md`). It shows only on
+ * UAT and on a local dev server. Its colours come from the brand tokens above.
+ */
+:root {
+  --baxter-accent: var(--primary);
+  --baxter-accent-text: var(--primary-foreground);
+  --baxter-surface: var(--card);
+  --baxter-text: var(--foreground);
+  --baxter-muted: var(--muted-foreground);
+  --baxter-border: var(--input);
+  --baxter-chip: var(--primary);
+  --baxter-chip-text: var(--primary-foreground);
+  --baxter-font: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --baxter-heading-font: var(--font-fraunces), ui-serif, Georgia, serif;
+  --baxter-radius: calc(var(--radius) * 1.4);
+  --baxter-focus: var(--ring);
+}
+
+/*
+ * The launcher sits above the booking bar of the site (4.5rem) and the bottom
+ * toolbar of the admin (5rem), so it never covers them.
+ */
+html body .bxr-launch {
+  bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}

@@ -18,6 +18,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 need gh git jq curl
 cd "$(icm_root)"
 stop() { echo "RESULT: STOP $*" >&2; exit 1; }
+vc_auth
 
 tag=""
 [ "${1:-}" != --tag ] || tag="${2:-}"

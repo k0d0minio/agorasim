@@ -61,7 +61,7 @@ jobs:
 
   icm-only:
     # A push to a pull request that changes only the records of a run (the close-out
-    # commit of release.sh) does not run the jobs code and database again, when the check
+    # commit of release.sh) does not run the job code again, when the check
     # code is green on an earlier commit of the branch (rc25, JAM-570). Each doubt gives the
     # full CI. The rules are in .icm/_system/ci/icm-only.sh. A push to the default branch
     # always runs the full CI.
@@ -99,7 +99,13 @@ jobs:
 
     env:
       BASE_REF: ${{ github.base_ref }}
-
+      # The remote cache of turbo (rc40): the Actions secret TURBO_TOKEN and the Actions
+      # variable TURBO_TEAM of the repo. With no value, turbo runs with no remote cache.
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      # The step build of code.sh: the copier answer code_build (rc40). all: each package.
+      # none: no build. Else only the packages of the list.
+      CODE_BUILD: "none"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

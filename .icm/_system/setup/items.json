@@ -1,0 +1,355 @@
+[
+ {
+  "act": "",
+  "block": false,
+  "fix": "blueprint/bin/update-repo.sh \u003crepo\u003e",
+  "id": "render.update",
+  "owner": "S",
+  "probe": [
+   "file",
+   ".icm/_system/MANIFEST.sha256"
+  ],
+  "sec": "Render the blueprint",
+  "text": "Run `bin/update-repo.sh \u003crepo\u003e` of the blueprint on a clean tree at `origin/main`. The script does not commit."
+ },
+ {
+  "act": "",
+  "block": false,
+  "fix": "write the values of .icm/project.json",
+  "id": "render.project-json",
+  "owner": "S",
+  "probe": [
+   "jq",
+   ".icm/project.json",
+   ".slug != \"\" and .language != \"\""
+  ],
+  "sec": "Render the blueprint",
+  "text": "Read `.icm/project.json`. The update adds each missing key and keeps each value. Write each empty value that this repo needs."
+ },
+ {
+  "act": "",
+  "block": false,
+  "fix": "write the addresses in .icm/environments.md",
+  "id": "render.environments",
+  "owner": "S",
+  "probe": [
+   "nogrep",
+   ".icm/environments.md",
+   "| Production | |"
+  ],
+  "sec": "Render the blueprint",
+  "text": "Write `.icm/environments.md`: one row for each environment (the address, the Vercel project, the database, what moves it)."
+ },
+ {
+  "act": "",
+  "block": false,
+  "fix": "write .icm/project-rules.md, then tick the item",
+  "id": "render.project-rules",
+  "owner": "S",
+  "probe": [],
+  "sec": "Render the blueprint",
+  "text": "Write `.icm/project-rules.md`: the stack, the names, the code conventions. When the script `dev` is not the correct command, add `- dev server: \u003ccommand with {port}\u003e`."
+ },
+ {
+  "act": "",
+  "block": true,
+  "fix": "add the line @.icm/_system/ROUTER.md to CLAUDE.md",
+  "id": "render.claude-md",
+  "owner": "S",
+  "probe": [
+   "grep",
+   "CLAUDE.md",
+   "@.icm/_system/ROUTER.md"
+  ],
+  "sec": "Render the blueprint",
+  "text": "`CLAUDE.md` imports `.icm/_system/ROUTER.md` and routes the files of this repo."
+ },
+ {
+  "act": "github-checks.md",
+  "block": false,
+  "fix": "GitHub \u2192 the repo \u2192 Settings \u2192 Rules \u2192 Rulesets: a ruleset on main with the required checks",
+  "id": "gh.ruleset",
+  "owner": "J",
+  "probe": [
+   "rules",
+   "secrets",
+   "workflows",
+   "icm-check",
+   "code"
+  ],
+  "sec": "GitHub",
+  "text": "Optional (J decides for each repo, 1.0.0-rc38): a ruleset on `main` makes these checks necessary: `secrets`, `workflows`, `icm-check` and `code`."
+ },
+ {
+  "act": "",
+  "block": false,
+  "fix": "remove the workflows that call legible-consulting/.github",
+  "id": "gh.legacy",
+  "owner": "S",
+  "probe": [
+   "nogrep",
+   ".github/workflows",
+   "legible-consulting/.github"
+  ],
+  "sec": "GitHub",
+  "text": "No workflow calls `legible-consulting/.github`."
+ },
+ {
+  "act": "dependabot-security.md",
+  "block": false,
+  "fix": "GitHub \u2192 the repo \u2192 Settings \u2192 Code security: Dependabot alerts and security updates on",
+  "id": "gh.dependabot",
+  "owner": "J",
+  "probe": [
+   "api",
+   "repos/{repo}/vulnerability-alerts"
+  ],
+  "sec": "GitHub",
+  "text": "Code security: Dependabot alerts on, and Dependabot security updates on."
+ },
+ {
+  "act": "github-checks.md",
+  "block": false,
+  "fix": "gh secret set TURBO_TOKEN; gh variable set TURBO_TEAM (the operator)",
+  "id": "gh.turbo-cache",
+  "owner": "J",
+  "probe": [
+   "secret",
+   "TURBO_TOKEN",
+   "var:TURBO_TEAM"
+  ],
+  "sec": "GitHub",
+  "text": "Optional, for a repo with `turbo.json` (1.0.0-rc40): the Actions secret `TURBO_TOKEN` and the Actions variable `TURBO_TEAM` give the job `code` the remote cache of turbo."
+ },
+ {
+  "act": "actions-promote.md",
+  "block": true,
+  "fix": "baxter_env.py actions-setup agorasim (the operator)",
+  "id": "gh.vercel-token",
+  "owner": "J",
+  "probe": [
+   "secret",
+   "VERCEL_TOKEN",
+   "var:VERCEL_TEAM"
+  ],
+  "sec": "GitHub",
+  "text": "The Actions secret `VERCEL_TOKEN` and the Actions variable `VERCEL_TEAM`."
+ },
+ {
+  "act": "actions-promote.md",
+  "block": false,
+  "fix": "baxter_secret.sh set vercel_token --account \u003cteam\u003e",
+  "id": "gh.keyring-token",
+  "owner": "J",
+  "probe": [
+   "keyring",
+   "vercel_token",
+   "var:VERCEL_TEAM"
+  ],
+  "sec": "GitHub",
+  "text": "The same token in the keyring of BAXTER, key `vercel_token`, account = the team (step 4)."
+ },
+ {
+  "act": "actions-promote.md",
+  "block": false,
+  "fix": "GitHub \u2192 the repo \u2192 Settings \u2192 Actions \u2192 General: Allow GitHub Actions to create and approve pull requests",
+  "id": "gh.pr-permission",
+  "owner": "J",
+  "probe": [
+   "api",
+   "repos/{repo}/actions/permissions/workflow",
+   ".can_approve_pull_request_reviews"
+  ],
+  "sec": "GitHub",
+  "text": "Settings, Actions, General: \"Allow GitHub Actions to create and approve pull requests\" is on."
+ },
+ {
+  "act": "vercel-uat.md",
+  "block": false,
+  "fix": "vercel-uat.md",
+  "id": "uat.project",
+  "owner": "J or B",
+  "probe": [],
+  "sec": "Vercel and UAT",
+  "text": "The Vercel project is linked to this repo. The custom environment `uat` follows `main`, with the domain `uat.\u003cdomain\u003e` and its DNS record."
+ },
+ {
+  "act": "vercel-uat.md",
+  "block": false,
+  "fix": "Vercel \u2192 the project \u2192 Settings \u2192 Environments \u2192 Production: Auto-assign off",
+  "id": "uat.auto-assign",
+  "owner": "J or B",
+  "probe": [],
+  "sec": "Vercel and UAT",
+  "text": "\"Auto-assign Custom Production Domains\" is off. `promote.sh status` prints no `SETUP:` line."
+ },
+ {
+  "act": "",
+  "block": false,
+  "fix": "baxter_env.py push agorasim uat",
+  "id": "uat.variables",
+  "owner": "J",
+  "probe": [],
+  "sec": "Vercel and UAT",
+  "text": "Each variable of the app is on `uat`, with sandbox keys only."
+ },
+ {
+  "act": "",
+  "block": false,
+  "fix": "merge one pull request, then read promote.sh status",
+  "id": "uat.release-pr",
+  "owner": "J",
+  "probe": [],
+  "sec": "Vercel and UAT",
+  "text": "A merge to `main` opens or updates the release pull request."
+ },
+ {
+  "act": "",
+  "block": false,
+  "fix": "write the rule, then tick the item",
+  "id": "db.rule",
+  "owner": "S",
+  "probe": [],
+  "sec": "Database",
+  "text": "This repo has no database answer. Write the database rule of this repo in `.icm/project-rules.md`, or write that it has no database."
+ },
+ {
+  "act": "request-button.md",
+  "block": false,
+  "fix": "request-button.md: the import and the element",
+  "id": "rb.layout",
+  "owner": "S",
+  "probe": [
+   "grep",
+   "app/layout.tsx src/app/layout.tsx apps/*/app/layout.tsx apps/*/src/app/layout.tsx app/*/layout.tsx src/app/*/layout.tsx apps/*/app/*/layout.tsx apps/*/src/app/*/layout.tsx",
+   "\u003cRequestButton"
+  ],
+  "sec": "Request button",
+  "text": "The root layout has `\u003cRequestButton /\u003e` after `{children}`. The form has the language of `.icm/project.json`."
+ },
+ {
+  "act": "request-button.md",
+  "block": false,
+  "fix": "request-button.md: the route file",
+  "id": "rb.route",
+  "owner": "S",
+  "probe": [
+   "file",
+   "app/api/baxter-request/route.ts src/app/api/baxter-request/route.ts apps/*/app/api/baxter-request/route.ts apps/*/src/app/api/baxter-request/route.ts"
+  ],
+  "sec": "Request button",
+  "text": "The route `app/api/baxter-request/route.ts` (or below `src/`, or in the app of a monorepo) exports `POST` again."
+ },
+ {
+  "act": "request-button.md",
+  "block": false,
+  "fix": "request-button.md",
+  "id": "rb.config",
+  "owner": "S",
+  "probe": [],
+  "sec": "Request button",
+  "text": "Optional `user`. The Content-Security-Policy permits a POST to the same origin. TypeScript and ESLint accept `.icm/_system/request-button/`. On a local dev server the button shows, and an empty POST to the route gets 400."
+ },
+ {
+  "act": "request-button.md",
+  "block": false,
+  "fix": "baxter_env.py push agorasim uat",
+  "id": "rb.env",
+  "owner": "J",
+  "probe": [],
+  "sec": "Request button",
+  "text": "Vercel `uat`: `BAXTER_REQUEST_ENV` = `uat` (not on production), and `BAXTER_REQUEST_LINEAR_API_KEY`. The label `requests.linear_label` exists in the team `JAM`."
+ },
+ {
+  "act": "checktest-accounts.md",
+  "block": false,
+  "fix": "checktest-accounts.md: the contract of the seed script",
+  "id": "ct.seed",
+  "owner": "S",
+  "probe": [
+   "pkg",
+   "seed:test-roles",
+   ""
+  ],
+  "sec": "Checktest",
+  "text": "The seed script `seed:test-roles` of the contract in `checktest-accounts.md`."
+ },
+ {
+  "act": "checktest-accounts.md",
+  "block": false,
+  "fix": "baxter_tool run checktest storyboards",
+  "id": "ct.baxter",
+  "owner": "B",
+  "probe": [],
+  "sec": "Checktest",
+  "text": "The test passwords are in the data of BAXTER, never in this repo. Storyboards exist for this repo."
+ },
+ {
+  "act": "checktest-accounts.md",
+  "block": false,
+  "fix": "checktest-accounts.md",
+  "id": "ct.seed-run",
+  "owner": "J",
+  "probe": [],
+  "sec": "Checktest",
+  "text": "After the checktest signs up the admin account on UAT, run the seed one time. The UAT database address comes from the keyring of BAXTER for that one command. Never write it in a file."
+ },
+ {
+  "act": "",
+  "block": false,
+  "fix": "baxter_secret.sh set linear_api_key --account kodominio",
+  "id": "li.org",
+  "owner": "B",
+  "probe": [
+   "keyring",
+   "linear_api_key",
+   "kodominio"
+  ],
+  "sec": "Linear",
+  "text": "The org `kodominio` is in the keyring of BAXTER."
+ },
+ {
+  "act": "",
+  "block": false,
+  "fix": "set linear.writes to session in .icm/project.json",
+  "id": "li.writes",
+  "owner": "S",
+  "probe": [
+   "jq",
+   ".icm/project.json",
+   ".linear.writes == \"session\""
+  ],
+  "sec": "Linear",
+  "text": "`linear.writes` of `.icm/project.json` is `session`."
+ },
+ {
+  "act": "",
+  "block": false,
+  "fix": "write linear.states, then tick the item",
+  "id": "li.states",
+  "owner": "S",
+  "probe": [],
+  "sec": "Linear",
+  "text": "`linear.states` of `.icm/project.json`: the state names of the team `JAM`. An empty name: no state move at that event."
+ },
+ {
+  "act": "",
+  "block": false,
+  "fix": ".icm/_system/scripts/ci-status.sh",
+  "id": "close.ci",
+  "owner": "S",
+  "probe": [],
+  "sec": "Close",
+  "text": "CI is green on the setup pull request, and the Vercel preview builds."
+ },
+ {
+  "act": "",
+  "block": false,
+  "fix": "tick the boxes of .icm/setup/",
+  "id": "close.acts",
+  "owner": "J",
+  "probe": [],
+  "sec": "Close",
+  "text": "Tick each box of the other files of `.icm/setup/` when its act is done."
+ }
+]
