@@ -34,14 +34,6 @@
     ],
     "PreToolUse": [
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.icm/_system/hooks/dispatch.sh\" pre-tool-use"
-          }
-        ]
-      },
-      {
         "matcher": "Bash",
         "hooks": [
           {

@@ -37,9 +37,11 @@ not ticked and give the pull request link.
 ## What enforces a gate
 - Build stops when `spec_approved` is not `yes`.
 - `release.sh` and `merge.sh` refuse when `ready_to_merge` is not `yes`.
-- The check `icm-gate` shows "Waits for the operator" (action required) while Ready to
-  merge is not ticked. A ruleset that requires it makes GitHub refuse the merge too.
+- The status `icm-gate` is pending, "Waits for the operator's Ready to merge tick", while
+  Ready to merge is not ticked, and success after the tick. It never fails. A ruleset that
+  requires it makes GitHub refuse the merge too.
 
-That wait is not a failure. `ci-status.sh` does not count `icm-gate`: a pull request that
-waits only for the tick is GREEN. A review or a status report says "waits for the
+That wait is not a failure: do not push a commit to correct it. `ci-status.sh` does not
+count `icm-gate`: a pull request that waits only for the tick is GREEN. With `--all` it is
+PENDING. A review or a status report says "waits for the
 operator's tick", never "icm-gate failed".

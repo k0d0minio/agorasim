@@ -36,6 +36,8 @@ done
 [ -n "$ticket" ] || stop "usage: resolve-run.sh <ticket> [--write-stub]"
 need git gh jq
 cd "$(icm_root)"
+# The gap monitor (rc36): a blocking setup gap stops each stage and lane before its work.
+gate="$(bash "$here/setup.sh" --gate 2>&1)" || { printf '%s\n' "$gate" | tail -n1; exit 1; }
 
 id="$(run_id "$ticket")"
 [ -n "$id" ] || stop "$ticket is not a ticket of this repo"

@@ -2,8 +2,9 @@
 
 Language: pt-PT
 
-Do not edit `.icm/_system/`: it belongs to the blueprint. Tell the operator about a fault
-in it. All other files in `.icm/` belong to this repo.
+Do not edit `.icm/_system/` or the guards of `.claude/hooks/`: they belong to the
+blueprint. No hook stops the edit: the CI job `icm-check` refuses it. Tell the operator
+of a fault in it. All other files in `.icm/` belong to this repo.
 
 ## Commands
 A command is a word and one ticket. A ticket is a Linear key: `JAM-123`.
@@ -16,12 +17,12 @@ A command is a word and one ticket. A ticket is a Linear key: `JAM-123`.
 | `build` and a ticket | `.icm/_system/stages/build/CONTEXT.md` |
 | `release` and a ticket | `.icm/_system/stages/release/CONTEXT.md` |
 | `revise` and a ticket and a change | `.icm/_system/stages/define/CONTEXT.md`, section Revise |
+| `setup`, a setup gap | `.icm/_system/features/setup.md` |
 | `status`, `approve`, `release` with no ticket, `promote`, `rollback` | `.icm/_system/features/uat.md` |
 
 Start words: `new`, `pick up`, `start work on`, and the phrases in
-`.icm/_system/rules/triggers.txt`. The intent decides. A question about a ticket is not a
-command. If the
-intent is unclear, ask one question.
+`.icm/_system/rules/triggers.txt`. The intent decides: a question about a ticket is not a
+command. Unclear intent: ask one question.
 
 When the hook `route-request` prints `[icm-router] Route:`, follow that line. If
 `.icm/local/ROUTES.md` exists, read it for this repo's own routes.
@@ -29,7 +30,7 @@ When the hook `route-request` prints `[icm-router] Route:`, follow that line. If
 ## Rules for each stage and lane
 1. Read the contract. Then read only the files that its Inputs name.
 2. First act: `.icm/_system/scripts/resolve-run.sh <ticket>`. Obey its `RESULT:` line.
-3. A run writes only in `.icm/runs/<id>/` and in the product code, on its own branch.
+3. A run writes only in `.icm/runs/<id>/`, the product code and its client requests, on its own branch.
 4. Never tick a gate box. Read `.icm/_system/rules/gates.md`.
 5. Do not run a local build, test, lint or format command. CI is the source of truth.
    Read it with `.icm/_system/scripts/ci-status.sh`.
@@ -38,15 +39,13 @@ When the hook `route-request` prints `[icm-router] Route:`, follow that line. If
 6. Write a finding that is not part of the ticket in `.icm/runs/<id>/findings.md`.
 7. End each session with the stop report of `.icm/_system/rules/output.md`.
 8. Write the documents of a run in the language at the top of this file.
-9. **Use no MCP tool but the server `baxter`.** Do not call a tool whose name starts with
-   `mcp__` (a connector of Claude: Linear, GitHub, Vercel, Google and all others). A tool
-   `mcp__baxter__<name>` is of BAXTER: it is permitted. The tools of four servers of the
-   Claude app are also permitted: `mcp__ccd_turn__*`, `mcp__ccd_session__*`,
-   `mcp__ccd_pr__*` (not `set_auto_merge`) and `mcp__ccd_view__*`.
-   This rule applies to each subagent also. Use the tools of BAXTER (section "On this
-   computer"). For git and GitHub, use `git` and `gh`. If no BAXTER tool does the work, stop
-   and tell the operator. Do not use an MCP tool in its place. The hook `guard-system`
-   refuses each other MCP tool call.
+9. **Use no third-party MCP server.** Call no connector of Claude (Linear, GitHub, Vercel):
+   use the tools of BAXTER (section "On this computer"), and `git` and `gh`. The server
+   `baxter` (`mcp__baxter__*`) is of BAXTER, and the servers of the Claude app
+   (`mcp__ccd_*`, the Browser, the terminal) are permitted, also to send a message to a
+   session that this session started. Never call `mcp__ccd_pr__set_auto_merge`: the gate
+   is the operator's. It applies to each subagent. No hook refuses a tool: obey this rule.
+   With no BAXTER tool for the work, stop and tell the operator.
 
 ## On this computer
 This session runs on the computer of BAXTER, the assistant of the operator. The records and
@@ -71,6 +70,7 @@ started on this computer. With no such tool, use the command.
 | Fact | Home |
 |---|---|
 | Ticket rules and the intake folder | `.icm/_system/rules/ticket.md` |
+| Client requests, a convention against a request | `.icm/_system/features/requests.md` |
 | Gates | `.icm/_system/rules/gates.md` |
 | Questions for the operator | `.icm/_system/rules/questions.md` |
 | Git and GitHub | `.icm/_system/rules/github.md` |

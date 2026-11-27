@@ -6,7 +6,8 @@
 # The script refuses, with one line for each reason, when:
 #   - the pull request is not open, or is a draft
 #   - Ready to merge is not ticked (the box below <!-- gate:ready-to-merge -->)
-#   - no check ran, or a check is pending or failed
+#   - no check ran, or a check is pending or failed. icm-gate counts too: a state that is
+#     not success (pending until the tick, 1.0.0-rc31) is no merge
 #   - the branch conflicts with the default branch
 # If nothing refuses, it squash-merges the head commit that it read, and deletes the branch.
 # A branch that is behind the default branch with no conflict is brought up to date first
@@ -60,6 +61,8 @@ else
     case "$verdict" in
       ok) ;;
       waits) refuse "the check $name waits for the operator" ;;
+      pending) [ "$name" = icm-gate ] && refuse "icm-gate waits for the operator's Ready to merge tick" \
+        || refuse "the check $name is pending" ;;
       *) refuse "the check $name is $verdict" ;;
     esac
   done <<<"$checks"

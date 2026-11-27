@@ -22,7 +22,8 @@
 # When GitHub refuses a call because of the rate limit, the script stops one time with
 # RESULT: STOP GitHub rate limit, resets at HH:MM. Do not read again before that time.
 #
-#   --all    counts icm-gate too. release.sh uses it before the merge.
+#   --all    counts icm-gate too. release.sh uses it before the merge. A state of icm-gate
+#            that is not success is not GREEN. With no tick in the body, icm-gate waits.
 #
 # Without --all the check icm-gate is not counted: it waits for the operator's tick. That
 # wait is not a failure. The script prints one line for it.
@@ -98,6 +99,12 @@ while :; do
     fi
   fi
   all="$(gh_checks "$sha" 2>"$err")" || { ! gh_rate_limited "$err" || api_stop "the checks were not read"; all=""; }
+  # The tick in the body decides the gate: an icm.yml older than 1.0.0-rc31 writes no
+  # pending status. With no tick, icm-gate waits, also when GitHub shows it as passed.
+  if [ -z "$gate" ] && [ "$(jq -r '.body // ""' <<<"$pr" | gate_state ready-to-merge)" = no ] \
+    && ! grep -qE $'^icm-gate\t(pending|waits)$' <<<"$all"; then
+    all="$(grep -v -e $'^icm-gate\t' -e '^$' <<<"$all" || true; printf 'icm-gate\twaits\n')"
+  fi
   checks="$(grep -v "$skip" <<<"$all" || true)"
   waiting=0
   if [ -z "$conflict" ] && { [ -n "$ci_wait" ] || [ -z "$checks" ] \
@@ -113,7 +120,7 @@ done
 echo "#${number} at ${sha:0:7}"
 [ "$draft" != true ] || echo "#${number} is a draft: ci.yml runs its checks when it is ready"
 [ -z "$checks" ] || printf '%s\n' "$checks" | sort
-if [ "$skip" != $'^\t' ] && grep -qE $'^icm-gate\t(waits|failure)' <<<"$all"; then
+if [ "$skip" != $'^\t' ] && grep -qE $'^icm-gate\t(pending|waits|failure)' <<<"$all"; then
   echo "icm-gate waits for the operator's tick of Ready to merge. This is a wait, not a failure"
 fi
 if [ -n "$conflict" ]; then

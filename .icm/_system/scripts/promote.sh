@@ -45,6 +45,7 @@ while [ $# -gt 0 ]; do
 done
 repo="$(gh_repo)"
 main="$(default_branch)"
+case "$verb" in release | run) ;; *) vc_auth ;; esac  # lib/vercel.sh: the token on this computer
 slug="$(uat_slug)"
 tries="${ICM_TRIES:-45}" pause="${ICM_POLL:-20}"
 
@@ -164,7 +165,7 @@ status)
   git log --oneline --no-decorate -n 10 "${last:+$last..}origin/$main" | sed 's/^/  /'
   echo "release PR: $(jq -r 'if length == 0 then "none open" else (.[0] | "#\(.number) \(.html_url)") end' <<<"$prs")"
   echo "ci on main: $(ci_of "$head") (${head:0:7})"
-  if [ -z "${VERCEL_TOKEN:-}" ]; then
+  if [ -z "${VERCEL_TOKEN:+1}" ]; then
     echo "uat:        not read: VERCEL_TOKEN is not set"
   else
     list="$(projects)"

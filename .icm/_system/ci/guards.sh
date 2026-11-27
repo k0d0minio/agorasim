@@ -9,7 +9,7 @@
 #
 # The script adds an entry to hooks.PreToolUse only when the repo has no registration of
 # that guard for that tool. A repo that registered a guard by hand keeps its line: no guard
-# runs two times. The script removes nothing and changes no other key.
+# runs two times. It removes only the call of the removed guard-system (rc35).
 #   block-local-checks.sh, confirm-git-writes.sh   the tool Bash
 #   guard-plaintext-secrets.sh                     the tools Bash, Write, Edit and MultiEdit
 # Exit 1: the file is absent or is not JSON, or jq is absent and a registration is missing.
@@ -43,7 +43,9 @@ def add($g; $tools):
       | .hooks.PreToolUse = (if $i == null then $list + [{matcher: $m, hooks: [$hook]}]
           else ($list | .[$i].hooks += [$hook]) end)
     end;
-add("block-local-checks.sh"; ["Bash"])
+if .hooks.PreToolUse == null then . else .hooks.PreToolUse |= map(.hooks |= map(select((.command
+  // "") | contains("hooks/dispatch.sh\" pre-tool-use") | not)) | select((.hooks | length) > 0)) end
+| add("block-local-checks.sh"; ["Bash"])
 | add("confirm-git-writes.sh"; ["Bash"])
 | add("guard-plaintext-secrets.sh"; ["Bash"])
 | add("guard-plaintext-secrets.sh"; ["Write", "Edit", "MultiEdit"])
