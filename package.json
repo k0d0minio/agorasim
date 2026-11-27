@@ -12,7 +12,13 @@
     "test": "pnpm --filter web test",
     "typecheck": "pnpm --filter web typecheck",
     "db:migrate": "pnpm --filter web db:migrate",
-    "db:verify": "pnpm --filter web db:verify"
+    "db:verify": "pnpm --filter web db:verify",
+    "seed:test-roles": "pnpm --filter web seed:test-roles"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19.2.18",
+    "react": "19.2.8"
   },
   "pnpm": {
     "overrides": {

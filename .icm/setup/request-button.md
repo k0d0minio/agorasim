@@ -46,7 +46,7 @@ the root of the repo:
 
 Two more changes at the root of the repo:
 
-- [ ] `react`, `@types/react` and `@types/node` are `devDependencies` of the root
+- [x] `react`, `@types/react` and `@types/node` are `devDependencies` of the root
       `package.json`, with the version of the app (`catalog:` when the workspace has a
       catalog). The files of `.icm/_system/request-button/` are outside the app, so they
       find `react` from the root. pnpm does not hoist the packages of an app to the root.

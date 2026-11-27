@@ -10,6 +10,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { BookingBar } from "@/components/booking-bar";
 import { BookingSourceCapture } from "@/components/booking-source";
 import { alternates } from "@/lib/seo";
+import { RequestButton } from "../../../../.icm/_system/request-button/RequestButton";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -102,6 +103,8 @@ export default async function LocaleLayout({
           label={dict.cta.bookExperience}
           quoteLabel={dict.cta.requestQuote}
         />
+        {/* The BAXTER request button: UAT and local only. The form has the page's language. */}
+        <RequestButton lang={typedLocale} />
       </body>
     </html>
   );

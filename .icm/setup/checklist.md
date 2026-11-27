@@ -38,7 +38,7 @@ when it is done. A session does not tick a box of (J) or (B). An item that start
 ## Request button
 - [ ] (S) The root layout has `<RequestButton />` after `{children}`. The form has the language of `.icm/project.json`. (`request-button.md`) `rb.layout`
 - [ ] (S) The route `app/api/baxter-request/route.ts` (or below `src/`, or in the app of a monorepo) exports `POST` again. (`request-button.md`) `rb.route`
-- [ ] (S) Optional `user`. The Content-Security-Policy permits a POST to the same origin. TypeScript and ESLint accept `.icm/_system/request-button/`. On a local dev server the button shows, and an empty POST to the route gets 400. (`request-button.md`) `rb.config`
+- [x] (S) Optional `user`. The Content-Security-Policy permits a POST to the same origin. TypeScript and ESLint accept `.icm/_system/request-button/`. On a local dev server the button shows, and an empty POST to the route gets 400. (`request-button.md`) `rb.config`
 - [ ] (J) Vercel `uat`: `BAXTER_REQUEST_ENV` = `uat` (not on production), and `BAXTER_REQUEST_LINEAR_API_KEY`. The label `requests.linear_label` exists in the team `JAM`. (`request-button.md`) `rb.env`
 
 ## Checktest

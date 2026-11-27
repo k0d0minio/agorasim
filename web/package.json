@@ -20,7 +20,8 @@
     "db:reset-password": "tsx --conditions=react-server scripts/reset-password.ts",
     "db:restore-backup": "tsx --conditions=react-server scripts/restore-backup.ts",
     "db:seed-experiences-sql": "tsx --conditions=react-server scripts/generate-experience-seed.ts",
-    "blog:load": "tsx --conditions=react-server scripts/load-blog-drafts.ts"
+    "blog:load": "tsx --conditions=react-server scripts/load-blog-drafts.ts",
+    "seed:test-roles": "tsx scripts/seed-test-roles.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
