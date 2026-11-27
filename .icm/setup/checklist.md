@@ -52,5 +52,5 @@ when it is done. A session does not tick a box of (J) or (B). An item that start
 - [x] (S) `linear.states` of `.icm/project.json`: the state names of the team `JAM`. An empty name: no state move at that event. `li.states`
 
 ## Close
-- [ ] (S) CI is green on the setup pull request, and the Vercel preview builds. `close.ci`
+- [x] (S) CI is green on the setup pull request, and the Vercel preview builds. `close.ci`
 - [ ] (J) Tick each box of the other files of `.icm/setup/` when its act is done. `close.acts`
